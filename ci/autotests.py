@@ -5,24 +5,28 @@ Autotests lib
 import os
 import re
 import sys
-import nose
 import time
 import datetime
 import StringIO
 import subprocess
 import ConfigParser
+from xml.dom import minidom
 
-from xml.dom                    import minidom
-from JumpScale                  import j
-from JumpScale.core.baseclasses import BaseEnumeration
+import nose2
+from ci.scripts import testrailapi, testEnum
+from ci.scripts import xunit_testrail
 
-AUTOTEST_DIR        = j.system.fs.joinPaths(os.sep, "opt", "OpenvStorage", "ovs", "extensions", "autotests")
-SCRIPTS_DIR         = j.system.fs.joinPaths(AUTOTEST_DIR, "scripts")
-TESTS_DIR           = j.system.fs.joinPaths(AUTOTEST_DIR, "tests")
-AUTOTEST_CFG_FILE   = j.system.fs.joinPaths(AUTOTEST_DIR, "autotest.cfg")
-OS_MAPPING_CFG_FILE = j.system.fs.joinPaths(AUTOTEST_DIR, "os_mapping.cfg")
+
+AUTOTEST_DIR = os.path.join(os.sep, "opt", "OpenvStorage", "ci")
+CONFIG_DIR = os.path.join(AUTOTEST_DIR, "config")
+SCRIPTS_DIR = os.path.join(AUTOTEST_DIR, "scripts")
+TESTS_DIR = os.path.join(AUTOTEST_DIR, "tests")
+
+AUTOTEST_CFG_FILE = os.path.join(CONFIG_DIR, "autotest.cfg")
+OS_MAPPING_CFG_FILE = os.path.join(CONFIG_DIR, "os_mapping.cfg")
 
 TESTRAIL_KEY = "cWFAY2xvdWRmb3VuZGVycy5jb206UjAwdDNy"
+
 
 class TestRunnerOutputFormat(BaseEnumeration):
     @classmethod
@@ -33,46 +37,43 @@ class TestRunnerOutputFormat(BaseEnumeration):
         cls.registerItem('TESTRAIL')
         cls.finishItemRegistration()
 
-TESTRAIL_STATUS_ID_PASSED  = '1'
+
+TESTRAIL_STATUS_ID_PASSED = '1'
 TESTRAIL_STATUS_ID_BLOCKED = '2'
-TESTRAIL_STATUS_ID_FAILED  = '5'
+TESTRAIL_STATUS_ID_FAILED = '5'
 
 BLOCKED_MESSAGE = "BLOCKED"
-Q_AUTOMATED     = "qAutomated"
+Q_AUTOMATED = "qAutomated"
 
 sys.path.append(SCRIPTS_DIR)
 
-import testrailapi
-import testEnum
-import xunit_testrail
 
-
-def run(test_spec      = None,
-        output_format  = j.enumerators.TestRunnerOutputFormat.CONSOLE,
-        output_folder  = None,
-        always_die     = False,
-        testrail_url   = "testrail.cloudfounders.com",
-        project_name   = None,
-        quality_level  = None,
-        version        = None):
+def run(test_spec=None,
+        output_format=TestRunnerOutputFormat.CONSOLE,
+        output_folder=None,
+        always_die=False,
+        testrail_url="testrail.cloudfounders.com",
+        project_name=None,
+        quality_level=None,
+        version=None):
     """
     Run only one test suite
     """
     if type(always_die) != bool:
-        always_die = eval(check_input(predicate = lambda x: type(eval(x)) == bool,
-                                      msg       = "Only boolean values allowed for always_die param\nDo you want the tests to stop after error/failure?[True/False]"))
+        always_die = eval(check_input(predicate=lambda x: type(eval(x)) == bool,
+                                      msg="Only boolean values allowed for always_die param\nDo you want the tests to stop after error/failure?[True/False]"))
 
     if not output_format:
-        output_format = check_input(predicate = lambda x: getattr(j.enumerators.TestRunnerOutputFormat, x, False),
-                                    msg       = 'Enter output format - [CONSOLE / XML / TESTRAIL]')
-        output_format = getattr(j.enumerators.TestRunnerOutputFormat, output_format)
+        output_format = check_input(predicate=lambda x: getattr(TestRunnerOutputFormat, x, False),
+                                    msg='Enter output format - [CONSOLE / XML / TESTRAIL]')
+        output_format = getattr(TestRunnerOutputFormat, output_format)
     else:
-        output_format = getattr(j.enumerators.TestRunnerOutputFormat, str(output_format))
-    if output_format in (j.enumerators.TestRunnerOutputFormat.XML, j.enumerators.TestRunnerOutputFormat.TESTRAIL) and output_folder == None:
-        output_folder = check_input(predicate = lambda x: j.system.fs.exists(x) and j.system.fs.isDir(x),
-                                    msg       = 'Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
+        output_format = getattr(TestRunnerOutputFormat, str(output_format))
+    if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and output_folder == None:
+        output_folder = check_input(predicate=lambda x: os.exists(x) and os.isDir(x),
+                                    msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
-    if output_format == j.enumerators.TestRunnerOutputFormat.TESTRAIL:
+    if output_format == TestRunnerOutputFormat.TESTRAIL:
         if quality_level == None:
             quality_level = _getQualityLevel()
 
@@ -83,17 +84,17 @@ def run(test_spec      = None,
             version = _getOvsVersion()
 
     if test_spec == None:
-        test_spec = check_input(predicate = lambda x: x,
-                                msg       = 'Enter test suite: ')
+        test_spec = check_input(predicate=lambda x: x,
+                                msg='Enter test suite: ')
 
-    arguments = _parseArgs(suite_name    = 'test_results',
-                           output_format = output_format,
-                           output_folder = output_folder,
-                           always_die    = always_die,
-                           testrail_url  = testrail_url,
-                           project_name  = project_name,
-                           quality_level = quality_level,
-                           version       = version)
+    arguments = _parseArgs(suite_name='test_results',
+                           output_format=output_format,
+                           output_folder=output_folder,
+                           always_die=always_die,
+                           testrail_url=testrail_url,
+                           project_name=project_name,
+                           quality_level=quality_level,
+                           version=version)
 
     tests = _convertTestSpec(test_spec)
     arguments.append(tests)
@@ -102,32 +103,32 @@ def run(test_spec      = None,
 
 
 def runMultiple(list_of_tests,
-                output_format  = j.enumerators.TestRunnerOutputFormat.CONSOLE,
-                output_folder  = None,
-                always_die     = False,
-                testrail_url   = "testrail.cloudfounders.com",
-                project_name   = "IAAS3x ENG",
-                quality_level  = None,
-                version        = None):
+                output_format=TestRunnerOutputFormat.CONSOLE,
+                output_folder=None,
+                always_die=False,
+                testrail_url="testrail.cloudfounders.com",
+                project_name="IAAS3x ENG",
+                quality_level=None,
+                version=None):
     """
     Run a selection of multiple test suites
     """
     if type(always_die) != bool:
-        always_die = eval(check_input(predicate = lambda x: type(eval(x)) == bool,
-                                      msg       = "Only boolean values allowed for always_die param\nDo you want the tests to stop after error/failure?[True/False]"))
+        always_die = eval(check_input(predicate=lambda x: type(eval(x)) == bool,
+                                      msg="Only boolean values allowed for always_die param\nDo you want the tests to stop after error/failure?[True/False]"))
 
     if not output_format:
-        output_format = check_input(predicate = lambda x: getattr(j.enumerators.TestRunnerOutputFormat, x, False),
-                                    msg       = 'Enter output format - [CONSOLE / XML / TESTRAIL]')
-        output_format = getattr(j.enumerators.TestRunnerOutputFormat, output_format)
+        output_format = check_input(predicate=lambda x: getattr(TestRunnerOutputFormat, x, False),
+                                    msg='Enter output format - [CONSOLE / XML / TESTRAIL]')
+        output_format = getattr(TestRunnerOutputFormat, output_format)
     else:
-        output_format = getattr(j.enumerators.TestRunnerOutputFormat, str(output_format))
+        output_format = getattr(TestRunnerOutputFormat, str(output_format))
 
-    if output_format in (j.enumerators.TestRunnerOutputFormat.XML, j.enumerators.TestRunnerOutputFormat.TESTRAIL) and output_folder == None:
-        output_folder = check_input(predicate = lambda x: j.system.fs.exists(x) and j.system.fs.isDir(x),
-                                    msg       = 'Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
+    if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and output_folder == None:
+        output_folder = check_input(predicate=lambda x: os.exists(x) and os.isDir(x),
+                                    msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
-    if output_format == j.enumerators.TestRunnerOutputFormat.TESTRAIL:
+    if output_format == TestRunnerOutputFormat.TESTRAIL:
         if quality_level == None:
             quality_level = _getQualityLevel()
 
@@ -137,28 +138,28 @@ def runMultiple(list_of_tests,
         if not version:
             version = _getOvsVersion()
 
-    arguments = _parseArgs(suite_name    = 'test_results',
-                           output_format = output_format,
-                           output_folder = output_folder,
-                           always_die    = always_die,
-                           testrail_url  = testrail_url,
-                           project_name  = project_name,
-                           quality_level = quality_level,
-                           version       = version,
-                           list_of_tests = list_of_tests)
+    arguments = _parseArgs(suite_name='test_results',
+                           output_format=output_format,
+                           output_folder=output_folder,
+                           always_die=always_die,
+                           testrail_url=testrail_url,
+                           project_name=project_name,
+                           quality_level=quality_level,
+                           version=version,
+                           list_of_tests=list_of_tests)
 
     _runTests(arguments)
 
 
-def runAll(output_format      = j.enumerators.TestRunnerOutputFormat.CONSOLE,
-           output_folder      = None,
-           always_die         = False,
-           specialSuitesToRun = None,
-           randomize          = False,
-           testrail_url       = "testrail.cloudfounders.com",
-           project_name       = "OVS",
-           quality_level      = None,
-           version            = None):
+def runAll(output_format=TestRunnerOutputFormat.CONSOLE,
+           output_folder=None,
+           always_die=False,
+           specialSuitesToRun=None,
+           randomize=False,
+           testrail_url="testrail.cloudfounders.com",
+           project_name="OVS",
+           quality_level=None,
+           version=None):
     """
     Run all test suites
     """
@@ -166,21 +167,21 @@ def runAll(output_format      = j.enumerators.TestRunnerOutputFormat.CONSOLE,
     _ = randomize
 
     if type(always_die) != bool:
-        always_die = eval(check_input(predicate = lambda x: type(eval(x)) == bool,
-                                      msg       = "Only boolean values allowed for always_die param\nDo you want the tests to stop after error/failure?[True/False]"))
+        always_die = eval(check_input(predicate=lambda x: type(eval(x)) == bool,
+                                      msg="Only boolean values allowed for always_die param\nDo you want the tests to stop after error/failure?[True/False]"))
 
     if not output_format:
-        output_format = check_input(predicate = lambda x: getattr(j.enumerators.TestRunnerOutputFormat, x, False),
-                                    msg       = 'Enter output format - [CONSOLE / XML / TESTRAIL]')
-        output_format = getattr(j.enumerators.TestRunnerOutputFormat, output_format)
+        output_format = check_input(predicate=lambda x: getattr(TestRunnerOutputFormat, x, False),
+                                    msg='Enter output format - [CONSOLE / XML / TESTRAIL]')
+        output_format = getattr(TestRunnerOutputFormat, output_format)
     else:
-        output_format = getattr(j.enumerators.TestRunnerOutputFormat, str(output_format))
+        output_format = getattr(TestRunnerOutputFormat, str(output_format))
 
-    if output_format in (j.enumerators.TestRunnerOutputFormat.XML, j.enumerators.TestRunnerOutputFormat.TESTRAIL) and output_folder == None:
-        output_folder = check_input(predicate = lambda x: j.system.fs.exists(x) and j.system.fs.isDir(x),
-                                    msg       = 'Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
+    if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and output_folder == None:
+        output_folder = check_input(predicate=lambda x: os.exists(x) and os.isDir(x),
+                                    msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
-    if output_format == j.enumerators.TestRunnerOutputFormat.TESTRAIL:
+    if output_format == TestRunnerOutputFormat.TESTRAIL:
         if quality_level == None:
             quality_level = _getQualityLevel()
 
@@ -191,40 +192,40 @@ def runAll(output_format      = j.enumerators.TestRunnerOutputFormat.CONSOLE,
             version = _getOvsVersion()
 
     toRun = None
-    arguments = _parseArgs(suite_name    = 'test_results',
-                           output_format = output_format,
-                           output_folder = output_folder,
-                           always_die    = always_die,
-                           testrail_url  = testrail_url,
-                           project_name  = project_name,
-                           quality_level = quality_level,
-                           version       = version,
-                           list_of_tests = toRun)
+    arguments = _parseArgs(suite_name='test_results',
+                           output_format=output_format,
+                           output_folder=output_folder,
+                           always_die=always_die,
+                           testrail_url=testrail_url,
+                           project_name=project_name,
+                           quality_level=quality_level,
+                           version=version,
+                           list_of_tests=toRun)
 
     _runTests(arguments)
 
 
-def pushToTestrail(project                = None,
-                   qualityLevel           = None,
-                   version                = None,
-                   testrailIP             = "testrail.cloudfounders.com",
-                   folder                 = "/var/tmp",
-                   fileName               = "",
-                   milestone              = "",
-                   comment                = "",
-                   quality_level          = None,
-                   createInexistentSuites = None,
-                   createInexistentCases  = None):
+def pushToTestrail(project=None,
+                   qualityLevel=None,
+                   version=None,
+                   testrailIP="testrail.cloudfounders.com",
+                   folder="/var/tmp",
+                   fileName="",
+                   milestone="",
+                   comment="",
+                   quality_level=None,
+                   createInexistentSuites=None,
+                   createInexistentCases=None):
     """
     Push xml file with test results to Testrail
     """
     _ = qualityLevel
 
     if not fileName:
-        folderPred = lambda x: j.system.fs.exists(x) and j.system.fs.isDir(x)
+        folderPred = lambda x: os.exists(x) and os.isDir(x)
         if not folderPred(folder):
-            folder = check_input(predicate = folderPred,
-                                 msg       = 'Incorrect parameter output_folder: %s is not a directory or does not exist' % folder)
+            folder = check_input(predicate=folderPred,
+                                 msg='Incorrect parameter output_folder: %s is not a directory or does not exist' % folder)
 
         resultFiles = _getResultFiles(folder)
         if not resultFiles:
@@ -234,10 +235,11 @@ def pushToTestrail(project                = None,
         else:
             filesToAskRange = list(range(len(resultFiles)))
             filesToAsk = zip(filesToAskRange, resultFiles)
-            fileNameIdx = eval(check_input(predicate = lambda x: eval(x) in filesToAskRange,
-                                           msg       = "Please chose results file \n" + "\n".join(map(lambda x : str(x[0]) + "->" + str(x[1]), filesToAsk)) + ":\n"))
+            fileNameIdx = eval(check_input(predicate=lambda x: eval(x) in filesToAskRange,
+                                           msg="Please chose results file \n" + "\n".join(
+                                               map(lambda x: str(x[0]) + "->" + str(x[1]), filesToAsk)) + ":\n"))
 
-    fileName = j.system.fs.joinPaths(folder, resultFiles[fileNameIdx])
+    fileName = os.path.join(folder, resultFiles[fileNameIdx])
     print fileName
 
     if quality_level == None:
@@ -249,15 +251,15 @@ def pushToTestrail(project                = None,
     if not version:
         version = _getOvsVersion()
 
-    url = _pushToTestrail(IP                     = testrailIP,
-                          fileName               = fileName,
-                          milestone              = milestone,
-                          project                = project,
-                          version                = version,
-                          qlevel                 = quality_level,
-                          planComment            = comment,
-                          createInexistentSuites = createInexistentSuites,
-                          createInexistentCases  = createInexistentCases)
+    url = _pushToTestrail(IP=testrailIP,
+                          fileName=fileName,
+                          milestone=milestone,
+                          project=project,
+                          version=version,
+                          qlevel=quality_level,
+                          planComment=comment,
+                          createInexistentSuites=createInexistentSuites,
+                          createInexistentCases=createInexistentCases)
 
     if url:
         print "\n" + url
@@ -267,11 +269,11 @@ def _parseArgs(suite_name,
                output_format,
                output_folder,
                always_die,
-               list_of_tests  = None,
-               testrail_url   = None,
-               project_name   = None,
-               quality_level  = None,
-               version        = None):
+               list_of_tests=None,
+               testrail_url=None,
+               project_name=None,
+               quality_level=None,
+               version=None):
     """
     Parse arguments in the format expected by nose
     """
@@ -279,19 +281,19 @@ def _parseArgs(suite_name,
     arguments = ['', '--where', TESTS_DIR]
     if always_die:
         arguments.append('-x')
-    if output_format == j.enumerators.TestRunnerOutputFormat.CONSOLE:
+    if output_format == TestRunnerOutputFormat.CONSOLE:
         arguments.append('--verbosity')
         arguments.append('3')
-    elif output_format == j.enumerators.TestRunnerOutputFormat.XML:
+    elif output_format == TestRunnerOutputFormat.XML:
         if output_folder == None:
             raise AttributeError("No output folder for the XML result files specified")
-        if not j.system.fs.exists(output_folder):
+        if not os.exists(output_folder):
             raise AttributeError("Given output folder doesn't exist. Please create it first!")
         arguments.append('--verbosity')
         arguments.append('3')
         arguments.append('--with-xunit_testrail')
         arguments.append('--xunit_file2')
-        arguments.append(j.system.fs.joinPaths(output_folder, '%s.xml' % suite_name))
+        arguments.append(os.path.join(output_folder, '%s.xml' % suite_name))
         arguments.append('--testrail-ip')
         arguments.append("")
         arguments.append('--project-name')
@@ -300,10 +302,10 @@ def _parseArgs(suite_name,
         arguments.append("")
         arguments.append('--description')
         arguments.append("")
-    elif output_format == j.enumerators.TestRunnerOutputFormat.TESTRAIL:
+    elif output_format == TestRunnerOutputFormat.TESTRAIL:
         if output_folder == None:
             raise AttributeError("No output folder for the XML result files specified")
-        if not j.system.fs.exists(output_folder):
+        if not os.exists(output_folder):
             raise AttributeError("Given output folder doesn't exist. Please create it first!")
         if testrail_url == None:
             raise AttributeError("No testrail ip specified")
@@ -318,7 +320,7 @@ def _parseArgs(suite_name,
         arguments.append('3')
         arguments.append('--with-xunit_testrail')
         arguments.append('--xunit_file2')
-        arguments.append(j.system.fs.joinPaths(output_folder, '%s.xml' % suite_name))
+        arguments.append(os.path.join(output_folder, '%s.xml' % suite_name))
         arguments.append('--testrail-ip')
         arguments.append(testrail_url)
         arguments.append('--project-name')
@@ -344,8 +346,8 @@ def _convertTestSpec(test_spec):
     be converted to toplevel_package/sub_package or no tests are picked up.
     """
     test_spec_parts = test_spec.split('.')
-    test_spec_path = j.system.fs.joinPaths(TESTS_DIR, *test_spec_parts)
-    if(j.system.fs.isDir(test_spec_path)):
+    test_spec_path = os.path.join(TESTS_DIR, *test_spec_parts)
+    if (os.isDir(test_spec_path)):
         return test_spec.replace('.', '/')
     else:
         return test_spec
@@ -355,10 +357,10 @@ def _runTests(arguments):
     """
     Run the tests
     """
-    nose.run(argv = arguments, addplugins = [xunit_testrail.xunit_testrail()])
+    nose2.run(argv=arguments, addplugins=[xunit_testrail.xunit_testrail()])
 
 
-def listTests(args = None):
+def listTests(args=None):
     '''
     Lists all the tests that nose detects under TESTS_DIR
     '''
@@ -372,7 +374,7 @@ def listTests(args = None):
     sys.stdout = fakeStdout
 
     try:
-        nose.run(argv = arguments, addplugins = [testEnum.TestEnum()])
+        nose2.run(argv=arguments, addplugins=[testEnum.TestEnum()])
     except Exception:
         raise
     finally:
@@ -389,18 +391,18 @@ def _getHypervisor():
     return "VMWARE_ESX"
 
 
-def _getDescription(planComment = "", durations = ""):
+def _getDescription(planComment="", durations=""):
     """
     Generate description for pushing to Testrail
     """
     description = ""
-    mgmtNodeIP  = _get_ip("eth1")
-    for item, value in (("ip"         , "* %s" % mgmtNodeIP),
-                        ("testsuite"  , durations),
-                        ("Hypervisor" , _getHypervisor()),
-                        ("hardware"   , _getHardwareInfo()),
-                        ("package"    , _getPackageInfo()),
-                        ("Comment "   , ('*' * 40 + "\n" + planComment) if planComment else '')):
+    mgmtNodeIP = _get_ip("eth1")
+    for item, value in (("ip", "* %s" % mgmtNodeIP),
+                        ("testsuite", durations),
+                        ("Hypervisor", _getHypervisor()),
+                        ("hardware", _getHardwareInfo()),
+                        ("package", _getPackageInfo()),
+                        ("Comment ", ('*' * 40 + "\n" + planComment) if planComment else '')):
         description += "# %s INFO \n%s\n" % (item.upper(), value)
 
     return description
@@ -420,11 +422,13 @@ def _getQualityLevel():
     """
     Retrieve quality level of installation
     """
-    sourcesCfgFile = j.system.fs.joinPaths(j.dirs.cfgDir, "jpackages", "sources.cfg")
-    sourcesCfg = ConfigParser.ConfigParser()
-    sourcesCfg.read(sourcesCfgFile)
-    qualityLevel = sourcesCfg.get('openvstorage', 'qualitylevel')
-    return qualityLevel
+    # @todo to be updated
+    # sourcesCfgFile = os.path.join(j.dirs.cfgDir, "jpackages", "sources.cfg")
+    # sourcesCfg = ConfigParser.ConfigParser()
+    # sourcesCfg.read(sourcesCfgFile)
+    # qualityLevel = sourcesCfg.get('openvstorage', 'qualitylevel')
+    # return qualityLevel
+    return "unstable"
 
 
 def _getProject():
@@ -438,30 +442,34 @@ def _getOvsVersion():
     """
     Retrieve version of ovs installation
     """
-    ovsPckg = j.packages.find(domain = "openvstorage", name = "openvstorage")
-    ovsPckg = ovsPckg[0]
-    return ovsPckg.version
+    # @todo to be updated
+    # ovsPckg = j.packages.find(domain = "openvstorage", name = "openvstorage")
+    # ovsPckg = ovsPckg[0]
+    # return ovsPckg.version
+
+    return "1.3.0"
 
 
 def _getResultFiles(folder):
     """
     List all xml results files in folder
     """
-    xmlFiles = j.system.fs.listFilesInDir(path   = folder,
-                                          filter = "*.xml*")
+    xmlFiles = j.system.fs.listFilesInDir(path=folder,
+                                          filter="*.xml*")
     xmlFiles = [j.system.fs.getBaseName(xmlFile) for xmlFile in xmlFiles]
-    xmlFiles.sort(reverse = True)
+    xmlFiles.sort(reverse=True)
     return xmlFiles
+
 
 def _getHardwareInfo():
     """
     Get hardware info for env
     """
     childProc = subprocess.Popen("dmidecode | grep -A 12 'Base Board Information'",
-                                 shell  = True,
-                                 stdin  = subprocess.PIPE,
-                                 stdout = subprocess.PIPE,
-                                 stderr = subprocess.PIPE)
+                                 shell=True,
+                                 stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
 
     (sysinfo, _error) = childProc.communicate()
 
@@ -470,10 +478,10 @@ def _getHardwareInfo():
         sysinfo = "NO MOTHERBOARD INFORMATION FOUND"
 
     childProc = subprocess.Popen("lshw -short",
-                                 shell  = True,
-                                 stdin  = subprocess.PIPE,
-                                 stdout = subprocess.PIPE,
-                                 stderr = subprocess.PIPE)
+                                 shell=True,
+                                 stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
 
     (lshwinfo, _error) = childProc.communicate()
     exitcode = childProc.returncode
@@ -484,8 +492,8 @@ def _getHardwareInfo():
         lshwinfo = lshwinfo.split('\n')
 
     diskinfo = ''
-    meminfo  = []
-    cpuinfo  = []
+    meminfo = []
+    cpuinfo = []
     for line in lshwinfo:
         if line.find("disk") >= 0:
             if line.find('DVD-ROM') >= 0 or line.find('CD-ROM') >= 0:
@@ -506,14 +514,15 @@ def _getHardwareInfo():
             index = l.index('processor') + 1
             cinfo = " ".join(l[index:])
             cpuinfo.append(cinfo)
-    return "### " + sysinfo + '\n### Disk Information\n' + diskinfo + '\n### Processor Information\n' + '* ' + '\n* '.join(cpuinfo) + '\n### Memory Information\n' + '* ' + ' '.join(meminfo)
+    return "### " + sysinfo + '\n### Disk Information\n' + diskinfo + '\n### Processor Information\n' + '* ' + '\n* '.join(
+        cpuinfo) + '\n### Memory Information\n' + '* ' + ' '.join(meminfo)
 
 
 def _getPackageInfo():
     """
     Retrieve package information for installation
     """
-    packages = j.packages.find(domain = "openvstorage", name = "*")
+    packages = j.packages.find(domain="openvstorage", name="*")
 
     return '\n'.join(map(str, packages))
 
@@ -522,15 +531,16 @@ def _getDurations(xmlfile):
     """
     Extract test durations from xml file
     """
+
     def parseToReadableForm(durations):
         def getTextualValues(seconds):
             if not seconds:
                 return "%2i %5s, %2i %7s, %2i %7s\n" % (0, 'hours', 0, 'minutes', 0, 'seconds')
-            hours       = seconds / 60 / 60
-            rest        = seconds % (60 * 60)
-            minutes     = rest / 60
-            rest        = rest % 60
-            hoursText   = 'hour' if hours == 1 else 'hours'
+            hours = seconds / 60 / 60
+            rest = seconds % (60 * 60)
+            minutes = rest / 60
+            rest = rest % 60
+            hoursText = 'hour' if hours == 1 else 'hours'
             minutesText = 'minute' if minutes == 1 else 'minutes'
             secondsText = 'second' if rest == 1 else 'seconds'
             return "%2i %5s, %2i %7s, %2i %7s\n" % (hours, hoursText, minutes, minutesText, rest, secondsText)
@@ -574,11 +584,11 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
         if suite in ('<nose', 'nose'):
             continue
         if child.childNodes and \
-           child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest' and \
-           child.childNodes[0].getAttribute('message') != BLOCKED_MESSAGE:
+                        child.childNodes[0].getAttribute('type') == 'nose2.plugins.skip.SkipTest' and \
+                        child.childNodes[0].getAttribute('message') != BLOCKED_MESSAGE:
             continue
         case = child.getAttribute('name')
-        match    = re.search("c\d+_(.+)", case)
+        match = re.search("c\d+_(.+)", case)
         case = match.groups()[0] if match else case
 
         prevSuiteName = suiteName
@@ -620,7 +630,8 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
                 sectionID = newSection['id']
                 sectionNameToId[suiteID] = {sectionName: sectionID}
             else:
-                print "Section %s under suiteId %s not found on testrail, manually create it or set createInexistentSuites param to True" % (sectionName, suiteID)
+                print "Section %s under suiteId %s not found on testrail, manually create it or set createInexistentSuites param to True" % (
+                    sectionName, suiteID)
                 exit(1)
         else:
             sectionID = sectionID[0]['id']
@@ -629,14 +640,16 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
             sectionNameToId[suiteID][sectionName] = sectionID
         else:
             sectionNameToId[suiteID] = {sectionName: sectionID}
-        caseID = [caseObj for caseObj in allCases[suiteName] if caseObj['section_id'] == sectionID and caseObj['title'] == case]
+        caseID = [caseObj for caseObj in allCases[suiteName] if
+                  caseObj['section_id'] == sectionID and caseObj['title'] == case]
         if createInexistentCases:
             if not caseID:
                 newCase = testrailApi.addCase(sectionID, case)
                 caseID = newCase['id']
                 allCases[suiteName].append(newCase)
 
-        ranCases[suiteName] = ranCases[suiteName].add(case) or ranCases[suiteName] if ranCases.get(suiteName) else set([case])
+        ranCases[suiteName] = ranCases[suiteName].add(case) or ranCases[suiteName] if ranCases.get(suiteName) else set(
+            [case])
 
     return allCases, ranCases, suiteNameToId, sectionNameToId
 
@@ -650,7 +663,8 @@ def determineSectionName(suite, caseName):
     return Q_AUTOMATED
 
 
-def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComment, createInexistentSuites, createInexistentCases):
+def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComment, createInexistentSuites,
+                    createInexistentCases):
     """
     Push xml file to Testrail
     """
@@ -660,7 +674,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
     if not j.system.fs.isFile(testResultFile):
         raise Exception("Invalid file given")
 
-    testrailApi = testrailapi.TestrailApi(IP, key = TESTRAIL_KEY)
+    testrailApi = testrailapi.TestrailApi(IP, key=TESTRAIL_KEY)
 
     allProjects = testrailApi.getProjects()
     projectID = [p for p in allProjects if p['name'] == project]
@@ -676,44 +690,45 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         if not milestoneID:
             dueDate = datetime.datetime.now() + datetime.timedelta(hours=24)
             dueDate = time.mktime(dueDate.timetuple())
-            milestoneID = testrailApi.addMilestone(projectID, milestone, dueOn = int(dueDate))
+            milestoneID = testrailApi.addMilestone(projectID, milestone, dueOn=int(dueDate))
 
             milestoneID = milestoneID['id']
         else:
             milestoneID = milestoneID[0]['id']
 
     today = datetime.datetime.today()
-    date  = today.strftime('%a %b %d %H:%M:%S')
-    name  = '%s.%s__%s' % (version, qlevel, date)
+    date = today.strftime('%a %b %d %H:%M:%S')
+    name = '%s.%s__%s' % (version, qlevel, date)
 
     projectMapping = j.system.fs.joinPaths(SCRIPTS_DIR, "project_testsuite_mapping.cfg")
     projectIni = ConfigParser.ConfigParser()
     projectIni.read(projectMapping)
 
     if not projectIni.has_section(project):
-        raise Exception("Config file '%s' does not contain section for specified project '%s'" % (projectMapping, project))
+        raise Exception(
+            "Config file '%s' does not contain section for specified project '%s'" % (projectMapping, project))
 
-    errorMessages    = []
-    xmlfile          = minidom.parse(testResultFile).childNodes[0]
-    durations        = _getDurations(xmlfile)
-    addedSuites      = []
-    planID           = None
-    suiteToRunDict   = {}
+    errorMessages = []
+    xmlfile = minidom.parse(testResultFile).childNodes[0]
+    durations = _getDurations(xmlfile)
+    addedSuites = []
+    planID = None
+    suiteToRunDict = {}
     caseNameToTestId = {}
 
-    #additionalResultsFile = getAdditionalResultsFile(testResultFile)
+    # additionalResultsFile = getAdditionalResultsFile(testResultFile)
 
-    allCases, ranCases, suiteNameToId, sectionNameToId = _getCases(xmlfile                = xmlfile,
-                                                                   testrailApi            = testrailApi,
-                                                                   projectIni             = projectIni,
-                                                                   projectName            = project,
-                                                                   projectID              = projectID,
-                                                                   createInexistentSuites = createInexistentSuites,
-                                                                   createInexistentCases  = createInexistentCases)
+    allCases, ranCases, suiteNameToId, sectionNameToId = _getCases(xmlfile=xmlfile,
+                                                                   testrailApi=testrailApi,
+                                                                   projectIni=projectIni,
+                                                                   projectName=project,
+                                                                   projectID=projectID,
+                                                                   createInexistentSuites=createInexistentSuites,
+                                                                   createInexistentCases=createInexistentCases)
     testsCaseIdsToSelect = []
 
     def addPlan():
-        description = _getDescription(planComment = planComment, durations = durations)
+        description = _getDescription(planComment=planComment, durations=durations)
         planID = testrailApi.addPlan(projectID, name, description, milestoneID or None)['id']
         return planID
 
@@ -721,7 +736,8 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         suite = child.getAttribute('classname').split('.')[0]
 
         if suite in ('<nose', 'nose'):
-            if child.childNodes[0].childNodes and child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
+            if child.childNodes[0].childNodes and child.childNodes[0].childNodes[
+                0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
                 errorMessages.append(child.childNodes[0].childNodes[0].data)
             else:
                 errorMessages.append(child.childNodes[0].getAttribute('message'))
@@ -729,14 +745,15 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
 
         isBlocked = False
 
-        if child.childNodes and child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest':
+        if child.childNodes and child.childNodes[0].getAttribute('type') == 'nose2.plugins.skip.SkipTest':
             if child.childNodes[0].getAttribute('message') == BLOCKED_MESSAGE:
                 isBlocked = True
             else:
                 continue
 
         if not projectIni.has_option(project, suite):
-            raise Exception("Testsuite '%s' is not configured for project '%s' in '%s'" % (suite, project, projectMapping))
+            raise Exception(
+                "Testsuite '%s' is not configured for project '%s' in '%s'" % (suite, project, projectMapping))
 
         suiteName = projectIni.get(project, suite)
 
@@ -750,32 +767,35 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         caseName = child.getAttribute('name')
 
         sectionName = determineSectionName(suite, caseName)
-        sectionID   = sectionNameToId[suiteNameToId[suiteName]][sectionName]
-        #print "%-20s %-50s %-50s" % (suite, caseName, sectionName)
+        sectionID = sectionNameToId[suiteNameToId[suiteName]][sectionName]
+        # print "%-20s %-50s %-50s" % (suite, caseName, sectionName)
         caseID = [case for case in allCases[suiteName] if case['title'] == caseName and case['section_id'] == sectionID]
         if not caseID:
-            print "Case %s from suite %s section %s not found. Could be that CREATE_INEXISTENT_TESTSUITE is not set to True" % (caseName, suiteName, sectionID)
+            print "Case %s from suite %s section %s not found. Could be that CREATE_INEXISTENT_TESTSUITE is not set to True" % (
+                caseName, suiteName, sectionID)
             print  [(c['title'], c['section_id']) for c in allCases[suiteName]]
             continue
         caseID = caseID[0]['id']
 
         if planID == None:
-            createRun   = False
+            createRun = False
             planID = addPlan()
 
-            entry = testrailApi.addPlanEntry(planID, suiteNameToId[suiteName], suiteName, includeAll = False, caseIds = testsCaseIdsToSelect)
+            entry = testrailApi.addPlanEntry(planID, suiteNameToId[suiteName], suiteName, includeAll=False,
+                                             caseIds=testsCaseIdsToSelect)
             runID = entry['runs'][0]['id']
             suiteToRunDict[suiteName] = runID
 
         if createRun:
-            entry = testrailApi.addPlanEntry(planID, suiteNameToId[suiteName], suiteName, includeAll = False, caseIds = testsCaseIdsToSelect)
+            entry = testrailApi.addPlanEntry(planID, suiteNameToId[suiteName], suiteName, includeAll=False,
+                                             caseIds=testsCaseIdsToSelect)
             runID = entry['runs'][0]['id']
             suiteToRunDict[suiteName] = runID
             createRun = False
 
         runID = suiteToRunDict[suiteName]
         if caseName not in caseNameToTestId:
-            allTestsForRun = testrailApi.getTests(runId = runID)
+            allTestsForRun = testrailApi.getTests(runId=runID)
             for t in allTestsForRun:
                 caseNameToTestId[t['title'] + str(runID)] = t['id']
 
@@ -788,28 +808,30 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
             #   additionalResultsFile.checkSection(sectionName = suite) and \
             #   additionalResultsFile.checkParam(sectionName = suite, paramName = caseName):
             #    comment = additionalResultsFile.getValue(sectionName = suite, paramName = caseName, raw = True).replace('||', '\n')
-        elif child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest':
+        elif child.childNodes[0].getAttribute('type') == 'nose2.plugins.skip.SkipTest':
             if isBlocked:
                 status_id = TESTRAIL_STATUS_ID_BLOCKED
-                if child.childNodes[0].childNodes and child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
+                if child.childNodes[0].childNodes and child.childNodes[0].childNodes[
+                    0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
                     comment = child.childNodes[0].childNodes[0].data
             else:
                 continue
         else:
             status_id = TESTRAIL_STATUS_ID_FAILED
-            if child.childNodes[0].childNodes and child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
+            if child.childNodes[0].childNodes and child.childNodes[0].childNodes[
+                0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
                 comment = child.childNodes[0].childNodes[0].data
             else:
-                comment   = child.childNodes[0].getAttribute('message')
+                comment = child.childNodes[0].getAttribute('message')
         elapsed = int(child.getAttribute('time'))
         if elapsed == 0:
             elapsed = 1
-        testrailApi.addResult(testId        = testID,
-                              statusId      = status_id,
-                              comment       = comment,
-                              version       = version,
-                              elapsed       = '%ss' % elapsed,
-                              customFields  = {'custom_hypervisor': _getHypervisor()})
+        testrailApi.addResult(testId=testID,
+                              statusId=status_id,
+                              comment=comment,
+                              version=version,
+                              elapsed='%ss' % elapsed,
+                              customFields={'custom_hypervisor': _getHypervisor()})
 
     xmlfile.unlink()
     del xmlfile
@@ -829,37 +851,41 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
             sectionID = testrailApi.addSection(projectID, suiteID, qAutoSectionName)['id']
         else:
             sectionID = sectionID[0]['id']
-        caseName    = "FailedSetup"
-        caseID      = [c for c in testrailApi.getCases(projectID, suiteID, sectionID) if c['title'] == caseName]
+        caseName = "FailedSetup"
+        caseID = [c for c in testrailApi.getCases(projectID, suiteID, sectionID) if c['title'] == caseName]
         if not caseID:
             caseID = testrailApi.addCase(sectionID, caseName)['id']
         else:
             caseID = caseID[0]['id']
         if not planID:
             planID = addPlan()
-        runID = testrailApi.addPlanEntry(planID, suiteID, failedSetupSuiteName, includeAll = False, caseIds = [caseID])['runs'][0]['id']
+        runID = \
+            testrailApi.addPlanEntry(planID, suiteID, failedSetupSuiteName, includeAll=False, caseIds=[caseID])['runs'][
+                0][
+                'id']
         testrailApi.addResultForCase(runID, caseID, '5', ("\n" + "=" * 70 + "\n").join(errorMessages))
 
     return "http://%s/index.php?/plans/view/%s" % (IP, planID)
 
 
-def _get_ip(iface = 'eth0'):
+def _get_ip(iface='eth0'):
     """
     Get ip of interface using SIOCGIFADDR ioctl
     """
     import socket, struct, fcntl
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sockfd = sock.fileno()
     SIOCGIFADDR = 0x8915
 
-    #set ifreq.ifr_name, ifreq.ifr_addr.sa_family and pad with 0
+    # set ifreq.ifr_name, ifreq.ifr_addr.sa_family and pad with 0
     ifreq = struct.pack('16sH14s', iface, socket.AF_INET, '\x00' * 14)
     try:
         res = fcntl.ioctl(sockfd, SIOCGIFADDR, ifreq)
     except Exception:
         return None
     ip = struct.unpack('16sH2x4s8x', res)[2]
-    #ip is packed in a in_addr c struct
+    # ip is packed in a in_addr c struct
     return socket.inet_ntoa(ip)
 
 
@@ -890,7 +916,7 @@ def getTestLevel():
     """
     autotestCfgL = _getConfigIni()
 
-    return autotestCfgL.get(section = "main", option = "testlevel")
+    return autotestCfgL.get(section="main", option="testlevel")
 
 
 def setTestLevel(testLevel):
@@ -903,7 +929,7 @@ def setTestLevel(testLevel):
         return False
 
     atCfg = _getConfigIni()
-    atCfg.set(section = "main", option = "testlevel", value = testLevel)
+    atCfg.set(section="main", option="testlevel", value=testLevel)
     _saveConfigIni(atCfg)
 
     return True
@@ -915,7 +941,7 @@ def getHypervisorInfo():
     """
     autotestCfgL = _getConfigIni()
 
-    hi = autotestCfgL.get(section = "main", option = "hypervisorinfo")
+    hi = autotestCfgL.get(section="main", option="hypervisorinfo")
     hiList = hi.split(",")
     if not len(hiList) == 3:
         print "No hypervisor info present in config"
@@ -951,7 +977,7 @@ def setHypervisorInfo(ip, username, password):
 
     value = ','.join([ip, username, password])
     atCfg = _getConfigIni()
-    atCfg.set(section = "main", option = "hypervisorinfo", value = value)
+    atCfg.set(section="main", option="hypervisorinfo", value=value)
     _saveConfigIni(atCfg)
 
     return True
@@ -984,14 +1010,14 @@ def getOsInfo(osName):
     osInfo = {}
 
     esxOsNameOption = "esx_os_name"
-    locationOption  = "location"
+    locationOption = "location"
 
     optionsToRetrieve = [esxOsNameOption, locationOption]
     for option in optionsToRetrieve:
-        if not osMappingCfg.has_option(section = osName, option = option):
+        if not osMappingCfg.has_option(section=osName, option=option):
             print("Invalid os mapping config file, option {0} doesnt exist for {1}".format(option, osName))
             return
-        osInfo[option] = osMappingCfg.get(section = osName, option = option)
+        osInfo[option] = osMappingCfg.get(section=osName, option=option)
 
     return osInfo
 
@@ -1006,10 +1032,11 @@ def setOs(osName):
         return False
 
     atCfg = _getConfigIni()
-    atCfg.set(section = "main", option = "os", value = osName)
+    atCfg.set(section="main", option="os", value=osName)
     _saveConfigIni(atCfg)
 
     return True
+
 
 def getOs():
     """
@@ -1017,6 +1044,6 @@ def getOs():
     """
     autotestCfgL = _getConfigIni()
 
-    osName = autotestCfgL.get(section = "main", option = "os")
+    osName = autotestCfgL.get(section="main", option="os")
 
     return osName

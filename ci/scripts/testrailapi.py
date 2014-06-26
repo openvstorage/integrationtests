@@ -4,13 +4,14 @@ import urllib2
 
 
 class TestrailApi:
-    def __init__(self, testrailIp, user = None, password = None, key = None):
+    def __init__(self, testrailIp, user=None, password=None, key=None):
         self.testrailIp = testrailIp
-        assert (user and password) or key, "Credentials are needed for testrail connection, specify either user/password or basic auth key"
+        assert (
+                   user and password) or key, "Credentials are needed for testrail connection, specify either user/password or basic auth key"
         self.base64userpass = key or base64.encodestring('%s:%s' % (user, password)).replace('\n', '')
         self.URL = "http://%s/index.php?/api/v2/%s"
 
-    def _getFromTestRail(self, testrailItem, mainId = None, urlParams = None):
+    def _getFromTestRail(self, testrailItem, mainId=None, urlParams=None):
         if mainId:
             url = self.URL % (self.testrailIp, '%s/%s' % (testrailItem, mainId))
             if urlParams:
@@ -36,13 +37,13 @@ class TestrailApi:
         result = json.loads(content)
         return result
 
-    def _addToTestRail(self, testrailItem, mainId = None, values = None):
+    def _addToTestRail(self, testrailItem, mainId=None, values=None):
 
         if mainId:
             mainId = str(mainId)
-            url  = self.URL % (self.testrailIp, '%s/%s' % (testrailItem, mainId))
+            url = self.URL % (self.testrailIp, '%s/%s' % (testrailItem, mainId))
         else:
-            url  = self.URL % (self.testrailIp, '%s' % (testrailItem))
+            url = self.URL % (self.testrailIp, '%s' % (testrailItem))
         data = json.dumps(values)
 
         req = urllib2.Request(url, headers={'Content-Type': 'application/json'})
@@ -66,13 +67,14 @@ class TestrailApi:
     def getCase(self, caseId):
         return self._getFromTestRail("get_case", caseId)
 
-    def getCases(self, projectId, suiteId, sectionId = None):
+    def getCases(self, projectId, suiteId, sectionId=None):
         extraParams = {'suite_id': suiteId}
         if sectionId:
             extraParams['section_id'] = sectionId
         return self._getFromTestRail("get_cases", projectId, extraParams)
 
-    def addCase(self, sectionId, title, typeId = None, priorityId = None, estimate = None, milestoneId = None, refs = None, customFields = None):
+    def addCase(self, sectionId, title, typeId=None, priorityId=None, estimate=None, milestoneId=None, refs=None,
+                customFields=None):
         extraParams = {'title': title}
         if typeId:
             extraParams['type_id'] = typeId
@@ -90,7 +92,8 @@ class TestrailApi:
                 extraParams[k] = v
         return self._addToTestRail('add_case', sectionId, extraParams)
 
-    def updateCase(self, caseId, title = None, typeId = None, priorityId = None, estimate = None, milestoneId = None, refs = None, customFields = None):
+    def updateCase(self, caseId, title=None, typeId=None, priorityId=None, estimate=None, milestoneId=None, refs=None,
+                   customFields=None):
         extraParams = {}
         if title:
             extraParams['title'] = title
@@ -125,7 +128,7 @@ class TestrailApi:
     def getSections(self, projectId, suiteId):
         return self._getFromTestRail("get_sections", projectId, {'suite_id': suiteId})
 
-    def addSection(self, projectId, suiteId, name, parentId = None):
+    def addSection(self, projectId, suiteId, name, parentId=None):
         extraParams = {'suite_id': suiteId,
                        'name': name}
         if parentId:
@@ -144,13 +147,13 @@ class TestrailApi:
     def getSuites(self, projectId):
         return self._getFromTestRail('get_suites', projectId)
 
-    def addSuite(self, projectId, suiteName, suiteDescription = ''):
+    def addSuite(self, projectId, suiteName, suiteDescription=''):
         extraParams = {'name': suiteName}
         if suiteDescription:
             extraParams['description'] = suiteDescription
         return self._addToTestRail('add_suite', projectId, extraParams)
 
-    def updateSuite(self, suiteId, suiteName, suiteDescription = ''):
+    def updateSuite(self, suiteId, suiteName, suiteDescription=''):
         extraParams = {'name': suiteName}
         if suiteDescription:
             extraParams['description'] = suiteDescription
@@ -165,7 +168,7 @@ class TestrailApi:
     def getPlans(self, projectId):
         return self._getFromTestRail('get_plans', projectId)
 
-    def addPlan(self, projectId, name, description = None, milestoneId = None, entries = None):
+    def addPlan(self, projectId, name, description=None, milestoneId=None, entries=None):
         extraParams = {'name': name}
         if description:
             extraParams['description'] = description
@@ -175,7 +178,7 @@ class TestrailApi:
             extraParams['entries'] = entries
         return self._addToTestRail('add_plan', projectId, extraParams)
 
-    def addPlanEntry(self, planId, suiteId, name, assignedtoId = None, includeAll = True, caseIds = None):
+    def addPlanEntry(self, planId, suiteId, name, assignedtoId=None, includeAll=True, caseIds=None):
         extraParams = {'suite_id': suiteId,
                        'name': name}
         if assignedtoId:
@@ -186,7 +189,7 @@ class TestrailApi:
 
         return self._addToTestRail('add_plan_entry', planId, extraParams)
 
-    def updatePlan(self, planId, name, description = None, milestoneId = None):
+    def updatePlan(self, planId, name, description=None, milestoneId=None):
         extraParams = {'name': name}
         if description:
             extraParams['description'] = description
@@ -209,17 +212,17 @@ class TestrailApi:
     def getProjects(self):
         return self._getFromTestRail("get_projects")
 
-    def addProject(self, name, announcement = None, showAnnouncement = None):
+    def addProject(self, name, announcement=None, showAnnouncement=None):
         extraParams = {'name': name}
         if announcement:
             extraParams['announcement'] = announcement
         if showAnnouncement:
             extraParams['show_announcement'] = showAnnouncement
-        return self._addToTestRail('add_project', values = extraParams)
+        return self._addToTestRail('add_project', values=extraParams)
 
     def updateProject(self, projectId, isCompleted):
         extraParams = {'is_completed': isCompleted}
-        return self._addToTestRail('update_project', projectId, values = extraParams)
+        return self._addToTestRail('update_project', projectId, values=extraParams)
 
     def getResultFields(self):
         return self._getFromTestRail("get_result_fields")
@@ -230,7 +233,7 @@ class TestrailApi:
     def getRuns(self, projectId):
         return self._getFromTestRail('get_runs', projectId)
 
-    def addRun(self, projectId, suiteId, name, description = None, assignedtoId = None, includeAll = True, caseIds = None):
+    def addRun(self, projectId, suiteId, name, description=None, assignedtoId=None, includeAll=True, caseIds=None):
         extraParams = {'suite_id': suiteId,
                        'name': name}
         if description:
@@ -242,7 +245,7 @@ class TestrailApi:
             extraParams['case_ids'] = caseIds
         return self._addToTestRail('add_run', projectId, extraParams)
 
-    def updateRun(self, runId, name, description = None, includeAll = True, caseIds = None):
+    def updateRun(self, runId, name, description=None, includeAll=True, caseIds=None):
         extraParams = {'name': name}
         if description:
             extraParams['description'] = description
@@ -263,11 +266,12 @@ class TestrailApi:
     def getTests(self, runId):
         return self._getFromTestRail('get_tests', runId)
 
-    def getResults(self, testId, limit = None):
+    def getResults(self, testId, limit=None):
         extraParams = {'limit': limit} if limit else None
         return self._getFromTestRail('get_results', testId, extraParams)
 
-    def addResult(self, testId, statusId, comment = None, version = None, elapsed = None, defects = None, assignedtoId = None, customFields = None):
+    def addResult(self, testId, statusId, comment=None, version=None, elapsed=None, defects=None, assignedtoId=None,
+                  customFields=None):
         extraParams = {'status_id': statusId}
         if comment:
             extraParams['comment'] = comment
@@ -285,7 +289,8 @@ class TestrailApi:
                 extraParams[k] = v
         return self._addToTestRail('add_result', testId, extraParams)
 
-    def addResultForCase(self, runId, caseId, statusId, comment = None, version = None, elapsed = None, defects = None, assignedtoId = None, customFields = None):
+    def addResultForCase(self, runId, caseId, statusId, comment=None, version=None, elapsed=None, defects=None,
+                         assignedtoId=None, customFields=None):
         extraParams = {'status_id': statusId}
         if comment:
             extraParams['comment'] = comment
@@ -312,7 +317,7 @@ class TestrailApi:
     def getMilestones(self, projectId):
         return self._getFromTestRail('get_milestones', projectId)
 
-    def addMilestone(self, projectId, name, description = None, dueOn = None):
+    def addMilestone(self, projectId, name, description=None, dueOn=None):
         extraParams = {'name': name}
         if description:
             extraParams['description'] = description

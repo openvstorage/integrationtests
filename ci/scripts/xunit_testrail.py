@@ -41,23 +41,28 @@ Here is an abbreviated version of what an XML test report might look like::
 import os
 import re
 import sys
-import doctest
 import inspect
 import datetime
 import traceback
-import testrailapi
 import ConfigParser
-
 from time import time
 from xml.sax import saxutils
-from nose.exc import SkipTest
-from nose.loader import TestLoader
-from nose.plugins.base import Plugin
+
+from ci.scripts import testrailapi
+from nose2.exc import SkipTest
+from nose2.loader import TestLoader
+from nose2.plugins.base import Plugin
+
+
+
+
+
 
 # Invalid XML characters, control characters 0-31 sans \t, \n and \r
 CONTROL_CHARACTERS = re.compile(r"[\000-\010\013\014\016-\037]")
 
 CRASH_FILE_LOG = "/var/log/testrunner_crash"
+
 
 def xml_safe(value):
     """Replaces invalid XML characters with '?'."""
@@ -118,16 +123,16 @@ def caseNameTestrailFormat(testName):
     return caseName
 
 
-Q_AUTOMATED   = "qAutomated"
+Q_AUTOMATED = "qAutomated"
 AUTOTEST_DIR = os.path.join(os.sep, "opt", "OpenvStorage", "ovs", "extensions", "autotests")
-SCRIPTS_DIR  = os.path.join(AUTOTEST_DIR, "scripts")
-TESTS_DIR    = os.path.join(AUTOTEST_DIR, "tests")
+SCRIPTS_DIR = os.path.join(AUTOTEST_DIR, "scripts")
+TESTS_DIR = os.path.join(AUTOTEST_DIR, "tests")
 
 
 def formatDurations(dur):
     if not dur:
         return ""
-    niceTime = lambda x: str(datetime.timedelta(seconds = int(x)))
+    niceTime = lambda x: str(datetime.timedelta(seconds=int(x)))
     splits = dur.split("|")
     if len(splits) == 3:
         return "Past Runs Avg: " + niceTime(splits[2]) + " Min: " + niceTime(splits[0]) + " Max: " + niceTime(splits[1])
@@ -163,41 +168,41 @@ class xunit_testrail(Plugin):
         """Sets additional command line options."""
         Plugin.options(self, parser, env)
         parser.add_option('--xunit_file2',
-                          action  = 'store',
-                          dest    = 'xunit_file2',
-                          metavar = "FILE",
-                          default = env.get('NOSE_XUNIT_FILE', 'nosetests.xml'),
-                          help = ("Path to xml file to store the xunit report in. "
-                                  "Default is nosetests.xml in the working directory "
-                                  "[NOSE_XUNIT_FILE]"))
+                          action='store',
+                          dest='xunit_file2',
+                          metavar="FILE",
+                          default=env.get('NOSE_XUNIT_FILE', 'nosetests.xml'),
+                          help=("Path to xml file to store the xunit report in. "
+                                "Default is nosetests.xml in the working directory "
+                                "[NOSE_XUNIT_FILE]"))
 
         parser.add_option('--testrail-ip',
-                          action  = 'store',
-                          dest    = 'testrailIp',
-                          metavar = "FILE",
-                          default = "testrail.cloudfounders.com",
-                          help    = ("Url of testrail server"))
+                          action='store',
+                          dest='testrailIp',
+                          metavar="FILE",
+                          default="testrail.cloudfounders.com",
+                          help=("Url of testrail server"))
 
         parser.add_option('--project-name',
-                          action  = 'store',
-                          dest    = 'projectName',
-                          metavar = "FILE",
-                          default = "OVS",
-                          help    = ("Testrail project name"))
+                          action='store',
+                          dest='projectName',
+                          metavar="FILE",
+                          default="OVS",
+                          help=("Testrail project name"))
 
         parser.add_option('--push-name',
-                          action  = 'store',
-                          dest    = 'pushName',
-                          metavar = "FILE",
-                          default = "AT push results",
-                          help    = ("Testrail push name"))
+                          action='store',
+                          dest='pushName',
+                          metavar="FILE",
+                          default="AT push results",
+                          help=("Testrail push name"))
 
         parser.add_option('--description',
-                          action  = 'store',
-                          dest    = 'description',
-                          metavar = "FILE",
-                          default = "",
-                          help    = ("Testrail description"))
+                          action='store',
+                          dest='description',
+                          metavar="FILE",
+                          default="",
+                          help=("Testrail description"))
 
     def configure(self, options, config):
         """Configures the xunit plugin."""
@@ -208,33 +213,34 @@ class xunit_testrail(Plugin):
                           'failures': 0,
                           'passes': 0,
                           'skipped': 0
-                          }
+            }
             self.errorlist = []
 
             self.error_report_file = open(options.xunit_file2, 'w')
 
-            projectMapping  = os.path.join(SCRIPTS_DIR, "project_testsuite_mapping.cfg")
+            projectMapping = os.path.join(SCRIPTS_DIR, "project_testsuite_mapping.cfg")
             self.projectIni = ConfigParser.ConfigParser()
             self.projectIni.read(projectMapping)
 
             self.testrailIp = options.testrailIp
             if self.testrailIp:
-                self.testrailApi = testrailapi.TestrailApi(self.testrailIp, key = "cWFAY2xvdWRmb3VuZGVycy5jb206UjAwdDNy")
+                self.testrailApi = testrailapi.TestrailApi(self.testrailIp, key="cWFAY2xvdWRmb3VuZGVycy5jb206UjAwdDNy")
 
                 allProjects = self.testrailApi.getProjects()
 
                 self.projectName = options.projectName
                 self.projectID = [p for p in allProjects if p['name'] == self.projectName]
                 if not self.projectID:
-                    raise Exception(message = "No project found on %s with name '%s'" % (self.testrailIp, self.projectName))
+                    raise Exception(
+                        message="No project found on %s with name '%s'" % (self.testrailIp, self.projectName))
                 self.projectID = self.projectID[0]['id']
 
                 allStatuses = self.testrailApi.getStatuses()
-                self.ongoingStatus  = [s for s in allStatuses if s['name'].lower() == 'ongoing'][0]
-                self.passedStatus   = [s for s in allStatuses if s['name'].lower() == 'passed'][0]
-                self.failedStatus   = [s for s in allStatuses if s['name'].lower() == 'failed'][0]
-                self.skippedStatus  = [s for s in allStatuses if s['name'].lower() == 'skipped'][0]
-                self.blockedStatus  = [s for s in allStatuses if s['name'].lower() == 'blocked'][0]
+                self.ongoingStatus = [s for s in allStatuses if s['name'].lower() == 'ongoing'][0]
+                self.passedStatus = [s for s in allStatuses if s['name'].lower() == 'passed'][0]
+                self.failedStatus = [s for s in allStatuses if s['name'].lower() == 'failed'][0]
+                self.skippedStatus = [s for s in allStatuses if s['name'].lower() == 'skipped'][0]
+                self.blockedStatus = [s for s in allStatuses if s['name'].lower() == 'blocked'][0]
 
                 milestoneID = None
                 description = options.description
@@ -277,8 +283,8 @@ class xunit_testrail(Plugin):
 
         if self.testrailIp:
             try:
-                testName   = test_id.split('.')[-1]
-                suiteName  = test_id.split('.')[0]
+                testName = test_id.split('.')[-1]
+                suiteName = test_id.split('.')[0]
 
                 bCreateNewRun = False
                 if suiteName != self.suiteName:
@@ -298,7 +304,7 @@ class xunit_testrail(Plugin):
                         suiteID = self.testrailApi.addSuite(self.projectID, suiteNameTestrail)
                         sectionID = self.testrailApi.addSection(self.projectID, suiteID['id'], Q_AUTOMATED)
                         for testNameToAdd in allTestNames:
-                            self.testrailApi.addCase(sectionId = sectionID['id'], title = testNameToAdd)
+                            self.testrailApi.addCase(sectionId=sectionID['id'], title=testNameToAdd)
                     else:
                         raise Exception("Suite %s not found on testrail" % suiteNameTestrail)
                 else:
@@ -315,23 +321,25 @@ class xunit_testrail(Plugin):
                 allCases = self.testrailApi.getCases(self.projectID, suiteID['id'])
                 if bCreateNewRun:
                     for testNameToAdd in allTestNames:
-                        if not [caseObj for caseObj in allCases if caseObj['section_id'] == sectionID['id'] and caseObj['title'] == testNameToAdd]:
-                            self.testrailApi.addCase(sectionId = sectionID['id'], title = testNameToAdd)
+                        if not [caseObj for caseObj in allCases if
+                                caseObj['section_id'] == sectionID['id'] and caseObj['title'] == testNameToAdd]:
+                            self.testrailApi.addCase(sectionId=sectionID['id'], title=testNameToAdd)
                     allCases = self.testrailApi.getCases(self.projectID, suiteID['id'])
                 caseName = caseNameTestrailFormat(testName)
 
-                caseItem = [caseObj for caseObj in allCases if caseObj['section_id'] == sectionID['id'] and caseObj['title'] == caseName]
+                caseItem = [caseObj for caseObj in allCases if
+                            caseObj['section_id'] == sectionID['id'] and caseObj['title'] == caseName]
                 if not caseItem:
                     raise Exception("Could not find case name %s on testrail" % caseName)
                 self.caseItem = caseItem[0]
 
                 if bCreateNewRun:
-
                     self.testsCaseIdsToSelect = [c['id'] for c in allCases if c['title'] in allTestNames]
-                    entry = self.testrailApi.addPlanEntry(self.planID, suiteID['id'], suiteNameTestrail, includeAll = False, caseIds = self.testsCaseIdsToSelect)
+                    entry = self.testrailApi.addPlanEntry(self.planID, suiteID['id'], suiteNameTestrail,
+                                                          includeAll=False, caseIds=self.testsCaseIdsToSelect)
                     self.runID = entry['runs'][0]['id']
 
-                allTestsForRun = self.testrailApi.getTests(runId = self.runID)
+                allTestsForRun = self.testrailApi.getTests(runId=self.runID)
 
                 test = [t for t in allTestsForRun if t['case_id'] == self.caseItem['id']][0]
                 self.testId = test['id']
@@ -339,12 +347,12 @@ class xunit_testrail(Plugin):
                 self.durations = self.caseItem.get("custom_at_avg_duration", "")
 
                 testStatus = self.ongoingStatus['id']
-                self.testrailApi.addResult(testId        = self.testId,
-                                           statusId      = testStatus,
-                                           comment       = '',
-                                           version       = self.version,
-                                           customFields  = {'custom_hypervisor' : self.hypervisor}
-                                          )
+                self.testrailApi.addResult(testId=self.testId,
+                                           statusId=testStatus,
+                                           comment='',
+                                           version=self.version,
+                                           customFields={'custom_hypervisor': self.hypervisor}
+                )
 
                 now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 os.write(1, now + "|" + formatDurations(self.durations) + "-->")
@@ -357,7 +365,7 @@ class xunit_testrail(Plugin):
 
         self._timer = time()
 
-    def addError(self, test, err, capt = None):
+    def addError(self, test, err, capt=None):
         """
         Add error output to Xunit report.
         """
@@ -382,7 +390,7 @@ class xunit_testrail(Plugin):
              'errtype': self._quoteattr(nice_classname(err[0])),
              'message': self._quoteattr(exc_message(err)),
              'tb': escape_cdata(tb),
-             })
+            })
 
         if self.testrailIp:
             elapsed = '%ss' % (int(taken) or 1)
@@ -396,12 +404,12 @@ class xunit_testrail(Plugin):
                 else:
                     testStatus = self.failedStatus['id']
 
-                self.testrailApi.addResult(testId        = self.testId,
-                                           statusId      = testStatus,
-                                           comment       = exc_message(err),
-                                           version       = self.version,
-                                           elapsed       = elapsed,
-                                           customFields  = {'custom_hypervisor': self.hypervisor})
+                self.testrailApi.addResult(testId=self.testId,
+                                           statusId=testStatus,
+                                           comment=exc_message(err),
+                                           version=self.version,
+                                           elapsed=elapsed,
+                                           customFields={'custom_hypervisor': self.hypervisor})
             except:
                 etype, value, tb = sys.exc_info()
                 excStr = str(traceback.format_exception(etype, value, tb))
@@ -425,7 +433,7 @@ class xunit_testrail(Plugin):
              'errtype': self._quoteattr(nice_classname(err[0])),
              'message': self._quoteattr(exc_message(err)),
              'tb': escape_cdata(tb),
-             })
+            })
 
         if self.testrailIp:
             elapsed = (int(taken) or 1)
@@ -436,12 +444,12 @@ class xunit_testrail(Plugin):
                 else:
                     testStatus = self.failedStatus['id']
 
-                self.testrailApi.addResult(testId        = self.testId,
-                                           statusId      = testStatus,
-                                           comment       = exc_message(err),
-                                           version       = self.version,
-                                           elapsed       = '%ss' % elapsed,
-                                           customFields  = {'custom_hypervisor': self.hypervisor})
+                self.testrailApi.addResult(testId=self.testId,
+                                           statusId=testStatus,
+                                           comment=exc_message(err),
+                                           version=self.version,
+                                           elapsed='%ss' % elapsed,
+                                           customFields={'custom_hypervisor': self.hypervisor})
             except:
                 etype, value, tb = sys.exc_info()
                 excStr = str(traceback.format_exception(etype, value, tb))
@@ -460,18 +468,18 @@ class xunit_testrail(Plugin):
             {'cls': self._quoteattr('.'.join(test_id.split('.')[:-1])),
              'name': self._quoteattr(test_id.split('.')[-1]),
              'taken': taken,
-             })
+            })
 
         if self.testrailIp:
             elapsed = (int(taken) or 1)
 
             try:
-                self.testrailApi.addResult(testId        = self.testId,
-                                           statusId      = self.passedStatus['id'],
-                                           comment       = "",
-                                           version       = self.version,
-                                           elapsed       = '%ss' % elapsed,
-                                           customFields  = {'custom_hypervisor': self.hypervisor})
+                self.testrailApi.addResult(testId=self.testId,
+                                           statusId=self.passedStatus['id'],
+                                           comment="",
+                                           version=self.version,
+                                           elapsed='%ss' % elapsed,
+                                           customFields={'custom_hypervisor': self.hypervisor})
                 if self.durations:
                     timeStats = self.caseItem['custom_at_avg_duration']
                     timeStats = map(int, timeStats.split("|"))
@@ -484,13 +492,13 @@ class xunit_testrail(Plugin):
                 else:
                     timeStats = [elapsed, elapsed, elapsed]
 
-                self.testrailApi.updateCase(caseId = self.caseItem['id'],
-                                            customFields = {'custom_at_avg_duration': "|".join(map(str, timeStats))})
+                self.testrailApi.updateCase(caseId=self.caseItem['id'],
+                                            customFields={'custom_at_avg_duration': "|".join(map(str, timeStats))})
             except:
                 etype, value, tb = sys.exc_info()
                 excStr = str(traceback.format_exception(etype, value, tb))
                 with open(CRASH_FILE_LOG, "a") as f:
                     f.write(excStr + "\n")
 
-    #def testName(self, test):
-    #    return test.id() + self.durations
+                    # def testName(self, test):
+                    # return test.id() + self.durations
