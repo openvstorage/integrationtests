@@ -81,7 +81,7 @@ class DebianPackager(object):
             changelog_file.write('' +
                                  """openvstorage ({0}-1) {1}; urgency=low
 
-                                    * For changes, see individual changelogs
+                                  * For changes, see individual changelogs
 
                                   -- Packaging System <info@cloudfounders.com>  {2}
                                  """.format(version_string, distribution,

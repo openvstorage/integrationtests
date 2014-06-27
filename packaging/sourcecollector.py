@@ -244,7 +244,7 @@ class SourceCollector(object):
         # * Test branch
         # 1.2.0-alpha.<build>
         # * Stable branch
-        #     1.2.0-beta.<build>
+        # 1.2.0-beta.<build>
         # * Release branches (e.g. release_1_2)
         #     1.2.0-rc1.<build>  - release candidate 1
         #     1.2.0-rc2.<build>  - release candidate 2
@@ -270,7 +270,7 @@ class SourceCollector(object):
         # Building archive
         print '  Building archive'
         SourceCollector._run(
-            "tar -czf {0}/{1}_{2}.tar.gz --transform 's,^,openvstorage-{2}/,' ci *.txt".format(
+            "tar -czf {0}/{1}_{2}.tar.gz --transform 's,^,{1}-{2}/,' ci *.txt".format(
                 SourceCollector.package_path, SourceCollector.package_name, version_string
             ), SourceCollector.repo_path_code
         )
