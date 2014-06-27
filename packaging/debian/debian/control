@@ -1,4 +1,4 @@
-Source: openvstorage-autotests
+Source: openvstorage-test
 Maintainer: Philippe Ploegaert <philippe.ploegaert@cloudfounders.com>
 Standards-Version: 3.9.4.0
 Section: python
