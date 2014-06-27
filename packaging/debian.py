@@ -15,6 +15,7 @@
 """
 Debian packager module
 """
+import ConfigParser
 import shutil
 import os
 from subprocess import check_output
@@ -27,10 +28,13 @@ class DebianPackager(object):
     Responsible for creating debian packages from the source archive
     """
 
-    PACKAGE_IDENTIFIER = 'openvstorage-test'
+    parser = ConfigParser.RawConfigParser()
+    parser.read('packaging/packaging.cfg')
 
-    repo_path_code = '/tmp/repo_{0}_code'.format(PACKAGE_IDENTIFIER)
-    package_path = '/tmp/packages/{0}'.format(PACKAGE_IDENTIFIER)
+    package_name = parser.read('package', 'name')
+
+    repo_path_code = '/tmp/repo_{0}_code'.format(package_name)
+    package_path = '/tmp/packages/{0}'.format(package_name)
 
 
     def __init__(self):
@@ -57,8 +61,8 @@ class DebianPackager(object):
         # Rename tgz
         # /<pp>/openvstorage_1.2.3.tar.gz -> /<pp>/debian/openvstorage_1.2.3.orig.tar.gz
         shutil.copyfile(
-            '{0}/{1}_{2}.tar.gz'.format(DebianPackager.package_path, DebianPackager.PACKAGE_IDENTIFIER, version_string),
-            '{0}/debian/{1}_{2}.orig.tar.gz'.format(DebianPackager.package_path, DebianPackager.PACKAGE_IDENTIFIER,
+            '{0}/{1}_{2}.tar.gz'.format(DebianPackager.package_path, DebianPackager.package_name, version_string),
+            '{0}/debian/{1}_{2}.orig.tar.gz'.format(DebianPackager.package_path, DebianPackager.package_name,
                                                     version_string))
         # /<pp>/debian/openvstorage-1.2.3/...
         DebianPackager._run('tar -xzf {0}_{1}.orig.tar.gz'.format(version_string),
@@ -67,13 +71,13 @@ class DebianPackager(object):
         # Move the debian package metadata into the extracted source
         # /<pp>/debian/debian -> /<pp>/debian/openvstorage-1.2.3/
         DebianPackager._run('mv {0}/debian/debian {0}/debian/{1}-{2}/'.format(DebianPackager.package_path,
-                                                                              DebianPackager.PACKAGE_IDENTIFIER,
+                                                                              DebianPackager.package_name,
                                                                               version_string),
                             DebianPackager.package_path)
 
         # Build changelog entry
         with open('{0}/debian/{1}-{2}/debian/changelog'.format(DebianPackager.package_path,
-                                                               DebianPackager.PACKAGE_IDENTIFIER, version_string),
+                                                               DebianPackager.package_name, version_string),
                   'w') as changelog_file:
             changelog_file.write('' +
                                  """openvstorage ({0}-1) {1}; urgency=low
@@ -86,16 +90,16 @@ class DebianPackager(object):
 
         # Some more tweaks
         DebianPackager._run('chmod 770 {0}/debian/{1}-{2}/debian/rules'.format(DebianPackager.package_path,
-                                                                               DebianPackager.PACKAGE_IDENTIFIER,
+                                                                               DebianPackager.package_name,
                                                                                version_string),
                             DebianPackager.package_path)
         DebianPackager._run("sed -i -e 's/__NEW_VERSION__/{0}/' *.*".format(version_string),
                             '{0}/debian/{1}-{2}/debian'.format(DebianPackager.package_path,
-                                                               DebianPackager.PACKAGE_IDENTIFIER, version_string))
+                                                               DebianPackager.package_name, version_string))
 
         # Build the package
         DebianPackager._run('dpkg-buildpackage',
-                            '{0}/debian/{1}-{2}'.format(DebianPackager.package_path, DebianPackager.PACKAGE_IDENTIFIER,
+                            '{0}/debian/{1}-{2}'.format(DebianPackager.package_path, DebianPackager.package_name,
                                                         version_string))
 
     @staticmethod
@@ -106,7 +110,7 @@ class DebianPackager(object):
         distribution, version, suffix, build, version_string, revision_date = source_metadata
         DebianPackager._run(
             'dput -c {0}/debian/dput.cfg ovs-apt {0}/debian/{1}_{2}-1_amd64.changes'.format(DebianPackager.package_path,
-                                                                                            DebianPackager.PACKAGE_IDENTIFIER,
+                                                                                            DebianPackager.package_name,
                                                                                             version_string),
             DebianPackager.package_path)
 

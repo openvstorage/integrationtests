@@ -35,18 +35,17 @@ class SourceCollector(object):
     It will also update the repo with all required versioning tags, if appropriate
     """
 
-    PACKAGE_IDENTIFIER = 'openvstorage-test'
 
-    repo_path_metadata = '/tmp/repo_{0}_metadata'.format(PACKAGE_IDENTIFIER)
-    repo_path_code = '/tmp/repo_{0}_code'.format(PACKAGE_IDENTIFIER)
-    package_path = '/tmp/packages/{0}'.format(PACKAGE_IDENTIFIER)
-
-    filename = '{0}/packaging/version.cfg'.format(repo_path_code)
     parser = ConfigParser.RawConfigParser()
-    parser.read(filename)
+    parser.read('packaging/packaging.cfg')
 
-    repo = parser.get('package', 'repo')
-    description = parser.get('package', 'description')
+    package_name = parser.read('package', 'name')
+    package_repo = parser.get('package', 'repo')
+    package_description = parser.get('package', 'description')
+
+    repo_path_metadata = '/tmp/repo_{0}_metadata'.format(package_name)
+    repo_path_code = '/tmp/repo_{0}_code'.format(package_name)
+    package_path = '/tmp/packages/{0}'.format(package_name)
 
     def __init__(self):
         """
@@ -138,9 +137,10 @@ class SourceCollector(object):
         revision_date = datetime.fromtimestamp(timestamp)
 
         # Build version
-        version = '{0}.{1}.{2}'.format(SourceCollector.parser.get('main', 'major'),
-                                       SourceCollector.parser.get('main', 'minor'),
-                                       SourceCollector.parser.get('main', 'patch'))
+        parser = SourceCollector.parser.read('{0}/packaging/version.cfg').format(SourceCollector.repo_path_code)
+        version = '{0}.{1}.{2}'.format(parser.get('main', 'major'),
+                                       parser.get('main', 'minor'),
+                                       parser.get('main', 'patch'))
         print '  Version: {0}'.format(version)
 
         # Load tag information
@@ -169,7 +169,7 @@ class SourceCollector(object):
         changelog = []
         if target in ['test', 'stable', 'release']:
             print '  Generating changelog'
-            changelog.append({0}).format(SourceCollector.description)
+            changelog.append({0}).format(SourceCollector.package_description)
             changelog.append('=============')
             changelog.append('')
             changelog.append('This changelog is generated based on DVCS. Due to the nature of DVCS the')
@@ -271,11 +271,11 @@ class SourceCollector(object):
         print '  Building archive'
         SourceCollector._run(
             "tar -czf {0}/{1}_{2}.tar.gz --transform 's,^,openvstorage-{2}/,' scripts/install scripts/system config ovs webapps *.txt".format(
-                SourceCollector.package_path, SourceCollector.PACKAGE_IDENTIFIER, version_string
+                SourceCollector.package_path, SourceCollector.package_name, version_string
             ), SourceCollector.repo_path_code
         )
         SourceCollector._run('rm -f CHANGELOG.txt', SourceCollector.repo_path_code)
-        print '    Archive: {0}/{1}_{2}.tar.gz'.format(SourceCollector.package_path, SourceCollector.PACKAGE_IDENTIFIER,
+        print '    Archive: {0}/{1}_{2}.tar.gz'.format(SourceCollector.package_path, SourceCollector.package_name,
                                                        version_string)
 
         print 'Done'
@@ -297,7 +297,8 @@ class SourceCollector(object):
         Updates a given repo to a certain revision, cloning if it does not exist yet
         """
         if not os.path.exists('{0}/.hg'.format(path)):
-            SourceCollector._run('hg clone https://bitbucket.org/{0} {1}'.format(SourceCollector.repo, path), path)
+            SourceCollector._run('hg clone https://bitbucket.org/{0} {1}'.format(SourceCollector.package_repo, path),
+                                 path)
         SourceCollector._run('hg pull -u', path)
         SourceCollector._run('hg update -r {0}'.format(revision), path)
 
