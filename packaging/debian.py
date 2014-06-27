@@ -64,7 +64,7 @@ class DebianPackager(object):
             '{0}/debian/{1}_{2}.orig.tar.gz'.format(DebianPackager.package_path, DebianPackager.package_name,
                                                     version_string))
         # /<pp>/debian/openvstorage-1.2.3/...
-        DebianPackager._run('tar -xzf {0}_{1}.orig.tar.gz'.format(version_string),
+        DebianPackager._run('tar -xzf {0}_{1}.orig.tar.gz'.format(DebianPackager.package_name, version_string),
                             '{0}/debian/'.format(DebianPackager.package_path))
 
         # Move the debian package metadata into the extracted source
@@ -81,11 +81,11 @@ class DebianPackager(object):
             changelog_file.write('' +
                                  """openvstorage ({0}-1) {1}; urgency=low
 
-                                   * For changes, see individual changelogs
+                                    * For changes, see individual changelogs
 
                                   -- Packaging System <info@cloudfounders.com>  {2}
                                  """.format(version_string, distribution,
-                                            revision_date.strftime('%a, %d %b %Y %H:%M:%S +0000')))
+           revision_date.strftime('%a, %d %b %Y %H:%M:%S +0000')))
 
         # Some more tweaks
         DebianPackager._run('chmod 770 {0}/debian/{1}-{2}/debian/rules'.format(DebianPackager.package_path,

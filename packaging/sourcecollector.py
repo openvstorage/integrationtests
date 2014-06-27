@@ -136,10 +136,11 @@ class SourceCollector(object):
         revision_date = datetime.fromtimestamp(timestamp)
 
         # Build version
-        parser = SourceCollector.parser.read('{0}/packaging/version.cfg'.format(SourceCollector.repo_path_code))
-        version = '{0}.{1}.{2}'.format(parser.get('main', 'major'),
-                                       parser.get('main', 'minor'),
-                                       parser.get('main', 'patch'))
+        version_parser = ConfigParser.RawConfigParser()
+        version_parser.read('{0}/packaging/version.cfg'.format(SourceCollector.repo_path_code))
+        version = '{0}.{1}.{2}'.format(version_parser.get('main', 'major'),
+                                       version_parser.get('main', 'minor'),
+                                       version_parser.get('main', 'patch'))
         print '  Version: {0}'.format(version)
 
         # Load tag information
@@ -269,7 +270,7 @@ class SourceCollector(object):
         # Building archive
         print '  Building archive'
         SourceCollector._run(
-            "tar -czf {0}/{1}_{2}.tar.gz --transform 's,^,openvstorage-{2}/,' scripts/install scripts/system config ovs webapps *.txt".format(
+            "tar -czf {0}/{1}_{2}.tar.gz --transform 's,^,openvstorage-{2}/,' ci *.txt".format(
                 SourceCollector.package_path, SourceCollector.package_name, version_string
             ), SourceCollector.repo_path_code
         )
