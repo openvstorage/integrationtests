@@ -79,12 +79,12 @@ class DebianPackager(object):
                                                                DebianPackager.package_name, version_string),
                   'w') as changelog_file:
             changelog_file.write('' +
-                                 """openvstorage ({0}-1) {1}; urgency=low
+"""openvstorage ({0}-1) {1}; urgency=low
 
-                                  * For changes, see individual changelogs
+ * For changes, see individual changelogs
 
-                                  -- Packaging System <info@cloudfounders.com>  {2}
-                                 """.format(version_string, distribution,
+ -- Packaging System <info@cloudfounders.com>  {2}
+""".format(version_string, distribution,
            revision_date.strftime('%a, %d %b %Y %H:%M:%S +0000')))
 
         # Some more tweaks
