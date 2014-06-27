@@ -31,11 +31,10 @@ class DebianPackager(object):
     parser = ConfigParser.RawConfigParser()
     parser.read('packaging/packaging.cfg')
 
-    package_name = parser.read('package', 'name')
+    package_name = parser.get('package', 'name')
 
     repo_path_code = '/tmp/repo_{0}_code'.format(package_name)
     package_path = '/tmp/packages/{0}'.format(package_name)
-
 
     def __init__(self):
         """

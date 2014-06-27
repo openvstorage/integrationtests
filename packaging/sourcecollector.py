@@ -35,11 +35,10 @@ class SourceCollector(object):
     It will also update the repo with all required versioning tags, if appropriate
     """
 
-
     parser = ConfigParser.RawConfigParser()
     parser.read('packaging/packaging.cfg')
 
-    package_name = parser.read('package', 'name')
+    package_name = parser.get('package', 'name')
     package_repo = parser.get('package', 'repo')
     package_description = parser.get('package', 'description')
 
