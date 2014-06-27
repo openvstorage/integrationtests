@@ -8,6 +8,6 @@ Build-Depends: python (>= 2.7.2)
 Package: openvstorage-test
 Architecture: amd64
 Depends: openvstorage-core (>= 0.1.0), openvstorage-webapps (>= 0.1.0),
- python-ecdsa (>= 0.8-1), python-paramiko (>= 1.10.1-1), python-nose2 (0.4.7-2)
+ python-ecdsa (>= 0.8-1), python-paramiko (>= 1.10.1-1), python-nose2 (>=0.4.7-2)
 Description: openvStorage autotest suite
  Automatic tests for the Open vStorage product
