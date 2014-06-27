@@ -136,7 +136,7 @@ class SourceCollector(object):
         revision_date = datetime.fromtimestamp(timestamp)
 
         # Build version
-        parser = SourceCollector.parser.read('{0}/packaging/version.cfg').format(SourceCollector.repo_path_code)
+        parser = SourceCollector.parser.read('{0}/packaging/version.cfg'.format(SourceCollector.repo_path_code))
         version = '{0}.{1}.{2}'.format(parser.get('main', 'major'),
                                        parser.get('main', 'minor'),
                                        parser.get('main', 'patch'))
