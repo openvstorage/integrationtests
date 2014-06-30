@@ -12,6 +12,8 @@ import subprocess
 import ConfigParser
 from xml.dom import minidom
 
+import nose
+
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
 
