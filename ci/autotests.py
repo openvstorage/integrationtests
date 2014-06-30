@@ -12,7 +12,6 @@ import subprocess
 import ConfigParser
 from xml.dom import minidom
 
-import nose2
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
 
@@ -357,7 +356,7 @@ def _runTests(arguments):
     """
     Run the tests
     """
-    nose2.run(argv=arguments, addplugins=[xunit_testrail.xunit_testrail()])
+    nose.run(argv=arguments, addplugins=[xunit_testrail.xunit_testrail()])
 
 
 def listTests(args=None):
@@ -374,7 +373,7 @@ def listTests(args=None):
     sys.stdout = fakeStdout
 
     try:
-        nose2.run(argv=arguments, addplugins=[testEnum.TestEnum()])
+        nose.run(argv=arguments, addplugins=[testEnum.TestEnum()])
     except Exception:
         raise
     finally:
@@ -584,7 +583,7 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
         if suite in ('<nose', 'nose'):
             continue
         if child.childNodes and \
-                        child.childNodes[0].getAttribute('type') == 'nose2.plugins.skip.SkipTest' and \
+                        child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest' and \
                         child.childNodes[0].getAttribute('message') != BLOCKED_MESSAGE:
             continue
         case = child.getAttribute('name')
@@ -745,7 +744,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
 
         isBlocked = False
 
-        if child.childNodes and child.childNodes[0].getAttribute('type') == 'nose2.plugins.skip.SkipTest':
+        if child.childNodes and child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest':
             if child.childNodes[0].getAttribute('message') == BLOCKED_MESSAGE:
                 isBlocked = True
             else:
@@ -808,7 +807,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
             #   additionalResultsFile.checkSection(sectionName = suite) and \
             #   additionalResultsFile.checkParam(sectionName = suite, paramName = caseName):
             #    comment = additionalResultsFile.getValue(sectionName = suite, paramName = caseName, raw = True).replace('||', '\n')
-        elif child.childNodes[0].getAttribute('type') == 'nose2.plugins.skip.SkipTest':
+        elif child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest':
             if isBlocked:
                 status_id = TESTRAIL_STATUS_ID_BLOCKED
                 if child.childNodes[0].childNodes and child.childNodes[0].childNodes[

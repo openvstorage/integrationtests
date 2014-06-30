@@ -1,7 +1,7 @@
 """
 This plugin enumerates the tests in a format that can be copy pasted as input for running tests.
 """
-from nose2.plugins.base import Plugin
+from nose.plugins.base import Plugin
 
 
 class TestEnum(Plugin):

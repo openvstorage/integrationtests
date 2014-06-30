@@ -49,12 +49,9 @@ from time import time
 from xml.sax import saxutils
 
 from ci.scripts import testrailapi
-from nose2.exc import SkipTest
-from nose2.loader import TestLoader
-from nose2.plugins.base import Plugin
-
-
-
+from nose.exc import SkipTest
+from nose.loader import TestLoader
+from nose.plugins.base import Plugin
 
 
 
