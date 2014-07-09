@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-
 import time
 import urllib2
 import base64
@@ -27,34 +25,66 @@ class BrowserTest():
     BUTTON_TAG = 'button'
     INPUT_TAG = 'input'
 
-    def __init__(self, browser_choice='chrome'):
+    def __init__(self, username='', password='', url='', browser_choice='chrome'):
         if not browser_choice in ['chrome', 'firefox']:
             browser_choice = 'chrome'
 
         self.browser = Browser(browser_choice)
+
+        self.username = username
+        self.password = password
+        self.url = url
         self.debug = False
+        print 'BrowserTest initialized'
+
+
+    def get_username(self):
+        return self.username
+
+    def set_username(self, username):
+        assert isinstance(username, str), 'Username must be a string'
+        self.username = username
+
+    username = property(get_username, set_username)
+
+    def get_password(self):
+        return self.password
+
+    def set_password(self, password):
+        assert isinstance(password, str), 'Password must be a string'
+        self.password = password
+
+    password = property(get_password, set_password)
+
+    def get_url(self):
+        return self.url
+
+    def set_url(self, url):
+        assert isinstance(url, str), 'Username must be a string'
+        self.url = url
+
+    url = property(get_url, set_url)
+
+    def set_debug(self, on=True):
+        assert isinstance(on, bool), 'Debug must be a boolean'
+        self.__debug = on
+
+    debug = property('', set_debug)
 
     def setup(self):
-        username = 'admin'
-        password = 'admin'
-
-        password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        top_level_url = 'https://10.100.131.71'
-        password_mgr.add_password(None, top_level_url, username, password)
-
-        handler = urllib2.HTTPBasicAuthHandler(password_mgr)
-        opener = urllib2.build_opener(handler)
-        opener.open(top_level_url + '/api/customer')
-        urllib2.install_opener(opener)
+        #@todo: add authentication
+        pass
+        # password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        # password_mgr.add_password(None, self.url, self.username, self.password)
+        #
+        # handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+        # opener = urllib2.build_opener(handler)
+        # opener.open(self.url + '/api/customer')
+        # urllib2.install_opener(opener)
 
     def teardown(self):
         self.browser.quit()
-
-    def set_debug_off(self):
-        self.debug = False
-
-    def set_debug_on(self):
-        self.debug = True
+        print 'Browser shutdown complete ...'
 
     def log(self, text):
         if self.debug:
@@ -76,17 +106,15 @@ class BrowserTest():
             raise RuntimeError("Expected only 1 result")
 
     def get_task_response(self, url, internal=False):
-        username = 'admin'
-        password = 'admin'
 
         if internal:
-            url = url + '/api/internal/'
+            customer_api = self.url + '/api/internal/'
         else:
-            url = url + '/api/customer/'
+            customer_api = self.url + '/api/customer/'
 
         print url
-        request = urllib2.Request(url)
-        base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
+        request = urllib2.Request(self.url)
+        base64string = base64.encodestring('%s:%s' % (self.username, self.password)).replace('\n', '')
         request.add_header("Authorization", "Basic %s" % base64string)
 
         result = urllib2.urlopen(request)
@@ -95,7 +123,7 @@ class BrowserTest():
         print
         print url + 'tasks/'
         request = urllib2.Request(url + 'users/')
-        base64string = base64.encodestring('%s:%s' % (username, password)).replace('\n', '')
+        base64string = base64.encodestring('%s:%s' % (self.username, self.password)).replace('\n', '')
         request.add_header("Authorization", "Basic %s" % base64string)
         result = urllib2.urlopen(request)
         data = json.load(result)
