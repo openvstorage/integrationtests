@@ -29,14 +29,12 @@ OS_MAPPING_CFG_FILE = os.path.join(CONFIG_DIR, "os_mapping.cfg")
 TESTRAIL_KEY = "cWFAY2xvdWRmb3VuZGVycy5jb206UjAwdDNy"
 
 
-class TestRunnerOutputFormat(BaseEnumeration):
-    @classmethod
-    def _initItems(cls):
-        cls.registerItem('CONSOLE')
-        cls.registerItem('LOGGER')
-        cls.registerItem('XML')
-        cls.registerItem('TESTRAIL')
-        cls.finishItemRegistration()
+class TestRunnerOutputFormat(object):
+    CONSOLE     = 'CONSOLE'
+    LOGGER      = 'LOGGER'
+    XML         = 'XML'
+    TESTRAIL    = 'TESTRAIL'
+
 
 
 TESTRAIL_STATUS_ID_PASSED = '1'
@@ -1008,17 +1006,7 @@ def getOsInfo(osName):
         print("No configuration found for os {0} in config".format(osName))
         return
 
-    osInfo = {}
-
-    esxOsNameOption = "esx_os_name"
-    locationOption = "location"
-
-    optionsToRetrieve = [esxOsNameOption, locationOption]
-    for option in optionsToRetrieve:
-        if not osMappingCfg.has_option(section=osName, option=option):
-            print("Invalid os mapping config file, option {0} doesnt exist for {1}".format(option, osName))
-            return
-        osInfo[option] = osMappingCfg.get(section=osName, option=option)
+    osInfo = dict(osMappingCfg.items(osName))
 
     return osInfo
 
@@ -1048,3 +1036,26 @@ def getOs():
     osName = autotestCfgL.get(section="main", option="os")
 
     return osName
+
+
+def setTemplateServer(templateServer):
+    """
+    Set current os to be used by tests
+    """
+
+    atCfg = _getConfigIni()
+    atCfg.set(section="main", option="template_server", value=templateServer)
+    _saveConfigIni(atCfg)
+
+    return True
+
+
+def getTemplateServer():
+    """
+    Retrieve current configured os for autotests
+    """
+    autotestCfgL = _getConfigIni()
+
+    templateServer = autotestCfgL.get(section="main", option="template_server")
+
+    return templateServer
