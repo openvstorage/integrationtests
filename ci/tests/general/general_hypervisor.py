@@ -3,6 +3,7 @@ import time
 import urllib
 import urlparse
 import random
+from xml.dom import minidom
 
 from ci import autotests
 from ci.tests.general import general
@@ -17,7 +18,6 @@ PUBLIC_BRIDGE_NAME_ESX = "CloudFramesPublic"
 class Hypervisor(object):
     @staticmethod
     def get(htype, vpool_name):
-        VPoolList.get_vpools()
         vpool = [v for v in VPoolList.get_vpools() if v.name == vpool_name]
         assert vpool, "Vpool with name {} not found".format(vpool_name)
         vpool = vpool[0]
@@ -48,11 +48,20 @@ def _download_to_vpool(url, path):
                 break
     u.close()
 
+def _xml_get_child(dom, name):
+    c = [e for e in dom.childNodes if e.localName == name]
+    return c
+
+def get_vm_ip_from_mac(mac):
+    ip = general.get_virbr_ip()
+    cmd = "nmap -sP {ip} >/dev/null && arp -an | grep -i {mac} | awk '{{print $2;}}' | sed 's/[()]//g'".format(ip = ip, mac = mac)
+    out = general.execute_command(cmd)
+    return out[0].strip()
 
 class Vmware(object):
     def __init__(self, vpool):
         self.vpool = vpool
-        self.mountpoint = list(vpool.vsrs)[0].mountpoint_dfs
+        self.mountpoint = list(vpool.vsrs)[0].mountpoint
         hypervisorInfo = autotests.getHypervisorInfo()
         assert hypervisorInfo, "No hypervisor info specified use autotests.setHypervisorInfo"
         self.sdk = Vmware_sdk(*hypervisorInfo)
@@ -61,7 +70,7 @@ class Vmware(object):
 
         #not sure if its the propper way to get the datastore
         esxhost = self.sdk._validate_host(None)
-        datastores = self.sdk._get_object(esxhost, properties=['datastore']).datastore.ManagedObjectReference
+        datastores = self.sdk._get_object(esxhost, properties = ['datastore']).datastore.ManagedObjectReference
         datastore = [d for d in datastores if self.vpool.vsrs[0].cluster_ip in d.value]
         assert datastore, "Did not found datastore"
         datastore = self.sdk._get_object(datastore[0])
@@ -156,7 +165,7 @@ class Vmware(object):
 class Kvm(object):
     def __init__(self, vpool):
         self.vpool = vpool
-        self.mountpoint = list(vpool.vsrs)[0].mountpoint_dfs
+        self.mountpoint = list(vpool.vsrs)[0].mountpoint
         self.sdk = Kvm_sdk()
 
     def create_vm(self, name, ram = 1024):
@@ -195,4 +204,14 @@ class Kvm(object):
     def start(self, name):
         self.sdk.power_on(name)
         self._wait_for_state(name, 'RUNNING')
+
+    def get_mac_address(self, name):
+        vmo = self.sdk.get_vm_object(name)
+        dom = minidom.parseString(vmo.XMLDesc()).childNodes[0]
+        devices = _xml_get_child(dom, "devices")[0]
+        nic = _xml_get_child(devices, "interface")[0]
+        mac = _xml_get_child(nic, "mac")[0]
+        return mac.attributes['address'].value
+
+
 

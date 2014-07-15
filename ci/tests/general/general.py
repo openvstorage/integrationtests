@@ -6,10 +6,11 @@ import urllib
 import subprocess
 from nose.plugins.skip import SkipTest
 
+from ovs.dal.lists import vmachinelist
+
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
 import debug
-
 
 if not hasattr(sys, "debugEnabled"):
     sys.debugEnabled = True
@@ -55,18 +56,6 @@ def getTestsToRun():
     return sorted(list(set(testsToRun)))
 
 
-def installOvftool():
-    ovftoolUrl = "http://sso-qpackages-loch.cloudfounders.com/templates/openvstorage/VMware-ovftool-3.5.0-1274719-lin.x86_64.bundle"
-    ovftoolLocalPath = os.path.join(os.sep, "tmp", os.path.basename(ovftoolUrl))
-    execute_command("cd /tmp;wget {0}".format(ovftoolUrl))
-
-    command = ["/bin/sh", ovftoolLocalPath]
-    p = subprocess.Popen(command, stdout = subprocess.PIPE, stdin = subprocess.PIPE, stderr = subprocess.PIPE)
-    p.communicate(input = '\nyes\n\n')
-
-    execute_command("which ovftool")
-
-
 def checkPrereqs(testCaseNumber, testsToRun):
     """
     Check whetever test needs to run or not
@@ -81,6 +70,31 @@ def checkPrereqs(testCaseNumber, testsToRun):
     if 0 not in testsToRun and testCaseNumber not in testsToRun:
         raise SkipTest
 
+def getTestsToRun(test_level):
+    """
+    Retrieves the tests to be executed in the testsuite (from autotest config file)
+
+    @return:     List of numbers of tests to be executed
+    @returntype: List of integers
+    """
+    tests      = test_level
+    testsToRun = []
+    if tests:
+        for number in tests.split(','):
+            if not number.find('-') >= 0:
+                testsToRun.append(int(number))
+            else:
+                numbers = number.split('-')
+                if int(numbers[0]) > int(numbers[1]):
+                    hulp       = numbers[0]
+                    numbers[0] = numbers[1]
+                    numbers[1] = hulp
+
+                testsToRun.append(int(numbers[0]))
+                for k in range(int(numbers[0])+1,int(numbers[1])+1):
+                    testsToRun.append(k)
+
+    return sorted(list(set(testsToRun)))
 
 def getRemoteSshCon(ipAddress, username, password):
     """
@@ -92,19 +106,14 @@ def getRemoteSshCon(ipAddress, username, password):
     return sshCon, sftp
 
 
-def deployVmFromOva(name,
-                    datastore,
-                    ovaFile):
-    """
-    Deploy a vm from an ova template
-    """
+def get_virbr_ip():
+    ip = execute_command("""ip a | grep "virbr.*:" -A 2 | awk '/inet/ {print $2;}'""")[0].strip()
+    return ip
 
-    command = "ovftool -ds={0} --noSSLVerify --acceptAllEulas --skipManifestCheck -n={1} --net:Public={2} {3} vi://{4}:{5}@{6}/"
-    command = command.format(datastore,
-                             name,
-                             publicNetName,
-                             ovaFile,
-                             ESX_USERNAME,
-                             ESX_PASSWORD,
-                             ESX_IP)
+
+def get_local_vsa():
+    local_ip_info =  execute_command("ip a")[0]
+    for vsa in vmachinelist.VMachineList.get_vsas():
+        if vsa.ip in local_ip_info:
+             return vsa
 
