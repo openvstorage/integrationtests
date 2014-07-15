@@ -23,27 +23,48 @@
 
 import time
 
-from browser_test import BrowserTest
+from browser_ovs          import BrowserOvs
+from ci                   import autotests
+from ci.tests.general     import general
+from ci.tests.api         import connection
+from nose.plugins.skip    import SkipTest
 
 
-class VpoolTest(BrowserTest):
-    def __init__(self, vpool_name='', vpool_type='', vpool_host='', vpool_port='',
-                 vpool_access_key='', vpool_secret_key='', vpool_temp_mp='',
-                 vpool_md_mp='', vpool_cache_mp='', vpool_vrouter_port='',
-                 vpool_storage_ip='', browser_choice='chrome'):
+class Vpool(BrowserOvs):
+    def __init__(self,
+                 vpool_name         = '',
+                 vpool_type         = '',
+                 vpool_host         = '',
+                 vpool_port         = '',
+                 vpool_access_key   = '',
+                 vpool_secret_key   = '',
+                 vpool_temp_mp      = '',
+                 vpool_md_mp        = '',
+                 vpool_cache_mp     = '',
+                 vpool_vrouter_port = '',
+                 vpool_storage_ip   = '',
+                 browser_choice     = 'firefox' ):
 
-        self.bt = BrowserTest.__init__(self, username='', password='', url='', browser_choice=browser_choice)
-        self.vpool_name = vpool_name
-        self.vpool_type = vpool_type
-        self.vpool_host = vpool_host
-        self.vpool_port = vpool_port
-        self.vpool_access_key = vpool_access_key
-        self.vpool_secret_key = vpool_secret_key
-        self.vpool_temp_mp = vpool_temp_mp
-        self.vpool_md_mp = vpool_md_mp
-        self.vpool_cache_mp = vpool_cache_mp
-        self.vpool_vrouter_port = vpool_vrouter_port
-        self.vpool_storage_ip = vpool_storage_ip
+        self.bt = BrowserOvs.__init__(self, browser_choice = browser_choice)
+
+        cfg = autotests._getConfigIni()
+
+        self.vpool_name             = vpool_name         or cfg.get("vpool", "vpool_name")
+        self.vpool_type             = vpool_type         or cfg.get("vpool", "vpool_type")
+        self.vpool_host             = vpool_host         or cfg.get("vpool", "vpool_host")
+        self.vpool_port             = vpool_port         or cfg.get("vpool", "vpool_port")
+        self.vpool_access_key       = vpool_access_key   or cfg.get("vpool", "vpool_access_key")
+        self.vpool_secret_key       = vpool_secret_key   or cfg.get("vpool", "vpool_secret_key")
+        self.vpool_temp_mp          = vpool_temp_mp      or cfg.get("vpool", "vpool_temp_mp")
+        self.vpool_md_mp            = vpool_md_mp        or cfg.get("vpool", "vpool_md_mp")
+        self.vpool_cache_mp         = vpool_cache_mp     or cfg.get("vpool", "vpool_cache_mp")
+        self.vpool_vrouter_port     = vpool_vrouter_port or cfg.get("vpool", "vpool_vrouter_port")
+        self.vpool_storage_ip       = vpool_storage_ip   or cfg.get("vpool", "vpool_storage_ip")
+
+        for e in ["vpool_name", "vpool_type", "vpool_host", "vpool_port", "vpool_access_key", "vpool_secret_key",
+                  "vpool_temp_mp", "vpool_md_mp", "vpool_cache_mp", "vpool_vrouter_port", "vpool_storage_ip"]:
+            if not getattr(self, e): raise SkipTest()
+
         print 'VpoolTest initialized'
 
     def get_vpool_name(self):
@@ -148,41 +169,37 @@ class VpoolTest(BrowserTest):
     def get_vpool_url(self):
         return self.get_url() + '/#full/vpools'
 
-    def login_test(self):
-
-        self.login_to(self.url, self.username, self.password)
-        self.wait_for_text('dashboard')
-
-    def add_vpool_test(self):
-        self.browse_to(self.get_url() + '#full/vpools')
+    def add_vpool(self):
+        self.browse_to(self.get_url() + '#full/vpools', 'vpools')
         self.click_on('AddVpool')
         self.wait_for_text('Add new vPool')
         time.sleep(1)
         self.choose('Local FS', self.vpool_type)
         self.fill_out('inputVpoolName', self.vpool_name)
-        self.fill_out('inputVpoolHost', self.vpool_host)
-        self.fill_out('inputVpoolPort', self.vpool_port)
-        self.fill_out('inputVpoolAccessKey', self.vpool_access_key)
-        self.fill_out('inputVpoolSecretKey', self.vpool_secret_key)
-        time.sleep(2)
-        self.click_on('Next')
+
+        if self.vpool_type in ['Ceph S3', 'S3 compatible', 'Swift S3']:
+            self.fill_out('inputVpoolHost', self.vpool_host)
+            self.fill_out('inputVpoolPort', self.vpool_port)
+            self.fill_out('inputVpoolAccessKey', self.vpool_access_key)
+            self.fill_out('inputVpoolSecretKey', self.vpool_secret_key)
+
+        self.click_on('Next', retries = 15)
 
         # wait for page to load
-        time.sleep(2)
+        self.browser.is_element_present_by_id('dropdown-button-mtpt-temp', 15)
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-cache', self.vpool_cache_mp)
         self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port)
         self.choose('127.0.0.1', self.vpool_storage_ip)
-        self.click_on('Next')
+        self.click_on('Next', retries = 15)
 
-        # wait for page to load
-        time.sleep(2)
-        self.click_on('Finish')
+        self.click_on('Finish', retries = 15)
+
         #@todo: wait for task to complete
         #self.get_task_response('https://10.100.131.71')
 
-    def add_gsrs_to_vpool_test(self, vpool_name):
+    def add_gsrs_to_vpool(self, vpool_name):
         self.browse_to(self.get_vpool_url())
         self.wait_for_text(vpool_name)
         time.sleep(2)
@@ -203,7 +220,7 @@ class VpoolTest(BrowserTest):
         #@todo: wait for task to complete
         #self.get_task_response('https://10.100.131.71')
 
-    def remove_vpool_test(self, vpool_name):
+    def remove_vpool(self, vpool_name):
         self.browse_to(self.get_vpool_url())
         self.wait_for_text(vpool_name)
 

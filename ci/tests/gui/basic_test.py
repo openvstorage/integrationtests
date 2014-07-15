@@ -12,46 +12,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from vpool_test import VpoolTest
-vpt = VpoolTest('chrome')
+
+from ci.tests.general   import general
+from vpool              import Vpool
+from browser_ovs        import BrowserOvs
+from ci                 import autotests
+
+testsToRun = general.getTestsToRun(autotests.getTestLevel())
+
 
 def setup():
-    print "setup called ..."
+
+    print "setup called " + __name__
+
+
+def teardown():
+    pass
+
+
+def ovs_login_test():
+    """
+    """
+
+    general.checkPrereqs(testCaseNumber = 1,
+                         testsToRun     = testsToRun)
+
+    try:
+        bt = BrowserOvs()
+        bt.login()
+    except Exception as ex:
+        print str(ex)
+        raise
+    finally:
+        bt.teardown()
+
+
+def vpool_add_test():
+    """
+    """
+
+    general.checkPrereqs(testCaseNumber = 2,
+                         testsToRun     = testsToRun)
+
+
+    """
     vpt.set_username('admin')
     vpt.set_password('admin')
     vpt.set_url('https://10.100.131.71/')
     vpt.set_debug(True)
 
-    vpt.set_vpool_name('ceph')
-    vpt.set_vpool_type('Ceph S3')
+    vpt.set_vpool_name('saio')
+    vpt.set_vpool_type('Swift S3')
     vpt.set_vpool_host('10.100.131.91')
-    vpt.set_vpool_port(80)
-    vpt.set_vpool_access_key('0OMK2V3HQJ4JNDT766UF')
-    vpt.set_vpool_secret_key('RCz00qAo+jgRlPLVdXoP1RUZfU5RzjOFRQJBJxyR')
+    vpt.set_vpool_port(8080)
+    vpt.set_vpool_access_key('test:tester')
+    vpt.set_vpool_secret_key('testing')
 
     vpt.set_vpool_temp_mp('/var/tmp')
-    vpt.set_vpool_md_mp('/mnt/metadata/ceph')
-    vpt.set_vpool_cache_mp('/mnt/cache/ceph')
+    vpt.set_vpool_md_mp('/mnt/metadata/saio')
+    vpt.set_vpool_cache_mp('/mnt/cache/saio')
     vpt.set_vpool_vrouter_port(12323)
     vpt.set_vpool_storage_ip('172.22.131.10')
+    """
 
-def teardown():
-    vpt.teardown()
-
-def ovs_login_test():
-    setup()
-    print 'url: {0}'.format(vpt.get_vpool_url())
-    print 'user: {0}'.format(vpt.get_username())
-    print 'pass: {0}'.format(vpt.get_password())
-
-    vpt.login_test()
-
-
-def vpool_add_test():
     try:
-        vpt.add_vpool_test()
+        vpt = Vpool()
+        vpt.login()
+        vpt.add_vpool()
     except Exception as ex:
         print str(ex)
-        vpt.teardown()
-        print 'Browser shutdown ...'
         raise
+    finally:
+        vpt.teardown()

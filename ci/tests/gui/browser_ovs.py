@@ -12,31 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import time
 import urllib2
 import base64
 import json
 
-from splinter.browser import Browser
+from splinter.browser    import Browser
+from splinter.driver     import webdriver
 from splinter.exceptions import ElementDoesNotExist
 
+from ci.tests.general    import general
+from ci                  import autotests
 
-class BrowserTest():
+class BrowserOvs():
     BUTTON_TAG = 'button'
     INPUT_TAG = 'input'
 
-    def __init__(self, username='', password='', url='', browser_choice='chrome'):
-        if not browser_choice in ['chrome', 'firefox']:
+    def __init__(self, username = '', password = '', url = '', browser_choice = 'phantomjs'):
+        if not browser_choice in ['chrome', 'firefox', 'phantomjs', 'zope.testbrowser']:
             browser_choice = 'chrome'
 
         self.browser = Browser(browser_choice)
 
-        self.username = username
-        self.password = password
-        self.url = url
-        self.debug = False
-        print 'BrowserTest initialized'
+        if browser_choice == 'phantomjs':
+            print "phantomjs"
+            phdriver = webdriver.phantomjs.PhantomJS(service_args=['--ignore-ssl-errors=true', '--webdriver-loglevel=DEBUG',   '--ssl-protocol=any', '--web-security=false'])
 
+
+            phdriver.set_script_timeout(60)
+            phdriver.set_page_load_timeout(60)
+            self.browser.driver = phdriver
+            self.browser.wait_time = 20
+
+        self.browser.driver.set_window_size(1280, 1024)
+        self.username = username or autotests.getUserName()
+        self.password = password or autotests.getPassword()
+        self.url      = url or 'https://{0}/'.format(general.get_local_vsa().ip)
+
+        self.debug = True
+        self.screens_location = "/var/tmp"
+        print 'BrowserOvs initialized'
 
     def get_username(self):
         return self.username
@@ -83,6 +99,8 @@ class BrowserTest():
         # urllib2.install_opener(opener)
 
     def teardown(self):
+        if self.debug:
+            self.browser.driver.save_screenshot(os.path.join(self.screens_location, str(time.time()) + ".png"))
         self.browser.quit()
         print 'Browser shutdown complete ...'
 
@@ -139,7 +157,7 @@ class BrowserTest():
 
     def choose(self, identifier, value):
         button = None
-        divs = self.browser.find_by_tag(BrowserTest.BUTTON_TAG)
+        divs = self.browser.find_by_tag(self.BUTTON_TAG)
         for d in divs:
             if identifier in d.value and d.visible:
                 d.click()
@@ -151,17 +169,35 @@ class BrowserTest():
                 if value in ul.text and ul.visible:
                     ul.click()
 
-    def click_on(self, identifier):
-        button = None
-        try:
-            button = self.browser.find_by_id(BrowserTest.BUTTON_TAG + identifier)[0]
-        except ElementDoesNotExist:
-            identifier = identifier.lower()
-            buttons = self.browser.find_by_tag(BrowserTest.BUTTON_TAG)
-            for button in buttons:
-                if identifier in button.text.lower() or identifier in button.value.lower():
-                    break
+    def click_on(self, identifier, retries = 1):
 
+        while retries:
+
+            if self.debug:
+                self.browser.driver.save_screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time()) + ".png"))
+
+            button = None
+            try:
+                button = self.browser.find_by_id(self.BUTTON_TAG + identifier)[0]
+            except ElementDoesNotExist:
+                identifier_low = identifier.lower()
+                buttons = self.browser.find_by_tag(self.BUTTON_TAG)
+
+                print [(b.value, b.text) for b in buttons]
+
+                for b in buttons:
+                    if identifier_low in b.text.lower() or identifier_low in b.value.lower():
+                        button = b
+                        break
+            if button:
+                break
+            retries -= 1
+            time.sleep(1)
+
+        if self.debug:
+            self.browser.driver.save_screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time()) + ".png"))
+
+        assert button, "Could not find {}".format(identifier)
         return button.click() if button else False
 
     def click_on_tbl_item(self, identifier):
@@ -180,19 +216,22 @@ class BrowserTest():
 
     def check_checkboxes(self, identifier=''):
         search = self.browser.find_by_id(identifier) if identifier else self.browser
-        for cb in search.find_by_tag(BrowserTest.INPUT_TAG):
+        for cb in search.find_by_tag(self.INPUT_TAG):
             if not cb.checked and cb.visible:
                 cb.check()
 
     def fill_out(self, identifier, value):
         input_field = self.get_single_item_by_id(identifier)
         if input_field.value != str(value):
-            return input_field.fill(value)
+            self.log('Filling out {0} in {1}'.format(value, identifier))
+            input_field.fill(value)
+        else:
+            self.log('Value {0} already present in {1}'.format(value, identifier))
         return True
 
     def fill_out_custom_field(self, identifier, value):
         element = self.get_single_item_by_id(identifier)
-        self.log('Filling out: {0}'.format(identifier))
+        self.log('Filling out: {0} with {1}'.format(identifier, value))
         previous_value = element.value
         element.click()
         items = element.find_by_xpath('//ul/li')
@@ -217,18 +256,20 @@ class BrowserTest():
             break
         return True
 
-    def login_to(self, url, username, password):
-        self.browser.visit(url)
+    def login(self):
+        self.browser.visit(self.url)
         if self.debug: print 'Login to {0}'.format(self.browser.title)
-        self.fill_out('inputUsername', username)
-        self.fill_out('inputPassword', password)
+        self.fill_out('inputUsername', self.username)
+        self.fill_out('inputPassword', self.password)
         self.click_on('Login')
+        self.wait_for_text('dashboard')
 
     def uncheck_checkboxes(self, element=''):
         search = element if element else self.browser
-        for cb in search.find_by_tag(BrowserTest.INPUT_TAG):
+        for cb in search.find_by_tag(self.INPUT_TAG):
             cb.uncheck()
 
     def wait_for_text(self, text, timeout=5):
         self.browser.is_text_present(text, timeout)
         time.sleep(1)
+

@@ -69,7 +69,7 @@ def run(test_spec=None,
     else:
         output_format = getattr(TestRunnerOutputFormat, str(output_format))
     if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and output_folder == None:
-        output_folder = check_input(predicate=lambda x: os.exists(x) and os.isDir(x),
+        output_folder = check_input(predicate=lambda x: os.path.exists(x) and os.path.isdir(x),
                                     msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
     if output_format == TestRunnerOutputFormat.TESTRAIL:
@@ -124,7 +124,7 @@ def runMultiple(list_of_tests,
         output_format = getattr(TestRunnerOutputFormat, str(output_format))
 
     if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and output_folder == None:
-        output_folder = check_input(predicate=lambda x: os.exists(x) and os.isDir(x),
+        output_folder = check_input(predicate=lambda x: os.path.exists(x) and os.path.isdir(x),
                                     msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
     if output_format == TestRunnerOutputFormat.TESTRAIL:
@@ -177,7 +177,7 @@ def runAll(output_format=TestRunnerOutputFormat.CONSOLE,
         output_format = getattr(TestRunnerOutputFormat, str(output_format))
 
     if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and output_folder == None:
-        output_folder = check_input(predicate=lambda x: os.exists(x) and os.isDir(x),
+        output_folder = check_input(predicate=lambda x: os.path.exists(x) and os.path.isdir(x),
                                     msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
     if output_format == TestRunnerOutputFormat.TESTRAIL:
@@ -221,7 +221,7 @@ def pushToTestrail(project=None,
     _ = qualityLevel
 
     if not fileName:
-        folderPred = lambda x: os.exists(x) and os.isDir(x)
+        folderPred = lambda x: os.path.exists(x) and os.path.isdir(x)
         if not folderPred(folder):
             folder = check_input(predicate=folderPred,
                                  msg='Incorrect parameter output_folder: %s is not a directory or does not exist' % folder)
@@ -286,7 +286,7 @@ def _parseArgs(suite_name,
     elif output_format == TestRunnerOutputFormat.XML:
         if output_folder == None:
             raise AttributeError("No output folder for the XML result files specified")
-        if not os.exists(output_folder):
+        if not os.path.exists(output_folder):
             raise AttributeError("Given output folder doesn't exist. Please create it first!")
         arguments.append('--verbosity')
         arguments.append('3')
@@ -304,7 +304,7 @@ def _parseArgs(suite_name,
     elif output_format == TestRunnerOutputFormat.TESTRAIL:
         if output_folder == None:
             raise AttributeError("No output folder for the XML result files specified")
-        if not os.exists(output_folder):
+        if not os.path.exists(output_folder):
             raise AttributeError("Given output folder doesn't exist. Please create it first!")
         if testrail_url == None:
             raise AttributeError("No testrail ip specified")
@@ -346,7 +346,7 @@ def _convertTestSpec(test_spec):
     """
     test_spec_parts = test_spec.split('.')
     test_spec_path = os.path.join(TESTS_DIR, *test_spec_parts)
-    if (os.isDir(test_spec_path)):
+    if (os.path.isdir(test_spec_path)):
         return test_spec.replace('.', '/')
     else:
         return test_spec
@@ -387,7 +387,8 @@ def _getHypervisor():
     """
     Get hypervisor
     """
-    return "VMWARE_ESX"
+    from ovs.dal.lists.pmachinelist import PMachineList
+    return list(PMachineList.get_pmachines())[0].hvtype
 
 
 def _getDescription(planComment="", durations=""):
@@ -421,13 +422,14 @@ def _getQualityLevel():
     """
     Retrieve quality level of installation
     """
-    # @todo to be updated
-    # sourcesCfgFile = os.path.join(j.dirs.cfgDir, "jpackages", "sources.cfg")
-    # sourcesCfg = ConfigParser.ConfigParser()
-    # sourcesCfg.read(sourcesCfgFile)
-    # qualityLevel = sourcesCfg.get('openvstorage', 'qualitylevel')
-    # return qualityLevel
-    return "unstable"
+    cmd = "awk '/deb/ {print $3;}' /etc/apt/sources.list.d/ovsaptrepo.list"
+    childProc = subprocess.Popen(cmd,
+                                 shell=True,
+                                 stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+
+    return childProc.communicate()[0].replace("/", "").strip()
 
 
 def _getProject():
@@ -441,22 +443,20 @@ def _getOvsVersion():
     """
     Retrieve version of ovs installation
     """
-    # @todo to be updated
-    # ovsPckg = j.packages.find(domain = "openvstorage", name = "openvstorage")
-    # ovsPckg = ovsPckg[0]
-    # return ovsPckg.version
+    packages = _getPackageInfo()
+    mainP = [pck for pck in packages.splitlines() if "openvstorage " in pck]
+    if not mainP:
+        return ""
 
-    return "1.3.0"
-
+    return re.split("\s*", mainP[0])[2]
 
 def _getResultFiles(folder):
     """
     List all xml results files in folder
     """
-    xmlFiles = j.system.fs.listFilesInDir(path=folder,
-                                          filter="*.xml*")
-    xmlFiles = [j.system.fs.getBaseName(xmlFile) for xmlFile in xmlFiles]
-    xmlFiles.sort(reverse=True)
+    xmlFiles = [f for f in os.listdir(folder) if ".xml" in f]
+
+    xmlFiles.sort(reverse = True)
     return xmlFiles
 
 
@@ -521,10 +521,16 @@ def _getPackageInfo():
     """
     Retrieve package information for installation
     """
-    packages = j.packages.find(domain="openvstorage", name="*")
+    command = "dpkg -l \*openvstorage\* | grep openvstorage"
 
-    return '\n'.join(map(str, packages))
+    childProc = subprocess.Popen(command,
+                                 shell  = True,
+                                 stdin  = subprocess.PIPE,
+                                 stdout = subprocess.PIPE,
+                                 stderr = subprocess.PIPE)
 
+    (output, _error) = childProc.communicate()
+    return output
 
 def _getDurations(xmlfile):
     """
@@ -593,10 +599,10 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
         prevSuiteName = suiteName
         if not projectIni.has_section(projectName):
             print 'Project "%s" not found in project_testsuite_mapping.cfg' % projectName
-            exit(1)
+            sys.exit(1)
         if not projectIni.has_option(projectName, suite):
             print 'Suite "%s" not found in project_testsuite_mapping.cfg' % suite
-            exit(1)
+            sys.exit(1)
         suiteName = projectIni.get(projectName, suite)
         if suiteName != prevSuiteName:
             suiteID = [s for s in allSuites if s['name'] == suiteName]
@@ -604,7 +610,7 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
             if not suiteID:
                 if not createInexistentSuites:
                     print "Suite %s not found on testrail, manually create it or set createInexistentSuites param to True" % suiteName
-                    exit(1)
+                    sys.exit(1)
                 else:
                     newSuite = testrailApi.addSuite(projectID, suiteName)
                     allSuites.append(newSuite)
@@ -616,7 +622,7 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
         else:
             if not suiteID:
                 print "Suite %s not found on testrail, manually create it or set createInexistentSuites param to True" % suiteName
-                exit(1)
+                sys.exit(1)
 
         sectionName = determineSectionName(suite, case)
         if suiteID not in allSections:
@@ -631,7 +637,7 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
             else:
                 print "Section %s under suiteId %s not found on testrail, manually create it or set createInexistentSuites param to True" % (
                     sectionName, suiteID)
-                exit(1)
+                sys.exit(1)
         else:
             sectionID = sectionID[0]['id']
 
@@ -662,15 +668,14 @@ def determineSectionName(suite, caseName):
     return Q_AUTOMATED
 
 
-def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComment, createInexistentSuites,
-                    createInexistentCases):
+def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComment, createInexistentSuites, createInexistentCases):
     """
     Push xml file to Testrail
     """
     testResultFile = fileName
-    if not j.system.fs.exists(testResultFile):
+    if not os.path.exists(testResultFile):
         raise Exception("Testresultfile '%s' was not found on system" % testResultFile)
-    if not j.system.fs.isFile(testResultFile):
+    if not os.path.isfile(testResultFile):
         raise Exception("Invalid file given")
 
     testrailApi = testrailapi.TestrailApi(IP, key=TESTRAIL_KEY)
@@ -699,7 +704,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
     date = today.strftime('%a %b %d %H:%M:%S')
     name = '%s.%s__%s' % (version, qlevel, date)
 
-    projectMapping = j.system.fs.joinPaths(SCRIPTS_DIR, "project_testsuite_mapping.cfg")
+    projectMapping = os.path.join(CONFIG_DIR, "project_testsuite_mapping.cfg")
     projectIni = ConfigParser.ConfigParser()
     projectIni.read(projectMapping)
 
@@ -981,7 +986,6 @@ def setHypervisorInfo(ip, username, password):
 
     return True
 
-
 def listOs():
     """
     List os' configured in os_mapping
@@ -1040,7 +1044,7 @@ def getOs():
 
 def setTemplateServer(templateServer):
     """
-    Set current os to be used by tests
+    Set current template server to be used by tests
     """
 
     atCfg = _getConfigIni()
@@ -1052,10 +1056,47 @@ def setTemplateServer(templateServer):
 
 def getTemplateServer():
     """
-    Retrieve current configured os for autotests
+    Retrieve current configured template server for autotests
     """
     autotestCfgL = _getConfigIni()
 
-    templateServer = autotestCfgL.get(section="main", option="template_server")
+    templateServer = autotestCfgL.get(section = "main", option = "template_server")
 
     return templateServer
+
+def getUserName():
+    """
+    Get username to use in tests
+    """
+    autotestCfgL = _getConfigIni()
+    username = autotestCfgL.get(section = "main", option = "username")
+    return username
+
+def setUserName(username):
+    """
+    Set username to use in tests
+    """
+    atCfg = _getConfigIni()
+    atCfg.set(section = "main", option = "username", value = username)
+    _saveConfigIni(atCfg)
+
+    return True
+
+
+def getPassword():
+    """
+    Get password to use in tests
+    """
+    autotestCfgL = _getConfigIni()
+    username = autotestCfgL.get(section = "main", option = "username")
+    return username
+
+def setPassword(password):
+    """
+    Set password to use in tests
+    """
+    atCfg = _getConfigIni()
+    atCfg.set(section = "main", option = "password", value = password)
+    _saveConfigIni(atCfg)
+
+    return True
