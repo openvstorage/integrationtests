@@ -9,20 +9,23 @@ from ci import autotests
 from ci.tests.general import general
 
 from ovs.dal.lists.vpoollist import VPoolList
+from ovs.dal.lists.pmachinelist import PMachineList
 from ovs.extensions.hypervisor.hypervisors.kvm import Sdk as Kvm_sdk
 from ovs.extensions.hypervisor.hypervisors.vmware import Sdk as Vmware_sdk
+
+
 
 
 PUBLIC_BRIDGE_NAME_ESX = "CloudFramesPublic"
 
 class Hypervisor(object):
     @staticmethod
-    def get(htype, vpool_name):
+    def get(vpool_name, htype = None):
         vpool = [v for v in VPoolList.get_vpools() if v.name == vpool_name]
         assert vpool, "Vpool with name {} not found".format(vpool_name)
         vpool = vpool[0]
 
-
+        htype = htype or get_hypervisor_type()
         if htype == "VMWARE":
             return Vmware(vpool)
         elif htype == "KVM":
@@ -30,10 +33,12 @@ class Hypervisor(object):
         else:
             raise Exception("{} not implemented".format(htype))
 
-def _download_to_vpool(url, path):
+def _download_to_vpool(url, path, overwrite_if_exists = False):
     """
     special method to download to vpool because voldrv does not support extending file at write
     """
+    if os.path.exists(path) and not overwrite_if_exists:
+        return
     u = urllib.urlopen(url)
     bsize = 4096 * 1024
     with open(path, "w") as f:
@@ -47,6 +52,9 @@ def _download_to_vpool(url, path):
             if len(s) < bsize:
                 break
     u.close()
+
+def get_hypervisor_type():
+    return PMachineList.get_pmachines()[0].hvtype
 
 def _xml_get_child(dom, name):
     c = [e for e in dom.childNodes if e.localName == name]
@@ -172,21 +180,24 @@ class Kvm(object):
         os_name = autotests.getOs()
         bootdisk_path_remote = autotests.getOsInfo(os_name)['bootdisk_location']
 
-        os.mkdir(os.path.join(self.mountpoint, name))
-        bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
+        vm_path = os.path.join(self.mountpoint, name)
+        if not os.path.exists(vm_path):
+            os.mkdir(vm_path)
+            bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
 
-        template_server = autotests.getTemplateServer()
-        bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
+            template_server = autotests.getTemplateServer()
+            bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
 
-        _download_to_vpool(bootdisk_url, bootdisk_path)
+            _download_to_vpool(bootdisk_url, bootdisk_path)
 
-        cmd = "virt-install --connect qemu:///system -n {name} -r {ram} --disk {bootdisk_path},device=disk,format=raw,bus=virtio --import --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,model=e1000 --boot hd"
-        cmd = cmd.format(name = name,
-                         bootdisk_path = bootdisk_path,
-                         ram = ram
-                         )
-        general.execute_command(cmd)
-
+            cmd = "virt-install --connect qemu:///system -n {name} -r {ram} --disk {bootdisk_path},device=disk,format=raw,bus=virtio --import --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,model=e1000 --boot hd"
+            cmd = cmd.format(name = name,
+                             bootdisk_path = bootdisk_path,
+                             ram = ram
+                             )
+            general.execute_command(cmd)
+        else:
+            print "VM path {} already exists".format(vm_path)
 
     def _wait_for_state(self, name, state):
         retries = 240
@@ -197,11 +208,18 @@ class Kvm(object):
             retries -= 1
             time.sleep(1)
 
+        actuall_state = self.sdk.get_power_state(name)
+        assert actuall_state == state, "Vm did not go into state {0}, actual {1}".format(state, actuall_state)
+
     def shutdown(self, name):
-        self.sdk.shutdown(name)
+        if self.sdk.get_power_state(name) == 'RUNNING':
+            self.sdk.shutdown(name)
         self._wait_for_state(name, 'TURNEDOFF')
 
     def start(self, name):
+        if self.sdk.get_power_state(name) == 'RUNNING':
+            print "Vm {} already running".format(name)
+            return
         self.sdk.power_on(name)
         self._wait_for_state(name, 'RUNNING')
 

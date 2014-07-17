@@ -292,7 +292,7 @@ def _parseArgs(suite_name,
         arguments.append('3')
         arguments.append('--with-xunit_testrail')
         arguments.append('--xunit_file2')
-        arguments.append(os.path.join(output_folder, '%s.xml' % suite_name))
+        arguments.append(os.path.join(output_folder, '%s.xml' % (suite_name + str(time.time()))))
         arguments.append('--testrail-ip')
         arguments.append("")
         arguments.append('--project-name')
@@ -319,7 +319,7 @@ def _parseArgs(suite_name,
         arguments.append('3')
         arguments.append('--with-xunit_testrail')
         arguments.append('--xunit_file2')
-        arguments.append(os.path.join(output_folder, '%s.xml' % suite_name))
+        arguments.append(os.path.join(output_folder, '%s.xml' % (suite_name + str(time.time()))))
         arguments.append('--testrail-ip')
         arguments.append(testrail_url)
         arguments.append('--project-name')
@@ -734,6 +734,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
     def addPlan():
         description = _getDescription(planComment=planComment, durations=durations)
         planID = testrailApi.addPlan(projectID, name, description, milestoneID or None)['id']
+        print planID
         return planID
 
     for child in xmlfile.childNodes:

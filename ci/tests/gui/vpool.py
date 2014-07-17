@@ -29,6 +29,8 @@ from ci.tests.general     import general
 from ci.tests.api         import connection
 from nose.plugins.skip    import SkipTest
 
+from splinter.driver.webdriver import NoSuchElementException
+
 
 class Vpool(BrowserOvs):
     def __init__(self,
@@ -41,9 +43,10 @@ class Vpool(BrowserOvs):
                  vpool_temp_mp      = '',
                  vpool_md_mp        = '',
                  vpool_cache_mp     = '',
+                 vpool_bfs_mp       = '',
                  vpool_vrouter_port = '',
                  vpool_storage_ip   = '',
-                 browser_choice     = 'firefox' ):
+                 browser_choice     = 'chrome' ):
 
         self.bt = BrowserOvs.__init__(self, browser_choice = browser_choice)
 
@@ -58,6 +61,7 @@ class Vpool(BrowserOvs):
         self.vpool_temp_mp          = vpool_temp_mp      or cfg.get("vpool", "vpool_temp_mp")
         self.vpool_md_mp            = vpool_md_mp        or cfg.get("vpool", "vpool_md_mp")
         self.vpool_cache_mp         = vpool_cache_mp     or cfg.get("vpool", "vpool_cache_mp")
+        self.vpool_bfs_mp           = vpool_bfs_mp       or cfg.get("vpool", "vpool_bfs_mp")
         self.vpool_vrouter_port     = vpool_vrouter_port or cfg.get("vpool", "vpool_vrouter_port")
         self.vpool_storage_ip       = vpool_storage_ip   or cfg.get("vpool", "vpool_storage_ip")
 
@@ -139,6 +143,16 @@ class Vpool(BrowserOvs):
 
     vpool_md_mp = property(get_vpool_md_mp, set_vpool_md_mp)
 
+    def get_vpool_bfs_mp(self):
+        return self.vpool_bfs_mp
+
+    def set_vpool_bfs_mp(self, vpool_bfs_mp):
+        assert isinstance(vpool_bfs_mp, str), 'Vpool metadata mountpoint must be a string'
+        self.vpool_bfs_mp = vpool_bfs_mp
+
+    vpool_bfs_mp = property(get_vpool_bfs_mp, set_vpool_bfs_mp)
+
+
     def get_vpool_cache_mp(self):
         return self.vpool_cache_mp
 
@@ -173,13 +187,13 @@ class Vpool(BrowserOvs):
         self.browse_to(self.get_url() + '#full/vpools', 'vpools')
         self.click_on('AddVpool')
         self.wait_for_text('Add new vPool')
-        time.sleep(1)
+        time.sleep(2)
         self.choose('Local FS', self.vpool_type)
         self.fill_out('inputVpoolName', self.vpool_name)
 
         if self.vpool_type in ['Ceph S3', 'S3 compatible', 'Swift S3']:
             self.fill_out('inputVpoolHost', self.vpool_host)
-            self.fill_out('inputVpoolPort', self.vpool_port)
+            self.fill_out('inputVpoolPort', self.vpool_port, clear_first = True)
             self.fill_out('inputVpoolAccessKey', self.vpool_access_key)
             self.fill_out('inputVpoolSecretKey', self.vpool_secret_key)
 
@@ -190,14 +204,32 @@ class Vpool(BrowserOvs):
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-cache', self.vpool_cache_mp)
-        self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port)
-        self.choose('127.0.0.1', self.vpool_storage_ip)
+        self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
+        self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port, clear_first = True)
+        if general.get_hypervisor_type().lower() != "kvm":
+            self.choose('127.0.0.1', self.vpool_storage_ip)
         self.click_on('Next', retries = 15)
 
         self.click_on('Finish', retries = 15)
 
-        #@todo: wait for task to complete
-        #self.get_task_response('https://10.100.131.71')
+        self.wait_for_wait_notification('Creation of vPool local finished.')
+
+        #check vpool is present after adding it
+        retries = 100
+        while retries:
+            print "Waiting for vpool"
+            try:
+                link = self.browser.find_link_by_text(self.vpool_name)
+                if link:
+                    break
+            except NoSuchElementException:
+                print self.vpool_name + " not found"
+            time.sleep(0.5)
+            retries -= 1
+
+        assert retries, "Could not find vpool {} after adding it.".format(self.vpool_name)
+
+        link.click()
 
     def add_gsrs_to_vpool(self, vpool_name):
         self.browse_to(self.get_vpool_url())

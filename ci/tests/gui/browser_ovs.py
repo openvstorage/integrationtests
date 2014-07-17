@@ -18,22 +18,25 @@ import urllib2
 import base64
 import json
 
-from splinter.browser    import Browser
-from splinter.driver     import webdriver
-from splinter.exceptions import ElementDoesNotExist
+from splinter.browser               import Browser
+from splinter.driver                import webdriver
+from splinter.exceptions            import ElementDoesNotExist
+from selenium.webdriver.common.keys import Keys
 
 from ci.tests.general    import general
 from ci                  import autotests
+
+
 
 class BrowserOvs():
     BUTTON_TAG = 'button'
     INPUT_TAG = 'input'
 
-    def __init__(self, username = '', password = '', url = '', browser_choice = 'phantomjs'):
+    def __init__(self, username = '', password = '', url = '', browser_choice = 'chrome'):
         if not browser_choice in ['chrome', 'firefox', 'phantomjs', 'zope.testbrowser']:
             browser_choice = 'chrome'
 
-        self.browser = Browser(browser_choice)
+        self.browser = Browser(browser_choice, service_args = ['--verbose ', '--webdriver-loglevel=DEBUG', '--log-path=/var/log/chromedriver.log'])
 
         if browser_choice == 'phantomjs':
             print "phantomjs"
@@ -99,8 +102,9 @@ class BrowserOvs():
         # urllib2.install_opener(opener)
 
     def teardown(self):
+        print 'Entering BrowserOvs teardown'
         if self.debug:
-            self.browser.driver.save_screenshot(os.path.join(self.screens_location, str(time.time()) + ".png"))
+            self.browser.screenshot(os.path.join(self.screens_location, str(time.time())))
         self.browser.quit()
         print 'Browser shutdown complete ...'
 
@@ -148,6 +152,130 @@ class BrowserOvs():
         print 'JSON: {0}'.format(data)
         return data
 
+    def wait_for_wait_notification(self, text, retries = 100):
+        while retries:
+            notifs = self.browser.find_by_css("div.ui-pnotify-text")
+            notifs = [n for n in notifs if text in n.text]
+            if notifs:
+                print "found notif: ", notifs[0]
+                return True
+
+            time.sleep(0.1)
+            retries -= 1
+
+        assert retries, "Couldnt find notification with text: " + text
+
+    def check_machine_is_present(self, machinename, retries = 30):
+        self.browse_to(self.get_url() + '#full/vmachines', 'vmachines')
+
+        while retries:
+            links = self.browser.find_link_by_text(machinename)
+            links = [l for l in links if l.visible]
+            if links:
+                assert len(links) == 1
+                link = links[0]
+                link.click()
+            time.sleep(1)
+            retries -= 1
+
+    def check_machine_disk_is_present(self, name = ''):
+        """
+        assume currently on machine page
+        """
+        self.log(self.browser.url)
+
+        retries = 30
+        while retries:
+            disk_links_all = self.browser.find_link_by_partial_href("#full/vdisk/")
+
+            self.log(str(disk_links_all))
+            disk_links = [l for l in disk_links_all if name in l.text]
+            if disk_links:
+                break
+            retries -= 1
+            time.sleep(1)
+
+        assert disk_links
+        disk_links[0].click()
+
+    def set_as_template(self, name):
+        self.check_machine_is_present(name)
+
+        #@todo: use ids when they will be in place
+        actions = self.browser.find_by_css("li.actions")
+        assert actions
+        actions = actions[0]
+        buttons = actions.find_by_tag("button")
+        setastemplate_button = [b for b in buttons if "setastemplate" in b.html.lower()]
+        assert setastemplate_button
+        setastemplate_button = setastemplate_button[0]
+        setastemplate_button.click()
+
+        self.click_modal_button('Set as Template')
+
+        self.wait_for_wait_notification('Machine {} set as template'.format(name))
+
+    def wait_for_modal(self):
+        retries = 30
+        while retries:
+            time.sleep(1)
+            modal = self.browser.find_by_css("#my-modal")
+            if modal:
+                modal = modal[0]
+                break
+            retries -= 1
+
+        assert retries, "Modal window not found"
+        return modal
+
+    def click_modal_button(self, button_name):
+        modal = self.wait_for_modal()
+
+        retries = 10
+        while retries:
+            buttons = modal.find_by_tag("button")
+            button = [b for b in buttons if b.text == button_name]
+            retries -= 1
+            time.sleep(1)
+        assert button, "Could not find button {} in modal window".format(button_name)
+        button[0].click()
+
+    def create_from_template(self, template_name, vm_name):
+        self.browse_to(self.get_url() + '#full/vtemplates', 'vtemplates')
+
+        time.sleep(5)
+        #find the template row
+        template_css_path = "#applicationHost > div > div > div.wrapper > div > section:nth-child(1) > div > div > table > tbody > tr"
+        templates = self.browser.find_by_css(template_css_path)
+
+        #get the template we want
+        template = [t for t in templates if template_name in t.text]
+        assert template
+        template = template[0]
+
+        #find the create button
+        #@todo: change to ids when they will be present in the gui
+        buttons = template.find_by_css("i.hand.fa.fa-fw")
+        create_button = [b for b in buttons if 'create' in b.outer_html.lower()]
+        assert create_button
+        create_button = create_button[0]
+        create_button.click()
+
+        #wait for the wizard modal window
+        modal = self.wait_for_modal()
+
+        #fill out the wizard
+        self.fill_out('name', vm_name)
+        self.click_on('Nothing selected')
+        time.sleep(2)
+        menu = [m for m in self.browser.find_by_css("ul.dropdown-menu") if m.visible]
+        assert menu
+        #@todo: maybe define which host to select instead of the first one
+        menu[0].click()
+
+        self.click_on('Finish', retries = 15)
+
+        self.wait_for_wait_notification('Creating from {} successfully'.format(template_name), retries = 2000)
 
     def browse_to(self, url, wait_for_title=''):
         self.browser.visit(url)
@@ -174,7 +302,7 @@ class BrowserOvs():
         while retries:
 
             if self.debug:
-                self.browser.driver.save_screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time()) + ".png"))
+                self.browser.screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time())))
 
             button = None
             try:
@@ -195,10 +323,11 @@ class BrowserOvs():
             time.sleep(1)
 
         if self.debug:
-            self.browser.driver.save_screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time()) + ".png"))
+            self.browser.screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time())))
 
         assert button, "Could not find {}".format(identifier)
-        return button.click() if button else False
+        button.click()
+        return button
 
     def click_on_tbl_item(self, identifier):
         for item in self.browser.find_by_xpath('//table/tbody/tr/td/a'):
@@ -220,10 +349,13 @@ class BrowserOvs():
             if not cb.checked and cb.visible:
                 cb.check()
 
-    def fill_out(self, identifier, value):
+    def fill_out(self, identifier, value, clear_first = False):
         input_field = self.get_single_item_by_id(identifier)
         if input_field.value != str(value):
             self.log('Filling out {0} in {1}'.format(value, identifier))
+            if clear_first:
+                 input_field.fill('')
+                 input_field.type(Keys.BACKSPACE)
             input_field.fill(value)
         else:
             self.log('Value {0} already present in {1}'.format(value, identifier))
