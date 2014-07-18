@@ -112,7 +112,7 @@ def set_as_template_test():
     general.checkPrereqs(testCaseNumber = 3,
                          testsToRun     = testsToRun)
 
-    name = machinename + _set_as_template"
+    name = machinename + "_set_as_template"
 
     vpool = vpoollist.VPoolList.get_vpools()[0]
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
