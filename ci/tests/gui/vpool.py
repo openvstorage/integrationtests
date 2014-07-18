@@ -22,10 +22,11 @@
 
 
 import time
+import urlparse
 
 from browser_ovs          import BrowserOvs
 from ci                   import autotests
-from ci.tests.general     import general
+from ci.tests.general     import general, general_hypervisor
 from ci.tests.api         import connection
 from nose.plugins.skip    import SkipTest
 
@@ -65,9 +66,9 @@ class Vpool(BrowserOvs):
         self.vpool_vrouter_port     = vpool_vrouter_port or cfg.get("vpool", "vpool_vrouter_port")
         self.vpool_storage_ip       = vpool_storage_ip   or cfg.get("vpool", "vpool_storage_ip")
 
-        for e in ["vpool_name", "vpool_type", "vpool_host", "vpool_port", "vpool_access_key", "vpool_secret_key",
-                  "vpool_temp_mp", "vpool_md_mp", "vpool_cache_mp", "vpool_vrouter_port", "vpool_storage_ip"]:
-            if not getattr(self, e): raise SkipTest()
+        for e in ["vpool_name", "vpool_type", "vpool_temp_mp", "vpool_md_mp", "vpool_cache_mp", "vpool_vrouter_port", "vpool_storage_ip"]:
+            if not getattr(self, e):
+                raise SkipTest(e)
 
         print 'VpoolTest initialized'
 
@@ -181,7 +182,7 @@ class Vpool(BrowserOvs):
     vpool_storage_ip = property(get_vpool_storage_ip, set_vpool_storage_ip)
 
     def get_vpool_url(self):
-        return self.get_url() + '/#full/vpools'
+        return urlparse.urljoin(self.get_url(), '/#full/vpools')
 
     def add_vpool(self):
         self.browse_to(self.get_url() + '#full/vpools', 'vpools')
@@ -206,7 +207,7 @@ class Vpool(BrowserOvs):
         self.fill_out_custom_field('dropdown-button-mtpt-cache', self.vpool_cache_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
         self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port, clear_first = True)
-        if general.get_hypervisor_type().lower() != "kvm":
+        if general_hypervisor.get_hypervisor_type().lower() != "kvm":
             self.choose('127.0.0.1', self.vpool_storage_ip)
         self.click_on('Next', retries = 15)
 
@@ -263,11 +264,16 @@ class Vpool(BrowserOvs):
         self.wait_for_text('serving this')
 
         # only deselect = i.e. click when checkbox = selected
-        self.uncheck_checkboxes('management')
+        management = self.browser.find_by_id("management")
+        assert management
+        management = management[0]
+        self.uncheck_checkboxes(management)
         self.click_on('VpoolSaveChanges')
 
         self.wait_for_text('finish')
         self.click_on('Finish')
+
+        self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')
 
         #@todo: wait for task to complete
         #self.get_task_response('https://10.100.131.71')

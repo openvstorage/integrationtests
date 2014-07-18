@@ -23,6 +23,8 @@ from splinter.driver                import webdriver
 from splinter.exceptions            import ElementDoesNotExist
 from selenium.webdriver.common.keys import Keys
 
+from ovs.dal.lists.vmachinelist     import VMachineList
+
 from ci.tests.general    import general
 from ci                  import autotests
 
@@ -168,15 +170,8 @@ class BrowserOvs():
     def check_machine_is_present(self, machinename, retries = 30):
         self.browse_to(self.get_url() + '#full/vmachines', 'vmachines')
 
-        while retries:
-            links = self.browser.find_link_by_text(machinename)
-            links = [l for l in links if l.visible]
-            if links:
-                assert len(links) == 1
-                link = links[0]
-                link.click()
-            time.sleep(1)
-            retries -= 1
+        self.wait_for_text(machinename, retries)
+        self.click_on_tbl_item(machinename)
 
     def check_machine_disk_is_present(self, name = ''):
         """
@@ -201,12 +196,7 @@ class BrowserOvs():
     def set_as_template(self, name):
         self.check_machine_is_present(name)
 
-        #@todo: use ids when they will be in place
-        actions = self.browser.find_by_css("li.actions")
-        assert actions
-        actions = actions[0]
-        buttons = actions.find_by_tag("button")
-        setastemplate_button = [b for b in buttons if "setastemplate" in b.html.lower()]
+        setastemplate_button = self.browser.find_by_id("buttonVmachineSetAsTemplate")
         assert setastemplate_button
         setastemplate_button = setastemplate_button[0]
         setastemplate_button.click()
@@ -244,22 +234,14 @@ class BrowserOvs():
         self.browse_to(self.get_url() + '#full/vtemplates', 'vtemplates')
 
         time.sleep(5)
-        #find the template row
-        template_css_path = "#applicationHost > div > div > div.wrapper > div > section:nth-child(1) > div > div > table > tbody > tr"
-        templates = self.browser.find_by_css(template_css_path)
 
-        #get the template we want
-        template = [t for t in templates if template_name in t.text]
-        assert template
-        template = template[0]
+        tmpl_obj = VMachineList.get_vmachine_by_name(template_name)
+        assert tmpl_obj, "Template with name {} not found".format(template_name)
+        tmpl_obj = tmpl_obj[0]
 
-        #find the create button
-        #@todo: change to ids when they will be present in the gui
-        buttons = template.find_by_css("i.hand.fa.fa-fw")
-        create_button = [b for b in buttons if 'create' in b.outer_html.lower()]
-        assert create_button
-        create_button = create_button[0]
-        create_button.click()
+        clone_button_id = "vtemplateClone_{}".format(tmpl_obj.guid)
+        clone_button = self.browser.find_by_id(clone_button_id)
+        clone_button.click()
 
         #wait for the wizard modal window
         modal = self.wait_for_modal()
@@ -276,6 +258,9 @@ class BrowserOvs():
         self.click_on('Finish', retries = 15)
 
         self.wait_for_wait_notification('Creating from {} successfully'.format(template_name), retries = 2000)
+
+    def delete_cloned_vm(self, vm_name):
+        pass
 
     def browse_to(self, url, wait_for_title=''):
         self.browser.visit(url)
@@ -396,7 +381,7 @@ class BrowserOvs():
         self.click_on('Login')
         self.wait_for_text('dashboard')
 
-    def uncheck_checkboxes(self, element=''):
+    def uncheck_checkboxes(self, element = ''):
         search = element if element else self.browser
         for cb in search.find_by_tag(self.INPUT_TAG):
             cb.uncheck()

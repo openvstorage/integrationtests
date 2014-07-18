@@ -66,10 +66,29 @@ def get_vm_ip_from_mac(mac):
     out = general.execute_command(cmd)
     return out[0].strip()
 
-class Vmware(object):
+class HypervisorBase(object):
+    def __init__(self):
+        pass
+
+    def wait_for_vm_pingable(self, name, retries = 50):
+        mac = self.get_mac_address(name)
+        print mac
+        while retries:
+            vm_ip = get_vm_ip_from_mac(mac)
+            print vm_ip
+            if vm_ip:
+                response = os.system("ping -c 1 " + vm_ip)
+                if response == 0:
+                    return
+
+            retries -= 1
+        assert retries
+
+class Vmware(HypervisorBase):
     def __init__(self, vpool):
+        HypervisorBase.__init__(self)
         self.vpool = vpool
-        self.mountpoint = list(vpool.vsrs)[0].mountpoint
+        self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
         hypervisorInfo = autotests.getHypervisorInfo()
         assert hypervisorInfo, "No hypervisor info specified use autotests.setHypervisorInfo"
         self.sdk = Vmware_sdk(*hypervisorInfo)
@@ -79,7 +98,7 @@ class Vmware(object):
         #not sure if its the propper way to get the datastore
         esxhost = self.sdk._validate_host(None)
         datastores = self.sdk._get_object(esxhost, properties = ['datastore']).datastore.ManagedObjectReference
-        datastore = [d for d in datastores if self.vpool.vsrs[0].cluster_ip in d.value]
+        datastore = [d for d in datastores if self.vpool.storagedrivers[0].cluster_ip in d.value]
         assert datastore, "Did not found datastore"
         datastore = self.sdk._get_object(datastore[0])
 
@@ -170,10 +189,11 @@ class Vmware(object):
 
 
 
-class Kvm(object):
+class Kvm(HypervisorBase):
     def __init__(self, vpool):
+        HypervisorBase.__init__(self)
         self.vpool = vpool
-        self.mountpoint = list(vpool.vsrs)[0].mountpoint
+        self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
         self.sdk = Kvm_sdk()
 
     def create_vm(self, name, ram = 1024):
