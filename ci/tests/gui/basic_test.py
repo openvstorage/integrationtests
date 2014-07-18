@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import os
+import logging
+
 import random
 
 from nose.tools                 import with_setup
@@ -27,6 +29,9 @@ from ci                         import autotests
 from ovs.extensions.grid        import manager
 from ovs.dal.lists              import vpoollist
 from ovs.dal.lists.vmachinelist import VMachineList
+
+from selenium.webdriver.remote.remote_connection import LOGGER
+LOGGER.setLevel(logging.WARNING)
 
 testsToRun     = general.getTestsToRun(autotests.getTestLevel())
 machinename    = "AT" + __name__.split(".")[-1]
