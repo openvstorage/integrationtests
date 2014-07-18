@@ -6,7 +6,8 @@ import urllib
 import subprocess
 from nose.plugins.skip import SkipTest
 
-from ovs.dal.lists import vmachinelist
+from ovs.dal.lists import vmachinelist, storagerouterlist
+
 
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
@@ -113,7 +114,18 @@ def get_virbr_ip():
 
 def get_local_vsa():
     local_ip_info =  execute_command("ip a")[0]
-    for vsa in vmachinelist.VMachineList.get_vsas():
+    for vsa in storagerouterlist.StorageRouterList.get_storagerouters():
         if vsa.ip in local_ip_info:
              return vsa
 
+def getFunctionName(level = 0):
+    """
+    Returns the functionName of the test being executed currently
+
+    @param level: Depth of path returned
+    @type level:  Integer
+
+    @return:      Name of the test
+    @returntype:  String
+    """
+    return sys._getframe( level + 1 ).f_code.co_name
