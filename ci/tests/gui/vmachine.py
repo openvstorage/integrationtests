@@ -17,6 +17,8 @@ class Vmachine(BrowserOvs):
 
         self.wait_for_text(machinename, retries)
         self.click_on_tbl_item(machinename)
+        self.wait_for_text(machinename, retries)
+        time.sleep(2)
 
     def check_machine_disk_is_present(self, name = ''):
         """
@@ -24,19 +26,26 @@ class Vmachine(BrowserOvs):
         """
         self.log(self.browser.url)
 
-        retries = 30
+        check_ok = False
+        retries = 100
         while retries:
             disk_links_all = self.browser.find_link_by_partial_href("#full/vdisk/")
 
             self.log(str(disk_links_all))
             disk_links = [l for l in disk_links_all if name in l.text]
             if disk_links:
-                break
+                try:
+                    disk_links[0].click()
+                    check_ok = True
+                    break
+                except Exception as ex:
+                    print str(ex)
+
             retries -= 1
             time.sleep(1)
 
-        assert disk_links
-        disk_links[0].click()
+        assert check_ok, "Failed to check machine disks"
+
 
     def set_as_template(self, name):
         self.check_machine_is_present(name)

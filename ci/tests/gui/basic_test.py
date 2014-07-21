@@ -136,7 +136,6 @@ def set_as_template_test():
         vpt.teardown()
         vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
 
-    vpool = vpool[0]
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
     hpv.create_vm(name)
 

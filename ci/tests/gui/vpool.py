@@ -274,7 +274,7 @@ class Vpool(BrowserOvs):
         self.uncheck_checkboxes(management)
         self.click_on('VpoolSaveChanges')
 
-        self.wait_for_text('finish')
+        self.wait_for_text('Finish')
         self.click_on('Finish')
 
         self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')

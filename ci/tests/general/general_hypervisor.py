@@ -78,7 +78,7 @@ class HypervisorBase(object):
             vm_ip = get_vm_ip_from_mac(mac)
             print vm_ip
             if vm_ip:
-                response = os.system("ping -c 1 " + vm_ip)
+                response = os.system("ping -c 1 > /dev/null" + vm_ip)
                 if response == 0:
                     return
 

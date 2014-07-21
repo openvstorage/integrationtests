@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import re
 import time
 import urllib2
 import base64
@@ -164,6 +165,12 @@ class BrowserOvs():
     def wait_for_wait_notification(self, text, retries = 100):
         while retries:
             notifs = self.browser.find_by_css("div.ui-pnotify-text")
+
+            err_notifs = [n for n in notifs if re.search("error|failed", n.text.lower())]
+            if err_notifs:
+                err_msg = err_notifs[0].text
+                raise Exception("Error notification encountered while waiting for '{0}'\n{1}".format(text, err_msg))
+
             notifs = [n for n in notifs if text in n.text]
             if notifs:
                 self.log("found notif: " + str(notifs[0]))
@@ -253,8 +260,13 @@ class BrowserOvs():
 
     def click_on_tbl_item(self, identifier):
         for item in self.browser.find_by_xpath('//table/tbody/tr/td/a'):
-            if item.text.lower() == identifier.lower():
-                self.log('Click on tbl header: {0}'.format(item.text))
+            try:
+                item_text = item.text
+            except Exception as ex:
+                print str(ex)
+                item_text = ""
+            if item_text.lower() == identifier.lower():
+                self.log('Click on tbl header: {0}'.format(item_text))
                 item.click()
 
     def click_on_tbl_header(self, identifier):
