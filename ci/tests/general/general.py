@@ -3,6 +3,7 @@ import sys
 import paramiko
 import random
 import urllib
+import inspect
 import subprocess
 from nose.plugins.skip import SkipTest
 
@@ -55,6 +56,10 @@ def getTestsToRun():
                     testsToRun.append(k)
 
     return sorted(list(set(testsToRun)))
+
+def lineno():
+    """Returns the current line number in our program."""
+    return inspect.currentframe().f_back.f_lineno
 
 
 def checkPrereqs(testCaseNumber, testsToRun):

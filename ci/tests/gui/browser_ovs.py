@@ -162,16 +162,30 @@ class BrowserOvs():
         self.log('JSON: {0}'.format(data))
         return data
 
-    def wait_for_wait_notification(self, text, retries = 100):
+    def wait_for_wait_notification(self, text, retries = 100, fail_on_error = True):
         while retries:
-            notifs = self.browser.find_by_css("div.ui-pnotify-text")
+            notifs_all = self.browser.find_by_css("div.ui-pnotify-text")
 
-            err_notifs = [n for n in notifs if re.search("error|failed", n.text.lower())]
-            if err_notifs:
-                err_msg = err_notifs[0].text
-                raise Exception("Error notification encountered while waiting for '{0}'\n{1}".format(text, err_msg))
+            if fail_on_error:
+                err_notifs = []
+                for n in notifs_all:
+                    try:
+                        if re.search("error|failed", n.text.lower()):
+                            err_notifs.append(n)
+                    except Exception as ex:
+                        self.log("wait_for_wait_notification 2: " + str(ex))
+                if err_notifs:
+                    err_msg = err_notifs[0].text
+                    raise Exception("Error notification encountered while waiting for '{0}'\n{1}".format(text, err_msg))
 
-            notifs = [n for n in notifs if text in n.text]
+            notifs = []
+            for n in notifs_all:
+                try:
+                    if text in n.text:
+                        notifs.append(n)
+                except Exception as ex:
+                    self.log("wait_for_wait_notification 2: " + str(ex))
+
             if notifs:
                 self.log("found notif: " + str(notifs[0]))
                 return True
@@ -181,17 +195,21 @@ class BrowserOvs():
 
         assert retries, "Couldnt find notification with text: " + text
 
-    def wait_for_modal(self):
+    def wait_for_modal(self, should_exist = True):
         retries = 30
         while retries:
             time.sleep(1)
             modal = self.browser.find_by_css("#my-modal")
-            if modal:
+            modal = [m for m in modal if m.visible]
+            if should_exist and modal:
                 modal = modal[0]
+                break
+            if not should_exist and not modal:
                 break
             retries -= 1
 
-        assert retries, "Modal window not found"
+        assert retries, "Modal window " + {True: "not found", False: "still present"}[should_exist]
+
         return modal
 
     def click_modal_button(self, button_name):
@@ -204,7 +222,9 @@ class BrowserOvs():
             retries -= 1
             time.sleep(1)
         assert button, "Could not find button {} in modal window".format(button_name)
-        button[0].click()
+        button = button[0]
+        button.click()
+        return button
 
     def browse_to(self, url, wait_for_title=''):
         self.browser.visit(url)
@@ -221,10 +241,16 @@ class BrowserOvs():
                 button = d
                 break
         if button:
+            bclicked = False
             uls = button.find_by_xpath("//ul/li")
             for ul in uls:
                 if value in ul.text and ul.visible:
                     ul.click()
+                    bclicked = True
+            if not bclicked:
+                self.log("Choose: could not find value {}".format(value))
+        else:
+            self.log("Choose: couldnt find identifier {}".format(identifier))
 
     def click_on(self, identifier, retries = 1):
 
@@ -263,7 +289,7 @@ class BrowserOvs():
             try:
                 item_text = item.text
             except Exception as ex:
-                print str(ex)
+                self.log("click_on_tbl_item " + str(ex))
                 item_text = ""
             if item_text.lower() == identifier.lower():
                 self.log('Click on tbl header: {0}'.format(item_text))
@@ -324,6 +350,7 @@ class BrowserOvs():
 
     def login(self):
         self.browser.visit(self.url)
+        self.wait_for_text("Login")
         if self.debug:
             self.log('Login to {0}'.format(self.browser.title))
         self.fill_out('inputUsername', self.username)

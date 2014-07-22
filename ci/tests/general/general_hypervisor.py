@@ -1,5 +1,6 @@
 import os
 import time
+import paramiko
 import urllib
 import urlparse
 import random
@@ -69,23 +70,29 @@ def get_vm_ip_from_mac(mac):
 
 class HypervisorBase(object):
     def __init__(self):
-        pass
+        self.autotest_check_code = "autotest_check_code"
 
-    def wait_for_vm_pingable(self, name, retries = 50):
-        mac = self.get_mac_address(name)
-        print mac
+    def wait_for_vm_pingable(self, name, retries = 50, pingable = True, vm_ip = None):
         while retries:
-            vm_ip = get_vm_ip_from_mac(mac)
+            mac = self.get_mac_address(name)
+            print mac
+            vm_ip = vm_ip or get_vm_ip_from_mac(mac)
             print vm_ip
+
             if vm_ip:
-                response = os.system("ping -c 1 > /dev/null" + vm_ip)
-                if response == 0:
-                    return
+                response = os.system("ping -c 1 >/dev/null 2>&1 " + vm_ip)
+                if (response == 0 and pingable) or (response != 0 and not pingable):
+                    return vm_ip
 
             retries -= 1
+            time.sleep(1)
         assert retries
+        return vm_ip
 
-    def delete_clones(self, vm_object):
+    def delete_clones(self, vm_name):
+        vm_object = VMachineList.get_vmachine_by_name(vm_name)
+        assert vm_object, "Vm with name {} was not found".format(vm_name)
+        vm_object = vm_object[0]
         clones = []
         for vd in vm_object.vdisks:
             for child_vd in vd.child_vdisks:
@@ -95,6 +102,46 @@ class HypervisorBase(object):
         clones = [c for c in clones if c.guid not in unique_guids and not unique_guids.add(c.guid)]
         for clone in clones:
             self.delete(clone.name)
+
+    def get_ssh_con(self, vm_name):
+        vm_ip = self.wait_for_vm_pingable(vm_name)
+        ssh_con = paramiko.SSHClient()
+        ssh_con.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        username, password = "root", "rooter"
+        ssh_con.connect(vm_ip,
+                        username = username,
+                        password = password,
+                        timeout  = 200)
+        return ssh_con
+
+    def write_test_data(self, vm_name, filename):
+        ssh_con = self.get_ssh_con(vm_name)
+
+        path = os.path.join(os.sep, "opt", filename)
+        _stdin, stdout, _stderr = ssh_con.exec_command("echo -n {0} >{1};sync".format(self.autotest_check_code, path))
+        stdout.readlines()
+        time.sleep(1)
+
+    def delete_test_data(self, vm_name, filename):
+        ssh_con = self.get_ssh_con(vm_name)
+        path = os.path.join(os.sep, "opt", filename)
+        _stdin, stdout, _stderr = ssh_con.exec_command("rm {0}".format(path))
+        stdout.readlines()
+        time.sleep(1)
+
+    def check_test_data(self, vm_name, filename, not_present = False):
+        ssh_con = self.get_ssh_con(vm_name)
+        path = os.path.join(os.sep, "opt", filename)
+        _stdin, stdout, _stderr = ssh_con.exec_command("cat {0}".format(path))
+        out = stdout.readlines()
+        out = out[0] if out else ''
+        if not_present:
+            assert not out, "Data shouldnt be there: {}".format(out)
+        else:
+            assert out == self.autotest_check_code, "Wrong test data:{}".format(out)
+
+        time.sleep(1)
+
 
 
 class Vmware(HypervisorBase):
@@ -216,8 +263,9 @@ class Kvm(HypervisorBase):
         vm_path = os.path.join(self.mountpoint, name)
         if not os.path.exists(vm_path):
             os.mkdir(vm_path)
-            bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
 
+        bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
+        if not os.path.exists(bootdisk_path):
             template_server = autotests.getTemplateServer()
             bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
 
@@ -229,8 +277,6 @@ class Kvm(HypervisorBase):
                              ram = ram
                              )
             general.execute_command(cmd)
-        else:
-            print "VM path {} already exists".format(vm_path)
 
     def _wait_for_state(self, name, state):
         retries = 240
@@ -249,6 +295,12 @@ class Kvm(HypervisorBase):
             return
         self.sdk.shutdown(name)
         self._wait_for_state(name, 'TURNEDOFF')
+
+    def poweroff(self, name):
+        if self.sdk.get_power_state(name) == 'TURNEDOFF':
+            return
+        vm_obj = self.sdk.get_vm_object(name)
+        vm_obj.destroy()
 
     def start(self, name):
         if self.sdk.get_power_state(name) == 'RUNNING':
@@ -270,7 +322,7 @@ class Kvm(HypervisorBase):
         assert vm, "Couldnt find vm with name {}".format(name)
         vm = vm[0]
 
-        self.shutdown(name)
+        self.poweroff(name)
         self.sdk.delete_vm(name, vm.devicename, None)
 
 

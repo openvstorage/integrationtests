@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import time
 import logging
 
 import random
@@ -178,12 +179,10 @@ def create_from_template_test():
     bt.check_machine_is_present(name)
 
     hpv.start(name)
-
-    hpv.wait_for_vm_pingable(name)
+    vm_ip = hpv.wait_for_vm_pingable(name)
 
     hpv.shutdown(name)
-
-    bt.teardown()
+    hpv.wait_for_vm_pingable(name, pingable = False, vm_ip = vm_ip)
 
 
 @with_setup(None, close_browser)
@@ -220,7 +219,8 @@ def delete_clone_test():
     assert not VMachineList.get_vmachine_by_name(name), "Vmachine was not deleted from model after hypervisor deletion"
 
 
-def delete_template_test():
+@with_setup(None, close_browser)
+def machine_snapshot_rollback_test():
     """
     %s
     """ % general.getFunctionName()
@@ -230,12 +230,113 @@ def delete_template_test():
 
     global browser_object
 
+    name = machinename + "_sn_roll" + str(random.randrange(0,9999999))
+
+    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    hpv = general_hypervisor.Hypervisor.get(vpool.name)
+
+    template = Vmachine.get_template(machinename, vpool_name)
+
+    browser_object = bt = Vmachine()
+    bt.login()
+
+    bt.create_from_template(template.name, name)
+    bt.check_machine_is_present(name)
+
+    hpv.start(name)
+    hpv.wait_for_vm_pingable(name)
+
+    vm =  VMachineList.get_vmachine_by_name(name)[0]
+
+    #First snapshot
+    filename1      = "testA"
+    snapshot_name1 = name + "ss" + filename1
+
+    hpv.write_test_data(name, filename1)
+    hpv.check_test_data(name, filename1)
+
+    snapshots_before = vm.snapshots
+    bt.snapshot(name, snapshot_name1)
+    bt.check_snapshot_present(name, snapshot_name1)
+    Vmachine.check_snapshot_model(snapshots_before, snapshot_name1, vm)
+
+    #Second snapshot
+    filename2      = "testB"
+    snapshot_name2 = name + "ss" + filename2
+
+    hpv.write_test_data(name, filename2)
+    hpv.check_test_data(name, filename2)
+
+    snapshots_before = vm.snapshots
+    bt.snapshot(name, snapshot_name2)
+    bt.check_snapshot_present(name, snapshot_name2)
+    Vmachine.check_snapshot_model(snapshots_before, snapshot_name2, vm)
+
+
+    hpv.delete_test_data(name, filename1)
+    bt.rollback(name, snapshot_name1, should_not_allow = True)
+
+    hpv.shutdown(name)
+    time.sleep(3)
+
+    bt.rollback(name, snapshot_name1)
+
+    hpv.start(name)
+    hpv.check_test_data(name, filename1)
+    hpv.check_test_data(name, filename2, not_present = True)
+
+
+@with_setup(None, close_browser)
+def try_to_delete_template_with_clones_test():
+    """
+    %s
+    """ % general.getFunctionName()
+
+    general.checkPrereqs(testCaseNumber = 8,
+                     testsToRun     = testsToRun)
+
+    global browser_object
+
+    name = machinename + "_tmpl_cln" + str(random.randrange(0,9999999))
+
+    template = Vmachine.get_template(machinename, vpool_name)
+    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    hpv = general_hypervisor.Hypervisor.get(vpool.name)
+
+    browser_object = bt = Vmachine()
+    bt.login()
+
+    bt.create_from_template(template.name, name)
+    bt.check_machine_is_present(name)
+
+    bt.delete_template(template.name, should_fail = True)
+    assert VMachineList.get_vmachine_by_name(template.name)
+
+    #clone should still work
+    hpv.start(name)
+    vm_ip = hpv.wait_for_vm_pingable(name)
+
+    hpv.shutdown(name)
+    hpv.wait_for_vm_pingable(name, pingable = False, vm_ip = vm_ip)
+
+
+@with_setup(None, close_browser)
+def delete_template_test():
+    """
+    %s
+    """ % general.getFunctionName()
+
+    general.checkPrereqs(testCaseNumber = 9,
+                     testsToRun     = testsToRun)
+
+    global browser_object
+
 
     template = Vmachine.get_template(machinename, vpool_name)
     vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
     #first delete all clones:
-    hpv.delete_clones(template)
+    hpv.delete_clones(template.name)
 
     browser_object = bt = Vmachine()
     bt.login()

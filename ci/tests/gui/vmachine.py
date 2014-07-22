@@ -1,4 +1,5 @@
 import time
+import datetime
 
 from browser_ovs                    import BrowserOvs
 from ovs.dal.lists.vmachinelist     import VMachineList
@@ -88,7 +89,7 @@ class Vmachine(BrowserOvs):
 
         self.wait_for_wait_notification('Creating from {} successfully'.format(template_name), retries = 2000)
 
-    def delete_template(self, template_name):
+    def delete_template(self, template_name, should_fail = False):
 
         tmpl = VMachineList.get_vmachine_by_name(template_name)
         assert tmpl, "Couldnt find template {}".format(template_name)
@@ -103,12 +104,83 @@ class Vmachine(BrowserOvs):
         delete_button = self.browser.find_by_id(delete_button_id)
         delete_button.click()
 
-        modal = self.wait_for_modal()
+        if not should_fail:
+            modal = self.wait_for_modal()
+            self.click_modal_button("Yes")
 
-        self.click_modal_button("Yes")
+            self.wait_for_wait_notification("Machine {} deleted".format(template_name))
+            self.wait_for_text_to_vanish(template_name, 25)
 
-        self.wait_for_text_to_vanish(template_name, 25)
-        assert not VMachineList.get_vmachine_by_name(template_name), "Deleting template did not remove it from the model"
+            assert not VMachineList.get_vmachine_by_name(template_name), "Deleting template did not remove it from the model"
+        else:
+            time.sleep(15)
+            self.wait_for_modal(should_exist = False)
+
+    def snapshot(self, vm_name, snapshot_name, consistent = False):
+        self.check_machine_is_present(vm_name)
+
+        snapshot_button = self.browser.find_by_id("buttonVmachineSnapshot")
+        assert snapshot_button
+        snapshot_button = snapshot_button[0]
+        snapshot_button.click()
+
+        vm =  VMachineList.get_vmachine_by_name(vm_name)
+        assert vm, "Vm with name {} not found".format(vm_name)
+
+        self.wait_for_modal()
+        if consistent:
+            self.check_checkboxes()
+        self.fill_out('name', snapshot_name)
+        self.click_modal_button('Finish')
+
+        self.wait_for_wait_notification('Snapshot successfully')
+        time.sleep(2)
+
+    def check_snapshot_present(self, vm_name, snapshot_name):
+        #verify snapshot present in snapshot tab
+        self.check_machine_is_present(vm_name)
+
+        self.click_on_tbl_header('snapshots')
+        self.wait_for_text(snapshot_name)
+
+    def rollback(self, vm_name, ss_name, should_not_allow = False):
+        vm = VMachineList.get_vmachine_by_name(vm_name)
+        assert vm, "Vm with name {} not found".format(vm_name)
+        vm = vm[0]
+        ss = [ss for ss in vm.snapshots if ss['label'] == ss_name]
+        assert ss, "Snapshot with name {} not found".format(ss_name)
+        ss = ss[0]
+
+        self.check_machine_is_present(vm_name)
+
+        snapshot_button = self.browser.find_by_id("buttonVmachineRollback")
+        assert snapshot_button
+        snapshot_button = snapshot_button[0]
+
+
+        if should_not_allow:
+            try:
+                snapshot_button.click()
+            except Exception as ex:
+                if "Element is not clickable" not in str(ex):
+                    raise
+            self.wait_for_modal(should_exist = False)
+        else:
+            snapshot_button.click()
+            self.wait_for_modal()
+            d = datetime.datetime.fromtimestamp(float(ss['timestamp'])).strftime("%I:%M:%S")
+            if d.startswith("0"):
+                d = d[1:]
+
+            self.choose(identifier = '(', value = d)
+            self.click_modal_button('Finish')
+            self.wait_for_wait_notification("rollback successfully")
+
+    @staticmethod
+    def check_snapshot_model(snapshots_before, snapshot_name, vm_obj):
+        snapshots_after = vm_obj.snapshots
+        assert len(snapshots_after) > len(snapshots_before), "Created snapshot did not appear in model"
+        assert [ss for ss in vm_obj.snapshots if ss['label'] == snapshot_name], "Newly created snapshot not found in model"
 
     @staticmethod
     def get_template(machinename, vpool_name):
@@ -130,6 +202,7 @@ class Vmachine(BrowserOvs):
                 tmpl_name = machinename + "tmpl"
                 hpv = general_hypervisor.Hypervisor.get(vpool.name)
                 hpv.create_vm(tmpl_name)
+                time.sleep(10)
                 hpv.shutdown(tmpl_name)
 
                 browser_object = bt = Vmachine()
