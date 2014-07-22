@@ -200,7 +200,6 @@ class Vpool(BrowserOvs):
             self.fill_out('inputVpoolPort', self.vpool_port, clear_first = True)
             self.fill_out('inputVpoolAccessKey', self.vpool_access_key)
             self.fill_out('inputVpoolSecretKey', self.vpool_secret_key)
-            self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
 
         self.click_on('Next', retries = 100)
 
@@ -210,6 +209,9 @@ class Vpool(BrowserOvs):
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-cache', self.vpool_cache_mp)
 
+        if self.vpool_type not in REMOTE_VPOOL_TYPES:
+            self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
+
         self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port, clear_first = True)
         if general_hypervisor.get_hypervisor_type().lower() != "kvm":
             self.choose('127.0.0.1', self.vpool_storage_ip)
@@ -217,7 +219,7 @@ class Vpool(BrowserOvs):
 
         self.click_on('Finish', retries = 100)
 
-        self.wait_for_wait_notification('Creation of vPool local finished.')
+        self.wait_for_wait_notification('Creation of vPool {} finished.'.format(self.vpool_name))
 
         #check vpool is present after adding it
         retries = 100
