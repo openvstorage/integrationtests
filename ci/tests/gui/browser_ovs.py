@@ -348,7 +348,7 @@ class BrowserOvs():
             break
         return True
 
-    def login(self):
+    def login(self, wait = True):
         self.browser.visit(self.url)
         self.wait_for_text("Login")
         if self.debug:
@@ -356,18 +356,32 @@ class BrowserOvs():
         self.fill_out('inputUsername', self.username)
         self.fill_out('inputPassword', self.password)
         self.click_on('Login')
-        self.wait_for_text('Storager Appliance', timeout = 10)
+        if wait:
+            self.wait_for_title("Dashboard", 100)
+            self.wait_for_text('Storager Appliance', timeout = 10)
+
+    def check_invalid_credentials_alert(self):
+        alerts = self.browser.find_by_css(".alert-danger")
+        alert = [al for al in alerts if al.visible and "ovs:login.invalidcredentials" in al.outer_html]
+        assert alert, "Could not find invalid credentials alert"
 
     def uncheck_checkboxes(self, element = ''):
         search = element if element else self.browser
         for cb in search.find_by_tag(self.INPUT_TAG):
             cb.uncheck()
 
+    def wait_for_title(self, title_text, retries):
+        while retries:
+            if title_text in self.browser.title:
+                break
+            time.sleep(0.1)
+            retries -= 1
+        assert retries, "Page title did not change to {}, in due time".format(title_text)
+
     def wait_for_text(self, text, timeout = 5):
         r = self.browser.is_text_present(text, timeout)
         assert r, "Text '{}' did not appear in due time".format(text)
         time.sleep(1)
-
 
     def wait_for_text_to_vanish(self, text, timeout = 5):
         r = self.browser.is_text_not_present(text, timeout)

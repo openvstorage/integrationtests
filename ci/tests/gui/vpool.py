@@ -69,9 +69,12 @@ class Vpool(BrowserOvs):
         self.vpool_vrouter_port     = vpool_vrouter_port or cfg.get("vpool", "vpool_vrouter_port")
         self.vpool_storage_ip       = vpool_storage_ip   or cfg.get("vpool", "vpool_storage_ip")
 
-        for e in ["vpool_name", "vpool_type", "vpool_temp_mp", "vpool_md_mp", "vpool_cache_mp", "vpool_vrouter_port", "vpool_storage_ip"]:
+        for e in ["vpool_name", "vpool_type", "vpool_temp_mp", "vpool_md_mp", "vpool_cache_mp", "vpool_vrouter_port"]:
             if not getattr(self, e):
                 raise SkipTest(e)
+
+        if self.vpool_type in REMOTE_VPOOL_TYPES and not getattr(self, "vpool_storage_ip"):
+            raise SkipTest("vpool_storage_ip not filled in")
 
         print 'VpoolTest initialized'
 

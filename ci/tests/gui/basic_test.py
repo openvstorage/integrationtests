@@ -73,12 +73,48 @@ def ovs_login_test():
 
 
 @with_setup(None, close_browser)
+def ovs_wrong_password_test():
+    """
+    """
+
+    general.checkPrereqs(testCaseNumber = 2,
+                         testsToRun     = testsToRun)
+
+    global browser_object
+
+    browser_object = bt = BrowserOvs()
+    bt.password = "wrong_password"
+    bt.login(wait = False)
+    time.sleep(5)
+    bt.check_invalid_credentials_alert()
+    assert "dashboard" not in bt.browser.title, "Failed login should not go to dashboard"
+
+
+@with_setup(None, close_browser)
+def ovs_wrong_username_test():
+    """
+    """
+
+    general.checkPrereqs(testCaseNumber = 3,
+                         testsToRun     = testsToRun)
+
+    global browser_object
+
+    browser_object = bt = BrowserOvs()
+    bt.username = "wrong_username"
+    bt.login(wait = False)
+    time.sleep(5)
+    bt.check_invalid_credentials_alert()
+    assert "dashboard" not in bt.browser.title, "Failed login should not go to dashboard"
+
+
+@with_setup(None, close_browser)
 def vpool_add_test():
     """
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 2,
+    general.checkPrereqs(testCaseNumber = 4,
                          testsToRun     = testsToRun)
 
     global browser_object
@@ -99,7 +135,7 @@ def vpool_remove_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 3,
+    general.checkPrereqs(testCaseNumber = 5,
                          testsToRun     = testsToRun)
 
     global browser_object
@@ -122,7 +158,7 @@ def set_as_template_test():
     Create a vm and check if it gets registered
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 4,
+    general.checkPrereqs(testCaseNumber = 6,
                          testsToRun     = testsToRun)
 
     global browser_object
@@ -143,7 +179,7 @@ def set_as_template_test():
     browser_object = bt = Vmachine()
     bt.login()
 
-    bt.check_machine_is_present(name)
+    bt.check_machine_is_present(name, 100)
     bt.check_machine_disk_is_present()
 
     hpv.shutdown(name)
@@ -160,7 +196,7 @@ def create_from_template_test():
     * create vm from template
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 5,
+    general.checkPrereqs(testCaseNumber = 7,
                          testsToRun     = testsToRun)
 
     global browser_object
@@ -191,7 +227,7 @@ def delete_clone_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 6,
+    general.checkPrereqs(testCaseNumber = 8,
                          testsToRun     = testsToRun)
 
     global browser_object
@@ -225,7 +261,7 @@ def machine_snapshot_rollback_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 7,
+    general.checkPrereqs(testCaseNumber = 9,
                      testsToRun     = testsToRun)
 
     global browser_object
@@ -292,7 +328,7 @@ def try_to_delete_template_with_clones_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 8,
+    general.checkPrereqs(testCaseNumber = 9,
                      testsToRun     = testsToRun)
 
     global browser_object
@@ -326,7 +362,7 @@ def delete_template_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 9,
+    general.checkPrereqs(testCaseNumber = 10,
                      testsToRun     = testsToRun)
 
     global browser_object
