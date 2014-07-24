@@ -7,8 +7,10 @@ import inspect
 import subprocess
 from nose.plugins.skip import SkipTest
 
-from ovs.dal.lists import vmachinelist, storagerouterlist
-
+from ovs.dal.lists          import vmachinelist, storagerouterlist, vpoollist
+import general_hypervisor
+from ci                     import autotests
+from ovs.extensions.grid    import manager
 
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
@@ -134,3 +136,18 @@ def getFunctionName(level = 0):
     @returntype:  String
     """
     return sys._getframe( level + 1 ).f_code.co_name
+
+def cleanup():
+    machinename = "AT_"
+    vpool_name  = autotests._getConfigIni().get("vpool", "vpool_name")
+
+    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    if vpool:
+        hpv = general_hypervisor.Hypervisor.get(vpool.name)
+        for vm in vmachinelist.VMachineList.get_vmachines():
+            if vm.is_vtemplate:
+                hpv.delete_clones(vm.name)
+            hpv.delete(vm.name)
+
+    for sdg in vpool.storagedrivers_guids:
+        manager.Manager.remove_vpool(sdg)

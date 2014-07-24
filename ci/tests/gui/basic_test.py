@@ -35,7 +35,7 @@ from selenium.webdriver.remote.remote_connection import LOGGER
 LOGGER.setLevel(logging.WARNING)
 
 testsToRun     = general.getTestsToRun(autotests.getTestLevel())
-machinename    = "AT" + __name__.split(".")[-1]
+machinename    = "AT_" + __name__.split(".")[-1]
 vpool_name     = autotests._getConfigIni().get("vpool", "vpool_name")
 browser_object = None
 
@@ -128,6 +128,10 @@ def vpool_add_test():
     vpt.login()
     vpt.add_vpool()
 
+    vpt.browse_to(vpt.get_url() + '#full/vpools', '')
+    time.sleep(5)
+    vpt.wait_for_text(vpt.vpool_name)
+
 
 @with_setup(None, close_browser)
 def vpool_remove_test():
@@ -149,6 +153,10 @@ def vpool_remove_test():
 
 
     vpt.remove_vpool(vpt.vpool_name)
+
+    vpt.browse_to(vpt.get_url() + '#full/vpools', '')
+    time.sleep(5)
+    vpt.wait_for_text_to_vanish(vpt.vpool_name)
 
 
 @with_setup(None, close_browser)
@@ -181,10 +189,12 @@ def set_as_template_test():
 
     bt.check_machine_is_present(name, 100)
     bt.check_machine_disk_is_present()
+    bt.set_as_template(name, should_not_allow = True)
 
     hpv.shutdown(name)
 
     bt.set_as_template(name)
+    bt.check_machine_is_not_present(name)
 
     bt.teardown()
 
@@ -214,11 +224,55 @@ def create_from_template_test():
     bt.create_from_template(template.name, name)
     bt.check_machine_is_present(name)
 
+    hpv.delete(name)
+
+
+@with_setup(None, close_browser)
+def start_stop_vm_test():
+    """
+    %s
+    """ % general.getFunctionName()
+
+    general.checkPrereqs(testCaseNumber = 8,
+                         testsToRun     = testsToRun)
+
+    name = machinename + "_start" + str(random.randrange(0,9999999))
+
+    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    hpv = general_hypervisor.Hypervisor.get(vpool.name)
+
+    template = Vmachine.get_template(machinename, vpool_name)
+
+    browser_object = bt = Vmachine()
+    bt.login()
+
+    bt.create_from_template(template.name, name)
+    bt.check_machine_is_present(name)
+
     hpv.start(name)
     vm_ip = hpv.wait_for_vm_pingable(name)
 
+    prev_stats = bt.check_vm_stats_overview_update(name)
+    hpv.write_test_data(vm_name           = name,
+                        filename          = "test",
+                        zero_filled       = True,
+                        zero_filled_count = 500 * 1024)
+    prev_stats = bt.check_vm_stats_overview_update(name, prev_stats = prev_stats)
+
+
+    prev_stats = bt.check_vm_stats_detail_update(name)
+    hpv.write_test_data(vm_name           = name,
+                        filename          = "test2",
+                        zero_filled       = True,
+                        zero_filled_count = 500 * 1024)
+
+    prev_stats = bt.check_vm_stats_detail_update(name, prev_stats = prev_stats)
+
+
     hpv.shutdown(name)
     hpv.wait_for_vm_pingable(name, pingable = False, vm_ip = vm_ip)
+
+    hpv.delete(name)
 
 
 @with_setup(None, close_browser)
@@ -227,7 +281,7 @@ def delete_clone_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 8,
+    general.checkPrereqs(testCaseNumber = 9,
                          testsToRun     = testsToRun)
 
     global browser_object
@@ -261,7 +315,7 @@ def machine_snapshot_rollback_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 9,
+    general.checkPrereqs(testCaseNumber = 10,
                      testsToRun     = testsToRun)
 
     global browser_object
@@ -328,7 +382,7 @@ def try_to_delete_template_with_clones_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 9,
+    general.checkPrereqs(testCaseNumber = 11,
                      testsToRun     = testsToRun)
 
     global browser_object
@@ -362,7 +416,7 @@ def delete_template_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 10,
+    general.checkPrereqs(testCaseNumber = 12,
                      testsToRun     = testsToRun)
 
     global browser_object

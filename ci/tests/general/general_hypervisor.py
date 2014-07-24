@@ -7,7 +7,7 @@ import random
 from xml.dom import minidom
 
 from ci import autotests
-from ci.tests.general import general
+import general
 
 from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.vmachinelist import VMachineList
@@ -114,11 +114,16 @@ class HypervisorBase(object):
                         timeout  = 200)
         return ssh_con
 
-    def write_test_data(self, vm_name, filename):
+    def write_test_data(self, vm_name, filename, zero_filled = False, zero_filled_count = 1):
         ssh_con = self.get_ssh_con(vm_name)
 
         path = os.path.join(os.sep, "opt", filename)
-        _stdin, stdout, _stderr = ssh_con.exec_command("echo -n {0} >{1};sync".format(self.autotest_check_code, path))
+        if not zero_filled:
+            cmd = "echo -n {0} >{1};sync".format(self.autotest_check_code, path)
+        else:
+            cmd = "dd if=/dev/zero of={0} bs=1K count={1}".format(path, zero_filled_count)
+
+        _stdin, stdout, _stderr = ssh_con.exec_command(cmd)
         stdout.readlines()
         time.sleep(1)
 

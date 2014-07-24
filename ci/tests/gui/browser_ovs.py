@@ -58,6 +58,8 @@ class BrowserOvs():
         self.debug = True
         self.screens_location = "/var/tmp"
         self.teardown_done = False
+        if not getattr(self, "scr_name", ""):
+            self.scr_name = general.getFunctionName(1)
         self.log('BrowserOvs initialized')
 
     def get_username(self):
@@ -112,7 +114,8 @@ class BrowserOvs():
             return
 
         if self.debug:
-            self.browser.screenshot(os.path.join(self.screens_location, str(time.time())))
+            scr_name = getattr(self, "scr_name", "") + str(time.time())
+            self.browser.screenshot(os.path.join(self.screens_location, scr_name))
 
         self.browser.quit()
         self.teardown_done = True
@@ -166,18 +169,6 @@ class BrowserOvs():
         while retries:
             notifs_all = self.browser.find_by_css("div.ui-pnotify-text")
 
-            if fail_on_error:
-                err_notifs = []
-                for n in notifs_all:
-                    try:
-                        if re.search("error|failed", n.text.lower()):
-                            err_notifs.append(n)
-                    except Exception as ex:
-                        self.log("wait_for_wait_notification 2: " + str(ex))
-                if err_notifs:
-                    err_msg = err_notifs[0].text
-                    raise Exception("Error notification encountered while waiting for '{0}'\n{1}".format(text, err_msg))
-
             notifs = []
             for n in notifs_all:
                 try:
@@ -189,6 +180,18 @@ class BrowserOvs():
             if notifs:
                 self.log("found notif: " + str(notifs[0]))
                 return True
+
+            if fail_on_error:
+                err_notifs = []
+                for n in notifs_all:
+                    try:
+                        if re.search("error|failed", n.text.lower()):
+                            err_notifs.append(n)
+                    except Exception as ex:
+                        self.log("wait_for_wait_notification 2: " + str(ex))
+                if err_notifs:
+                    err_msg = err_notifs[0].text
+                    raise Exception("Error notification encountered while waiting for '{0}'\n{1}".format(text, err_msg))
 
             time.sleep(0.1)
             retries -= 1
@@ -226,11 +229,13 @@ class BrowserOvs():
         button.click()
         return button
 
-    def browse_to(self, url, wait_for_title=''):
+    def browse_to(self, url, wait_for_title = '', retries = 60):
         self.browser.visit(url)
         if wait_for_title:
-            while not wait_for_title in self.browser.title.lower():
+            while (not wait_for_title in self.browser.title.lower()) and retries:
                 time.sleep(1)
+                retries -= 1
+            assert retries
 
     def choose(self, identifier, value):
         button = None

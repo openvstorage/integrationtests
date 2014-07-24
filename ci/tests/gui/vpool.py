@@ -50,6 +50,9 @@ class Vpool(BrowserOvs):
                  vpool_storage_ip   = '',
                  browser_choice     = 'chrome' ):
 
+        if not getattr(self, "scr_name", ""):
+            self.scr_name = general.getFunctionName(1)
+
         self.bt = BrowserOvs.__init__(self, browser_choice = browser_choice)
 
         cfg = autotests._getConfigIni()

@@ -559,7 +559,7 @@ def _getDurations(xmlfile):
 
     durations = {}
     for child in xmlfile.childNodes:
-        suite = child.getAttribute('classname').split('.')[0]
+        suite = child.getAttribute('classname').split('.')[-2]
         if suite == '<nose':
             continue
 
@@ -584,7 +584,7 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
     allSuites = testrailApi.getSuites(projectID)
 
     for child in xmlfile.childNodes:
-        suite = child.getAttribute('classname').split('.')[0]
+        suite = child.getAttribute('classname').split('.')[-2]
 
         if suite in ('<nose', 'nose'):
             continue
@@ -739,7 +739,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         return planID
 
     for child in xmlfile.childNodes:
-        suite = child.getAttribute('classname').split('.')[0]
+        suite = child.getAttribute('classname').split('.')[-2]
 
         if suite in ('<nose', 'nose'):
             if child.childNodes[0].childNodes and child.childNodes[0].childNodes[

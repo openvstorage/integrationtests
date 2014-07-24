@@ -6,20 +6,32 @@ from ovs.dal.lists.vmachinelist     import VMachineList
 from ovs.dal.lists                  import vpoollist
 from ci.tests.general               import general_hypervisor
 from ci.tests.gui.vpool             import Vpool
+from ci.tests.general               import general
 
 class Vmachine(BrowserOvs):
     def __init__(self,
                  browser_choice     = 'chrome' ):
 
+        if not getattr(self, "scr_name", ""):
+            self.scr_name = general.getFunctionName(1)
+
         self.bt = BrowserOvs.__init__(self, browser_choice = browser_choice)
 
+
     def check_machine_is_present(self, machinename, retries = 30):
-        self.browse_to(self.get_url() + '#full/vmachines', 'vmachines')
+        vmachines_url = self.get_url() + '#full/vmachines'
+        if self.browser.url != vmachines_url:
+            self.browse_to(vmachines_url, 'vmachines')
 
         self.wait_for_text(machinename, retries)
         self.click_on_tbl_item(machinename)
         self.wait_for_text(machinename, retries)
         time.sleep(2)
+
+    def check_machine_is_not_present(self, machinename, retries = 30):
+        self.browse_to(self.get_url() + '#full/vmachines', 'vmachines')
+
+        self.wait_for_text_to_vanish(machinename, retries)
 
     def check_machine_disk_is_present(self, name = ''):
         """
@@ -48,17 +60,81 @@ class Vmachine(BrowserOvs):
         assert check_ok, "Failed to check machine disks"
 
 
-    def set_as_template(self, name):
+    def set_as_template(self, name, should_not_allow = False):
         self.check_machine_is_present(name)
 
         setastemplate_button = self.browser.find_by_id("buttonVmachineSetAsTemplate")
         assert setastemplate_button
         setastemplate_button = setastemplate_button[0]
-        setastemplate_button.click()
 
-        self.click_modal_button('Set as Template')
+        if not should_not_allow:
+            setastemplate_button.click()
+            self.wait_for_modal()
+            self.click_modal_button('Set as Template')
 
-        self.wait_for_wait_notification('Machine {} set as template'.format(name))
+            self.wait_for_wait_notification('Machine {} set as template'.format(name))
+        else:
+            try:
+                setastemplate_button.click()
+            except Exception as ex:
+                if "Element is not clickable" not in str(ex):
+                    raise
+            self.wait_for_modal(should_exist = False)
+
+
+    def check_vm_stats_overview_update(self, vm_name, prev_stats = "", retries = 30):
+        """
+        check stats are updating under the vmachines overview page
+        """
+        vms_url = self.get_url() + '#full/vmachines'
+        if self.browser.url != vms_url:
+            self.browse_to(vms_url)
+
+        vm_obj = VMachineList.get_vmachine_by_name(vm_name)
+        assert vm_obj, "Vm with name {} not found"
+        vm_obj = vm_obj[0]
+
+        vm_tr = self.browser.find_by_id("vmachine_{}".format(vm_obj.guid))
+        assert vm_tr, "Didnt find table row for {} vm in the vmachines overview".format(vm_name)
+        vm_tr = vm_tr[0]
+
+        tds = vm_tr.find_by_tag("td")
+        while retries:
+            stats_line = [td.text for td in tds]
+            if stats_line != prev_stats:
+                break
+            time.sleep(1)
+            retries -= 1
+        assert stats_line != prev_stats, "Vm stats did not change for vm {0}, prev:\n{1}\nactual:\n{2}".format(vm_name, prev_stats, stats_line)
+        return stats_line
+
+
+    def check_vm_stats_detail_update(self, vm_name, prev_stats = "", retries = 30):
+        """
+        check stats are updating under the vmachine detail page
+        """
+        vm_obj = VMachineList.get_vmachine_by_name(vm_name)
+        assert vm_obj, "Vm with name {} not found"
+        vm_obj = vm_obj[0]
+
+        if vm_obj.guid not in self.browser.url:
+            self.check_machine_is_present(vm_name)
+
+        #only handling first disk currently
+        vm_tr = self.browser.find_by_id("vdisk_{}".format(vm_obj.vdisks[0].guid))
+        assert vm_tr, "Didnt find table row for {} disk in the vmachines overview".format(vm_obj.vdisks[0].name)
+        vm_tr = vm_tr[0]
+
+        tds = vm_tr.find_by_tag("td")
+        while retries:
+            stats_line = [td.text for td in tds]
+            if stats_line != prev_stats:
+                break
+            time.sleep(1)
+            retries -= 1
+        assert stats_line != prev_stats, "Disk stats did not change for vm {0}, prev:\n{1}\nactual:\n{2}".format(vm_name, prev_stats, stats_line)
+        return stats_line
+
 
     def create_from_template(self, template_name, vm_name):
         self.browse_to(self.get_url() + '#full/vtemplates', 'vtemplates')
@@ -87,7 +163,7 @@ class Vmachine(BrowserOvs):
 
         self.click_on('Finish', retries = 100)
 
-        self.wait_for_wait_notification('Creating from {} successfully'.format(template_name), retries = 2000)
+        self.wait_for_wait_notification('Creating from {} successfully'.format(template_name), retries = 500)
 
     def delete_template(self, template_name, should_fail = False):
 
