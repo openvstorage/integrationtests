@@ -121,10 +121,10 @@ def caseNameTestrailFormat(testName):
 
 
 Q_AUTOMATED = "qAutomated"
-AUTOTEST_DIR = os.path.join(os.sep, "opt", "OpenvStorage", "ovs", "extensions", "autotests")
+AUTOTEST_DIR = os.path.join(os.sep, "opt", "OpenvStorage", "ci")
 SCRIPTS_DIR = os.path.join(AUTOTEST_DIR, "scripts")
 TESTS_DIR = os.path.join(AUTOTEST_DIR, "tests")
-
+CONFIG_DIR = os.path.join(AUTOTEST_DIR, "config")
 
 def formatDurations(dur):
     if not dur:
@@ -215,7 +215,7 @@ class xunit_testrail(Plugin):
 
             self.error_report_file = open(options.xunit_file2, 'w')
 
-            projectMapping = os.path.join(SCRIPTS_DIR, "project_testsuite_mapping.cfg")
+            projectMapping = os.path.join(CONFIG_DIR, "project_testsuite_mapping.cfg")
             self.projectIni = ConfigParser.ConfigParser()
             self.projectIni.read(projectMapping)
 
@@ -249,7 +249,7 @@ class xunit_testrail(Plugin):
                 self.hypervisor = nameSplits[2]
 
                 plan = self.testrailApi.addPlan(self.projectID, name, description, milestoneID or None)
-                print "\nNew test plan: ", plan['url']
+                os.write(1, "\nNew test plan: " + plan['url'] + "\n")
                 self.planID = plan['id']
                 self.suiteName = ""
 
@@ -281,7 +281,7 @@ class xunit_testrail(Plugin):
         if self.testrailIp:
             try:
                 testName = test_id.split('.')[-1]
-                suiteName = test_id.split('.')[0]
+                suiteName = test_id.split('.')[-3]
 
                 bCreateNewRun = False
                 if suiteName != self.suiteName:

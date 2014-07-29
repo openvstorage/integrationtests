@@ -238,7 +238,8 @@ def pushToTestrail(project=None,
                                            msg="Please chose results file \n" + "\n".join(
                                                map(lambda x: str(x[0]) + "->" + str(x[1]), filesToAsk)) + ":\n"))
 
-    fileName = os.path.join(folder, resultFiles[fileNameIdx])
+        fileName = os.path.join(folder, resultFiles[fileNameIdx])
+
     print fileName
 
     if quality_level == None:
@@ -263,6 +264,7 @@ def pushToTestrail(project=None,
     if url:
         print "\n" + url
 
+    return url
 
 def _parseArgs(suite_name,
                output_format,
@@ -751,7 +753,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
 
         isBlocked = False
 
-        if child.childNodes and child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest':
+        if child.childNodes and "SkipTest" in child.childNodes[0].getAttribute('type'):
             if child.childNodes[0].getAttribute('message') == BLOCKED_MESSAGE:
                 isBlocked = True
             else:
