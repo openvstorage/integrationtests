@@ -363,7 +363,7 @@ class BrowserOvs():
         self.click_on('Login')
         if wait:
             self.wait_for_title("Dashboard", 100)
-            self.wait_for_text('Storager Appliance', timeout = 10)
+            self.wait_for_text('Storage Router', timeout = 10)
 
     def check_invalid_credentials_alert(self):
         alerts = self.browser.find_by_css(".alert-danger")
@@ -385,9 +385,9 @@ class BrowserOvs():
 
     def wait_for_text(self, text, timeout = 5):
         r = self.browser.is_text_present(text, timeout)
-        assert r, "Text '{}' did not appear in due time".format(text)
+        assert r, "Text '{0}' did not appear in due time".format(text)
         time.sleep(1)
 
     def wait_for_text_to_vanish(self, text, timeout = 5):
         r = self.browser.is_text_not_present(text, timeout)
-        assert r, "Text '{}' did not vanish in due time".format(text)
+        assert r, "Text '{0}' did not vanish in due time".format(text)
