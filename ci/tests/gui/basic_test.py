@@ -44,6 +44,9 @@ def setup():
 
     print "setup called " + __name__
 
+    #make sure we start with clean env
+    general.cleanup()
+
 
 def teardown():
     pass

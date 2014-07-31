@@ -3,6 +3,7 @@ import sys
 import paramiko
 import random
 import urllib
+import shutil
 import inspect
 import subprocess
 from nose.plugins.skip import SkipTest
@@ -144,10 +145,29 @@ def cleanup():
     vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
     if vpool:
         hpv = general_hypervisor.Hypervisor.get(vpool.name)
-        for vm in vmachinelist.VMachineList.get_vmachines():
+        vm_names = [vm.name for vm in vmachinelist.VMachineList.get_vmachines()]
+        for name in vm_names:
+            vm = vmachinelist.VMachineList.get_vmachine_by_name(name)
+            if not vm:
+                continue
+            vm = vm[0]
+            if not vm.name.startswith(machinename):
+                continue
             if vm.is_vtemplate:
                 hpv.delete_clones(vm.name)
             hpv.delete(vm.name)
 
-    for sdg in vpool.storagedrivers_guids:
-        manager.Manager.remove_vpool(sdg)
+        env_macs = execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()
+        if vpool.storagedrivers:
+            mountpoint = vpool.storagedrivers[0].mountpoint
+            for d in os.listdir(mountpoint):
+                if d.startswith(machinename):
+                    shutil.rmtree(os.path.join(mountpoint, d))
+            for mac in env_macs:
+                mac_path = os.path.join(mountpoint, mac)
+                if os.path.exists(mac_path):
+                    for f in os.listdir(mac_path):
+                        os.remove(os.path.join(mac_path, f))
+
+        for sdg in vpool.storagedrivers_guids:
+            manager.Manager.remove_vpool(sdg)
