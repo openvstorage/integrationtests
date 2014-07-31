@@ -195,9 +195,9 @@ class Vpool(BrowserOvs):
 
     def add_vpool(self):
         self.browse_to(self.get_url() + '#full/vpools', 'vpools')
+        assert self.wait_for_visible_element_by_id('buttonAddVpool', 5), 'Button Add vPool not present (yet)'
         self.click_on('AddVpool')
-        self.wait_for_text('Add new vPool')
-        time.sleep(2)
+        assert self.wait_for_visible_element_by_id('form.gather.vpool', 5), 'Add vPool wizard not present (yet)'
         self.choose('Local FS', self.vpool_type)
         self.fill_out('inputVpoolName', self.vpool_name)
 
@@ -210,7 +210,7 @@ class Vpool(BrowserOvs):
         self.click_on('Next', retries = 100)
 
         # wait for page to load
-        self.browser.is_element_present_by_id('dropdown-button-mtpt-temp', 15)
+        assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 15), 'vPool wizard with mountpoint details not present (yet)'
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-cache', self.vpool_cache_mp)
@@ -250,10 +250,10 @@ class Vpool(BrowserOvs):
         time.sleep(2)
 
         self.click_on_tbl_item(vpool_name)
-        self.wait_for_text('Actions:')
+        self.browser.is_element_present_by_id('management', 5)
 
         self.click_on_tbl_header('management')
-        self.wait_for_text('serving this')
+        self.wait_for_visible_element_by_id('btn.vpool.management', 5)
 
         # only deselect = i.e. click when checkbox = selected
         self.check_checkboxes('management')
@@ -270,10 +270,10 @@ class Vpool(BrowserOvs):
         self.wait_for_text(vpool_name)
 
         self.click_on_tbl_item(vpool_name)
-        self.wait_for_text('Actions:')
+        self.browser.is_element_present_by_id('management', 5)
 
         self.click_on_tbl_header('management')
-        self.wait_for_text('serving this')
+        self.wait_for_visible_element_by_id('btn.vpool.management', 5)
 
         # only deselect = i.e. click when checkbox = selected
         management = self.browser.find_by_id("management")
