@@ -40,7 +40,7 @@ class Vmachine(BrowserOvs):
         self.log(self.browser.url)
 
         check_ok = False
-        retries = 100
+        retries = 500
         while retries:
             disk_links_all = self.browser.find_link_by_partial_href("#full/vdisk/")
 
