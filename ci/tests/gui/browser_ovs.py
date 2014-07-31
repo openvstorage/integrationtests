@@ -255,7 +255,7 @@ class BrowserOvs():
             if not bclicked:
                 self.log("Choose: could not find value {}".format(value))
         else:
-            self.log("Choose: couldnt find identifier {}".format(identifier))
+            self.log("Choose: couldn't find identifier {}".format(identifier))
 
     def click_on(self, identifier, retries = 1):
 
@@ -355,15 +355,14 @@ class BrowserOvs():
 
     def login(self, wait = True):
         self.browser.visit(self.url)
-        self.wait_for_text("Login")
+        self.browser.is_element_present_by_id('buttonLogin', wait_time=10)
         if self.debug:
             self.log('Login to {0}'.format(self.browser.title))
         self.fill_out('inputUsername', self.username)
         self.fill_out('inputPassword', self.password)
         self.click_on('Login')
         if wait:
-            self.wait_for_title("Dashboard", 100)
-            self.wait_for_text('Storage Router', timeout = 10)
+            self.browser.is_element_present_by_id('dashboard.panels.storagerouter', wait_time=10)
 
     def check_invalid_credentials_alert(self):
         alerts = self.browser.find_by_css(".alert-danger")
@@ -382,6 +381,16 @@ class BrowserOvs():
             time.sleep(0.1)
             retries -= 1
         assert retries, "Page title did not change to {}, in due time".format(title_text)
+
+    def wait_for_visible_element_by_id(self, id, timeout=10):
+        self.browser.is_element_present_by_id(id, timeout)
+        element = self.browser.find_by_id(id)[0]
+        while timeout > 0:
+            if element.visible:
+                return True
+            time.sleep(1)
+            timeout = timeout - 1
+        return False
 
     def wait_for_text(self, text, timeout = 5):
         r = self.browser.is_text_present(text, timeout)
