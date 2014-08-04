@@ -15,8 +15,21 @@ from ovs.dal.lists.pmachinelist import PMachineList
 from ovs.extensions.hypervisor.hypervisors.kvm import Sdk as Kvm_sdk
 from ovs.extensions.hypervisor.hypervisors.vmware import Sdk as Vmware_sdk
 
-
-
+import logging
+#disable excesive logging
+logging.getLogger('suds.client').setLevel(logging.WARNING)
+logging.getLogger('suds.transport').setLevel(logging.WARNING) # MUST BE THIS?
+logging.getLogger('suds.xsd.schema').setLevel(logging.WARNING)
+logging.getLogger('suds.wsdl').setLevel(logging.WARNING)
+logging.getLogger('suds.resolver').setLevel(logging.WARNING)
+logging.getLogger('suds.xsd.query').setLevel(logging.WARNING)
+logging.getLogger('suds.xsd.basic').setLevel(logging.WARNING)
+logging.getLogger('suds.xsd.sxbasic').setLevel(logging.WARNING)
+logging.getLogger('suds.binding.marshaller').setLevel(logging.WARNING)
+logging.getLogger('suds.mx.literal').setLevel(logging.WARNING)
+logging.getLogger('suds.mx.core').setLevel(logging.WARNING)
+logging.getLogger('suds.sudsobject').setLevel(logging.WARNING)
+logging.getLogger('suds.metrics').setLevel(logging.WARNING)
 
 PUBLIC_BRIDGE_NAME_ESX = "CloudFramesPublic"
 
