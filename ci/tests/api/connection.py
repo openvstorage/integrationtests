@@ -23,6 +23,7 @@ class Connection:
         self.username = username
         self.password = password
         self.token = ''
+        self.headers = {'Accept': 'application/json; version=*'}
 
     def get_username(self):
         return self.username
@@ -52,15 +53,25 @@ class Connection:
     ip = property(get_ip, set_ip)
 
     def authenticate(self):
-        response = urllib2.urlopen('https://{0}/api/auth/'.format(self.get_ip()),
-                                   urllib.urlencode({'username':self.get_username(),
-                                                     'password':self.get_password()})).read()
-        self.token = json.loads(response)['token']
+        if self.headers.has_key('Authorization'):
+            self.headers.pop('Authorization')
+
+        auth_url = 'https://{0}/api/oauth2/token/'.format(self.get_ip())
+
+        request = urllib2.Request(auth_url, data=urllib.urlencode({'grant_type': 'password',
+                                                                   'username': self.get_username(),
+                                                                   'password': self.get_password()}), headers=self.headers)
+        response = urllib2.urlopen(request).read()
+
+        self.token = json.loads(response)['access_token']
+        self.headers['Authorization'] = 'Bearer {0}'.format(self.token)
 
 
     def get_active_tasks(self):
-        response = urllib2.urlopen(urllib2.Request('https://{0}/api/customer/tasks/'.format(self.get_ip()),
-                                                   headers={'Authorization': 'Token ' + self.token})).read()
+        base_url = 'https://{0}/api/customer/{{0}}'.format(self.get_ip())
+        request = urllib2.Request(base_url.format('tasks/'), None, headers=self.headers)
+        response = urllib2.urlopen(request).read()
+
         all_tasks = json.loads(response)
         tasks = list()
         tasks.extend(x for x in all_tasks['active'].values() if x)
