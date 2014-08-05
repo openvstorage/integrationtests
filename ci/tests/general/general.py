@@ -160,14 +160,15 @@ def cleanup():
         env_macs = execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()
         if vpool.storagedrivers:
             mountpoint = vpool.storagedrivers[0].mountpoint
-            for d in os.listdir(mountpoint):
-                if d.startswith(machinename):
-                    shutil.rmtree(os.path.join(mountpoint, d))
-            for mac in env_macs:
-                mac_path = os.path.join(mountpoint, mac)
-                if os.path.exists(mac_path):
-                    for f in os.listdir(mac_path):
-                        os.remove(os.path.join(mac_path, f))
+            if os.path.exists(mountpoint):
+                for d in os.listdir(mountpoint):
+                    if d.startswith(machinename):
+                        shutil.rmtree(os.path.join(mountpoint, d))
+                for mac in env_macs:
+                    mac_path = os.path.join(mountpoint, mac)
+                    if os.path.exists(mac_path):
+                        for f in os.listdir(mac_path):
+                            os.remove(os.path.join(mac_path, f))
 
         for sdg in vpool.storagedrivers_guids:
             manager.Manager.remove_vpool(sdg)
