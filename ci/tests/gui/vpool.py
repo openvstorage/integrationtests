@@ -44,7 +44,9 @@ class Vpool(BrowserOvs):
                  vpool_secret_key   = '',
                  vpool_temp_mp      = '',
                  vpool_md_mp        = '',
-                 vpool_cache_mp     = '',
+                 vpool_readcache_mp = '',
+                 vpool_writecache_mp= '',
+                 vpool_foc_mp       = '',
                  vpool_bfs_mp       = '',
                  vpool_vrouter_port = '',
                  vpool_storage_ip   = '',
@@ -57,22 +59,25 @@ class Vpool(BrowserOvs):
 
         cfg = autotests._getConfigIni()
 
-        self.vpool_name             = vpool_name         or cfg.get("vpool", "vpool_name")
-        self.vpool_type             = vpool_type         or cfg.get("vpool", "vpool_type")
-        self.vpool_host             = vpool_host         or cfg.get("vpool", "vpool_host")
-        self.vpool_port             = vpool_port         or cfg.get("vpool", "vpool_port")
-        self.vpool_access_key       = vpool_access_key   or cfg.get("vpool", "vpool_access_key")
-        self.vpool_secret_key       = vpool_secret_key   or cfg.get("vpool", "vpool_secret_key")
-        self.vpool_temp_mp          = vpool_temp_mp      or cfg.get("vpool", "vpool_temp_mp")
-        self.vpool_md_mp            = vpool_md_mp        or cfg.get("vpool", "vpool_md_mp")
-        self.vpool_cache_mp         = vpool_cache_mp     or cfg.get("vpool", "vpool_cache_mp")
+        self.vpool_name             = vpool_name          or cfg.get("vpool", "vpool_name")
+        self.vpool_type             = vpool_type          or cfg.get("vpool", "vpool_type")
+        self.vpool_host             = vpool_host          or cfg.get("vpool", "vpool_host")
+        self.vpool_port             = vpool_port          or cfg.get("vpool", "vpool_port")
+        self.vpool_access_key       = vpool_access_key    or cfg.get("vpool", "vpool_access_key")
+        self.vpool_secret_key       = vpool_secret_key    or cfg.get("vpool", "vpool_secret_key")
+        self.vpool_temp_mp          = vpool_temp_mp       or cfg.get("vpool", "vpool_temp_mp")
+        self.vpool_md_mp            = vpool_md_mp         or cfg.get("vpool", "vpool_md_mp")
+        self.vpool_readcache_mp     = vpool_readcache_mp  or cfg.get("vpool", "vpool_readcache_mp")
+        self.vpool_writecache_mp    = vpool_writecache_mp or cfg.get("vpool", "vpool_writecache_mp")
+        self.vpool_foc_mp           = vpool_foc_mp        or cfg.get("vpool", "vpool_foc_mp")
         self.vpool_bfs_mp           = vpool_bfs_mp
         if self.vpool_type in ["Local FS"]:
-            self.vpool_bfs_mp       = vpool_bfs_mp       or cfg.get("vpool", "vpool_bfs_mp")
-        self.vpool_vrouter_port     = vpool_vrouter_port or cfg.get("vpool", "vpool_vrouter_port")
-        self.vpool_storage_ip       = vpool_storage_ip   or cfg.get("vpool", "vpool_storage_ip")
+            self.vpool_bfs_mp       = vpool_bfs_mp        or cfg.get("vpool", "vpool_bfs_mp")
+        self.vpool_vrouter_port     = vpool_vrouter_port  or cfg.get("vpool", "vpool_vrouter_port")
+        self.vpool_storage_ip       = vpool_storage_ip    or cfg.get("vpool", "vpool_storage_ip")
 
-        for e in ["vpool_name", "vpool_type", "vpool_temp_mp", "vpool_md_mp", "vpool_cache_mp", "vpool_vrouter_port"]:
+        for e in ["vpool_name", "vpool_type", "vpool_temp_mp", "vpool_md_mp",
+                  "vpool_readcache_mp", "vpool_writecache_mp", "vpool_foc_mp", "vpool_vrouter_port"]:
             if not getattr(self, e):
                 raise SkipTest(e)
 
@@ -162,15 +167,32 @@ class Vpool(BrowserOvs):
 
     vpool_bfs_mp = property(get_vpool_bfs_mp, set_vpool_bfs_mp)
 
+    def get_vpool_readcache_mp(self):
+        return self.vpool_readcache_mp
 
-    def get_vpool_cache_mp(self):
-        return self.vpool_cache_mp
+    def set_vpool_readcache_mp(self, vpool_readcache_mp):
+        assert isinstance(vpool_readcache_mp, str), 'Vpool readcache mountpoint must be a string'
+        self.vpool_readcache_mp = vpool_readcache_mp
 
-    def set_vpool_cache_mp(self, vpool_cache_mp):
-        assert isinstance(vpool_cache_mp, str), 'Vpool cache mountpoint must be a string'
-        self.vpool_cache_mp = vpool_cache_mp
+    vpool_readcache_mp = property(get_vpool_readcache_mp, set_vpool_readcache_mp)
 
-    vpool_cache_mp = property(get_vpool_cache_mp, set_vpool_cache_mp)
+    def get_vpool_writecache_mp(self):
+        return self.vpool_writecache_mp
+
+    def set_vpool_writecache_mp(self, vpool_writecache_mp):
+        assert isinstance(vpool_writecache_mp, str), 'Vpool writecache mountpoint must be a string'
+        self.vpool_writecache_mp = vpool_writecache_mp
+
+    vpool_writecache_mp = property(get_vpool_writecache_mp, set_vpool_writecache_mp)
+
+    def get_vpool_foc_mp(self):
+        return self.vpool_foc_mp
+
+    def set_vpool_foc_mp(self, vpool_foc_mp):
+        assert isinstance(vpool_foc_mp, str), 'Vpool foc mountpoint must be a string'
+        self.vpool_foc_mp = vpool_foc_mp
+
+    vpool_foc_mp = property(get_vpool_foc_mp, set_vpool_foc_mp)
 
     def get_vpool_vrouter_port(self):
         return self.vpool_vrouter_port
@@ -213,7 +235,9 @@ class Vpool(BrowserOvs):
         assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 15), 'vPool wizard with mountpoint details not present (yet)'
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
-        self.fill_out_custom_field('dropdown-button-mtpt-cache', self.vpool_cache_mp)
+        self.fill_out_custom_field('dropdown-button-mtpt-readcache', self.vpool_readcache_mp)
+        self.fill_out_custom_field('dropdown-button-mtpt-writecache', self.vpool_writecache_mp)
+        self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
 
         if self.vpool_type not in REMOTE_VPOOL_TYPES:
             self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
