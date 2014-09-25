@@ -11,7 +11,7 @@ from nose.plugins.skip import SkipTest
 from ovs.dal.lists          import vmachinelist, storagerouterlist, vpoollist
 import general_hypervisor
 from ci                     import autotests
-from ovs.extensions.grid    import manager
+from ovs.lib.storagerouter import StorageRouterController
 
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
@@ -171,7 +171,7 @@ def cleanup():
                             os.remove(os.path.join(mac_path, f))
 
         for sdg in vpool.storagedrivers_guids:
-            manager.Manager.remove_vpool(sdg)
+            StorageRouterController.remove_storagedriver(sdg)
 
         if general_hypervisor.get_hypervisor_type() == "VMWARE":
             hypervisorInfo = autotests.getHypervisorInfo()
