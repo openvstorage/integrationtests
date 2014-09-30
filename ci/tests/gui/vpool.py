@@ -32,25 +32,28 @@ from nose.plugins.skip    import SkipTest
 
 from splinter.driver.webdriver import NoSuchElementException
 
+from ovs.dal.lists.storagerouterlist import StorageRouterList
+
 REMOTE_VPOOL_TYPES = ['Ceph S3', 'S3 compatible', 'Swift S3']
 
 class Vpool(BrowserOvs):
     def __init__(self,
-                 vpool_name         = '',
-                 vpool_type         = '',
-                 vpool_host         = '',
-                 vpool_port         = '',
-                 vpool_access_key   = '',
-                 vpool_secret_key   = '',
-                 vpool_temp_mp      = '',
-                 vpool_md_mp        = '',
-                 vpool_readcache_mp = '',
-                 vpool_writecache_mp= '',
-                 vpool_foc_mp       = '',
-                 vpool_bfs_mp       = '',
-                 vpool_vrouter_port = '',
-                 vpool_storage_ip   = '',
-                 browser_choice     = 'chrome' ):
+                 vpool_name          = '',
+                 vpool_type          = '',
+                 vpool_host          = '',
+                 vpool_port          = '',
+                 vpool_access_key    = '',
+                 vpool_secret_key    = '',
+                 vpool_temp_mp       = '',
+                 vpool_md_mp         = '',
+                 vpool_readcache1_mp = '',
+                 vpool_readcache2_mp = '',
+                 vpool_writecache_mp = '',
+                 vpool_foc_mp        = '',
+                 vpool_bfs_mp        = '',
+                 vpool_vrouter_port  = '',
+                 vpool_storage_ip    = '',
+                 browser_choice      = 'chrome' ):
 
         if not getattr(self, "scr_name", ""):
             self.scr_name = general.getFunctionName(1)
@@ -67,7 +70,8 @@ class Vpool(BrowserOvs):
         self.vpool_secret_key       = vpool_secret_key    or cfg.get("vpool", "vpool_secret_key")
         self.vpool_temp_mp          = vpool_temp_mp       or cfg.get("vpool", "vpool_temp_mp")
         self.vpool_md_mp            = vpool_md_mp         or cfg.get("vpool", "vpool_md_mp")
-        self.vpool_readcache_mp     = vpool_readcache_mp  or cfg.get("vpool", "vpool_readcache_mp")
+        self.vpool_readcache1_mp    = vpool_readcache1_mp or cfg.get("vpool", "vpool_readcache1_mp")
+        self.vpool_readcache2_mp    = vpool_readcache2_mp or cfg.get("vpool", "vpool_readcache2_mp")
         self.vpool_writecache_mp    = vpool_writecache_mp or cfg.get("vpool", "vpool_writecache_mp")
         self.vpool_foc_mp           = vpool_foc_mp        or cfg.get("vpool", "vpool_foc_mp")
         self.vpool_bfs_mp           = vpool_bfs_mp
@@ -77,7 +81,7 @@ class Vpool(BrowserOvs):
         self.vpool_storage_ip       = vpool_storage_ip    or cfg.get("vpool", "vpool_storage_ip")
 
         for e in ["vpool_name", "vpool_type", "vpool_temp_mp", "vpool_md_mp",
-                  "vpool_readcache_mp", "vpool_writecache_mp", "vpool_foc_mp", "vpool_vrouter_port"]:
+                  "vpool_readcache1_mp", "vpool_readcache2_mp", "vpool_writecache_mp", "vpool_foc_mp", "vpool_vrouter_port"]:
             if not getattr(self, e):
                 raise SkipTest(e)
 
@@ -167,14 +171,25 @@ class Vpool(BrowserOvs):
 
     vpool_bfs_mp = property(get_vpool_bfs_mp, set_vpool_bfs_mp)
 
-    def get_vpool_readcache_mp(self):
-        return self.vpool_readcache_mp
+    def get_vpool_readcache1_mp(self):
+        return self.vpool_readcache1_mp
 
-    def set_vpool_readcache_mp(self, vpool_readcache_mp):
-        assert isinstance(vpool_readcache_mp, str), 'Vpool readcache mountpoint must be a string'
-        self.vpool_readcache_mp = vpool_readcache_mp
+    def set_vpool_readcache1_mp(self, vpool_readcache1_mp):
+        assert isinstance(vpool_readcache1_mp, str), 'Vpool readcache mountpoint must be a string'
+        self.vpool_readcache1_mp = vpool_readcache1_mp
 
-    vpool_readcache_mp = property(get_vpool_readcache_mp, set_vpool_readcache_mp)
+    vpool_readcache1_mp = property(get_vpool_readcache1_mp, set_vpool_readcache1_mp)
+
+
+    def get_vpool_readcache2_mp(self):
+        return self.vpool_readcache2_mp
+
+    def set_vpool_readcache2_mp(self, vpool_readcache2_mp):
+        assert isinstance(vpool_readcache2_mp, str), 'Vpool readcache mountpoint must be a string'
+        self.vpool_readcache2_mp = vpool_readcache2_mp
+
+    vpool_readcache2_mp = property(get_vpool_readcache2_mp, set_vpool_readcache2_mp)
+
 
     def get_vpool_writecache_mp(self):
         return self.vpool_writecache_mp
@@ -229,13 +244,20 @@ class Vpool(BrowserOvs):
             self.fill_out('inputVpoolAccessKey', self.vpool_access_key)
             self.fill_out('inputVpoolSecretKey', self.vpool_secret_key)
 
+        #for grid select current node as initial storage router
+        current_node_hostname = general.get_this_hostname()
+        current_node_selection = sorted([sr.name for sr in StorageRouterList.get_storagerouters()])
+        if current_node_selection[0] != current_node_hostname:
+            self.choose(current_node_selection[0], current_node_hostname)
+
         self.click_on('Next', retries = 100)
 
         # wait for page to load
         assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 15), 'vPool wizard with mountpoint details not present (yet)'
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
-        self.fill_out_custom_field('dropdown-button-mtpt-readcache', self.vpool_readcache_mp)
+        self.fill_out_custom_field('dropdown-button-mtpt-readcache1', self.vpool_readcache1_mp)
+        self.fill_out_custom_field('dropdown-button-mtpt-readcache2', self.vpool_readcache2_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-writecache', self.vpool_writecache_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
 
@@ -303,7 +325,7 @@ class Vpool(BrowserOvs):
         management = self.browser.find_by_id("management")
         assert management
         management = management[0]
-        
+
         save_changes_id = "VpoolSaveChanges"
         self.browser.is_element_present_by_id(save_changes_id, wait_time = 10)
         self.uncheck_checkboxes(management)

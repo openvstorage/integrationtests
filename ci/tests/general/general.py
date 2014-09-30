@@ -215,3 +215,5 @@ def remove_vpool(browser):
             print stdout.readlines()
             print stderr.readlines()
 
+def get_this_hostname():
+    return execute_command("hostname")[0].strip()
