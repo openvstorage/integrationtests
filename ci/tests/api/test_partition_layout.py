@@ -1,6 +1,7 @@
 
 import os
 import itertools
+import random
 
 from ci.tests.general                   import general
 from ci                                 import autotests
@@ -180,7 +181,9 @@ def two_disks_layout_test():
     vpool_writecache_mp  = "/mnt/test_wcache"
     vpool_foc_mp         = "/mnt/test_fcache"
 
-    for comb in itertools.product([0,1], repeat = 4):
+    combinations = list(itertools.product([0,1], repeat = 4))
+    random.shuffle(combinations)
+    for comb in combinations[:6]:
         if comb.count(0) < 1 or comb.count(1) < 1:
             continue
         disk_layout = {vpool_readcache1_mp: {'device': unused_disks[comb[0]], 'percentage': 25, 'label': 'test_cache1'},
@@ -344,9 +347,9 @@ def three_disks_layout_test():
     vpool_writecache_mp  = "/mnt/test_wcache"
     vpool_foc_mp         = "/mnt/test_fcache"
 
-    for comb in itertools.product([0, 1, 2], repeat = 4):
-        if comb.count(0) < 1 or comb.count(1) < 1 or comb.count(2) < 1:
-            continue
+    combinations = list(itertools.product([0, 1, 2], repeat = 4))
+    random.shuffle(combinations)
+    for comb in combinations[:6]:
         disk_layout = {vpool_readcache1_mp: {'device': unused_disks[comb[0]], 'percentage': 25, 'label': 'test_cache1'},
                        vpool_readcache2_mp: {'device': unused_disks[comb[1]], 'percentage': 25, 'label': 'test_cache2'},
                        vpool_writecache_mp: {'device': unused_disks[comb[2]], 'percentage': 25, 'label': 'test_wcache'},
