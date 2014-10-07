@@ -1,17 +1,22 @@
 import os
 import sys
-import paramiko
+import json
+import time
 import random
 import urllib
 import shutil
 import inspect
+import pexpect
+import paramiko
 import subprocess
 from nose.plugins.skip import SkipTest
 
-from ovs.dal.lists          import vmachinelist, storagerouterlist, vpoollist
+from ovs.dal.lists                      import vmachinelist, storagerouterlist, vpoollist
 import general_hypervisor
-from ci                     import autotests
-from ovs.lib.storagerouter import StorageRouterController
+from ci                                 import autotests
+from ovs.lib.storagerouter              import StorageRouterController
+from ovs.lib.setup                      import SetupController
+from ovs.extensions.generic.sshclient   import SSHClient
 
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
@@ -138,6 +143,7 @@ def getFunctionName(level = 0):
     """
     return sys._getframe( level + 1 ).f_code.co_name
 
+
 def cleanup():
     machinename = "AT_"
     vpool_name  = autotests._getConfigIni().get("vpool", "vpool_name")
@@ -215,5 +221,262 @@ def remove_vpool(browser):
             print stdout.readlines()
             print stderr.readlines()
 
+
 def get_this_hostname():
     return execute_command("hostname")[0].strip()
+
+
+def get_all_disks():
+    out = execute_command("""fdisk -l 2>/dev/null| awk '/Disk \/.*:/ {gsub(":","",$s);print $2}'""")[0]
+    return out.splitlines()
+
+
+def get_unused_disks():
+    all_disks = get_all_disks()
+    out = execute_command("df -h | awk '{print $1}'")[0]
+    unused_disks = [d for d in all_disks if d not in out]
+    return unused_disks
+
+
+def get_disk_size(disk_path):
+    fd = os.open(disk_path, os.O_RDONLY)
+    size = os.lseek(fd, 0, os.SEEK_END)
+    os.close(fd)
+    return size
+
+
+def get_disk_path_by_label(label):
+    return execute_command("readlink /dev/disk/by-label/{0} -f".format(label))[0].strip()
+
+
+def get_filesystem_size(mountpoint):
+    statvfs = os.statvfs(mountpoint)
+    full_size = statvfs.f_frsize * statvfs.f_blocks
+    available_size = statvfs.f_bavail * statvfs.f_frsize
+    used_size = (statvfs.f_blocks - statvfs.f_bfree) * statvfs.f_frsize
+    nonroot_total  = available_size + used_size
+
+    return full_size, nonroot_total, available_size, used_size
+
+
+def find_mount_point(path):
+    path = os.path.abspath(path)
+    while not os.path.ismount(path):
+        path = os.path.dirname(path)
+    return path
+
+
+def human2bytes(s):
+    """
+    Attempts to guess the string format based on default symbols
+    set and return the corresponding bytes as an integer.
+    When unable to recognize the format ValueError is raised.
+
+      >>> human2bytes('0 B')
+      0
+      >>> human2bytes('1 K')
+      1024
+      >>> human2bytes('1 M')
+      1048576
+      >>> human2bytes('1 Gi')
+      1073741824
+      >>> human2bytes('1 tera')
+      1099511627776
+
+      >>> human2bytes('0.5kilo')
+      512
+      >>> human2bytes('0.1  byte')
+      0
+      >>> human2bytes('1 k')  # k is an alias for K
+      1024
+      >>> human2bytes('12 foo')
+      Traceback (most recent call last):
+          ...
+      ValueError: can't interpret '12 foo'
+    """
+    SYMBOLS = {
+                'customary'     : ('B', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'),
+                'customary_ext' : ('byte', 'kilo', 'mega', 'giga', 'tera', 'peta', 'exa',
+                                   'zetta', 'iotta'),
+                'iec'           : ('Bi', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'),
+                'iec_ext'       : ('byte', 'kibi', 'mebi', 'gibi', 'tebi', 'pebi', 'exbi',
+                                   'zebi', 'yobi'),
+               }
+
+    init = s
+    num = ""
+    while s and s[0:1].isdigit() or s[0:1] == '.':
+        num += s[0]
+        s = s[1:]
+    num = float(num)
+    letter = s.strip()
+    for name, sset in SYMBOLS.items():
+        if letter in sset:
+            break
+    else:
+        if letter == 'k':
+            # treat 'k' as an alias for 'K' as per: http://goo.gl/kTQMs
+            sset = SYMBOLS['customary']
+            letter = letter.upper()
+        else:
+            raise ValueError("can't interpret %r" % init)
+    prefix = {sset[0]:1}
+    for i, s in enumerate(sset[1:]):
+        prefix[s] = 1 << (i+1)*10
+    return int(num * prefix[letter])
+
+
+def api_add_vpool(vpool_name          = None,
+                  vpool_type          = None,
+                  vpool_host          = None,
+                  vpool_port          = None,
+                  vpool_access_key    = None,
+                  vpool_secret_key    = None,
+                  vpool_temp_mp       = None,
+                  vpool_md_mp         = None,
+                  vpool_readcache1_mp = None,
+                  vpool_readcache2_mp = None,
+                  vpool_writecache_mp = None,
+                  vpool_foc_mp        = None,
+                  vpool_bfs_mp        = None,
+                  vpool_vrouter_port  = None,
+                  vpool_storage_ip    = None):
+
+    cfg = autotests._getConfigIni()
+
+    parameters = {}
+    parameters['storagerouter_ip']      = get_local_vsa().ip
+    parameters['vpool_name']            = vpool_name          or cfg.get("vpool", "vpool_name")
+    parameters['type']                  = vpool_type          or cfg.get("vpool", "vpool_type")
+    parameters['connection_host']       = vpool_host          or cfg.get("vpool", "vpool_host")
+    parameters['connection_timeout']    = 600
+    parameters['connection_port']       = vpool_port          or cfg.get("vpool", "vpool_port")
+    parameters['connection_username']   = vpool_access_key    or cfg.get("vpool", "vpool_access_key")
+    parameters['connection_password']   = vpool_secret_key    or cfg.get("vpool", "vpool_secret_key")
+    parameters['mountpoint_temp']       = vpool_temp_mp       or cfg.get("vpool", "vpool_temp_mp")
+    parameters['mountpoint_md']         = vpool_md_mp         or cfg.get("vpool", "vpool_md_mp")
+    parameters['mountpoint_readcache1'] = vpool_readcache1_mp or cfg.get("vpool", "vpool_readcache1_mp")
+    parameters['mountpoint_readcache2'] = vpool_readcache2_mp or cfg.get("vpool", "vpool_readcache2_mp")
+    parameters['mountpoint_writecache'] = vpool_writecache_mp or cfg.get("vpool", "vpool_writecache_mp")
+    parameters['mountpoint_foc']        = vpool_foc_mp        or cfg.get("vpool", "vpool_foc_mp")
+    parameters['mountpoint_bfs']        = vpool_bfs_mp        or cfg.get("vpool", "vpool_bfs_mp")
+    parameters['vrouter_port']          = vpool_vrouter_port  or cfg.get("vpool", "vpool_vrouter_port")
+    parameters['storage_ip']            = vpool_storage_ip    or cfg.get("vpool", "vpool_storage_ip")
+
+    print parameters
+
+    StorageRouterController.add_vpool(parameters)
+
+    return parameters
+
+
+def api_remove_vpool(vpool_name):
+    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    if not vpool:
+        return
+
+    for sdg in vpool.storagedrivers_guids:
+        StorageRouterController.remove_storagedriver(sdg)
+
+
+def apply_disk_layout(disk_layout):
+
+    #@TODO: remove this when http://jira.cloudfounders.com/browse/OVS-1336 is fixed
+    ovs_fstab_start = "BEGIN Open vStorage"
+    execute_command("sed -i '/{0}/d' /etc/fstab".format(ovs_fstab_start))
+
+    client = SSHClient.load('127.0.0.1', 'rooter')
+    sc = SetupController()
+
+    sc.apply_flexible_disk_layout(client, True, disk_layout)
+
+
+def clean_disk_layout(disk_layout):
+    for mp in disk_layout:
+        execute_command("umount {0}".format(mp))
+        cmd = "sed -i '/{0}/d' /etc/fstab".format(mp.replace("/", "\/"))
+        execute_command(cmd)
+
+
+def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_space = {}):
+    """
+
+    @param vpool_name:                  Name of vpool
+    @type vpool_name:                   String
+
+    @param disk_layout:                 Disk layout dict
+    @type disk_layout:                  Dict
+
+    @param initial_part_used_space:     Dict with used space for each partition at the beggining of test
+    @type initial_part_used_space:      Dict
+
+    @return:             None
+    """
+
+    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    sd    = vpool.storagedrivers[0]
+
+    with open("/opt/OpenvStorage/config/voldrv_vpools/{0}.json".format(vpool_name)) as vpool_json_file:
+        vpool_json = json.load(vpool_json_file)
+
+    mountpoints = vpool_json['content_addressed_cache']['clustercache_mount_points'] + vpool_json['scocache']['scocache_mount_points']
+    real_mountpoints = [(mp['path'], find_mount_point(mp['path'])) for mp in mountpoints]
+
+    all_on_root = [find_mount_point(d) == "/" for d in disk_layout]
+
+    reserved_on_root = 0
+
+    for mp in mountpoints:
+        mp_path = os.path.dirname(mp['path'])
+        dl = disk_layout[mp_path]
+        dev_path = dl['device']
+        real_mountpoint = None
+        if dev_path == 'DIR_ONLY':
+            real_mountpoint = find_mount_point(mp['path'])
+            other_mountpoint = [rm for rm in real_mountpoints if rm[0] != mp['path'] and rm[1] == real_mountpoint]
+
+            if other_mountpoint:
+                if len(all_on_root) in [2, 3]:
+                    if "sco_swaio" in mp['path']:
+                        expected_reserved_percent = 20
+                    else:
+                        expected_reserved_percent = 49
+                else:
+                    expected_reserved_percent = 24
+            else:
+                expected_reserved_percent = 49
+
+            mount_size = get_filesystem_size(real_mountpoint)[1] - initial_part_used_space[real_mountpoint]
+
+            if real_mountpoint == "/":
+                reserved_on_root += expected_reserved_percent
+
+        else:
+            mount_size = get_filesystem_size(mp_path)[1]
+
+            expected_reserved_percent = 98
+
+        mp['expected_reserved_percent'] = expected_reserved_percent
+        mp['mount_size']                = mount_size
+        mp['real_mountpoint']           = real_mountpoint
+
+    if find_mount_point(vpool_json['failovercache']['failovercache_path']) == "/":
+        reserved_on_root += min([mp['expected_reserved_percent'] for mp in mountpoints if mp['real_mountpoint'] == "/"])
+    scale = None
+    if 80 < reserved_on_root < 160:
+        scale = 2.0
+    elif 160 < reserved_on_root < 320:
+        scale = 4.0
+    elif reserved_on_root >= 320:
+        scale = 8.0
+
+
+    for mp in mountpoints:
+        if mp['real_mountpoint'] == "/" and scale is not None:
+            mp['expected_reserved_percent'] /= scale
+        reserved_size = human2bytes(mp['size'])
+        reserved_percent = int(round(reserved_size * 100 / float(mp['mount_size'])))
+
+        expected_reserved_percent = int(mp['expected_reserved_percent'])
+        assert reserved_percent == expected_reserved_percent, "Expected {0} reserved percent but got {1}\nfor {2}".format(expected_reserved_percent, reserved_percent, str(mp))
+
