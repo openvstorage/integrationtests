@@ -437,7 +437,7 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
 
             if other_mountpoint:
                 if len(all_on_root) in [2, 3]:
-                    if "sco_swaio" in mp['path']:
+                    if "sco" in mp['path']:
                         expected_reserved_percent = 20
                     else:
                         expected_reserved_percent = 49
@@ -461,7 +461,9 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
         mp['real_mountpoint']           = real_mountpoint
 
     if find_mount_point(vpool_json['failovercache']['failovercache_path']) == "/":
-        reserved_on_root += min([mp['expected_reserved_percent'] for mp in mountpoints if mp['real_mountpoint'] == "/"])
+        root_mps = [mp['expected_reserved_percent'] for mp in mountpoints if mp['real_mountpoint'] == "/"]
+        if root_mps:
+            reserved_on_root += min(root_mps)
     scale = None
     if 80 < reserved_on_root < 160:
         scale = 2.0
