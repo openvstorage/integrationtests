@@ -33,8 +33,10 @@ def setup():
     vpt.set_vpool_secret_key('testing')
 
     vpt.set_vpool_temp_mp('/var/tmp/{0}'.format(vpt.get_vpool_name()))
-    vpt.set_vpool_md_mp('/mnt/metadata/{0}'.format(vpt.get_vpool_name()))
-    vpt.set_vpool_cache_mp('/mnt/cache/{0}'.format(vpt.get_vpool_name()))
+    vpt.set_vpool_md_mp('/mnt/md/{0}'.format(vpt.get_vpool_name()))
+    vpt.set_vpool_readcache_mp('/mnt/cache1/{0}/read'.format(vpt.get_vpool_name()))
+    vpt.set_vpool_writecache_mp('/mnt/cache1/{0}/write'.format(vpt.get_vpool_name()))
+    vpt.set_vpool_foc_mp('/mnt/cache1/{0}/foc'.format(vpt.get_vpool_name()))
 
     vpt.set_vpool_vrouter_port(12323)
     vpt.set_vpool_storage_ip('172.22.131.10')
