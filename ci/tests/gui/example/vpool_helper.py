@@ -28,8 +28,8 @@ from browser_chrome import BrowserTest
 class VpoolTest(BrowserTest):
     def __init__(self, vpool_name='', vpool_type='', vpool_host='', vpool_port='',
                  vpool_access_key='', vpool_secret_key='', vpool_temp_mp='',
-                 vpool_md_mp='', vpool_cache_mp='', vpool_vrouter_port='',
-                 vpool_storage_ip='', browser_choice='chrome'):
+                 vpool_md_mp='', vpool_readcache_mp='', vpool_writecache_mp='', vpool_foc_mp='',
+                 vpool_vrouter_port='', vpool_storage_ip='', browser_choice='chrome'):
 
         self.bt = BrowserTest.__init__(self, username='', password='', url='', browser_choice=browser_choice)
         self.vpool_name = vpool_name
@@ -40,7 +40,9 @@ class VpoolTest(BrowserTest):
         self.vpool_secret_key = vpool_secret_key
         self.vpool_temp_mp = vpool_temp_mp
         self.vpool_md_mp = vpool_md_mp
-        self.vpool_cache_mp = vpool_cache_mp
+        self.vpool_readcache_mp = vpool_readcache_mp
+        self.vpool_writecache_mp = vpool_writecache_mp
+        self.vpool_foc_mp = vpool_foc_mp
         self.vpool_vrouter_port = vpool_vrouter_port
         self.vpool_storage_ip = vpool_storage_ip
         print 'VpoolTest initialized'
@@ -117,14 +119,32 @@ class VpoolTest(BrowserTest):
 
     vpool_md_mp = property(get_vpool_md_mp, set_vpool_md_mp)
 
-    def get_vpool_cache_mp(self):
-        return self.vpool_cache_mp
+    def get_vpool_readcache_mp(self):
+        return self.vpool_readcache_mp
 
-    def set_vpool_cache_mp(self, vpool_cache_mp):
-        assert isinstance(vpool_cache_mp, str), 'Vpool cache mountpoint must be a string'
-        self.vpool_cache_mp = vpool_cache_mp
+    def set_vpool_readcache_mp(self, vpool_readcache_mp):
+        assert isinstance(vpool_readcache_mp, str), 'Vpool readcache mountpoint must be a string'
+        self.vpool_readcache_mp = vpool_readcache_mp
 
-    vpool_cache_mp = property(get_vpool_cache_mp, set_vpool_cache_mp)
+    vpool_readcache_mp = property(get_vpool_readcache_mp, set_vpool_readcache_mp)
+
+    def get_vpool_writecache_mp(self):
+        return self.vpool_writecache_mp
+
+    def set_vpool_writecache_mp(self, vpool_writecache_mp):
+        assert isinstance(vpool_writecache_mp, str), 'Vpool writecache mountpoint must be a string'
+        self.vpool_writecache_mp = vpool_writecache_mp
+
+    vpool_writecache_mp = property(get_vpool_writecache_mp, set_vpool_writecache_mp)
+
+    def get_vpool_foc_mp(self):
+        return self.vpool_foc_mp
+
+    def set_vpool_foc_mp(self, vpool_foc_mp):
+        assert isinstance(vpool_foc_mp, str), 'Vpool foc mountpoint must be a string'
+        self.vpool_foc_mp = vpool_foc_mp
+
+    vpool_foc_mp = property(get_vpool_foc_mp, set_vpool_foc_mp)
 
     def get_vpool_vrouter_port(self):
         return self.vpool_vrouter_port
@@ -170,7 +190,9 @@ class VpoolTest(BrowserTest):
         time.sleep(2)
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
-        self.fill_out_custom_field('dropdown-button-mtpt-cache', self.vpool_cache_mp)
+        self.fill_out_custom_field('dropdown-button-mtpt-readcache', self.vpool_readcache_mp)
+        self.fill_out_custom_field('dropdown-button-mtpt-writecache', self.vpool_writecache_mp)
+        self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
         self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port)
         self.choose('dropdown-button-storageip', self.vpool_storage_ip)
         self.click_on('Next')

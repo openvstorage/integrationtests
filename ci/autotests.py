@@ -398,7 +398,7 @@ def _getDescription(planComment="", durations=""):
     Generate description for pushing to Testrail
     """
     description = ""
-    mgmtNodeIP = _get_ip("eth1")
+    mgmtNodeIP = _get_ip("pubbr")
     for item, value in (("ip", "* %s" % mgmtNodeIP),
                         ("testsuite", durations),
                         ("Hypervisor", _getHypervisor()),

@@ -27,7 +27,6 @@ from ci.tests.gui.browser_ovs   import BrowserOvs
 from ci.tests.gui.vmachine      import Vmachine
 from ci                         import autotests
 
-from ovs.extensions.grid        import manager
 from ovs.dal.lists              import vpoollist
 from ovs.dal.lists.vmachinelist import VMachineList
 
