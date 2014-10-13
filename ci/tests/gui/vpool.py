@@ -63,7 +63,7 @@ class Vpool(BrowserOvs):
         cfg = autotests._getConfigIni()
 
         self.vpool_name             = vpool_name          or cfg.get("vpool", "vpool_name")
-        self.vpool_type             = vpool_type          or cfg.get("vpool", "vpool_type")
+        self.vpool_type             = vpool_type          or cfg.get("vpool", "vpool_type_name")
         self.vpool_host             = vpool_host          or cfg.get("vpool", "vpool_host")
         self.vpool_port             = vpool_port          or cfg.get("vpool", "vpool_port")
         self.vpool_access_key       = vpool_access_key    or cfg.get("vpool", "vpool_access_key")

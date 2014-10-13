@@ -42,6 +42,20 @@ class Hypervisor(object):
         assert vpool, "Vpool with name {} not found".format(vpool_name)
         vpool = vpool[0]
 
+        local_vsa = general.get_local_vsa()
+        sg = [sg for sg in vpool.storagedrivers if sg.cluster_ip == local_vsa.ip][0]
+
+        retries = 5 * 60
+        sleep_time = 5
+        while retries:
+            out = general.execute_command("df | grep {0}".format(sg.mountpoint))[0]
+            if sg.mountpoint in out:
+                break
+            retries -= sleep_time
+            time.sleep(sleep_time)
+
+        assert retries > 0, "Vpool mountpoint {0} did not appear in due time".format(sg.mountpoint)
+
         htype = htype or get_hypervisor_type()
         if htype == "VMWARE":
             return Vmware(vpool)
