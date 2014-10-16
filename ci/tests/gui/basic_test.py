@@ -14,9 +14,11 @@
 
 import os
 import time
+import ipcalc
+import signal
+import random
 import logging
 
-import random
 
 from nose.tools                 import with_setup
 
@@ -31,6 +33,7 @@ from ovs.dal.lists              import vpoollist
 from ovs.dal.lists.vmachinelist import VMachineList
 
 from selenium.webdriver.remote.remote_connection import LOGGER
+
 LOGGER.setLevel(logging.WARNING)
 
 testsToRun     = general.getTestsToRun(autotests.getTestLevel())
@@ -40,17 +43,23 @@ browser_object = None
 
 
 def setup():
+    global dnsmasq_pid
 
     print "setup called " + __name__
 
     #make sure we start with clean env
     general.cleanup()
 
+    virbr_ip    = ipcalc.IP(general.get_virbr_ip())
+    dhcp_start  = ipcalc.IP(virbr_ip.ip + 1).dq
+    dhcp_end    = ipcalc.IP(virbr_ip.ip + 11).dq
+    cmd = ["/usr/sbin/dnsmasq", "--listen-address=0.0.0.0", "--dhcp-range={0},{1},12h".format(dhcp_start, dhcp_end), "--interface=virbr0", "--no-daemon"]
+    dnsmasq_pid = general.execute_command(cmd, wait = False, shell = False)
+
 
 def teardown():
-    pass
-
-
+    global dnsmasq_pid
+    os.kill(dnsmasq_pid, signal.SIGKILL)
 
 
 def close_browser():

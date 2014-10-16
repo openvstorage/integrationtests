@@ -161,12 +161,12 @@ def dir_and_partition_layout_test():
                                                  vpool_writecache_mp = vpool_writecache_mp,
                                                  vpool_foc_mp        = vpool_foc_mp)
 
-
             general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
         finally:
             if vpool_params:
                 general.api_remove_vpool(vpool_params['vpool_name'])
             general.clean_disk_layout(disk_layout)
+
 
 
 def two_disks_layout_test():
@@ -339,7 +339,7 @@ def three_disks_layout_test():
     unused_disks = general.get_unused_disks()
 
     if len(unused_disks) < 3:
-        raise SkipTest("Need at least 2 unused disks")
+        raise SkipTest("Need at least 3 unused disks")
 
     vpool_readcache1_mp  = "/mnt/test_cache1"
     vpool_readcache2_mp  = "/mnt/test_cache2"

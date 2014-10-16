@@ -27,13 +27,15 @@ if not hasattr(sys, "debugEnabled"):
     debug.listen()
 
 
-def execute_command(command):
+def execute_command(command, wait = True, shell = True):
     childProc = subprocess.Popen(command,
-                                 shell=True,
-                                 stdin=subprocess.PIPE,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+                                 shell  = shell,
+                                 stdin  = subprocess.PIPE,
+                                 stdout = subprocess.PIPE,
+                                 stderr = subprocess.PIPE)
 
+    if not wait:
+        return childProc.pid
     (out, error) = childProc.communicate()
     return out, error
 
@@ -121,7 +123,7 @@ def getRemoteSshCon(ipAddress, username, password):
 
 
 def get_virbr_ip():
-    ip = execute_command("""ip a | grep "virbr.*:" -A 2 | awk '/inet/ {print $2;}'""")[0].strip()
+    ip = execute_command("ip a | awk '/inet/ && /virbr0/ {print $2}'")[0].strip()
     return ip
 
 
@@ -234,7 +236,9 @@ def get_all_disks():
 def get_unused_disks():
     all_disks = get_all_disks()
     out = execute_command("df -h | awk '{print $1}'")[0]
-    unused_disks = [d for d in all_disks if d not in out]
+
+    unused_disks = [d for d in all_disks if d not in out and not execute_command("fuser {0}".format(d))[0]]
+
     return unused_disks
 
 
@@ -363,6 +367,7 @@ def api_add_vpool(vpool_name          = None,
     parameters['vrouter_port']          = vpool_vrouter_port  or cfg.get("vpool", "vpool_vrouter_port")
     parameters['storage_ip']            = vpool_storage_ip    or cfg.get("vpool", "vpool_storage_ip")
 
+    print "Adding Vpool: "
     print parameters
 
     StorageRouterController.add_vpool(parameters)
@@ -375,8 +380,15 @@ def api_remove_vpool(vpool_name):
     if not vpool:
         return
 
-    for sdg in vpool.storagedrivers_guids:
-        StorageRouterController.remove_storagedriver(sdg)
+    local_vsa = get_local_vsa()
+
+    for sd in vpool.storagedrivers:
+        mountpoint = ""
+        if sd.cluster_ip == local_vsa.ip:
+            mountpoint = sd.mountpoint
+        StorageRouterController.remove_storagedriver(sd.guid)
+        if mountpoint:
+            assert not os.path.exists(mountpoint), "Mountpoint {0} of vpool still exists after removing storage driver".format(mountpoint)
 
 
 def apply_disk_layout(disk_layout):
@@ -388,14 +400,44 @@ def apply_disk_layout(disk_layout):
     client = SSHClient.load('127.0.0.1', 'rooter')
     sc = SetupController()
 
+    print "Fstab before apply_flexible_disk_layout\n", execute_command("cat /etc/fstab")[0]
+
     sc.apply_flexible_disk_layout(client, True, disk_layout)
+
+    print "Fstab after apply_flexible_disk_layout\n", execute_command("cat /etc/fstab")[0]
+
+    mounts = execute_command("df")[0].splitlines()
+    print "\n".join(mounts)
+
+    for mp, device in disk_layout.iteritems():
+        device = device['device']
+        mount = [m for m in mounts if device in m and mp in m]
+        if device != "DIR_ONLY":
+            assert mount, "{0}, device {1} was not mounted after issueing apply_flexible_disk_layout\nDisk Layout: {2}".format(mp, device, disk_layout)
+        else:
+            assert not mount, "DIR_ONLY {0} should not be mounted after isueing apply_flexible_disk_layout\nDisk Layout: {1}".format(mp, disk_layout)
 
 
 def clean_disk_layout(disk_layout):
-    for mp in disk_layout:
+    print "df before clean\n", execute_command("df")[0]
+    disks_to_clean = []
+    for mp, device in disk_layout.iteritems():
         execute_command("umount {0}".format(mp))
         cmd = "sed -i '/{0}/d' /etc/fstab".format(mp.replace("/", "\/"))
         execute_command(cmd)
+        try:
+            os.removedirs(mp)
+        except OSError:
+            pass
+        device_path = device['device']
+        if device_path != "DIR_ONLY":
+            disks_to_clean.append(device_path)
+
+    for disk in set(disks_to_clean):
+        cmd = 'parted {0} -s "mklabel gpt"'.format(disk)
+        print cmd
+        print execute_command(cmd)
+    print "df after clean \n", execute_command("df")[0]
 
 
 def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_space = {}):
@@ -426,11 +468,16 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
 
     reserved_on_root = 0
 
+    print "Mountpoints:"
+    print mountpoints
+
     for mp in mountpoints:
         mp_path = os.path.dirname(mp['path'])
         dl = disk_layout[mp_path]
         dev_path = dl['device']
         real_mountpoint = None
+        print "mp: " , str(mp)
+        print "dl: ", str(dl)
         if dev_path == 'DIR_ONLY':
             real_mountpoint = find_mount_point(mp['path'])
             other_mountpoint = [rm for rm in real_mountpoints if rm[0] != mp['path'] and rm[1] == real_mountpoint]
