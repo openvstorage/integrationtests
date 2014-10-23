@@ -40,6 +40,18 @@ def execute_command(command, wait = True, shell = True):
     return out, error
 
 
+def execute_command_on_node(host, command, password = None):
+    cl = SSHClient.load(host, password = password)
+    return cl.run(command)
+
+
+def get_elem_with_val(iterable, key, value):
+    """
+    iterable : Iterable of dict items
+    """
+    return [e for e in iterable if e.get(key, "iNvAlId_VaLuE") == value]
+
+
 def getTestsToRun():
     """
     Retrieves the tests to be executed in the testsuite (from autotest config file)
@@ -148,7 +160,7 @@ def getFunctionName(level = 0):
 
 def cleanup():
     machinename = "AT_"
-    vpool_name  = autotests._getConfigIni().get("vpool", "vpool_name")
+    vpool_name  = autotests.getConfigIni().get("vpool", "vpool_name")
 
     vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
     if vpool:
@@ -344,12 +356,15 @@ def api_add_vpool(vpool_name          = None,
                   vpool_foc_mp        = None,
                   vpool_bfs_mp        = None,
                   vpool_vrouter_port  = None,
-                  vpool_storage_ip    = None):
+                  vpool_storage_ip    = None,
+                  apply_to_all_nodes  = False):
 
-    cfg = autotests._getConfigIni()
+    cfg = autotests.getConfigIni()
+
+    local_vsa_ip = get_local_vsa().ip
 
     parameters = {}
-    parameters['storagerouter_ip']      = get_local_vsa().ip
+    parameters['storagerouter_ip']      = local_vsa_ip
     parameters['vpool_name']            = vpool_name          or cfg.get("vpool", "vpool_name")
     parameters['type']                  = vpool_type          or cfg.get("vpool", "vpool_type")
     parameters['connection_host']       = vpool_host          or cfg.get("vpool", "vpool_host")
@@ -370,7 +385,11 @@ def api_add_vpool(vpool_name          = None,
     print "Adding Vpool: "
     print parameters
 
-    StorageRouterController.add_vpool(parameters)
+    if apply_to_all_nodes:
+        storagerouters = [(sr.ip, sr.machine_id) for sr in storagerouterlist.StorageRouterList.get_storagerouters()]
+        StorageRouterController.update_storagedrivers([], storagerouters, parameters)
+    else:
+        StorageRouterController.add_vpool(parameters)
 
     return parameters
 

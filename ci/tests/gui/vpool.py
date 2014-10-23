@@ -60,7 +60,7 @@ class Vpool(BrowserOvs):
 
         self.bt = BrowserOvs.__init__(self, browser_choice = browser_choice)
 
-        cfg = autotests._getConfigIni()
+        cfg = autotests.getConfigIni()
 
         self.vpool_name             = vpool_name          or cfg.get("vpool", "vpool_name")
         self.vpool_type             = vpool_type          or cfg.get("vpool", "vpool_type_name")

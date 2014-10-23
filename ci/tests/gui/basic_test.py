@@ -38,7 +38,7 @@ LOGGER.setLevel(logging.WARNING)
 
 testsToRun     = general.getTestsToRun(autotests.getTestLevel())
 machinename    = "AT_" + __name__.split(".")[-1]
-vpool_name     = autotests._getConfigIni().get("vpool", "vpool_name")
+vpool_name     = autotests.getConfigIni().get("vpool", "vpool_name")
 browser_object = None
 
 

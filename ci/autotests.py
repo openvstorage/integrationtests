@@ -899,7 +899,7 @@ def _get_ip(iface='eth0'):
     return socket.inet_ntoa(ip)
 
 
-def _getConfigIni():
+def getConfigIni():
     """
     Get autotest config
     """
@@ -917,14 +917,14 @@ def _saveConfigIni(atCfg):
     with open(AUTOTEST_CFG_FILE, "wb") as fCfg:
         atCfg.write(fCfg)
     globals()['autotestCfg'] = None
-    _getConfigIni()
+    getConfigIni()
 
 
 def getTestLevel():
     """
     Read test level from config file
     """
-    autotestCfgL = _getConfigIni()
+    autotestCfgL = getConfigIni()
 
     return autotestCfgL.get(section="main", option="testlevel")
 
@@ -938,7 +938,7 @@ def setTestLevel(testLevel):
         print('Wrong testlevel specified\neg: 1,2,3,8-12,15')
         return False
 
-    atCfg = _getConfigIni()
+    atCfg = getConfigIni()
     atCfg.set(section="main", option="testlevel", value=testLevel)
     _saveConfigIni(atCfg)
 
@@ -949,7 +949,7 @@ def getHypervisorInfo():
     """
     Retrieve info about hypervisor (ip, username, password)
     """
-    autotestCfgL = _getConfigIni()
+    autotestCfgL = getConfigIni()
 
     hi = autotestCfgL.get(section="main", option="hypervisorinfo")
     hiList = hi.split(",")
@@ -986,7 +986,7 @@ def setHypervisorInfo(ip, username, password):
         return False
 
     value = ','.join([ip, username, password])
-    atCfg = _getConfigIni()
+    atCfg = getConfigIni()
     atCfg.set(section="main", option="hypervisorinfo", value=value)
     _saveConfigIni(atCfg)
 
@@ -1030,7 +1030,7 @@ def setOs(osName):
         print("Invalid os specified, available options are {0}".format(str(osList)))
         return False
 
-    atCfg = _getConfigIni()
+    atCfg = getConfigIni()
     atCfg.set(section="main", option="os", value=osName)
     _saveConfigIni(atCfg)
 
@@ -1041,7 +1041,7 @@ def getOs():
     """
     Retrieve current configured os for autotests
     """
-    autotestCfgL = _getConfigIni()
+    autotestCfgL = getConfigIni()
 
     osName = autotestCfgL.get(section="main", option="os")
 
@@ -1053,7 +1053,7 @@ def setTemplateServer(templateServer):
     Set current template server to be used by tests
     """
 
-    atCfg = _getConfigIni()
+    atCfg = getConfigIni()
     atCfg.set(section="main", option="template_server", value=templateServer)
     _saveConfigIni(atCfg)
 
@@ -1064,7 +1064,7 @@ def getTemplateServer():
     """
     Retrieve current configured template server for autotests
     """
-    autotestCfgL = _getConfigIni()
+    autotestCfgL = getConfigIni()
 
     templateServer = autotestCfgL.get(section = "main", option = "template_server")
 
@@ -1074,7 +1074,7 @@ def getUserName():
     """
     Get username to use in tests
     """
-    autotestCfgL = _getConfigIni()
+    autotestCfgL = getConfigIni()
     username = autotestCfgL.get(section = "main", option = "username")
     return username
 
@@ -1082,7 +1082,7 @@ def setUserName(username):
     """
     Set username to use in tests
     """
-    atCfg = _getConfigIni()
+    atCfg = getConfigIni()
     atCfg.set(section = "main", option = "username", value = username)
     _saveConfigIni(atCfg)
 
@@ -1093,7 +1093,7 @@ def getPassword():
     """
     Get password to use in tests
     """
-    autotestCfgL = _getConfigIni()
+    autotestCfgL = getConfigIni()
     username = autotestCfgL.get(section = "main", option = "username")
     return username
 
@@ -1101,7 +1101,7 @@ def setPassword(password):
     """
     Set password to use in tests
     """
-    atCfg = _getConfigIni()
+    atCfg = getConfigIni()
     atCfg.set(section = "main", option = "password", value = password)
     _saveConfigIni(atCfg)
 
