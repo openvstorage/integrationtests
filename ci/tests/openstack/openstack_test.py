@@ -95,3 +95,45 @@ def live_migration_test():
     general_openstack.live_migration(instance_id, new_host)
 
     general_openstack.delete_instance(instance_id)
+
+
+#@TODO: currently test is disabled, add _test to enable when functionality is decided
+def fillup_multinode_system():
+
+    hosts = set([s['Host'] for s in general_openstack.get_formated_cmd_output("nova service-list")])
+    if len(hosts) < 2:
+        raise SkipTest("Need at least 2 nodes to run live migration")
+
+    quotas = general_openstack.get_formated_cmd_output("cinder quota-show $(keystone tenant-get admin | awk '/id/ {print $4}')")
+
+    volumes_limit       = int(general.get_elem_with_val(quotas, "Property", "volumes")[0]['Value'])
+    volumes_limit_vpool = int(general.get_elem_with_val(quotas, "Property", "volumes_{0}".format(cinder_type))[0]['Value'])
+
+    max_vols_per_node = min(volumes_limit, volumes_limit_vpool)
+
+    name = machinename + "max_vols"
+
+    images = [img for img in general_openstack.get_formated_cmd_output("glance image-list") if img['ContainerFormat'] not in ["aki", "ari"]]
+    images = sorted(images, key = lambda x: int(x['Size']))
+    glance_image_id = images[0]['ID']
+
+    existing_volumes = general_openstack.get_formated_cmd_output("cinder list")
+    vols_to_create = max_vols_per_node * len(hosts) - len(existing_volumes)
+
+    for idx in range(vols_to_create):
+        general_openstack.create_volume_from_image(image_id    = glance_image_id,
+                                                   cinder_type = cinder_type,
+                                                   volume_name = name + str(idx),
+                                                   volume_size = 1)
+
+    hosts_usage = dict(zip(hosts, [0] * len(hosts)))
+    cinder_vols = general_openstack.get_formated_cmd_output("cinder list")
+
+    for cvol in cinder_vols:
+        cvol_info = general_openstack.get_formated_cmd_output("cinder show {0}".format(cvol['ID']))
+        host = general.get_elem_with_val(cvol_info, "Property", "os-vol-host-attr:host")[0]["Value"]
+        hosts_usage[host] += 1
+
+    assert all([(max_vols_per_node - 2 < hu < max_vols_per_node + 2) for hu in hosts_usage.values()]), "Cinder volumes are not evenly distributed: {0}".format(hosts_usage)
+
+
