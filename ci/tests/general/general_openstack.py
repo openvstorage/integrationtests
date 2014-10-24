@@ -104,6 +104,7 @@ def create_volume_from_image(image_id, cinder_type, volume_name, volume_size):
     cmd = "cinder create --volume-type {cinder_type} \
                          --display-name {volume_name} \
                          --image-id {image_id} \
+                         --availability-zone nova \
                          {volume_size} ".format(cinder_type = cinder_type,
                                                 volume_name = volume_name,
                                                 image_id    = image_id,
@@ -234,8 +235,8 @@ def cleanup():
             delete_instance(vm["ID"])
 
     for vol in get_formated_cmd_output("cinder list"):
-        if vol['Name'].startswith("AT_"):
-            general.execute_command("glance image-delete {0}".format(IMAGE_NAME))
+        if vol['DisplayName'].startswith("AT_"):
+            general.execute_command("cinder delete {0}".format(vol["ID"]))
 
     general.execute_command("glance image-delete {0}".format(IMAGE_NAME))
 

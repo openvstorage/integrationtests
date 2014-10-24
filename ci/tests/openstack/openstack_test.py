@@ -1,5 +1,6 @@
 import os
 import pwd
+import time
 import random
 
 from ci                     import autotests
@@ -40,13 +41,16 @@ def teardown():
 
 
 def start_instance_test():
-    instance_name = machinename + "start_inst"
+    t = str(time.time())
+    instance_name = machinename + t + "_start_inst"
+    volume_name = instance_name + "_disk"
 
     glance_image_id = general_openstack.create_glance_image()
 
+
     volume_id = general_openstack.create_volume_from_image(image_id    = glance_image_id,
                                                            cinder_type = cinder_type,
-                                                           volume_name = machinename + "_disk",
+                                                           volume_name = volume_name,
                                                            volume_size = 3)
 
     main_host = general.get_this_hostname()
@@ -70,13 +74,15 @@ def live_migration_test():
     if len(hosts) < 2:
         raise SkipTest("Need at least 2 nodes to run live migration")
 
-    instance_name = machinename + "lv_migr"
+    t = str(time.time())
+    instance_name = machinename + t + "lv_migr"
+    volume_name = instance_name + "_disk"
 
     glance_image_id = general_openstack.create_glance_image()
 
     volume_id = general_openstack.create_volume_from_image(image_id    = glance_image_id,
                                                            cinder_type = cinder_type,
-                                                           volume_name = machinename + "_disk",
+                                                           volume_name = volume_name,
                                                            volume_size = 3)
 
     main_host = general.get_this_hostname()
@@ -111,7 +117,8 @@ def fillup_multinode_system():
 
     max_vols_per_node = min(volumes_limit, volumes_limit_vpool)
 
-    name = machinename + "max_vols"
+    t = str(time.time())
+    name = machinename + t + "max_vols"
 
     images = [img for img in general_openstack.get_formated_cmd_output("glance image-list") if img['ContainerFormat'] not in ["aki", "ari"]]
     images = sorted(images, key = lambda x: int(x['Size']))
