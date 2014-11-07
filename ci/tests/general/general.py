@@ -205,6 +205,9 @@ def cleanup():
 def add_vpool(browser):
     browser.add_vpool()
 
+    if len(StorageRouterList.get_storagerouters()):
+        browser.add_gsrs_to_vpool(browser.vpool_name)
+
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
         hypervisorInfo = autotests.getHypervisorInfo()
         ssh_con = getRemoteSshCon(*hypervisorInfo)[0]

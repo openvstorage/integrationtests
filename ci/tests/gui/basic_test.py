@@ -29,8 +29,8 @@ from ci.tests.gui.browser_ovs   import BrowserOvs
 from ci.tests.gui.vmachine      import Vmachine
 from ci                         import autotests
 
-from ovs.dal.lists              import vpoollist
-from ovs.dal.lists.vmachinelist import VMachineList
+from ovs.dal.lists.vpoollist         import VPoolList
+from ovs.dal.lists.vmachinelist      import VMachineList
 
 from selenium.webdriver.remote.remote_connection import LOGGER
 
@@ -59,7 +59,10 @@ def setup():
 
 def teardown():
     global dnsmasq_pid
-    os.kill(dnsmasq_pid, signal.SIGKILL)
+    try:
+        os.kill(dnsmasq_pid, signal.SIGKILL)
+    except:
+        pass
 
 
 def close_browser():
@@ -131,7 +134,7 @@ def vpool_add_test():
     global browser_object
 
     browser_object = vpt = Vpool()
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpt.vpool_name)
+    vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
     if vpool:
         general.remove_vpool(vpt)
 
@@ -156,7 +159,7 @@ def vpool_remove_test():
 
 
     browser_object = vpt = Vpool()
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpt.vpool_name)
+    vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
 
     vpt.login()
     if not vpool:
@@ -183,13 +186,13 @@ def set_as_template_test():
 
     name = machinename + "_set_as_template"
 
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
         browser_object = vpt = Vpool()
         vpt.login()
         general.add_vpool(vpt)
         vpt.teardown()
-        vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+        vpool = VPoolList.get_vpool_by_name(vpool_name)
 
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
     hpv.create_vm(name)
@@ -223,7 +226,7 @@ def create_from_template_test():
 
     name = machinename + "_create" + str(random.randrange(0,9999999))
 
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
 
     template = Vmachine.get_template(machinename, vpool_name)
@@ -248,7 +251,7 @@ def start_stop_vm_test():
 
     name = machinename + "_start" + str(random.randrange(0,9999999))
 
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
 
     template = Vmachine.get_template(machinename, vpool_name)
@@ -312,7 +315,7 @@ def delete_clone_test():
     bt.browse_to(bt.get_url() + '#full/vmachines', 'vmachines')
     bt.wait_for_text(name)
 
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
 
     hpv.delete(name)
@@ -335,7 +338,7 @@ def machine_snapshot_rollback_test():
 
     name = machinename + "_sn_roll" + str(random.randrange(0,9999999))
 
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
 
     template = Vmachine.get_template(machinename, vpool_name)
@@ -408,7 +411,7 @@ def try_to_delete_template_with_clones_test():
     name = machinename + "_tmpl_cln" + str(random.randrange(0,9999999))
 
     template = Vmachine.get_template(machinename, vpool_name)
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
 
     browser_object = bt = Vmachine()
@@ -443,7 +446,7 @@ def delete_template_test():
 
 
     template = Vmachine.get_template(machinename, vpool_name)
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
     #first delete all clones:
     hpv.delete_clones(template.name)

@@ -264,10 +264,14 @@ class Vpool(BrowserOvs):
         if self.vpool_type not in REMOTE_VPOOL_TYPES:
             self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
 
-        self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port, clear_first = True)
+       # self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port, clear_first = True)
         if general_hypervisor.get_hypervisor_type().lower() != "kvm":
             self.choose('127.0.0.1', self.vpool_storage_ip)
         self.click_on('Next', retries = 100)
+
+        if self.wait_for_visible_element_by_id('configCinder', 15):
+            self.uncheck_checkboxes()
+            self.click_on('Next', retries = 100)
 
         self.click_on('Finish', retries = 100)
 
@@ -303,13 +307,13 @@ class Vpool(BrowserOvs):
 
         # only deselect = i.e. click when checkbox = selected
         self.check_checkboxes('management')
+        time.sleep(3)
         self.click_on('VpoolSaveChanges')
 
-        self.wait_for_text('finish')
+        self.wait_for_text('Finish')
         self.click_on('Finish')
 
-        #@todo: wait for task to complete
-        #self.get_task_response('https://10.100.131.71')
+        self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')
 
     def remove_vpool(self, vpool_name):
         self.browse_to(self.get_vpool_url())
