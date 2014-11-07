@@ -569,3 +569,13 @@ def get_file_perms(file_path):
     perms = oct(st.st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO))
     return perms
 
+
+def is_service_running(service_name, host_name = None):
+    cmd = "initctl list | grep {0} && initctl status {0} || true".format(service_name)
+    if host_name is None:
+        out = execute_command(cmd)[0]
+    else:
+        out = execute_command_on_node(host_name, cmd)
+    return "start/running" in out
+
+

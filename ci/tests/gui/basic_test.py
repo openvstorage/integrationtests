@@ -173,13 +173,91 @@ def vpool_remove_test():
 
 
 @with_setup(None, close_browser)
+def validate_vpool_cleanup_test():
+    """
+    %s
+    """ % general.getFunctionName()
+
+    general.checkPrereqs(testCaseNumber = 6,
+                         testsToRun     = testsToRun)
+
+    global browser_object
+
+    def check_voldrv_services(vpool_name, storagedrivers, running = True):
+        voldrv_services = (pr + vpool_name for pr in ("ovs-volumedriver_", "ovs-failovercache_"))
+        for sd in storagedrivers:
+            node = sd.storagerouter.ip
+            for voldrv_service in voldrv_services:
+                retries = 15
+                while retries:
+                    if general.is_service_running(voldrv_service, node) == running:
+                        break
+                    time.sleep(1)
+                    retries -= 1
+                assert general.is_service_running(voldrv_service, node) == running, \
+                "Service {0} is not {1} on node {2}".format(voldrv_service,
+                                                           {True: "running", False: "stopped"}[running],
+                                                           node)
+
+    def check_mountpoints(storagedrivers, is_present = True):
+        for sd in storagedrivers:
+            mountpoint = sd.mountpoint
+            node = sd.storagerouter.ip
+
+            retries = 20
+            while retries:
+                out = general.execute_command_on_node(node, "df | grep {0} || true".format(mountpoint))
+                if (mountpoint in out) == is_present:
+                    break
+                time.sleep(1)
+                retries -= 1
+
+            assert (mountpoint in out) == is_present, "Vpool mountpoint {0} is {1} mounted on node {2}\n{3}".format(mountpoint,
+                                                                                                                  {True: "not", False: "still"}[is_present],
+                                                                                                                  node,
+                                                                                                                  out)
+
+
+    browser_object = vpt = Vpool()
+    vpt.login()
+
+
+    for idx in range(2):
+
+        general.add_vpool(vpt)
+        vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
+        #hold a copy of these for later
+        storagedrivers = list(vpool.storagedrivers)
+
+        check_voldrv_services(vpool_name, storagedrivers)
+        check_mountpoints(storagedrivers)
+
+        #create volume
+        local_vsa = general.get_local_vsa()
+        sd = [sd for sd in vpool.storagedrivers if sd.storagerouter.ip == local_vsa.ip][0]
+        file_name = os.path.join(sd.mountpoint, "validate_vpool" + str(time.time()).replace(".","") + ".raw")
+        general.execute_command("truncate {0} --size 10000000".format(file_name))
+
+        time.sleep(10)
+        general.execute_command("rm {0}".format(file_name))
+
+        general.remove_vpool(vpt)
+
+        time.sleep(5)
+        check_voldrv_services(vpool_name, storagedrivers, running = False)
+        check_mountpoints(storagedrivers, is_present = False)
+
+
+
+
+@with_setup(None, close_browser)
 def set_as_template_test():
     """
     %s
     Create a vm and check if it gets registered
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 6,
+    general.checkPrereqs(testCaseNumber = 7,
                          testsToRun     = testsToRun)
 
     global browser_object
@@ -219,7 +297,7 @@ def create_from_template_test():
     * create vm from template
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 7,
+    general.checkPrereqs(testCaseNumber = 8,
                          testsToRun     = testsToRun)
 
     global browser_object
@@ -246,7 +324,7 @@ def start_stop_vm_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 8,
+    general.checkPrereqs(testCaseNumber = 9,
                          testsToRun     = testsToRun)
 
     name = machinename + "_start" + str(random.randrange(0,9999999))
@@ -297,7 +375,7 @@ def delete_clone_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 9,
+    general.checkPrereqs(testCaseNumber = 10,
                          testsToRun     = testsToRun)
 
     global browser_object
@@ -331,7 +409,7 @@ def machine_snapshot_rollback_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 10,
+    general.checkPrereqs(testCaseNumber = 11,
                      testsToRun     = testsToRun)
 
     global browser_object
@@ -403,7 +481,7 @@ def try_to_delete_template_with_clones_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 11,
+    general.checkPrereqs(testCaseNumber = 12,
                      testsToRun     = testsToRun)
 
     global browser_object
@@ -439,7 +517,7 @@ def delete_template_test():
     %s
     """ % general.getFunctionName()
 
-    general.checkPrereqs(testCaseNumber = 12,
+    general.checkPrereqs(testCaseNumber = 13,
                      testsToRun     = testsToRun)
 
     global browser_object

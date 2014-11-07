@@ -271,7 +271,7 @@ class Vpool(BrowserOvs):
 
         if self.wait_for_visible_element_by_id('configCinder', 15):
             self.uncheck_checkboxes()
-            self.click_on('Next', retries = 100)
+        self.click_on('Next', retries = 100)
 
         self.click_on('Finish', retries = 100)
 
@@ -303,14 +303,15 @@ class Vpool(BrowserOvs):
         self.browser.is_element_present_by_id('management', 5)
 
         self.click_on_tbl_header('management')
-        self.wait_for_visible_element_by_id('btn.vpool.management', 5)
+        self.wait_for_visible_element_by_id('btn.vpool.management', 10)
 
         # only deselect = i.e. click when checkbox = selected
         self.check_checkboxes('management')
-        time.sleep(3)
-        self.click_on('VpoolSaveChanges')
+        self.wait_for_visible_element_by_id('buttonVpoolSaveChanges', 15)
 
-        self.wait_for_text('Finish')
+        self.click_on('VpoolSaveChanges', retries = 300)
+
+        self.wait_for_text('Finish', timeout = 20)
         self.click_on('Finish')
 
         self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')
