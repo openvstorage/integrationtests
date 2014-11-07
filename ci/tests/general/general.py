@@ -205,7 +205,7 @@ def cleanup():
 def add_vpool(browser):
     browser.add_vpool()
 
-    if len(StorageRouterList.get_storagerouters()):
+    if len(StorageRouterList.get_storagerouters()) > 1:
         browser.add_gsrs_to_vpool(browser.vpool_name)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
