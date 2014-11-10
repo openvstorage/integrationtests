@@ -128,8 +128,8 @@ class BrowserOvs():
 
     def get_single_item_by_id(self, identifier, element=None):
         starting_point = element if element else self.browser
- 
-        retries = 30       
+
+        retries = 30
         while retries:
             items = starting_point.find_by_id(identifier)
             total = len(items)
@@ -263,6 +263,8 @@ class BrowserOvs():
     def click_on(self, identifier, retries = 1):
 
         while retries:
+            retries -= 1
+            time.sleep(0.1)
 
             if self.debug:
                 self.browser.screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time())))
@@ -280,17 +282,21 @@ class BrowserOvs():
                     if identifier_low in b.text.lower() or identifier_low in b.value.lower():
                         button = b
                         break
-            if button:
-                break
-            retries -= 1
-            time.sleep(0.1)
+
+            if not (button and button.visible):
+                continue
+
+            #assert button, "Could not find {}".format(identifier)
+            try:
+                button.click()
+                return button
+            except Exception as ex:
+                self.log(str(ex))
 
         if self.debug:
             self.browser.screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time())))
 
-        assert button, "Could not find {}".format(identifier)
-        button.click()
-        return button
+        raise Exception("Could not find {}".format(identifier))
 
     def click_on_tbl_item(self, identifier):
         for item in self.browser.find_by_xpath('//table/tbody/tr/td/a'):
@@ -303,19 +309,30 @@ class BrowserOvs():
                 self.log('Click on tbl header: {0}'.format(item_text))
                 item.click()
 
-    def click_on_tbl_header(self, identifier):
-        columns = self.browser.find_by_xpath('//div/ul/li/a')
-        for column in columns:
-            if identifier.lower() in column.outer_html.lower():
-                column.click()
-                return column
+    def click_on_tbl_header(self, identifier, retries = 10):
+
+        while retries:
+            try:
+                columns = self.browser.find_by_xpath('//div/ul/li/a')
+                for column in columns:
+                    if identifier.lower() in column.outer_html.lower():
+                        column.click()
+                        return column
+            except Exception as ex:
+                self.log(str(ex))
+            retries -= 1
+            time.sleep(1)
+
         return False
 
     def check_checkboxes(self, identifier=''):
+        count = 0
         search = self.browser.find_by_id(identifier) if identifier else self.browser
         for cb in search.find_by_tag(self.INPUT_TAG):
             if not cb.checked and cb.visible:
                 cb.check()
+                count += 1
+        return count
 
     def fill_out(self, identifier, value, clear_first = False):
         input_field = self.get_single_item_by_id(identifier)

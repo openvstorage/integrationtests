@@ -270,7 +270,9 @@ class Vpool(BrowserOvs):
         self.click_on('Next', retries = 100)
 
         if self.wait_for_visible_element_by_id('configCinder', 15):
-            self.uncheck_checkboxes()
+            self.fill_out('inputcinderPassword', "rooter")
+            self.fill_out('inputcinderCtrlIP', general.get_local_vsa().ip)
+            #self.uncheck_checkboxes()
         self.click_on('Next', retries = 100)
 
         self.click_on('Finish', retries = 100)
@@ -300,13 +302,20 @@ class Vpool(BrowserOvs):
         time.sleep(2)
 
         self.click_on_tbl_item(vpool_name)
-        self.browser.is_element_present_by_id('management', 5)
+        self.browser.is_element_present_by_id('management', 15)
 
-        self.click_on_tbl_header('management')
-        self.wait_for_visible_element_by_id('btn.vpool.management', 10)
+        self.click_on_tbl_header('management', retries = 30)
+        self.wait_for_visible_element_by_id('btn.vpool.management', 15)
 
         # only deselect = i.e. click when checkbox = selected
-        self.check_checkboxes('management')
+        retries = 10
+        while retries:
+            count = self.check_checkboxes('management')
+            if count:
+                break
+            time.sleep(1)
+            count -= 1
+
         self.wait_for_visible_element_by_id('buttonVpoolSaveChanges', 15)
 
         self.click_on('VpoolSaveChanges', retries = 300)

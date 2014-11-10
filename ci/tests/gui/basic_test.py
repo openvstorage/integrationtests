@@ -221,6 +221,9 @@ def validate_vpool_cleanup_test():
     browser_object = vpt = Vpool()
     vpt.login()
 
+    vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
+    if vpool:
+        general.remove_vpool(vpt)
 
     for idx in range(2):
 
