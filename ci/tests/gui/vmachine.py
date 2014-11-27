@@ -62,7 +62,7 @@ class Vmachine(BrowserOvs):
 
     def set_as_template(self, name, should_not_allow = False):
         self.check_machine_is_present(name)
-        
+
         setastemplate_button = self.get_single_item_by_id("buttonVmachineSetAsTemplate")
 
         if not should_not_allow:

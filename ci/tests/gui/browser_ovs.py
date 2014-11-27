@@ -366,6 +366,11 @@ class BrowserOvs():
         element = self.get_single_item_by_id(identifier)
         fields = element.find_by_tag('input')
         self.log('Nr of fields found: {0}'.format(len(fields)))
+        if not fields:
+            input_group = self.browser.find_by_xpath("//*[@id='{0}']/../..".format(identifier))
+            if input_group:
+                fields = input_group[0].find_by_tag("input")
+
         for field in fields:
             field.click()
             self.log('Field found: >{0}< - >{1}<'.format(field.text, field.value))
