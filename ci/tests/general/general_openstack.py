@@ -69,10 +69,17 @@ def create_glance_image():
     return image_id
 
 
-def get_formated_cmd_output(cmd):
+def get_formated_cmd_output(cmd, retries = 1):
     cmd = cmd + """ | awk '!/-------/ {gsub(" +",""); print}'"""
-    out, err = general.execute_command(cmd)
-    assert not err, err
+    while retries:
+        retries -= 1
+        try:
+            out, err = general.execute_command(cmd)
+            assert not err, err
+        except Exception as ex:
+            print str(ex)
+            if not retries:
+                raise
     lines = out.splitlines()
     table_head = lines[0].split("|")[1:-1]
     rows = lines[1:]
@@ -100,12 +107,12 @@ def wait_for_status_on_item(cmd, item_id_field, item_id_value, status_field, req
 
 def create_volume(image_id, cinder_type, volume_name, volume_size):
 
+    cinder_types = get_formated_cmd_output("cinder type-list", retries = 10)
+    assert general.get_elem_with_val(cinder_types, "Name", cinder_type), "Cinder type {0} not found".format(cinder_type)
+
     if image_id:
         glance_images = get_formated_cmd_output("glance image-list")
         assert general.get_elem_with_val(glance_images, "ID", image_id), "Glance image {0} not found".format(image_id)
-
-    cinder_types = get_formated_cmd_output("cinder type-list")
-    assert general.get_elem_with_val(cinder_types, "Name", cinder_type), "Cinder type {0} not found".format(cinder_type)
 
     image = "--image-id {image_id}".format(image_id = image_id) if image_id else ""
 
@@ -265,6 +272,34 @@ def delete_instance(instance_id):
 
     assert not vm, "Vm is still present after deleting it from nova"
     assert not vm_ovs, "Vm still exists on OVS after deleting it from nova"
+
+
+def delete_volume(volume_id):
+    def get_vol():
+        vols    = get_formated_cmd_output("cinder list")
+        vol     = general.get_elem_with_val(vols, "ID", volume_id)
+        return vol
+
+    vol = get_vol()
+    if not vol:
+        return
+
+    vol_name = vol[0]['DisplayName']
+    general.execute_command("cinder delete {0}".format(volume_id))
+
+    #wait for volume to be gone
+    retries = 50
+    while retries:
+        vol = get_vol()
+        vd_ovs = [vd for vd in VDiskList.get_vdisks() if vd.name == vol_name]
+
+        if not (vol or vd_ovs):
+            break
+        time.sleep(1)
+        retries -= 1
+
+    assert not vol, "Volume is still present after deleting it from cinder"
+    assert not vd_ovs, "Volume still exists on OVS after deleting it from cinder"
 
 
 def cleanup():

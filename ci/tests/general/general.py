@@ -362,7 +362,8 @@ def api_add_vpool(vpool_name          = None,
                   vpool_bfs_mp        = None,
                   vpool_vrouter_port  = None,
                   vpool_storage_ip    = None,
-                  apply_to_all_nodes  = False):
+                  apply_to_all_nodes  = False,
+                  config_cinder       = False):
 
     cfg = autotests.getConfigIni()
 
@@ -386,6 +387,14 @@ def api_add_vpool(vpool_name          = None,
     parameters['mountpoint_bfs']        = vpool_bfs_mp        or cfg.get("vpool", "vpool_bfs_mp")
     parameters['vrouter_port']          = vpool_vrouter_port  or cfg.get("vpool", "vpool_vrouter_port")
     parameters['storage_ip']            = vpool_storage_ip    or cfg.get("vpool", "vpool_storage_ip")
+    parameters['config_cinder']         = config_cinder
+
+    parameters['cinder_pass']           = "rooter"
+    parameters['cinder_user']           = "admin"
+    parameters['cinder_tenant']         = "admin"
+    parameters['cinder_controller']     = local_vsa_ip
+
+
 
     print "Adding Vpool: "
     print parameters

@@ -21,9 +21,13 @@ def setup():
     if not general_openstack.is_openstack_present():
         raise SkipTest()
 
+    global prev_os
+    prev_os = autotests.getOs()
+    autotests.setOs('ubuntu_server14_kvm')
+
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
-        general.api_add_vpool(apply_to_all_nodes = True)
+        general.api_add_vpool(apply_to_all_nodes = True, config_cinder = True)
         vpool = VPoolList.get_vpool_by_name(vpool_name)
 
     instances_dir = "/mnt/{0}/instances".format(vpool_name)
@@ -37,6 +41,7 @@ def setup():
 
 
 def teardown():
+    autotests.setOs(prev_os)
     if autotests.getConfigIni().get("main", "cleanup") == "True":
         general_openstack.cleanup()
 
@@ -48,10 +53,12 @@ def create_empty_volume_test():
 
     name = machinename + str(time.time()) + "empty_vol"
 
-    general_openstack.create_volume(image_id    = "",
-                                    cinder_type = cinder_type,
-                                    volume_name = name,
-                                    volume_size = 1)
+    vol_id = general_openstack.create_volume(image_id    = "",
+                                             cinder_type = cinder_type,
+                                             volume_name = name,
+                                             volume_size = 1)
+
+    general_openstack.delete_volume(vol_id)
 
 
 def create_volume_from_image_test():
@@ -64,40 +71,18 @@ def create_volume_from_image_test():
 
     glance_image_id = general_openstack.create_glance_image()
 
-    general_openstack.create_volume(image_id    = glance_image_id,
-                                    cinder_type = cinder_type,
-                                    volume_name = volume_name,
-                                    volume_size = 3)
+    vol_id = general_openstack.create_volume(image_id    = glance_image_id,
+                                             cinder_type = cinder_type,
+                                             volume_name = volume_name,
+                                             volume_size = 3)
 
-
-def boot_nova_instance_from_image_test():
-
-    general.checkPrereqs(testCaseNumber = 3,
-                         testsToRun     = testsToRun)
-
-    instance_name = machinename + str(time.time()) + "_boot_from_image"
-
-    glance_image_id = general_openstack.create_glance_image()
-
-    main_host = general.get_this_hostname()
-
-    instance_id     = general_openstack.create_instance(image_id      = glance_image_id,
-                                                        instance_name = instance_name,
-                                                        host          = main_host)
-
-    vm_name = general_openstack.get_vm_name_hpv(instance_id)
-    vm_ip   = general_openstack.get_instance_ip(instance_id)
-
-    hpv = general_hypervisor.Hypervisor.get(vpool_name)
-    hpv.wait_for_vm_pingable(vm_name, vm_ip = vm_ip)
-
-    general_openstack.delete_instance(instance_id)
+    general_openstack.delete_volume(vol_id)
 
 
 def boot_nova_instance_from_volume_test():
 
 
-    general.checkPrereqs(testCaseNumber = 4,
+    general.checkPrereqs(testCaseNumber = 3,
                          testsToRun     = testsToRun)
 
     t = str(time.time())
@@ -125,12 +110,13 @@ def boot_nova_instance_from_volume_test():
     hpv.wait_for_vm_pingable(vm_name, vm_ip = vm_ip)
 
     general_openstack.delete_instance(instance_id)
+    general_openstack.delete_volume(volume_id)
 
 
 def boot_nova_instance_from_snapshot_test():
 
 
-    general.checkPrereqs(testCaseNumber = 5,
+    general.checkPrereqs(testCaseNumber = 4,
                          testsToRun     = testsToRun)
 
     t = str(time.time())
@@ -150,6 +136,32 @@ def boot_nova_instance_from_snapshot_test():
     main_host = general.get_this_hostname()
 
     instance_id     = general_openstack.create_instance(snapshot_id   = snapshot_id,
+                                                        instance_name = instance_name,
+                                                        host          = main_host)
+
+    vm_name = general_openstack.get_vm_name_hpv(instance_id)
+    vm_ip   = general_openstack.get_instance_ip(instance_id)
+
+    hpv = general_hypervisor.Hypervisor.get(vpool_name)
+    hpv.wait_for_vm_pingable(vm_name, vm_ip = vm_ip)
+
+    general_openstack.delete_instance(instance_id)
+    general.execute_command("cinder snapshot-delete {0}".format(snapshot_id))
+    general_openstack.delete_volume(volume_id)
+
+
+def boot_nova_instance_from_image_test():
+
+    general.checkPrereqs(testCaseNumber = 5,
+                         testsToRun     = testsToRun)
+
+    instance_name = machinename + str(time.time()) + "_boot_from_image"
+
+    glance_image_id = general_openstack.create_glance_image()
+
+    main_host = general.get_this_hostname()
+
+    instance_id     = general_openstack.create_instance(image_id      = glance_image_id,
                                                         instance_name = instance_name,
                                                         host          = main_host)
 
@@ -243,7 +255,7 @@ def fillup_multinode_system_test():
 
     hosts = set([s['Host'] for s in general_openstack.get_formated_cmd_output("nova service-list")])
     if len(hosts) < 2:
-        raise SkipTest("Need at least 2 nodes to run live migration")
+        raise SkipTest("Need at least 2 nodes required")
 
     quotas = general_openstack.get_formated_cmd_output("cinder quota-show $(keystone tenant-get admin | awk '/id/ {print $4}')")
 
