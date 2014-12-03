@@ -43,13 +43,14 @@ browser_object = None
 
 
 def setup():
-    global dnsmasq_pid
+    global dnsmasq_pid, screen_cap_pid, flv_cap_loc
 
-    print "setup called " + __name__
+    print "Setup called " + __name__
 
     #make sure we start with clean env
     general.cleanup()
 
+    #setup dhcp for vms
     virbr_ip    = ipcalc.IP(general.get_virbr_ip())
     dhcp_start  = ipcalc.IP(virbr_ip.ip + 1).dq
     dhcp_end    = ipcalc.IP(virbr_ip.ip + 11).dq
@@ -57,12 +58,26 @@ def setup():
     dnsmasq_pid = general.execute_command(cmd, wait = False, shell = False)
 
 
+    screen_cap_pid = None
+    if autotests.getConfigIni().get("main", "screen_capture") == "True":
+        flv_cap_loc = "/root/screen_capture_{0}.flv".format(str(int(time.time())))
+        cmd = ["flvrec.py", "-o", flv_cap_loc, "localhost:50"]
+        screen_cap_pid = general.execute_command(cmd, wait = False, shell = False)
+
+
 def teardown():
-    global dnsmasq_pid
+    global dnsmasq_pid, screen_cap_pid, flv_cap_loc
     try:
         os.kill(dnsmasq_pid, signal.SIGKILL)
     except:
         pass
+
+    if screen_cap_pid is not None:
+        try:
+            os.kill(screen_cap_pid, signal.SIGKILL)
+            general.execute_command(["avconv", "-i", flv_cap_loc, "-b", "2048k", flv_cap_loc.replace(".flv", ".avi")], shell = False)
+        except:
+            pass
 
 
 def close_browser():
