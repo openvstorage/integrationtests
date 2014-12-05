@@ -9,11 +9,12 @@ from xml.dom import minidom
 from ci import autotests
 import general
 
-from ovs.dal.lists.vpoollist import VPoolList
-from ovs.dal.lists.vmachinelist import VMachineList
-from ovs.dal.lists.pmachinelist import PMachineList
-from ovs.extensions.hypervisor.hypervisors.kvm import Sdk as Kvm_sdk
-from ovs.extensions.hypervisor.hypervisors.vmware import Sdk as Vmware_sdk
+from ovs.dal.lists.vpoollist                        import VPoolList
+from ovs.dal.lists.vmachinelist                     import VMachineList
+from ovs.dal.lists.pmachinelist                     import PMachineList
+from ovs.extensions.hypervisor.hypervisors.kvm      import Sdk as Kvm_sdk
+from ovs.extensions.hypervisor.hypervisors.vmware   import Sdk as Vmware_sdk
+from ovs.lib.vdisk                                  import VDiskController
 
 import logging
 #disable excesive logging
@@ -74,6 +75,7 @@ def _download_to_vpool(url, path, overwrite_if_exists = False):
         return
     u = urllib.urlopen(url)
     bsize = 4096 * 1024
+    VDiskController.create_volume(path, 0)
     with open(path, "w") as f:
 
         size_written = 0
