@@ -18,9 +18,6 @@ vpool_name     = autotests.getConfigIni().get("vpool", "vpool_name")
 
 
 def setup():
-    if not general_openstack.is_openstack_present():
-        raise SkipTest()
-
     global prev_os
     prev_os = autotests.getOs()
     autotests.setOs('ubuntu_server14_kvm')
@@ -51,6 +48,9 @@ def create_empty_volume_test():
     general.checkPrereqs(testCaseNumber = 1,
                          testsToRun     = testsToRun)
 
+    if not general_openstack.is_openstack_present():
+        raise SkipTest()
+
     name = machinename + str(time.time()) + "empty_vol"
 
     vol_id = general_openstack.create_volume(image_id    = "",
@@ -66,6 +66,8 @@ def create_volume_from_image_test():
     general.checkPrereqs(testCaseNumber = 2,
                          testsToRun     = testsToRun)
 
+    if not general_openstack.is_openstack_present():
+        raise SkipTest()
 
     volume_name = machinename + str(time.time()) + "_vol_from_img"
 
@@ -81,9 +83,11 @@ def create_volume_from_image_test():
 
 def boot_nova_instance_from_volume_test():
 
-
     general.checkPrereqs(testCaseNumber = 3,
                          testsToRun     = testsToRun)
+
+    if not general_openstack.is_openstack_present():
+        raise SkipTest()
 
     t = str(time.time())
     instance_name = machinename + t + "_boot_from_vol"
@@ -115,9 +119,11 @@ def boot_nova_instance_from_volume_test():
 
 def boot_nova_instance_from_snapshot_test():
 
-
     general.checkPrereqs(testCaseNumber = 4,
                          testsToRun     = testsToRun)
+
+    if not general_openstack.is_openstack_present():
+        raise SkipTest()
 
     t = str(time.time())
     instance_name = machinename + t + "_boot_from_snap"
@@ -155,6 +161,9 @@ def boot_nova_instance_from_image_test():
     general.checkPrereqs(testCaseNumber = 5,
                          testsToRun     = testsToRun)
 
+    if not general_openstack.is_openstack_present():
+        raise SkipTest()
+
     instance_name = machinename + str(time.time()) + "_boot_from_image"
 
     glance_image_id = general_openstack.create_glance_image()
@@ -178,6 +187,9 @@ def permissions_check_test():
 
     general.checkPrereqs(testCaseNumber = 6,
                          testsToRun     = testsToRun)
+
+    if not general_openstack.is_openstack_present():
+        raise SkipTest()
 
     expected_owner      = "stack"
     expected_group      = "libvirtd"
@@ -214,6 +226,9 @@ def live_migration_test():
 
     general.checkPrereqs(testCaseNumber = 7,
                          testsToRun     = testsToRun)
+
+    if not general_openstack.is_openstack_present():
+        raise SkipTest()
 
     hosts = set([s['Host'] for s in general_openstack.get_formated_cmd_output("nova service-list")])
     if len(hosts) < 2:
@@ -252,6 +267,9 @@ def fillup_multinode_system_test():
 
     general.checkPrereqs(testCaseNumber = 8,
                          testsToRun     = testsToRun)
+
+    if not general_openstack.is_openstack_present():
+        raise SkipTest()
 
     hosts = set([s['Host'] for s in general_openstack.get_formated_cmd_output("nova service-list")])
     if len(hosts) < 2:

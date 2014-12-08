@@ -6,6 +6,7 @@ import time
 import random
 import urllib
 import shutil
+import logging
 import inspect
 import pexpect
 import paramiko
@@ -27,6 +28,8 @@ import debug
 if not hasattr(sys, "debugEnabled"):
     sys.debugEnabled = True
     debug.listen()
+
+logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 
 def execute_command(command, wait = True, shell = True):
