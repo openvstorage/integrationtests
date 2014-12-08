@@ -424,8 +424,8 @@ def api_remove_vpool(vpool_name):
             mountpoint = sd.mountpoint
         StorageRouterController.remove_storagedriver(sd.guid)
         time.sleep(3)
-        if mountpoint:
-            assert not os.path.exists(mountpoint), "Mountpoint {0} of vpool still exists after removing storage driver".format(mountpoint)
+    if mountpoint:
+        assert not os.path.exists(mountpoint), "Mountpoint {0} of vpool still exists after removing storage driver".format(mountpoint)
 
 
 def apply_disk_layout(disk_layout):
@@ -456,6 +456,8 @@ def apply_disk_layout(disk_layout):
 
 
 def clean_disk_layout(disk_layout):
+    if autotests.getConfigIni().get("main", "cleanup") != "True":
+        return
     print "df before clean\n", execute_command("df")[0]
     disks_to_clean = []
     for mp, device in disk_layout.iteritems():
