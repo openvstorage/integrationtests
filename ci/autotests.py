@@ -586,10 +586,12 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
     allSuites = testrailApi.getSuites(projectID)
 
     for child in xmlfile.childNodes:
-        suite = child.getAttribute('classname').split('.')[-2]
-
-        if suite in ('<nose', 'nose'):
+        classname = child.getAttribute('classname')
+        if classname.startswith(('<nose', 'nose', '&lt;nose')):
             continue
+
+        suite = classname.split('.')[-2]
+
         if child.childNodes and \
                         child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest' and \
                         child.childNodes[0].getAttribute('message') != BLOCKED_MESSAGE:
@@ -741,15 +743,17 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         return planID
 
     for child in xmlfile.childNodes:
-        suite = child.getAttribute('classname').split('.')[-2]
+        classname = child.getAttribute('classname')
 
-        if suite in ('<nose', 'nose'):
+        if classname.startswith(('<nose', 'nose')):
             if child.childNodes[0].childNodes and child.childNodes[0].childNodes[
                 0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
                 errorMessages.append(child.childNodes[0].childNodes[0].data)
             else:
                 errorMessages.append(child.childNodes[0].getAttribute('message'))
             continue
+
+        suite = classname.split('.')[-2]
 
         isBlocked = False
 
