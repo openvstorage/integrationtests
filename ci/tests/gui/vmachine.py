@@ -163,14 +163,23 @@ class Vmachine(BrowserOvs):
         self.fill_out('name', vm_name)
         self.click_on('Nothing selected')
         time.sleep(2)
+
+        #Choose hypervisor node
         menu = [m for m in self.browser.find_by_css("ul.dropdown-menu") if m.visible]
         assert menu
-        #@todo: maybe define which host to select instead of the first one
-        menu[0].click()
+        menu = menu[0]
+        items = menu.find_by_tag("li")
+        local_vsa = general.get_local_vsa()
+        pmachine_name = local_vsa.pmachine.name
+       
+        item = [item for item in items if pmachine_name in item.text] 
+        assert item, "Pmachine {0} not found in list of pmachines {1}".format(pmachine_name, [item.text for item in items])
+        item[0].click()
 
         self.click_on('Finish', retries = 100)
 
         self.wait_for_wait_notification('Creating from {} successfully'.format(template_name), retries = 500)
+
 
     def delete_template(self, template_name, should_fail = False):
 
