@@ -238,6 +238,7 @@ def live_migration(instance_id, new_host):
     cmd = "nova live-migration {0} {1}".format(instance_id, new_host)
     general.execute_command(cmd)
 
+    time.sleep(10)
     vm_host = get_instance_host(instance_id)
     assert vm_host == new_host, "Wrong host after live migration, expected {0} got {1}".format(new_host, vm_host)
 
@@ -251,7 +252,6 @@ def live_migration(instance_id, new_host):
 
     uptime_after = get_vm_uptime(vm_ip)
     assert uptime_after >= uptime_before, "Vm did not remain up after live migration"
-
 
 
 def delete_instance(instance_id):
@@ -274,32 +274,41 @@ def delete_instance(instance_id):
     assert not vm_ovs, "Vm still exists on OVS after deleting it from nova"
 
 
-def delete_volume(volume_id):
-    def get_vol():
-        vols    = get_formated_cmd_output("cinder list")
-        vol     = general.get_elem_with_val(vols, "ID", volume_id)
-        return vol
+def get_vol(volume_id):
+    vols    = get_formated_cmd_output("cinder list")
+    vol     = general.get_elem_with_val(vols, "ID", volume_id)
+    return vol
 
-    vol = get_vol()
+
+def wait_for_volume_to_disappear(volume_id, vol_name):
+    vol = get_vol(volume_id)
+
+    retries = 50
+    while retries:
+        vol = get_vol(volume_id)
+        vd_ovs = [vd for vd in VDiskList.get_vdisks() if vd.name == vol_name]
+
+        if not vol and not vd_ovs:
+            break
+        time.sleep(1)
+        retries -= 1
+
+    assert not vd_ovs, "Volume still exists on OVS after deleting it from cinder"
+    assert not vol, "Volume is still present after deleting it from cinder"
+
+
+def delete_volume(volume_id, wait = True):
+
+    vol = get_vol(volume_id)
     if not vol:
         return
 
     vol_name = vol[0]['DisplayName']
     general.execute_command("cinder delete {0}".format(volume_id))
 
-    #wait for volume to be gone
-    retries = 50
-    while retries:
-        vol = get_vol()
-        vd_ovs = [vd for vd in VDiskList.get_vdisks() if vd.name == vol_name]
-
-        if not (vol or vd_ovs):
-            break
-        time.sleep(1)
-        retries -= 1
-
-    assert not vol, "Volume is still present after deleting it from cinder"
-    assert not vd_ovs, "Volume still exists on OVS after deleting it from cinder"
+    if wait:
+        #wait for volume to be gone
+        wait_for_volume_to_disappear(volume_id, vol_name)
 
 
 def cleanup():

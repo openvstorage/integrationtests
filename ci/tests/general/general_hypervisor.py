@@ -9,6 +9,7 @@ from xml.dom import minidom
 from ci import autotests
 import general
 
+
 from ovs.dal.lists.vpoollist                        import VPoolList
 from ovs.dal.lists.vmachinelist                     import VMachineList
 from ovs.dal.lists.pmachinelist                     import PMachineList
@@ -402,6 +403,8 @@ class Kvm(HypervisorBase):
         self.sdk = Kvm_sdk()
 
     def create_vm(self, name, ram = 1024):
+        import general_openstack
+
         os_name = autotests.getOs()
         bootdisk_path_remote = autotests.getOsInfo(os_name)['bootdisk_location']
 
@@ -415,6 +418,11 @@ class Kvm(HypervisorBase):
             bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
 
             _download_to_vpool(bootdisk_url, bootdisk_path)
+
+            #When running with devstack need to set kvm group
+            if general_openstack.is_openstack_present():
+                general.execute_command("chgrp kvm {0}".format(bootdisk_path))
+
 
             cmd = "virt-install --connect qemu:///system -n {name} -r {ram} --disk {bootdisk_path},device=disk,format=raw,bus=virtio --import --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,model=e1000 --boot hd"
             cmd = cmd.format(name = name,
