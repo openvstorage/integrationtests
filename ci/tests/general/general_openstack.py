@@ -238,9 +238,14 @@ def live_migration(instance_id, new_host):
     cmd = "nova live-migration {0} {1}".format(instance_id, new_host)
     general.execute_command(cmd)
 
-    time.sleep(10)
-    vm_host = get_instance_host(instance_id)
-    assert vm_host == new_host, "Wrong host after live migration, expected {0} got {1}".format(new_host, vm_host)
+    retries = 20
+    while retries:
+        vm_host = get_instance_host(instance_id)
+        if vm_host == new_host:
+            break
+        time.sleep(1)
+        retries -= 1
+    assert retries, "Wrong host after live migration, expected {0} got {1}".format(new_host, vm_host)
 
     vm_name = get_vm_name_hpv(instance_id)
 

@@ -217,7 +217,7 @@ def live_migration_test():
     volume_id = general_openstack.create_volume(image_id    = glance_image_id,
                                                 cinder_type = cinder_type,
                                                 volume_name = volume_name,
-                                                volume_size = 3)
+                                                volume_size = 5)
 
     main_host = general.get_this_hostname()
 
@@ -248,19 +248,20 @@ def delete_multiple_volumes_test():
     volume_name = machinename + str(time.time()) + "_del_multi"
     glance_image_id = general_openstack.create_glance_image()
 
-    vol_ids = []
+    vol_ids = {}
     for idx in range(4):
+        vol_name = volume_name + str(idx)
         vol_id = general_openstack.create_volume(image_id    = glance_image_id,
                                                  cinder_type = cinder_type,
-                                                 volume_name = volume_name + str(idx),
+                                                 volume_name = vol_name,
                                                  volume_size = 3)
-        vol_ids.append(vol_id)
+        vol_ids[vol_id] = vol_name
 
     for vol_id in vol_ids:
         general_openstack.delete_volume(vol_id, wait = False)
 
-    for vol_id in vol_ids:
-        general_openstack.wait_for_volume_to_disappear(vol_id)
+    for vol_id, vol_name in vol_ids.iteritems():
+        general_openstack.wait_for_volume_to_disappear(vol_id, vol_name)
 
 
 def fillup_multinode_system_test():
