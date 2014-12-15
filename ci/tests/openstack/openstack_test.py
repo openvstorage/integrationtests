@@ -294,6 +294,7 @@ def fillup_multinode_system_test():
     vols_to_create = max_vols_per_node * len(hosts) - len(existing_volumes)
 
     for idx in range(vols_to_create):
+        time.sleep(5)
         general_openstack.create_volume(image_id    = glance_image_id,
                                         cinder_type = cinder_type,
                                         volume_name = name + str(idx),
