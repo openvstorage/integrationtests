@@ -19,7 +19,7 @@ os.environ["OS_AUTH_URL"]    = "http://{node_ip}:35357/v2.0".format(node_ip = ge
 
 
 def is_openstack_present():
-    return bool(general.execute_command("ps aux | awk '/cinder/ && !/awk/'")[0])
+    return bool(general.execute_command("ps aux | awk '/keystone/ && !/awk/'")[0])
 
 
 def restart_service_in_screen(name):
@@ -203,6 +203,7 @@ def create_instance(instance_name, volume_id = "", image_id = "", snapshot_id = 
             break
         time.sleep(1)
         retries -= 1
+    time.sleep(5)
     assert vm, "Instance created with nova is not registered in ovs"
     vm = vm[0]
     assert len(vm.vdisks) == 1, "Vm {0} doesnt have expected disks but {1}".format(vm_name, len(vm.vdisks))
@@ -285,10 +286,10 @@ def get_vol(volume_id):
     return vol
 
 
-def wait_for_volume_to_disappear(volume_id, vol_name):
+def wait_for_volume_to_disappear(volume_id, vol_name, retries = 100):
     vol = get_vol(volume_id)
 
-    retries = 50
+    retries = 100
     while retries:
         vol = get_vol(volume_id)
         vd_ovs = [vd for vd in VDiskList.get_vdisks() if vd.name == vol_name]
