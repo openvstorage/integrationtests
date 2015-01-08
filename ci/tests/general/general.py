@@ -218,17 +218,22 @@ def add_vpool(browser):
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
         hypervisorInfo = autotests.getHypervisorInfo()
-        ssh_con = getRemoteSshCon(*hypervisorInfo)[0]
 
         vpool_name  = browser.vpool_name
         vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
-        storage_ip = vpool.storagedrivers[0].storage_ip
 
-        cmd = "esxcli storage nfs add -H {0} -s /mnt/{1} -v {1}".format(storage_ip, vpool_name)
-        os.write(1, cmd + "\n")
-        _stdin, stdout, stderr = ssh_con.exec_command(cmd)
-        os.write(1, str(stdout.readlines()))
-        os.write(1, str(stderr.readlines()))
+        for sd in vpool.storagedrivers:
+            hypervisorInfo[0] = sd.storagerouter.pmachine.ip
+            ssh_con = getRemoteSshCon(*hypervisorInfo)[0]
+
+            storage_ip = sd.storage_ip
+
+            cmd = "esxcli storage nfs add -H {0} -s /mnt/{1} -v {1}".format(storage_ip, vpool_name)
+            os.write(1, str(hypervisorInfo) + "\n")
+            os.write(1, cmd + "\n")
+            _stdin, stdout, stderr = ssh_con.exec_command(cmd)
+            os.write(1, str(stdout.readlines()))
+            os.write(1, str(stderr.readlines()))
 
 
 def remove_vpool(browser):
@@ -636,3 +641,14 @@ def is_service_running(service_name, host_name = None):
     return "start/running" in out
 
 
+def is_volume_present_in_model(volume_name):
+    """
+    Check if vdisk is present on all nodes
+    """
+    status = {}
+    for vsa in storagerouterlist.StorageRouterList.get_storagerouters():
+        cmd = """python -c 'from ovs.dal.lists.vdisklist import VDiskList;print bool([vd for vd in VDiskList.get_vdisks() if vd.name == "{0}"])'""".format(volume_name)
+        out = execute_command_on_node(vsa.ip, cmd)
+        status[vsa.ip] = eval(out)
+
+    return status

@@ -253,7 +253,7 @@ class Vpool(BrowserOvs):
         self.click_on('Next', retries = 100)
 
         # wait for page to load
-        assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 15), 'vPool wizard with mountpoint details not present (yet)'
+        assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 40), 'vPool wizard with mountpoint details not present (yet)'
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-readcache1', self.vpool_readcache1_mp)
@@ -266,7 +266,8 @@ class Vpool(BrowserOvs):
 
        # self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port, clear_first = True)
         if general_hypervisor.get_hypervisor_type().lower() != "kvm":
-            self.choose('127.0.0.1', self.vpool_storage_ip)
+            self.choose('dropdown-button-storageip', self.vpool_storage_ip)
+
         self.click_on('Next', retries = 100)
 
         if self.wait_for_visible_element_by_id('configCinder', 15):
@@ -320,7 +321,7 @@ class Vpool(BrowserOvs):
 
         self.click_on('VpoolSaveChanges', retries = 300)
 
-        self.wait_for_text('Finish', timeout = 20)
+        self.wait_for_text('Finish', timeout = 40)
         self.click_on('Finish')
 
         self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')

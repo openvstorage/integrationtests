@@ -232,7 +232,7 @@ class BrowserOvs():
         button.click()
         return button
 
-    def browse_to(self, url, wait_for_title = '', retries = 60):
+    def browse_to(self, url, wait_for_title = '', retries = 100):
         self.browser.visit(url)
         if wait_for_title:
             while (not wait_for_title in self.browser.title.lower()) and retries:
@@ -248,6 +248,11 @@ class BrowserOvs():
                 d.click()
                 button = d
                 break
+        if not button:
+            button = self.browser.find_by_id(identifier)
+            if len(button):
+                button = button[0]
+                button.click()
         if button:
             bclicked = False
             uls = button.find_by_xpath("//ul/li")

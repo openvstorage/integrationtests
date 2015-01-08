@@ -243,7 +243,7 @@ class Vmware(HypervisorBase):
         config.name = name
         config.numCPUs = cpus
         config.memoryMB = ram
-        config.guestId = os_info['esx_os_name']
+        config.guestId = os_info.get('esx_os_name', 'ubuntu64Guest')
         config.deviceChange = []
         config.extraConfig = []
         config.files = self.sdk._create_file_info(self.sdk._client.factory, datastore.name)

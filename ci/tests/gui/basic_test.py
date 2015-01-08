@@ -266,8 +266,6 @@ def validate_vpool_cleanup_test():
         check_mountpoints(storagedrivers, is_present = False)
 
 
-
-
 @with_setup(None, close_browser)
 def set_as_template_test():
     """
