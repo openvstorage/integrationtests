@@ -265,7 +265,7 @@ class BrowserOvs():
         else:
             self.log("Choose: couldn't find identifier {}".format(identifier))
 
-    def click_on(self, identifier, retries = 1):
+    def click_on(self, identifier, retries = 5):
 
         while retries:
             retries -= 1

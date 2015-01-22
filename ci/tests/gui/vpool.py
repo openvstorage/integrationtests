@@ -233,7 +233,7 @@ class Vpool(BrowserOvs):
     def add_vpool(self):
         self.browse_to(self.get_url() + '#full/vpools', 'vpools')
         assert self.wait_for_visible_element_by_id('buttonAddVpool', 5), 'Button Add vPool not present (yet)'
-        self.click_on('AddVpool')
+        self.click_on('AddVpool', retries = 20)
         assert self.wait_for_visible_element_by_id('form.gather.vpool', 5), 'Add vPool wizard not present (yet)'
         self.choose('Local FS', self.vpool_type_name)
         self.fill_out('inputVpoolName', self.vpool_name)
@@ -328,7 +328,7 @@ class Vpool(BrowserOvs):
 
     def remove_vpool(self, vpool_name):
         self.browse_to(self.get_vpool_url())
-        self.wait_for_text(vpool_name)
+        self.wait_for_text(vpool_name, timeout = 30)
 
         self.click_on_tbl_item(vpool_name)
         self.browser.is_element_present_by_id('management', 5)
@@ -346,7 +346,7 @@ class Vpool(BrowserOvs):
         self.uncheck_checkboxes(management)
         self.click_on(save_changes_id)
 
-        self.wait_for_text('Finish', timeout = 20)
+        self.wait_for_text('Finish', timeout = 30)
         self.click_on('Finish')
 
         self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')

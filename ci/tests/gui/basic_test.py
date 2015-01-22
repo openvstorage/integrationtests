@@ -550,11 +550,11 @@ def multiple_vpools_test():
     for vpool_config in vpool_configs.itervalues():
 
         browser_object = vpt = Vpool(**vpool_config)
+        vpt.login()
         vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
         if vpool:
             general.remove_vpool(vpt)
 
-        vpt.login()
         general.add_vpool(vpt)
 
         vpt.browse_to(vpt.get_url() + '#full/vpools', '')
