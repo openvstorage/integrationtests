@@ -21,6 +21,7 @@ import logging
 
 
 from nose.tools                 import with_setup
+from nose.plugins.skip          import SkipTest
 
 from ci.tests.general           import general
 from ci.tests.general           import general_hypervisor
@@ -198,41 +199,6 @@ def validate_vpool_cleanup_test():
 
     global browser_object
 
-    def check_voldrv_services(vpool_name, storagedrivers, running = True):
-        voldrv_services = (pr + vpool_name for pr in ("ovs-volumedriver_", "ovs-failovercache_"))
-        for sd in storagedrivers:
-            node = sd.storagerouter.ip
-            for voldrv_service in voldrv_services:
-                retries = 15
-                while retries:
-                    if general.is_service_running(voldrv_service, node) == running:
-                        break
-                    time.sleep(1)
-                    retries -= 1
-                assert general.is_service_running(voldrv_service, node) == running, \
-                "Service {0} is not {1} on node {2}".format(voldrv_service,
-                                                           {True: "running", False: "stopped"}[running],
-                                                           node)
-
-    def check_mountpoints(storagedrivers, is_present = True):
-        for sd in storagedrivers:
-            mountpoint = sd.mountpoint
-            node = sd.storagerouter.ip
-
-            retries = 20
-            while retries:
-                out = general.execute_command_on_node(node, "df | grep {0} || true".format(mountpoint))
-                if (mountpoint in out) == is_present:
-                    break
-                time.sleep(1)
-                retries -= 1
-
-            assert (mountpoint in out) == is_present, "Vpool mountpoint {0} is {1} mounted on node {2}\n{3}".format(mountpoint,
-                                                                                                                  {True: "not", False: "still"}[is_present],
-                                                                                                                  node,
-                                                                                                                  out)
-
-
     browser_object = vpt = Vpool()
     vpt.login()
 
@@ -240,15 +206,15 @@ def validate_vpool_cleanup_test():
     if vpool:
         general.remove_vpool(vpt)
 
-    for idx in range(2):
+    for _idx in range(2):
 
         general.add_vpool(vpt)
         vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
         #hold a copy of these for later
         storagedrivers = list(vpool.storagedrivers)
 
-        check_voldrv_services(vpool_name, storagedrivers)
-        check_mountpoints(storagedrivers)
+        general.check_voldrv_services(vpool_name, storagedrivers)
+        general.check_mountpoints(storagedrivers)
 
         #create volume
         local_vsa = general.get_local_vsa()
@@ -262,8 +228,8 @@ def validate_vpool_cleanup_test():
         general.remove_vpool(vpt)
 
         time.sleep(5)
-        check_voldrv_services(vpool_name, storagedrivers, running = False)
-        check_mountpoints(storagedrivers, is_present = False)
+        general.check_voldrv_services(vpool_name, storagedrivers, running = False)
+        general.check_mountpoints(storagedrivers, is_present = False)
 
 
 @with_setup(None, close_browser)
@@ -549,3 +515,80 @@ def delete_template_test():
     bt.login()
     bt.delete_template(template.name)
 
+
+@with_setup(None, close_browser)
+def multiple_vpools_test():
+    """
+    %s
+    """ % general.getFunctionName()
+
+    general.checkPrereqs(testCaseNumber = 14,
+                     testsToRun     = testsToRun)
+
+    global browser_object
+
+    cfg = autotests.getConfigIni()
+
+    required_backends = ["swift_s3", "local", "ceph_s3"]
+
+    vpool_params = [ 'vpool_name', 'vpool_type_name', 'vpool_host', 'vpool_port', 'vpool_access_key', 'vpool_secret_key', 'vpool_temp_mp',
+                     'vpool_md_mp', 'vpool_readcache1_mp', 'vpool_readcache2_mp', 'vpool_writecache_mp', 'vpool_foc_mp', 'vpool_bfs_mp',
+                     'vpool_vrouter_port', 'vpool_storage_ip']
+
+    vpool_configs = {}
+
+    for idx in [""] + range(2,10):
+        section_name = "vpool" + str(idx)
+        if cfg.has_section(section_name):
+            vpool_type = cfg.get(section_name, "vpool_type")
+            if vpool_type in required_backends:
+                vpool_configs[vpool_type] = dict([(vpool_param, cfg.get(section_name, vpool_param)) for vpool_param in vpool_params])
+
+    if len(vpool_configs) < len(required_backends):
+        raise SkipTest()
+
+    for vpool_config in vpool_configs.itervalues():
+
+        browser_object = vpt = Vpool(**vpool_config)
+        vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
+        if vpool:
+            general.remove_vpool(vpt)
+
+        vpt.login()
+        general.add_vpool(vpt)
+
+        vpt.browse_to(vpt.get_url() + '#full/vpools', '')
+        time.sleep(20)
+        vpt.wait_for_text(vpt.vpool_name)
+
+        vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
+
+        storagedrivers = list(vpool.storagedrivers)
+
+        general.check_voldrv_services(vpt.vpool_name, storagedrivers)
+        general.check_mountpoints(storagedrivers)
+
+        hpv = general_hypervisor.Hypervisor.get(vpool.name)
+        vpool_config['vm_name'] = machinename + vpool.name
+        hpv.create_vm(vpool_config['vm_name'])
+
+        vpt.teardown()
+
+    for vpool_config in vpool_configs.itervalues():
+        vm_name = vpool_config['vm_name']
+        del vpool_config['vm_name']
+
+        hpv = general_hypervisor.Hypervisor.get(vpool_config['vpool_name'])
+        hpv.delete(vm_name)
+
+        vpool = VPoolList.get_vpool_by_name(vpool_config['vpool_name'])
+        storagedrivers = list(vpool.storagedrivers)
+
+        vpt = Vpool(**vpool_config)
+        vpt.login()
+        general.remove_vpool(vpt)
+
+        general.check_voldrv_services(vpool_config['vpool_name'], storagedrivers, running = False)
+        general.check_mountpoints(storagedrivers, is_present = False)
+
+        vpt.teardown()

@@ -79,7 +79,7 @@ class Vmachine(BrowserOvs):
             self.wait_for_modal()
             self.click_modal_button('Set as Template')
 
-            self.wait_for_wait_notification('Machine {} set as template'.format(name))
+            self.wait_for_wait_notification('Machine {} set as template'.format(name), retries = 150)
         else:
             try:
                 setastemplate_button.click()
@@ -171,8 +171,8 @@ class Vmachine(BrowserOvs):
         items = menu.find_by_tag("li")
         local_vsa = general.get_local_vsa()
         pmachine_name = local_vsa.pmachine.name
-       
-        item = [item for item in items if pmachine_name in item.text] 
+
+        item = [item for item in items if pmachine_name in item.text]
         assert item, "Pmachine {0} not found in list of pmachines {1}".format(pmachine_name, [item.text for item in items])
         item[0].click()
 
@@ -288,7 +288,7 @@ class Vmachine(BrowserOvs):
 
             assert vpool, "Count not find usable vpool"
 
-            templates = VMachineList.get_vtemplates()
+            templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid]
 
             if not templates:
                 tmpl_name = machinename + "tmpl"
@@ -300,7 +300,7 @@ class Vmachine(BrowserOvs):
                 browser_object = bt = Vmachine()
                 bt.login()
                 bt.set_as_template(tmpl_name)
-                templates = VMachineList.get_vtemplates()
+                templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid]
                 bt.teardown()
 
             assert templates, "Failed to get template"

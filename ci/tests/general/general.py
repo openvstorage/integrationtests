@@ -213,7 +213,7 @@ def cleanup():
 def add_vpool(browser):
     browser.add_vpool()
 
-    if len(StorageRouterList.get_storagerouters()) > 1:
+    if len(StorageRouterList.get_storagerouters()) > 1 and browser.vpool_type_name != 'Local FS':
         browser.add_gsrs_to_vpool(browser.vpool_name)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
@@ -652,3 +652,40 @@ def is_volume_present_in_model(volume_name):
         status[vsa.ip] = eval(out)
 
     return status
+
+
+def check_voldrv_services(vpool_name, storagedrivers, running = True):
+    voldrv_services = (pr + vpool_name for pr in ("ovs-volumedriver_", "ovs-failovercache_"))
+    for sd in storagedrivers:
+        node = sd.storagerouter.ip
+        for voldrv_service in voldrv_services:
+            retries = 15
+            while retries:
+                if is_service_running(voldrv_service, node) == running:
+                    break
+                time.sleep(1)
+                retries -= 1
+            assert is_service_running(voldrv_service, node) == running, \
+            "Service {0} is not {1} on node {2}".format(voldrv_service,
+                                                       {True: "running", False: "stopped"}[running],
+                                                       node)
+
+
+def check_mountpoints(storagedrivers, is_present = True):
+    for sd in storagedrivers:
+        mountpoint = sd.mountpoint
+        node = sd.storagerouter.ip
+
+        retries = 20
+        while retries:
+            out = execute_command_on_node(node, "df | grep {0} || true".format(mountpoint))
+            if (mountpoint in out) == is_present:
+                break
+            time.sleep(1)
+            retries -= 1
+
+        assert (mountpoint in out) == is_present, "Vpool mountpoint {0} is {1} mounted on node {2}\n{3}".format(mountpoint,
+                                                                                                              {True: "not", False: "still"}[is_present],
+                                                                                                              node,
+                                                                                                              out)
+

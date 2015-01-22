@@ -39,7 +39,7 @@ REMOTE_VPOOL_TYPES = ['Ceph S3', 'S3 compatible', 'Swift S3']
 class Vpool(BrowserOvs):
     def __init__(self,
                  vpool_name          = '',
-                 vpool_type          = '',
+                 vpool_type_name     = '',
                  vpool_host          = '',
                  vpool_port          = '',
                  vpool_access_key    = '',
@@ -63,7 +63,7 @@ class Vpool(BrowserOvs):
         cfg = autotests.getConfigIni()
 
         self.vpool_name             = vpool_name          or cfg.get("vpool", "vpool_name")
-        self.vpool_type             = vpool_type          or cfg.get("vpool", "vpool_type_name")
+        self.vpool_type_name        = vpool_type_name     or cfg.get("vpool", "vpool_type_name")
         self.vpool_host             = vpool_host          or cfg.get("vpool", "vpool_host")
         self.vpool_port             = vpool_port          or cfg.get("vpool", "vpool_port")
         self.vpool_access_key       = vpool_access_key    or cfg.get("vpool", "vpool_access_key")
@@ -75,17 +75,17 @@ class Vpool(BrowserOvs):
         self.vpool_writecache_mp    = vpool_writecache_mp or cfg.get("vpool", "vpool_writecache_mp")
         self.vpool_foc_mp           = vpool_foc_mp        or cfg.get("vpool", "vpool_foc_mp")
         self.vpool_bfs_mp           = vpool_bfs_mp
-        if self.vpool_type in ["Local FS"]:
+        if self.vpool_type_name in ["Local FS"]:
             self.vpool_bfs_mp       = vpool_bfs_mp        or cfg.get("vpool", "vpool_bfs_mp")
         self.vpool_vrouter_port     = vpool_vrouter_port  or cfg.get("vpool", "vpool_vrouter_port")
         self.vpool_storage_ip       = vpool_storage_ip    or cfg.get("vpool", "vpool_storage_ip")
 
-        for e in ["vpool_name", "vpool_type", "vpool_temp_mp", "vpool_md_mp",
+        for e in ["vpool_name", "vpool_type_name", "vpool_temp_mp", "vpool_md_mp",
                   "vpool_readcache1_mp", "vpool_readcache2_mp", "vpool_writecache_mp", "vpool_foc_mp", "vpool_vrouter_port"]:
             if not getattr(self, e):
                 raise SkipTest(e)
 
-        if self.vpool_type in REMOTE_VPOOL_TYPES and not getattr(self, "vpool_storage_ip"):
+        if self.vpool_type_name in REMOTE_VPOOL_TYPES and not getattr(self, "vpool_storage_ip"):
             raise SkipTest("vpool_storage_ip not filled in")
 
         print 'VpoolTest initialized'
@@ -100,13 +100,13 @@ class Vpool(BrowserOvs):
     vpool_name = property(get_vpool_name, set_vpool_name)
 
     def get_vpool_type(self):
-        return self.vpool_type
+        return self.vpool_type_name
 
-    def set_vpool_type(self, vpool_type):
-        assert isinstance(vpool_type, str), 'Vpool type must be a string'
-        self.vpool_type = vpool_type
+    def set_vpool_type(self, vpool_type_name):
+        assert isinstance(vpool_type_name, str), 'Vpool type must be a string'
+        self.vpool_type_name = vpool_type_name
 
-    vpool_type = property(get_vpool_type, set_vpool_type)
+    vpool_type_name = property(get_vpool_type, set_vpool_type)
 
     def get_vpool_host(self):
         return self.vpool_host
@@ -235,10 +235,10 @@ class Vpool(BrowserOvs):
         assert self.wait_for_visible_element_by_id('buttonAddVpool', 5), 'Button Add vPool not present (yet)'
         self.click_on('AddVpool')
         assert self.wait_for_visible_element_by_id('form.gather.vpool', 5), 'Add vPool wizard not present (yet)'
-        self.choose('Local FS', self.vpool_type)
+        self.choose('Local FS', self.vpool_type_name)
         self.fill_out('inputVpoolName', self.vpool_name)
 
-        if self.vpool_type in REMOTE_VPOOL_TYPES:
+        if self.vpool_type_name in REMOTE_VPOOL_TYPES:
             self.fill_out('inputVpoolHost', self.vpool_host)
             self.fill_out('inputVpoolPort', self.vpool_port, clear_first = True)
             self.fill_out('inputVpoolAccessKey', self.vpool_access_key)
@@ -261,7 +261,7 @@ class Vpool(BrowserOvs):
         self.fill_out_custom_field('dropdown-button-mtpt-writecache', self.vpool_writecache_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
 
-        if self.vpool_type not in REMOTE_VPOOL_TYPES:
+        if self.vpool_type_name not in REMOTE_VPOOL_TYPES:
             self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
 
        # self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port, clear_first = True)
@@ -346,7 +346,7 @@ class Vpool(BrowserOvs):
         self.uncheck_checkboxes(management)
         self.click_on(save_changes_id)
 
-        self.wait_for_text('Finish')
+        self.wait_for_text('Finish', timeout = 20)
         self.click_on('Finish')
 
         self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')
