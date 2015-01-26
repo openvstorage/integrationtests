@@ -165,41 +165,49 @@ class xunit_testrail(Plugin):
         """Sets additional command line options."""
         Plugin.options(self, parser, env)
         parser.add_option('--xunit_file2',
-                          action='store',
-                          dest='xunit_file2',
-                          metavar="FILE",
-                          default=env.get('NOSE_XUNIT_FILE', 'nosetests.xml'),
-                          help=("Path to xml file to store the xunit report in. "
-                                "Default is nosetests.xml in the working directory "
-                                "[NOSE_XUNIT_FILE]"))
+                          action    = 'store',
+                          dest      = 'xunit_file2',
+                          metavar   = "FILE",
+                          default   = env.get('NOSE_XUNIT_FILE', 'nosetests.xml'),
+                          help      = ("Path to xml file to store the xunit report in. "
+                                       "Default is nosetests.xml in the working directory "
+                                       "[NOSE_XUNIT_FILE]"))
 
         parser.add_option('--testrail-ip',
-                          action='store',
-                          dest='testrailIp',
-                          metavar="FILE",
-                          default="testrail.cloudfounders.com",
-                          help=("Url of testrail server"))
+                          action    = "store",
+                          dest      = "testrailIp",
+                          metavar   = "FILE",
+                          default   = "testrail.cloudfounders.com",
+                          help      = "Url of testrail server")
 
         parser.add_option('--project-name',
-                          action='store',
-                          dest='projectName',
-                          metavar="FILE",
-                          default="OVS",
-                          help=("Testrail project name"))
+                          action    = "store",
+                          dest      = "projectName",
+                          metavar   = "FILE",
+                          default   = "OVS",
+                          help      = "Testrail project name")
 
         parser.add_option('--push-name',
-                          action='store',
-                          dest='pushName',
-                          metavar="FILE",
-                          default="AT push results",
-                          help=("Testrail push name"))
+                          action    = "store",
+                          dest      = "pushName",
+                          metavar   = "FILE",
+                          default   = "AT push results",
+                          help      = "Testrail push name")
 
         parser.add_option('--description',
-                          action='store',
-                          dest='description',
-                          metavar="FILE",
-                          default="",
-                          help=("Testrail description"))
+                          action    = "store",
+                          dest      = "description",
+                          metavar   = "FILE",
+                          default   = "",
+                          help      = "Testrail description")
+
+        parser.add_option('--plan-id',
+                          action    = "store",
+                          dest      = "planId",
+                          metavar   = "FILE",
+                          default   = "",
+                          help      = "Existing plan id")
+
 
     def configure(self, options, config):
         """Configures the xunit plugin."""
@@ -223,15 +231,6 @@ class xunit_testrail(Plugin):
             if self.testrailIp:
                 self.testrailApi = testrailapi.TestrailApi(self.testrailIp, key="cWFAY2xvdWRmb3VuZGVycy5jb206UjAwdDNy")
 
-                allProjects = self.testrailApi.getProjects()
-
-                self.projectName = options.projectName
-                self.projectID = [p for p in allProjects if p['name'] == self.projectName]
-                if not self.projectID:
-                    raise Exception(
-                        message="No project found on %s with name '%s'" % (self.testrailIp, self.projectName))
-                self.projectID = self.projectID[0]['id']
-
                 allStatuses = self.testrailApi.getStatuses()
                 self.ongoingStatus = [s for s in allStatuses if s['name'].lower() == 'ongoing'][0]
                 self.passedStatus = [s for s in allStatuses if s['name'].lower() == 'passed'][0]
@@ -239,18 +238,36 @@ class xunit_testrail(Plugin):
                 self.skippedStatus = [s for s in allStatuses if s['name'].lower() == 'skipped'][0]
                 self.blockedStatus = [s for s in allStatuses if s['name'].lower() == 'blocked'][0]
 
-                milestoneID = None
-                description = options.description
                 nameSplits = options.pushName.split("__")
                 name = "_".join(nameSplits[:2])
                 today = datetime.datetime.today()
                 name += "__" + today.strftime('%a %b %d %H:%M:%S')
-                self.version = nameSplits[0]
-                self.hypervisor = nameSplits[2]
 
-                plan = self.testrailApi.addPlan(self.projectID, name, description, milestoneID or None)
-                os.write(1, "\nNew test plan: " + plan['url'] + "\n")
-                self.planID = plan['id']
+                self.version     = nameSplits[0]
+                self.hypervisor  = nameSplits[2]
+                self.projectName = options.projectName
+
+                allProjects = self.testrailApi.getProjects()
+
+                self.projectID = [p for p in allProjects if p['name'] == self.projectName]
+                if not self.projectID:
+                    raise Exception(
+                        message="No project found on %s with name '%s'" % (self.testrailIp, self.projectName))
+                self.projectID = self.projectID[0]['id']
+
+                self.existingPlan = bool(options.planId)
+                if options.planId:
+                    plan = self.testrailApi.getPlan(options.planId)
+                    os.write(1, "\nContinuing with plan {0}\n".format(plan['url']))
+                else:
+
+                    milestoneID = None
+                    description = options.description
+
+                    plan = self.testrailApi.addPlan(self.projectID, name, description, milestoneID or None)
+                    os.write(1, "\nNew test plan: " + plan['url'] + "\n")
+
+                self.plan = plan
                 self.suiteName = ""
 
                 self.testsCaseIdsToSelect = list()
@@ -286,7 +303,7 @@ class xunit_testrail(Plugin):
                 bCreateNewRun = False
                 if suiteName != self.suiteName:
                     bCreateNewRun = True
-                    allTests = list(TestLoader().loadTestsFromModule(test.context)._tests)
+                    allTests = [t for c in TestLoader().loadTestsFromDir(os.path.dirname(test.context.__file__)) for t in c._tests]
                     allTestNames = [caseNameTestrailFormat(t.id().split('.')[-1]) for t in allTests]
                     os.write(1, str(allTestNames) + "\n")
 
@@ -331,12 +348,22 @@ class xunit_testrail(Plugin):
                 self.caseItem = caseItem[0]
 
                 if bCreateNewRun:
-                    self.testsCaseIdsToSelect = [c['id'] for c in allCases if c['title'] in allTestNames]
-                    entry = self.testrailApi.addPlanEntry(self.planID, suiteID['id'], suiteNameTestrail,
-                                                          includeAll=False, caseIds=self.testsCaseIdsToSelect)
-                    self.runID = entry['runs'][0]['id']
+                    runID = None
+                    if self.existingPlan:
+                        run = [r for e in self.plan['entries'] for r in e['runs'] if r['suite_id'] == suiteID['id']]
+                        if run:
+                            runID = run[0]['id']
+                    if runID is None:
+                        self.testsCaseIdsToSelect = [c['id'] for c in allCases if c['title'] in allTestNames]
+                        entry = self.testrailApi.addPlanEntry(self.plan['id'],
+                                                              suiteID['id'],
+                                                              suiteNameTestrail,
+                                                              includeAll        = False,
+                                                              caseIds           = self.testsCaseIdsToSelect)
+                        runID = entry['runs'][0]['id']
+                    self.runID = runID
 
-                allTestsForRun = self.testrailApi.getTests(runId=self.runID)
+                allTestsForRun = self.testrailApi.getTests(runId = self.runID)
 
                 test = [t for t in allTestsForRun if t['case_id'] == self.caseItem['id']][0]
                 self.testId = test['id']
@@ -344,12 +371,11 @@ class xunit_testrail(Plugin):
                 self.durations = self.caseItem.get("custom_at_avg_duration", "")
 
                 testStatus = self.ongoingStatus['id']
-                self.testrailApi.addResult(testId=self.testId,
-                                           statusId=testStatus,
-                                           comment='',
-                                           version=self.version,
-                                           customFields={'custom_hypervisor': self.hypervisor}
-                )
+                self.testrailApi.addResult(testId       = self.testId,
+                                           statusId     = testStatus,
+                                           comment      = '',
+                                           version      = self.version,
+                                           customFields = {'custom_hypervisor': self.hypervisor})
 
                 now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 os.write(1, now + "|" + formatDurations(self.durations) + "-->")
@@ -358,7 +384,7 @@ class xunit_testrail(Plugin):
                 etype, value, tb = sys.exc_info()
                 excStr = str(traceback.format_exception(etype, value, tb))
                 with open(CRASH_FILE_LOG, "a") as f:
-                    f.write(excStr)
+                    f.write(excStr + "\n\n")
 
         self._timer = time()
 
@@ -411,7 +437,7 @@ class xunit_testrail(Plugin):
                 etype, value, tb = sys.exc_info()
                 excStr = str(traceback.format_exception(etype, value, tb))
                 with open(CRASH_FILE_LOG, "a") as f:
-                    f.write(excStr + "\n")
+                    f.write(excStr + "\n\n")
 
     def addFailure(self, test, err, capt=None, tb_info=None):
         """Add failure output to Xunit report.
@@ -451,7 +477,7 @@ class xunit_testrail(Plugin):
                 etype, value, tb = sys.exc_info()
                 excStr = str(traceback.format_exception(etype, value, tb))
                 with open(CRASH_FILE_LOG, "a") as f:
-                    f.write(excStr + "\n")
+                    f.write(excStr + "\n\n")
 
     def addSuccess(self, test, capt=None):
         """Add success output to Xunit report.
@@ -471,6 +497,10 @@ class xunit_testrail(Plugin):
             elapsed = (int(taken) or 1)
 
             try:
+                results = self.testrailApi.getResults(self.testId)
+                if any([r['status_id'] == self.failedStatus['id'] for r in results]):
+                    return
+
                 self.testrailApi.addResult(testId=self.testId,
                                            statusId=self.passedStatus['id'],
                                            comment="",
@@ -495,7 +525,7 @@ class xunit_testrail(Plugin):
                 etype, value, tb = sys.exc_info()
                 excStr = str(traceback.format_exception(etype, value, tb))
                 with open(CRASH_FILE_LOG, "a") as f:
-                    f.write(excStr + "\n")
+                    f.write(excStr + "\n\n")
 
                     # def testName(self, test):
                     # return test.id() + self.durations

@@ -134,9 +134,9 @@ class BrowserOvs():
             items = starting_point.find_by_id(identifier)
             total = len(items)
             if total > 1:
-               for item in items:
-                   self.log('Item: >{0}< - >{1}<'.format(item.text, item.value))
-               raise Exception("Found more than one {0}".format(identifier))
+                for item in items:
+                    self.log('Item: >{0}< - >{1}<'.format(item.text, item.value))
+                raise Exception("Found more than one {0}".format(identifier))
             if items[0].visible:
                 return items[0]
             retries -= 1
