@@ -1,5 +1,6 @@
 
 import os
+import time
 
 from nose.plugins.skip          import SkipTest
 
@@ -42,5 +43,6 @@ def post_reboot_checks_test():
             break
 
         wait_time -= sleep_time
+        time.sleep(sleep_time)
 
     assert len(not_running_services) == 0, "Found not running services after reboot on node {0}\n{1}".format(rebooted_host, not_running_services)
