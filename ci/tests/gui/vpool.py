@@ -232,7 +232,7 @@ class Vpool(BrowserOvs):
 
     def add_vpool(self):
         self.browse_to(self.get_url() + '#full/vpools', 'vpools')
-        assert self.wait_for_visible_element_by_id('buttonAddVpool', 5), 'Button Add vPool not present (yet)'
+        assert self.wait_for_visible_element_by_id('buttonAddVpool', 15), 'Button Add vPool not present (yet)'
         self.click_on('AddVpool', retries = 20)
         assert self.wait_for_visible_element_by_id('form.gather.vpool', 5), 'Add vPool wizard not present (yet)'
         self.choose('Local FS', self.vpool_type_name)
