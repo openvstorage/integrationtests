@@ -53,7 +53,7 @@ class Vpool(BrowserOvs):
                  vpool_bfs_mp        = '',
                  vpool_vrouter_port  = '',
                  vpool_storage_ip    = '',
-                 browser_choice      = 'chrome' ):
+                 browser_choice      = 'chrome'):
 
         if not getattr(self, "scr_name", ""):
             self.scr_name = general.getFunctionName(1)
@@ -180,7 +180,6 @@ class Vpool(BrowserOvs):
 
     vpool_readcache1_mp = property(get_vpool_readcache1_mp, set_vpool_readcache1_mp)
 
-
     def get_vpool_readcache2_mp(self):
         return self.vpool_readcache2_mp
 
@@ -189,7 +188,6 @@ class Vpool(BrowserOvs):
         self.vpool_readcache2_mp = vpool_readcache2_mp
 
     vpool_readcache2_mp = property(get_vpool_readcache2_mp, set_vpool_readcache2_mp)
-
 
     def get_vpool_writecache_mp(self):
         return self.vpool_writecache_mp
@@ -233,24 +231,28 @@ class Vpool(BrowserOvs):
     def add_vpool(self):
         self.browse_to(self.get_url() + '#full/vpools', 'vpools')
         assert self.wait_for_visible_element_by_id('buttonAddVpool', 15), 'Button Add vPool not present (yet)'
-        self.click_on('AddVpool', retries = 20)
+        self.click_on('AddVpool', retries=20)
         assert self.wait_for_visible_element_by_id('form.gather.vpool', 5), 'Add vPool wizard not present (yet)'
         self.choose('Local FS', self.vpool_type_name)
         self.fill_out('inputVpoolName', self.vpool_name)
 
+        # necessary to load local alba backend list
+        if self.vpool_type_name == 'Alternate Backend':
+            self.click_on('Next', retries=100)
+
         if self.vpool_type_name in REMOTE_VPOOL_TYPES:
             self.fill_out('inputVpoolHost', self.vpool_host)
-            self.fill_out('inputVpoolPort', self.vpool_port, clear_first = True)
+            self.fill_out('inputVpoolPort', self.vpool_port, clear_first=True)
             self.fill_out('inputVpoolAccessKey', self.vpool_access_key)
             self.fill_out('inputVpoolSecretKey', self.vpool_secret_key)
 
-        #for grid select current node as initial storage router
+        # for grid select current node as initial storage router
         current_node_hostname = general.get_this_hostname()
         current_node_selection = sorted([sr.name for sr in StorageRouterList.get_storagerouters()])
         if current_node_selection[0] != current_node_hostname:
             self.choose(current_node_selection[0], current_node_hostname)
 
-        self.click_on('Next', retries = 100)
+        self.click_on('Next', retries=100)
 
         # wait for page to load
         assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 40), 'vPool wizard with mountpoint details not present (yet)'
@@ -261,26 +263,24 @@ class Vpool(BrowserOvs):
         self.fill_out_custom_field('dropdown-button-mtpt-writecache', self.vpool_writecache_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
 
-        if self.vpool_type_name not in REMOTE_VPOOL_TYPES:
+        if self.vpool_type_name not in REMOTE_VPOOL_TYPES and 'Alternate' not in self.vpool_type_name:
             self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
 
-       # self.fill_out('gmtptp-vrouterport', self.vpool_vrouter_port, clear_first = True)
         if general_hypervisor.get_hypervisor_type().lower() != "kvm":
             self.choose('dropdown-button-storageip', self.vpool_storage_ip)
 
-        self.click_on('Next', retries = 100)
+        self.click_on('Next', retries=100)
 
         if self.wait_for_visible_element_by_id('configCinder', 15):
             self.fill_out('inputcinderPassword', "rooter")
             self.fill_out('inputcinderCtrlIP', general.get_local_vsa().ip)
-            #self.uncheck_checkboxes()
-        self.click_on('Next', retries = 100)
+        self.click_on('Next', retries=100)
 
-        self.click_on('Finish', retries = 100)
+        self.click_on('Finish', retries=100)
 
         self.wait_for_wait_notification('Creation of vPool {} finished.'.format(self.vpool_name))
 
-        #check vpool is present after adding it
+        # check vpool is present after adding it
         retries = 100
         while retries:
             print "Waiting for vpool"
@@ -294,8 +294,8 @@ class Vpool(BrowserOvs):
             retries -= 1
 
         assert retries, "Could not find vpool {} after adding it.".format(self.vpool_name)
-
-        link.click()
+        if link:
+            link.click()
 
     def add_gsrs_to_vpool(self, vpool_name):
         self.browse_to(self.get_vpool_url())
@@ -305,7 +305,7 @@ class Vpool(BrowserOvs):
         self.click_on_tbl_item(vpool_name)
         self.browser.is_element_present_by_id('management', 15)
 
-        self.click_on_tbl_header('management', retries = 30)
+        self.click_on_tbl_header('management', retries=30)
         self.wait_for_visible_element_by_id('btn.vpool.management', 15)
 
         # only deselect = i.e. click when checkbox = selected
@@ -319,16 +319,16 @@ class Vpool(BrowserOvs):
 
         self.wait_for_visible_element_by_id('buttonVpoolSaveChanges', 15)
 
-        self.click_on('VpoolSaveChanges', retries = 300)
+        self.click_on('VpoolSaveChanges', retries=300)
 
-        self.wait_for_text('Finish', timeout = 40)
+        self.wait_for_text('Finish', timeout=40)
         self.click_on('Finish')
 
         self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')
 
     def remove_vpool(self, vpool_name):
         self.browse_to(self.get_vpool_url())
-        self.wait_for_text(vpool_name, timeout = 30)
+        self.wait_for_text(vpool_name, timeout=30)
 
         self.click_on_tbl_item(vpool_name)
         self.browser.is_element_present_by_id('management', 5)
@@ -342,14 +342,11 @@ class Vpool(BrowserOvs):
         management = management[0]
 
         save_changes_id = "VpoolSaveChanges"
-        self.browser.is_element_present_by_id(save_changes_id, wait_time = 10)
+        self.browser.is_element_present_by_id(save_changes_id, wait_time=10)
         self.uncheck_checkboxes(management)
         self.click_on(save_changes_id)
 
-        self.wait_for_text('Finish', timeout = 30)
+        self.wait_for_text('Finish', timeout=30)
         self.click_on('Finish')
 
         self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')
-
-        #@todo: wait for task to complete
-        #self.get_task_response('https://10.100.131.71')
