@@ -181,6 +181,8 @@ def vpool_remove_test():
     if not vpool:
         general.add_vpool(vpt)
 
+    time.sleep(60)
+
     general.remove_vpool(vpt)
 
     vpt.browse_to(vpt.get_url() + '#full/vpools', '')

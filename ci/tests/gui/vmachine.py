@@ -70,13 +70,12 @@ class Vmachine(BrowserOvs):
             while retries:
                 try:
                     setastemplate_button.click()
+                    self.wait_for_modal()
                 except Exception as ex:
-                    if "Element is not clickable" not in str(ex):
-                        raise
+                    print str(ex)
                 retries -= 1
                 time.sleep(0.5)
 
-            self.wait_for_modal()
             self.click_modal_button('Set as Template')
 
             self.wait_for_wait_notification('Machine {} set as template'.format(name), retries = 150)

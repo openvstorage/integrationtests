@@ -228,13 +228,57 @@ class Vpool(BrowserOvs):
     def get_vpool_url(self):
         return urlparse.urljoin(self.get_url(), '/#full/vpools')
 
+    def wait_for_backend(self, retries = 40):
+        retries = 40
+        while retries:
+            backends = self.browser.find_link_by_partial_href("#full/backend-alba/")
+            if backends:
+                return backends
+            retries -= 1
+
+    def wait_for_tbl_row_with_button(self, retries = 30):
+        while retries:
+            b = [e for e in self.browser.find_by_xpath("//tr/td/i") if e.visible and len(e.text) < 2]
+            if b:
+                return b[0]
+            retries -= 1
+            time.sleep(1)
+
     def add_vpool(self):
+        if self.vpool_type_name == "Alternate Backend":
+            self.browse_to(self.get_url() + '#full/backends', 'backends')
+            backends = self.wait_for_backend(15)
+            if not backends:
+                input = self.browser.find_by_xpath("//tr/td/input")[0]
+                input.fill("alba")
+                ok = self.wait_for_tbl_row_with_button()
+                ok.click()
+
+                backends = self.wait_for_backend()
+                assert backends
+                backends[0].click()
+
+                self.click_on_tbl_header('management', retries = 30)
+                add = self.wait_for_tbl_row_with_button(120)
+                add.click()
+                self.wait_for_modal()
+                self.click_on("Yes")
+                self.wait_for_wait_notification("was added to backend.")
+
         self.browse_to(self.get_url() + '#full/vpools', 'vpools')
         assert self.wait_for_visible_element_by_id('buttonAddVpool', 15), 'Button Add vPool not present (yet)'
         self.click_on('AddVpool', retries=20)
         assert self.wait_for_visible_element_by_id('form.gather.vpool', 5), 'Add vPool wizard not present (yet)'
         self.choose('Local FS', self.vpool_type_name)
         self.fill_out('inputVpoolName', self.vpool_name)
+        time.sleep(3)
+
+        # for grid select current node as initial storage router
+        current_node_hostname = general.get_this_hostname()
+        current_node_selection = sorted([sr.name for sr in StorageRouterList.get_storagerouters()])
+        if current_node_selection[0] != current_node_hostname:
+            self.choose(current_node_selection[0], current_node_hostname)
+        time.sleep(3)
 
         # necessary to load local alba backend list
         if self.vpool_type_name == 'Alternate Backend':
@@ -245,14 +289,10 @@ class Vpool(BrowserOvs):
             self.fill_out('inputVpoolPort', self.vpool_port, clear_first=True)
             self.fill_out('inputVpoolAccessKey', self.vpool_access_key)
             self.fill_out('inputVpoolSecretKey', self.vpool_secret_key)
+        time.sleep(3)
 
-        # for grid select current node as initial storage router
-        current_node_hostname = general.get_this_hostname()
-        current_node_selection = sorted([sr.name for sr in StorageRouterList.get_storagerouters()])
-        if current_node_selection[0] != current_node_hostname:
-            self.choose(current_node_selection[0], current_node_hostname)
-
-        self.click_on('Next', retries=100)
+        self.click_on('Next', retries = 150)
+        time.sleep(3)
 
         # wait for page to load
         assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 40), 'vPool wizard with mountpoint details not present (yet)'
@@ -314,14 +354,17 @@ class Vpool(BrowserOvs):
             count = self.check_checkboxes('management')
             if count:
                 break
-            time.sleep(1)
+            time.sleep(2)
             count -= 1
 
+        time.sleep(3)
         self.wait_for_visible_element_by_id('buttonVpoolSaveChanges', 15)
 
+        time.sleep(3)
         self.click_on('VpoolSaveChanges', retries=300)
 
-        self.wait_for_text('Finish', timeout=40)
+        time.sleep(3)
+        self.wait_for_text('Finish', timeout = 300)
         self.click_on('Finish')
 
         self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')
@@ -349,4 +392,4 @@ class Vpool(BrowserOvs):
         self.wait_for_text('Finish', timeout=30)
         self.click_on('Finish')
 
-        self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')
+        self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success', retries = 300)
