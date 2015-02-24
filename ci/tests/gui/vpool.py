@@ -244,7 +244,7 @@ class Vpool(BrowserOvs):
             retries -= 1
             time.sleep(1)
 
-    def add_vpool(self):
+    def add_backend(self):
         if self.vpool_type_name == "Alternate Backend":
             self.browse_to(self.get_url() + '#full/backends', 'backends')
             backends = self.wait_for_backend(15)
@@ -263,7 +263,10 @@ class Vpool(BrowserOvs):
                 add.click()
                 self.wait_for_modal()
                 self.click_on("Yes")
-                self.wait_for_wait_notification("was added to backend.")
+                self.wait_for_wait_notification("was added to the backend.")
+
+    def add_vpool(self):
+        self.add_backend()
 
         self.browse_to(self.get_url() + '#full/vpools', 'vpools')
         assert self.wait_for_visible_element_by_id('buttonAddVpool', 15), 'Button Add vPool not present (yet)'
