@@ -21,6 +21,7 @@ from ovs.dal.lists.storagerouterlist    import StorageRouterList
 from ovs.lib.storagerouter              import StorageRouterController
 from ovs.lib.setup                      import SetupController
 from ovs.extensions.generic.sshclient   import SSHClient
+from ovs.dal.lists.backendlist          import BackendList
 
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
@@ -420,7 +421,8 @@ def api_add_vpool(vpool_name          = None,
     parameters['cinder_tenant']         = "admin"
     parameters['cinder_controller']     = local_vsa_ip
 
-
+    if parameters['type'] == 'alba':
+        parameters['connection_backend'] = [b for b in BackendList.get_backends() if b.name == 'alba'][0].alba_backend_guid
 
     print "Adding Vpool: "
     print parameters

@@ -113,7 +113,7 @@ def boot_nova_instance_from_volume_test():
     vm_ip   = general_openstack.get_instance_ip(instance_id)
 
     hpv = general_hypervisor.Hypervisor.get(vpool_name)
-    hpv.wait_for_vm_pingable(vm_name, vm_ip = vm_ip)
+    hpv.wait_for_vm_pingable(vm_name, vm_ip = vm_ip, retries = 150)
 
     general_openstack.delete_instance(instance_id)
     general_openstack.delete_volume(volume_id)
@@ -166,7 +166,7 @@ def permissions_check_test():
         raise SkipTest()
 
     expected_owner      = "stack"
-    expected_group      = "root"
+    expected_group      = "stack"
     expected_dir_perms  = "755"
     expected_file_perms = "664"
 
@@ -192,7 +192,7 @@ def permissions_check_test():
     file_perms = general.get_file_perms(raw_file_name)
     assert file_perms[-3:] == expected_file_perms, "File permissions wrong, expected {0} got {1}".format(expected_file_perms, file_perms)
 
-    dir_perms = general.get_file_perms("/mnt/saio/instances")
+    dir_perms = general.get_file_perms("/mnt/{0}/instances".format(vpool_name))
     assert dir_perms[-3:] == expected_dir_perms, "Dir permissions wrong, expected {0} got {1}".format(expected_dir_perms, dir_perms)
 
 
