@@ -47,14 +47,15 @@ Q_AUTOMATED = "qAutomated"
 sys.path.append(SCRIPTS_DIR)
 
 
-def run(test_spec=None,
-        output_format=TestRunnerOutputFormat.CONSOLE,
-        output_folder=None,
-        always_die=False,
-        testrail_url="testrail.cloudfounders.com",
-        project_name=None,
-        quality_level=None,
-        version=None):
+def run(test_spec        = None,
+        output_format    = TestRunnerOutputFormat.CONSOLE,
+        output_folder    = None,
+        always_die       = False,
+        testrail_url     = "testrail.cloudfounders.com",
+        project_name     = None,
+        quality_level    = None,
+        version          = None,
+        existing_plan_id = ""):
     """
     Run only one test suite
     """
@@ -86,14 +87,15 @@ def run(test_spec=None,
         test_spec = check_input(predicate=lambda x: x,
                                 msg='Enter test suite: ')
 
-    arguments = _parseArgs(suite_name='test_results',
-                           output_format=output_format,
-                           output_folder=output_folder,
-                           always_die=always_die,
-                           testrail_url=testrail_url,
-                           project_name=project_name,
-                           quality_level=quality_level,
-                           version=version)
+    arguments = _parseArgs(suite_name       = 'test_results',
+                           output_format    = output_format,
+                           output_folder    = output_folder,
+                           always_die       = always_die,
+                           testrail_url     = testrail_url,
+                           project_name     = project_name,
+                           quality_level    = quality_level,
+                           version          = version,
+                           existing_plan_id = existing_plan_id)
 
     tests = _convertTestSpec(test_spec)
     arguments.append(tests)
@@ -102,13 +104,13 @@ def run(test_spec=None,
 
 
 def runMultiple(list_of_tests,
-                output_format=TestRunnerOutputFormat.CONSOLE,
-                output_folder=None,
-                always_die=False,
-                testrail_url="testrail.cloudfounders.com",
-                project_name="IAAS3x ENG",
-                quality_level=None,
-                version=None):
+                output_format   = TestRunnerOutputFormat.CONSOLE,
+                output_folder   = None,
+                always_die      = False,
+                testrail_url    = "testrail.cloudfounders.com",
+                project_name    = "IAAS3x ENG",
+                quality_level   = None,
+                version         = None):
     """
     Run a selection of multiple test suites
     """
@@ -137,28 +139,29 @@ def runMultiple(list_of_tests,
         if not version:
             version = _getOvsVersion()
 
-    arguments = _parseArgs(suite_name='test_results',
-                           output_format=output_format,
-                           output_folder=output_folder,
-                           always_die=always_die,
-                           testrail_url=testrail_url,
-                           project_name=project_name,
-                           quality_level=quality_level,
-                           version=version,
-                           list_of_tests=list_of_tests)
+    arguments = _parseArgs(suite_name       = 'test_results',
+                           output_format    = output_format,
+                           output_folder    = output_folder,
+                           always_die       = always_die,
+                           testrail_url     = testrail_url,
+                           project_name     = project_name,
+                           quality_level    = quality_level,
+                           version          = version,
+                           list_of_tests    = list_of_tests)
 
     _runTests(arguments)
 
 
-def runAll(output_format=TestRunnerOutputFormat.CONSOLE,
-           output_folder=None,
-           always_die=False,
-           specialSuitesToRun=None,
-           randomize=False,
-           testrail_url="testrail.cloudfounders.com",
-           project_name="OVS",
-           quality_level=None,
-           version=None):
+def runAll(output_format      = TestRunnerOutputFormat.CONSOLE,
+           output_folder      = None,
+           always_die         = False,
+           specialSuitesToRun =None,
+           randomize          = False,
+           testrail_url       = "testrail.cloudfounders.com",
+           project_name       = "OVS",
+           quality_level      = None,
+           version            = None,
+           existing_plan_id   = ""):
     """
     Run all test suites
     """
@@ -191,30 +194,31 @@ def runAll(output_format=TestRunnerOutputFormat.CONSOLE,
             version = _getOvsVersion()
 
     toRun = None
-    arguments = _parseArgs(suite_name='test_results',
-                           output_format=output_format,
-                           output_folder=output_folder,
-                           always_die=always_die,
-                           testrail_url=testrail_url,
-                           project_name=project_name,
-                           quality_level=quality_level,
-                           version=version,
-                           list_of_tests=toRun)
+    arguments = _parseArgs(suite_name           = 'test_results',
+                           output_format        = output_format,
+                           output_folder        = output_folder,
+                           always_die           = always_die,
+                           testrail_url         = testrail_url,
+                           project_name         = project_name,
+                           quality_level        = quality_level,
+                           version              = version,
+                           list_of_tests        = toRun,
+                           existing_plan_id     = existing_plan_id)
 
     _runTests(arguments)
 
 
-def pushToTestrail(project=None,
-                   qualityLevel=None,
-                   version=None,
-                   testrailIP="testrail.cloudfounders.com",
-                   folder="/var/tmp",
-                   fileName="",
-                   milestone="",
-                   comment="",
-                   quality_level=None,
-                   createInexistentSuites=None,
-                   createInexistentCases=None):
+def pushToTestrail(project                = None,
+                   qualityLevel           = None,
+                   version                = None,
+                   testrailIP             = "testrail.cloudfounders.com",
+                   folder                 = "/var/tmp",
+                   fileName               = "",
+                   milestone              = "",
+                   comment                = "",
+                   quality_level          = None,
+                   createInexistentSuites = None,
+                   createInexistentCases  = None):
     """
     Push xml file with test results to Testrail
     """
@@ -251,15 +255,15 @@ def pushToTestrail(project=None,
     if not version:
         version = _getOvsVersion()
 
-    url = _pushToTestrail(IP=testrailIP,
-                          fileName=fileName,
-                          milestone=milestone,
-                          project=project,
-                          version=version,
-                          qlevel=quality_level,
-                          planComment=comment,
-                          createInexistentSuites=createInexistentSuites,
-                          createInexistentCases=createInexistentCases)
+    url = _pushToTestrail(IP                     = testrailIP,
+                          fileName               = fileName,
+                          milestone              = milestone,
+                          project                = project,
+                          version                = version,
+                          qlevel                 = quality_level,
+                          planComment            = comment,
+                          createInexistentSuites = createInexistentSuites,
+                          createInexistentCases  = createInexistentCases)
 
     if url:
         print "\n" + url
@@ -270,11 +274,12 @@ def _parseArgs(suite_name,
                output_format,
                output_folder,
                always_die,
-               list_of_tests=None,
-               testrail_url=None,
-               project_name=None,
-               quality_level=None,
-               version=None):
+               list_of_tests    = None,
+               testrail_url     = None,
+               project_name     = None,
+               quality_level    = None,
+               version          = None,
+               existing_plan_id = ""):
     """
     Parse arguments in the format expected by nose
     """
@@ -330,6 +335,8 @@ def _parseArgs(suite_name,
         arguments.append(version + "__" + quality_level + "__" + _getHypervisor())
         arguments.append('--description')
         arguments.append(_getDescription())
+        arguments.append('--plan-id')
+        arguments.append(existing_plan_id)
     else:
         raise AttributeError("Invalid output format! Specify one of ")
 
@@ -586,10 +593,12 @@ def _getCases(xmlfile, testrailApi, projectIni, projectName, projectID, createIn
     allSuites = testrailApi.getSuites(projectID)
 
     for child in xmlfile.childNodes:
-        suite = child.getAttribute('classname').split('.')[-2]
-
-        if suite in ('<nose', 'nose'):
+        classname = child.getAttribute('classname')
+        if classname.startswith(('<nose', 'nose', '&lt;nose')):
             continue
+
+        suite = classname.split('.')[-2]
+
         if child.childNodes and \
                         child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest' and \
                         child.childNodes[0].getAttribute('message') != BLOCKED_MESSAGE:
@@ -725,13 +734,13 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
 
     # additionalResultsFile = getAdditionalResultsFile(testResultFile)
 
-    allCases, ranCases, suiteNameToId, sectionNameToId = _getCases(xmlfile=xmlfile,
-                                                                   testrailApi=testrailApi,
-                                                                   projectIni=projectIni,
-                                                                   projectName=project,
-                                                                   projectID=projectID,
-                                                                   createInexistentSuites=createInexistentSuites,
-                                                                   createInexistentCases=createInexistentCases)
+    allCases, ranCases, suiteNameToId, sectionNameToId = _getCases(xmlfile                  = xmlfile,
+                                                                   testrailApi              = testrailApi,
+                                                                   projectIni               = projectIni,
+                                                                   projectName              = project,
+                                                                   projectID                = projectID,
+                                                                   createInexistentSuites   = createInexistentSuites,
+                                                                   createInexistentCases    = createInexistentCases)
     testsCaseIdsToSelect = []
 
     def addPlan():
@@ -741,15 +750,17 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         return planID
 
     for child in xmlfile.childNodes:
-        suite = child.getAttribute('classname').split('.')[-2]
+        classname = child.getAttribute('classname')
 
-        if suite in ('<nose', 'nose'):
+        if classname.startswith(('<nose', 'nose')):
             if child.childNodes[0].childNodes and child.childNodes[0].childNodes[
                 0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
                 errorMessages.append(child.childNodes[0].childNodes[0].data)
             else:
                 errorMessages.append(child.childNodes[0].getAttribute('message'))
             continue
+
+        suite = classname.split('.')[-2]
 
         isBlocked = False
 
@@ -834,12 +845,12 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         elapsed = int(child.getAttribute('time'))
         if elapsed == 0:
             elapsed = 1
-        testrailApi.addResult(testId=testID,
-                              statusId=status_id,
-                              comment=comment,
-                              version=version,
-                              elapsed='%ss' % elapsed,
-                              customFields={'custom_hypervisor': _getHypervisor()})
+        testrailApi.addResult(testId        = testID,
+                              statusId      = status_id,
+                              comment       = comment,
+                              version       = version,
+                              elapsed       = '%ss' % elapsed,
+                              customFields  = {'custom_hypervisor': _getHypervisor()})
 
     xmlfile.unlink()
     del xmlfile
@@ -867,10 +878,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
             caseID = caseID[0]['id']
         if not planID:
             planID = addPlan()
-        runID = \
-            testrailApi.addPlanEntry(planID, suiteID, failedSetupSuiteName, includeAll=False, caseIds=[caseID])['runs'][
-                0][
-                'id']
+        runID = testrailApi.addPlanEntry(planID, suiteID, failedSetupSuiteName, includeAll=False, caseIds=[caseID])['runs'][0]['id']
         testrailApi.addResultForCase(runID, caseID, '5', ("\n" + "=" * 70 + "\n").join(errorMessages))
 
     if not planID:

@@ -62,7 +62,7 @@ class Vmachine(BrowserOvs):
 
     def set_as_template(self, name, should_not_allow = False):
         self.check_machine_is_present(name)
-        
+
         setastemplate_button = self.get_single_item_by_id("buttonVmachineSetAsTemplate")
 
         if not should_not_allow:
@@ -70,16 +70,15 @@ class Vmachine(BrowserOvs):
             while retries:
                 try:
                     setastemplate_button.click()
+                    self.wait_for_modal()
                 except Exception as ex:
-                    if "Element is not clickable" not in str(ex):
-                        raise
+                    print str(ex)
                 retries -= 1
                 time.sleep(0.5)
 
-            self.wait_for_modal()
             self.click_modal_button('Set as Template')
 
-            self.wait_for_wait_notification('Machine {} set as template'.format(name))
+            self.wait_for_wait_notification('Machine {} set as template'.format(name), retries = 150)
         else:
             try:
                 setastemplate_button.click()
@@ -163,14 +162,23 @@ class Vmachine(BrowserOvs):
         self.fill_out('name', vm_name)
         self.click_on('Nothing selected')
         time.sleep(2)
+
+        #Choose hypervisor node
         menu = [m for m in self.browser.find_by_css("ul.dropdown-menu") if m.visible]
         assert menu
-        #@todo: maybe define which host to select instead of the first one
-        menu[0].click()
+        menu = menu[0]
+        items = menu.find_by_tag("li")
+        local_vsa = general.get_local_vsa()
+        pmachine_name = local_vsa.pmachine.name
+
+        item = [item for item in items if pmachine_name in item.text]
+        assert item, "Pmachine {0} not found in list of pmachines {1}".format(pmachine_name, [item.text for item in items])
+        item[0].click()
 
         self.click_on('Finish', retries = 100)
 
         self.wait_for_wait_notification('Creating from {} successfully'.format(template_name), retries = 500)
+
 
     def delete_template(self, template_name, should_fail = False):
 
@@ -279,7 +287,7 @@ class Vmachine(BrowserOvs):
 
             assert vpool, "Count not find usable vpool"
 
-            templates = VMachineList.get_vtemplates()
+            templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid]
 
             if not templates:
                 tmpl_name = machinename + "tmpl"
@@ -291,7 +299,7 @@ class Vmachine(BrowserOvs):
                 browser_object = bt = Vmachine()
                 bt.login()
                 bt.set_as_template(tmpl_name)
-                templates = VMachineList.get_vtemplates()
+                templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid]
                 bt.teardown()
 
             assert templates, "Failed to get template"

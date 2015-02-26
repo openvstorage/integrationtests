@@ -1,10 +1,13 @@
 import os
+import pwd
 import sys
 import json
+import stat
 import time
 import random
 import urllib
 import shutil
+import logging
 import inspect
 import pexpect
 import paramiko
@@ -14,9 +17,11 @@ from nose.plugins.skip import SkipTest
 from ovs.dal.lists                      import vmachinelist, storagerouterlist, vpoollist
 import general_hypervisor
 from ci                                 import autotests
+from ovs.dal.lists.storagerouterlist    import StorageRouterList
 from ovs.lib.storagerouter              import StorageRouterController
 from ovs.lib.setup                      import SetupController
 from ovs.extensions.generic.sshclient   import SSHClient
+from ovs.dal.lists.backendlist          import BackendList
 
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
@@ -25,6 +30,8 @@ import debug
 if not hasattr(sys, "debugEnabled"):
     sys.debugEnabled = True
     debug.listen()
+
+logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 
 def execute_command(command, wait = True, shell = True):
@@ -183,7 +190,11 @@ def cleanup():
             if os.path.exists(mountpoint):
                 for d in os.listdir(mountpoint):
                     if d.startswith(machinename):
-                        shutil.rmtree(os.path.join(mountpoint, d))
+                        p = os.path.join(mountpoint, d)
+                        if os.path.isdir(p):
+                            shutil.rmtree(p)
+                        else:
+                            os.remove(p)
                 for mac in env_macs:
                     mac_path = os.path.join(mountpoint, mac)
                     if os.path.exists(mac_path):
@@ -203,19 +214,27 @@ def cleanup():
 def add_vpool(browser):
     browser.add_vpool()
 
+    if len(StorageRouterList.get_storagerouters()) > 1 and browser.vpool_type_name != 'Local FS':
+        browser.add_gsrs_to_vpool(browser.vpool_name)
+
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
         hypervisorInfo = autotests.getHypervisorInfo()
-        ssh_con = getRemoteSshCon(*hypervisorInfo)[0]
 
         vpool_name  = browser.vpool_name
         vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
-        storage_ip = vpool.storagedrivers[0].storage_ip
 
-        cmd = "esxcli storage nfs add -H {0} -s /mnt/{1} -v {1}".format(storage_ip, vpool_name)
-        os.write(1, cmd + "\n")
-        _stdin, stdout, stderr = ssh_con.exec_command(cmd)
-        os.write(1, str(stdout.readlines()))
-        os.write(1, str(stderr.readlines()))
+        for sd in vpool.storagedrivers:
+            hypervisorInfo[0] = sd.storagerouter.pmachine.ip
+            ssh_con = getRemoteSshCon(*hypervisorInfo)[0]
+
+            storage_ip = sd.storage_ip
+
+            cmd = "esxcli storage nfs add -H {0} -s /mnt/{1} -v {1}".format(storage_ip, vpool_name)
+            os.write(1, str(hypervisorInfo) + "\n")
+            os.write(1, cmd + "\n")
+            _stdin, stdout, stderr = ssh_con.exec_command(cmd)
+            os.write(1, str(stdout.readlines()))
+            os.write(1, str(stderr.readlines()))
 
 
 def remove_vpool(browser):
@@ -357,7 +376,21 @@ def api_add_vpool(vpool_name          = None,
                   vpool_bfs_mp        = None,
                   vpool_vrouter_port  = None,
                   vpool_storage_ip    = None,
-                  apply_to_all_nodes  = False):
+                  apply_to_all_nodes  = False,
+                  config_cinder       = False):
+
+    def kill_service_in_screen(node_ip, name):
+        #just send the ctrl+c key in window name of screen
+        print "killing ", name
+        execute_command_on_node(node_ip, r"""su -c 'screen -x stack -p {0} -X stuff "^C"' stack""".format(name))
+
+    def restart_service_in_screen(node_ip, name, process_name):
+        #just send the up key + enter in window name of screen
+        print "restarting ", name
+        execute_command_on_node(node_ip, r"""su -c 'screen -x stack -p {0} -X stuff "^[[A^[[A^[[A\n"' stack""".format(name))
+        out = execute_command_on_node(node_ip, "ps aux | awk '/{0}/ && !/awk/'".format(process_name))
+        if process_name not in out:
+            execute_command_on_node(node_ip, r"""su -c 'screen -x stack -p {0} -X stuff "^[[A^[[A\n"' stack""".format(name))
 
     cfg = autotests.getConfigIni()
 
@@ -381,6 +414,15 @@ def api_add_vpool(vpool_name          = None,
     parameters['mountpoint_bfs']        = vpool_bfs_mp        or cfg.get("vpool", "vpool_bfs_mp")
     parameters['vrouter_port']          = vpool_vrouter_port  or cfg.get("vpool", "vpool_vrouter_port")
     parameters['storage_ip']            = vpool_storage_ip    or cfg.get("vpool", "vpool_storage_ip")
+    parameters['config_cinder']         = config_cinder
+
+    parameters['cinder_pass']           = "rooter"
+    parameters['cinder_user']           = "admin"
+    parameters['cinder_tenant']         = "admin"
+    parameters['cinder_controller']     = local_vsa_ip
+
+    if parameters['type'] == 'alba':
+        parameters['connection_backend'] = [b for b in BackendList.get_backends() if b.name == 'alba'][0].alba_backend_guid
 
     print "Adding Vpool: "
     print parameters
@@ -390,6 +432,24 @@ def api_add_vpool(vpool_name          = None,
         StorageRouterController.update_storagedrivers([], storagerouters, parameters)
     else:
         StorageRouterController.add_vpool(parameters)
+
+    if config_cinder:
+        instances_dir = "/mnt/{0}/instances".format(parameters['vpool_name'])
+        stack_user = "stack"
+        print instances_dir
+        if not os.path.exists(instances_dir):
+            print "creating instances dir", instances_dir
+            os.makedirs(instances_dir)
+            passwd = pwd.getpwnam(stack_user)
+            os.chown(instances_dir, passwd.pw_uid, passwd.pw_gid)
+
+        vpool = vpoollist.VPoolList.get_vpool_by_name(parameters['vpool_name'])
+        for sd in vpool.storagedrivers:
+            for srv in [("c-api", "cinder-api"), ("c-sch", "cinder-scheduler"), ("c-vol", "cinder-volume"), ("n-cpu", "nova-compute")]:
+                kill_service_in_screen(sd.storagerouter.ip,srv[0])
+                time.sleep(2)
+                restart_service_in_screen(sd.storagerouter.ip, srv[0], srv[1])
+
 
     return parameters
 
@@ -406,8 +466,16 @@ def api_remove_vpool(vpool_name):
         if sd.cluster_ip == local_vsa.ip:
             mountpoint = sd.mountpoint
         StorageRouterController.remove_storagedriver(sd.guid)
-        if mountpoint:
-            assert not os.path.exists(mountpoint), "Mountpoint {0} of vpool still exists after removing storage driver".format(mountpoint)
+        time.sleep(3)
+
+    if mountpoint:
+        retries = 20
+        while retries:
+            if not os.path.exists(mountpoint):
+                break
+            time.sleep(1)
+            retries -= 1
+        assert retries, "Mountpoint {0} of vpool still exists after removing storage driver".format(mountpoint)
 
 
 def apply_disk_layout(disk_layout):
@@ -438,6 +506,8 @@ def apply_disk_layout(disk_layout):
 
 
 def clean_disk_layout(disk_layout):
+    if autotests.getConfigIni().get("main", "cleanup") != "True":
+        return
     print "df before clean\n", execute_command("df")[0]
     disks_to_clean = []
     for mp, device in disk_layout.iteritems():
@@ -547,4 +617,77 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
 
         expected_reserved_percent = int(mp['expected_reserved_percent'])
         assert reserved_percent == expected_reserved_percent, "Expected {0} reserved percent but got {1}\nfor {2}".format(expected_reserved_percent, reserved_percent, str(mp))
+
+
+def get_file_perms(file_path):
+    """
+    Get permissions for file
+
+    @param file_path:    File Path
+    @type file_path:     String
+
+    @return:             String of octal no. e.g.: '0644'
+    """
+
+    st = os.stat(file_path)
+    perms = oct(st.st_mode & (stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO))
+    return perms
+
+
+def is_service_running(service_name, host_name = None):
+    cmd = "initctl list | grep {0} && initctl status {0} || true".format(service_name)
+    if host_name is None:
+        out = execute_command(cmd)[0]
+    else:
+        out = execute_command_on_node(host_name, cmd)
+    return "start/running" in out
+
+
+def is_volume_present_in_model(volume_name):
+    """
+    Check if vdisk is present on all nodes
+    """
+    status = {}
+    for vsa in storagerouterlist.StorageRouterList.get_storagerouters():
+        cmd = """python -c 'from ovs.dal.lists.vdisklist import VDiskList;print bool([vd for vd in VDiskList.get_vdisks() if vd.name == "{0}"])'""".format(volume_name)
+        out = execute_command_on_node(vsa.ip, cmd)
+        status[vsa.ip] = eval(out)
+
+    return status
+
+
+def check_voldrv_services(vpool_name, storagedrivers, running = True):
+    voldrv_services = (pr + vpool_name for pr in ("ovs-volumedriver_", "ovs-failovercache_"))
+    for sd in storagedrivers:
+        node = sd.storagerouter.ip
+        for voldrv_service in voldrv_services:
+            retries = 15
+            while retries:
+                if is_service_running(voldrv_service, node) == running:
+                    break
+                time.sleep(1)
+                retries -= 1
+            assert is_service_running(voldrv_service, node) == running, \
+            "Service {0} is not {1} on node {2}".format(voldrv_service,
+                                                       {True: "running", False: "stopped"}[running],
+                                                       node)
+
+
+def check_mountpoints(storagedrivers, is_present = True):
+    for sd in storagedrivers:
+        mountpoint = sd.mountpoint
+        node = sd.storagerouter.ip
+
+        retries = 20
+        while retries:
+            out = execute_command_on_node(node, "df | grep {0} || true".format(mountpoint))
+            if (mountpoint in out) == is_present:
+                break
+            time.sleep(1)
+            retries -= 1
+
+        assert (mountpoint in out) == is_present, "Vpool mountpoint {0} is {1} mounted on node {2}\n{3}".format(mountpoint,
+                                                                                                              {True: "not", False: "still"}[is_present],
+                                                                                                              node,
+                                                                                                              out)
 

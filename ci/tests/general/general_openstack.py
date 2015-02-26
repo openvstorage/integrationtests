@@ -19,7 +19,7 @@ os.environ["OS_AUTH_URL"]    = "http://{node_ip}:35357/v2.0".format(node_ip = ge
 
 
 def is_openstack_present():
-    return bool(general.execute_command("ps aux | awk '/cinder/ && !/awk/'")[0])
+    return bool(general.execute_command("ps aux | awk '/keystone/ && !/awk/'")[0])
 
 
 def restart_service_in_screen(name):
@@ -30,6 +30,11 @@ def restart_service_in_screen(name):
 
 
 def create_glance_image():
+
+    existing_images = general.get_elem_with_val(get_formated_cmd_output("glance image-list"), "Name", "AUTOTEST_IMAGE")
+    if existing_images:
+        return existing_images[0]['ID']
+
     os_name = autotests.getOs()
     bootdisk_path_remote = autotests.getOsInfo(os_name)['bootdisk_location']
     template_server      = autotests.getTemplateServer()
@@ -64,17 +69,24 @@ def create_glance_image():
     return image_id
 
 
-def get_formated_cmd_output(cmd):
+def get_formated_cmd_output(cmd, retries = 1):
     cmd = cmd + """ | awk '!/-------/ {gsub(" +",""); print}'"""
-    out, err = general.execute_command(cmd)
-    assert not err, err
+    while retries:
+        retries -= 1
+        try:
+            out, err = general.execute_command(cmd)
+            assert not err, err
+        except Exception as ex:
+            print str(ex)
+            if not retries:
+                raise
     lines = out.splitlines()
     table_head = lines[0].split("|")[1:-1]
     rows = lines[1:]
     return [dict(zip(table_head, r[1:-1].split("|"))) for r in rows]
 
 
-def wait_for_status_on_item(cmd, item_id_field, item_id_value, status_field, required_status, retries = 100):
+def wait_for_status_on_item(cmd, item_id_field, item_id_value, status_field, required_status, retries = 300):
     while retries:
         items = get_formated_cmd_output(cmd)
         items = general.get_elem_with_val(items, item_id_field, item_id_value)
@@ -85,7 +97,6 @@ def wait_for_status_on_item(cmd, item_id_field, item_id_value, status_field, req
             raise Exception("{0} is error for {1}".format(status_field, item_id_value))
 
         items = general.get_elem_with_val(items, status_field, required_status)
-        print items
         if items:
             return
         time.sleep(1)
@@ -94,33 +105,59 @@ def wait_for_status_on_item(cmd, item_id_field, item_id_value, status_field, req
     raise Exception("Item {0} did not changed its {1} to {2}".format(item_id_value, status_field, required_status))
 
 
-def create_volume_from_image(image_id, cinder_type, volume_name, volume_size):
-    glance_images = get_formated_cmd_output("glance image-list")
-    assert general.get_elem_with_val(glance_images, "ID", image_id), "Glance image {0} not found".format(image_id)
+def create_volume(image_id, cinder_type, volume_name, volume_size):
 
-    cinder_types = get_formated_cmd_output("cinder type-list")
+    cinder_types = get_formated_cmd_output("cinder type-list", retries = 10)
     assert general.get_elem_with_val(cinder_types, "Name", cinder_type), "Cinder type {0} not found".format(cinder_type)
+
+    if image_id:
+        glance_images = get_formated_cmd_output("glance image-list")
+        assert general.get_elem_with_val(glance_images, "ID", image_id), "Glance image {0} not found".format(image_id)
+
+    image = "--image-id {image_id}".format(image_id = image_id) if image_id else ""
 
     cmd = "cinder create --volume-type {cinder_type} \
                          --display-name {volume_name} \
-                         --image-id {image_id} \
+                         {image} \
                          --availability-zone nova \
                          {volume_size} ".format(cinder_type = cinder_type,
                                                 volume_name = volume_name,
-                                                image_id    = image_id,
+                                                image       = image,
                                                 volume_size = volume_size)
 
     volume_info = get_formated_cmd_output(cmd)
     volume_id = general.get_elem_with_val(volume_info, "Property", "id")[0]['Value']
 
     wait_for_status_on_item("cinder list", "ID", volume_id, "Status", "available")
+
+    vdisk = [vd for vd in VDiskList.get_vdisks() if vd.name == volume_name]
+    assert vdisk, "Cinder volume did not appear on ovs side"
+
     return volume_id
 
 
-def create_instance_from_volume(volume_id, instance_name, host = ""):
+def create_snapshot(volume_id):
 
-    volumes = get_formated_cmd_output("cinder list")
-    assert general.get_elem_with_val(volumes, "ID", volume_id), "Volume with id {0} not found".format(volume_id)
+    cmd = "cinder snapshot-create {volume_id} \
+                                  --display-name {display_name}".format(volume_id    = volume_id,
+                                                                        display_name = "AT_snapshot" + str(time.time()))
+    r = get_formated_cmd_output(cmd)
+    snapshot_id = general.get_elem_with_val(r, "Property", "id")
+    assert snapshot_id, "Unexpected output from cinder snapshot-create {0}".format(snapshot_id)
+    snapshot_id = snapshot_id[0]["Value"]
+
+    wait_for_status_on_item("cinder snapshot-list", "ID", snapshot_id, "Status", "available")
+
+    return snapshot_id
+
+
+def create_instance(instance_name, volume_id = "", image_id = "", snapshot_id = "", host = ""):
+
+    assert [bool(volume_id), bool(image_id), bool(snapshot_id)].count(True) == 1, "Need to specify only one of volume_id or image_id or snapshot_id"
+
+    if volume_id:
+        volumes = get_formated_cmd_output("cinder list")
+        assert general.get_elem_with_val(volumes, "ID", volume_id), "Volume with id {0} not found".format(volume_id)
 
     flavor_name = "m1.small"
     flavors     = get_formated_cmd_output("nova flavor-list")
@@ -130,14 +167,22 @@ def create_instance_from_volume(volume_id, instance_name, host = ""):
 
     host_opt = host and ":" + host
 
+    boot_volume = "--boot-volume {volume_id}".format(volume_id = volume_id)    if volume_id     else ""
+    image       = "--image {image_id}".format(image_id = image_id)             if image_id      else ""
+    snapshot    = "--snapshot {snapshot_id}".format(snapshot_id = snapshot_id) if snapshot_id   else ""
+
     cmd = "nova boot --flavor {flavor} \
-                     --boot-volume {volume_id} \
+                     {boot_volume} \
+                     {image} \
+                     {snapshot} \
                      --availability-zone nova{host} \
                      --config-drive=false \
                      {instance_name}".format(flavor        = flavor,
-                                             volume_id     = volume_id,
+                                             boot_volume   = boot_volume,
+                                             image         = image,
+                                             snapshot      = snapshot,
                                              instance_name = instance_name,
-                                             host          = host_opt)
+                                             host          = host_opt).replace(" " * 4, " ")
 
     instance_info = get_formated_cmd_output(cmd)
     instance_id   = general.get_elem_with_val(instance_info, "Property", "id")[0]['Value']
@@ -158,6 +203,7 @@ def create_instance_from_volume(volume_id, instance_name, host = ""):
             break
         time.sleep(1)
         retries -= 1
+    time.sleep(5)
     assert vm, "Instance created with nova is not registered in ovs"
     vm = vm[0]
     assert len(vm.vdisks) == 1, "Vm {0} doesnt have expected disks but {1}".format(vm_name, len(vm.vdisks))
@@ -193,8 +239,14 @@ def live_migration(instance_id, new_host):
     cmd = "nova live-migration {0} {1}".format(instance_id, new_host)
     general.execute_command(cmd)
 
-    vm_host = get_instance_host(instance_id)
-    assert vm_host == new_host, "Wrong host after live migration, expected {0} got {1}".format(new_host, vm_host)
+    retries = 20
+    while retries:
+        vm_host = get_instance_host(instance_id)
+        if vm_host == new_host:
+            break
+        time.sleep(1)
+        retries -= 1
+    assert retries, "Wrong host after live migration, expected {0} got {1}".format(new_host, vm_host)
 
     vm_name = get_vm_name_hpv(instance_id)
 
@@ -206,7 +258,6 @@ def live_migration(instance_id, new_host):
 
     uptime_after = get_vm_uptime(vm_ip)
     assert uptime_after >= uptime_before, "Vm did not remain up after live migration"
-
 
 
 def delete_instance(instance_id):
@@ -229,13 +280,55 @@ def delete_instance(instance_id):
     assert not vm_ovs, "Vm still exists on OVS after deleting it from nova"
 
 
+def get_vol(volume_id):
+    vols    = get_formated_cmd_output("cinder list")
+    vol     = general.get_elem_with_val(vols, "ID", volume_id)
+    return vol
+
+
+def wait_for_volume_to_disappear(volume_id, vol_name, retries = 100):
+    vol = get_vol(volume_id)
+
+    retries = 100
+    while retries:
+        vol = get_vol(volume_id)
+        vd_ovs = [vd for vd in VDiskList.get_vdisks() if vd.name == vol_name]
+
+        if not vol and not vd_ovs:
+            break
+        time.sleep(1)
+        retries -= 1
+
+    assert not vd_ovs, "Volume still exists on OVS after deleting it from cinder"
+    assert not vol, "Volume is still present after deleting it from cinder"
+
+
+def delete_volume(volume_id, wait = True):
+
+    vol = get_vol(volume_id)
+    if not vol:
+        return
+
+    vol_name = vol[0]['DisplayName']
+    general.execute_command("cinder delete {0}".format(volume_id))
+
+    if wait:
+        #wait for volume to be gone
+        wait_for_volume_to_disappear(volume_id, vol_name)
+
+
 def cleanup():
+    autotest_prefix = "AT_"
     for vm in get_formated_cmd_output("nova list"):
-        if vm['Name'].startswith("AT_"):
+        if vm['Name'].startswith(autotest_prefix):
             delete_instance(vm["ID"])
 
+    for snap in get_formated_cmd_output("cinder snapshot-list"):
+        if snap['DisplayName'].startswith(autotest_prefix):
+            general.execute_command("cinder snapshot-delete {0}".format(snap['ID']))
+
     for vol in get_formated_cmd_output("cinder list"):
-        if vol['DisplayName'].startswith("AT_"):
+        if vol['DisplayName'].startswith(autotest_prefix):
             general.execute_command("cinder delete {0}".format(vol["ID"]))
 
     general.execute_command("glance image-delete {0}".format(IMAGE_NAME))
