@@ -321,7 +321,7 @@ class Vpool(BrowserOvs):
 
         self.click_on('Finish', retries=100)
 
-        self.wait_for_wait_notification('Creation of vPool {} finished.'.format(self.vpool_name))
+        self.wait_for_wait_notification('Creation of vPool {} finished.'.format(self.vpool_name), retries = 300)
 
         # check vpool is present after adding it
         retries = 100

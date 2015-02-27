@@ -547,7 +547,7 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
     vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
     sd    = vpool.storagedrivers[0]
 
-    with open("/opt/OpenvStorage/config/voldrv_vpools/{0}.json".format(vpool_name)) as vpool_json_file:
+    with open("/opt/OpenvStorage/config/storagedriver/storagedriver/{0}.json".format(vpool_name)) as vpool_json_file:
         vpool_json = json.load(vpool_json_file)
 
     mountpoints = vpool_json['content_addressed_cache']['clustercache_mount_points'] + vpool_json['scocache']['scocache_mount_points']
