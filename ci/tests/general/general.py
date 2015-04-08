@@ -1,4 +1,5 @@
 import os
+import re
 import pwd
 import sys
 import json
@@ -59,33 +60,6 @@ def get_elem_with_val(iterable, key, value):
     return [e for e in iterable if e.get(key, "iNvAlId_VaLuE") == value]
 
 
-def getTestsToRun():
-    """
-    Retrieves the tests to be executed in the testsuite (from autotest config file)
-
-    @return:     List of numbers of tests to be executed
-    @returntype: List of integers
-    """
-
-    tests      = autotests.getTestLevel()
-    testsToRun = []
-    if tests:
-        for number in tests.split(','):
-            if not number.find('-') >= 0:
-                testsToRun.append(int(number))
-            else:
-                numbers = number.split('-')
-                if int(numbers[0]) > int(numbers[1]):
-                    hulp       = numbers[0]
-                    numbers[0] = numbers[1]
-                    numbers[1] = hulp
-
-                testsToRun.append(int(numbers[0]))
-                for k in range(int(numbers[0]) + 1, int(numbers[1]) + 1):
-                    testsToRun.append(k)
-
-    return sorted(list(set(testsToRun)))
-
 def lineno():
     """Returns the current line number in our program."""
     return inspect.currentframe().f_back.f_lineno
@@ -104,6 +78,7 @@ def checkPrereqs(testCaseNumber, testsToRun):
     """
     if 0 not in testsToRun and testCaseNumber not in testsToRun:
         raise SkipTest
+
 
 def getTestsToRun(test_level):
     """
@@ -131,6 +106,7 @@ def getTestsToRun(test_level):
 
     return sorted(list(set(testsToRun)))
 
+
 def getRemoteSshCon(ipAddress, username, password):
     """
     """
@@ -150,7 +126,8 @@ def get_local_vsa():
     local_ip_info =  execute_command("ip a")[0]
     for vsa in storagerouterlist.StorageRouterList.get_storagerouters():
         if vsa.ip in local_ip_info:
-             return vsa
+            return vsa
+
 
 def getFunctionName(level = 0):
     """
@@ -361,23 +338,22 @@ def human2bytes(s):
     return int(num * prefix[letter])
 
 
-def api_add_vpool(vpool_name          = None,
-                  vpool_type          = None,
-                  vpool_host          = None,
-                  vpool_port          = None,
-                  vpool_access_key    = None,
-                  vpool_secret_key    = None,
-                  vpool_temp_mp       = None,
-                  vpool_md_mp         = None,
-                  vpool_readcache1_mp = None,
-                  vpool_readcache2_mp = None,
-                  vpool_writecache_mp = None,
-                  vpool_foc_mp        = None,
-                  vpool_bfs_mp        = None,
-                  vpool_vrouter_port  = None,
-                  vpool_storage_ip    = None,
-                  apply_to_all_nodes  = False,
-                  config_cinder       = False):
+def api_add_vpool(vpool_name           = None,
+                  vpool_type           = None,
+                  vpool_host           = None,
+                  vpool_port           = None,
+                  vpool_access_key     = None,
+                  vpool_secret_key     = None,
+                  vpool_temp_mp        = None,
+                  vpool_md_mp          = None,
+                  vpool_readcaches_mp  = None,
+                  vpool_writecaches_mp = None,
+                  vpool_foc_mp         = None,
+                  vpool_bfs_mp         = None,
+                  vpool_vrouter_port   = None,
+                  vpool_storage_ip     = None,
+                  apply_to_all_nodes   = False,
+                  config_cinder        = False):
 
     def kill_service_in_screen(node_ip, name):
         #just send the ctrl+c key in window name of screen
@@ -397,32 +373,30 @@ def api_add_vpool(vpool_name          = None,
     local_vsa_ip = get_local_vsa().ip
 
     parameters = {}
-    parameters['storagerouter_ip']      = local_vsa_ip
-    parameters['vpool_name']            = vpool_name          or cfg.get("vpool", "vpool_name")
-    parameters['type']                  = vpool_type          or cfg.get("vpool", "vpool_type")
-    parameters['connection_host']       = vpool_host          or cfg.get("vpool", "vpool_host")
-    parameters['connection_timeout']    = 600
-    parameters['connection_port']       = vpool_port          or cfg.get("vpool", "vpool_port")
-    parameters['connection_username']   = vpool_access_key    or cfg.get("vpool", "vpool_access_key")
-    parameters['connection_password']   = vpool_secret_key    or cfg.get("vpool", "vpool_secret_key")
-    parameters['mountpoint_temp']       = vpool_temp_mp       or cfg.get("vpool", "vpool_temp_mp")
-    parameters['mountpoint_md']         = vpool_md_mp         or cfg.get("vpool", "vpool_md_mp")
-    parameters['mountpoint_readcache1'] = vpool_readcache1_mp or cfg.get("vpool", "vpool_readcache1_mp")
-    parameters['mountpoint_readcache2'] = vpool_readcache2_mp or cfg.get("vpool", "vpool_readcache2_mp")
-    parameters['mountpoint_writecache'] = vpool_writecache_mp or cfg.get("vpool", "vpool_writecache_mp")
-    parameters['mountpoint_foc']        = vpool_foc_mp        or cfg.get("vpool", "vpool_foc_mp")
-    parameters['mountpoint_bfs']        = vpool_bfs_mp        or cfg.get("vpool", "vpool_bfs_mp")
-    parameters['vrouter_port']          = vpool_vrouter_port  or cfg.get("vpool", "vpool_vrouter_port")
-    parameters['storage_ip']            = vpool_storage_ip    or cfg.get("vpool", "vpool_storage_ip")
-    parameters['config_cinder']         = config_cinder
+    parameters['storagerouter_ip']       = local_vsa_ip
+    parameters['vpool_name']             = vpool_name           or cfg.get("vpool", "vpool_name")
+    parameters['type']                   = vpool_type           or cfg.get("vpool", "vpool_type")
+    parameters['connection_host']        = vpool_host           or cfg.get("vpool", "vpool_host")
+    parameters['connection_timeout']     = 600
+    parameters['connection_port']        = vpool_port           or cfg.get("vpool", "vpool_port")
+    parameters['connection_username']    = vpool_access_key     or cfg.get("vpool", "vpool_access_key")
+    parameters['connection_password']    = vpool_secret_key     or cfg.get("vpool", "vpool_secret_key")
+    parameters['mountpoint_temp']        = vpool_temp_mp        or cfg.get("vpool", "vpool_temp_mp")
+    parameters['mountpoint_readcaches']  = vpool_readcaches_mp  or [mp.strip() for mp in cfg.get("vpool", "vpool_readcaches_mp").split(',')]
+    parameters['mountpoint_writecaches'] = vpool_writecaches_mp or [mp.strip() for mp in cfg.get("vpool", "vpool_writecaches_mp").split(',')]
+    parameters['mountpoint_md']          = vpool_md_mp          or cfg.get("vpool", "vpool_md_mp")
+    parameters['mountpoint_foc']         = vpool_foc_mp         or cfg.get("vpool", "vpool_foc_mp")
+    parameters['mountpoint_bfs']         = vpool_bfs_mp         or cfg.get("vpool", "vpool_bfs_mp")
+    parameters['storage_ip']             = vpool_storage_ip     or cfg.get("vpool", "vpool_storage_ip")
+    parameters['config_cinder']          = config_cinder
 
-    parameters['cinder_pass']           = "rooter"
-    parameters['cinder_user']           = "admin"
-    parameters['cinder_tenant']         = "admin"
-    parameters['cinder_controller']     = local_vsa_ip
+    parameters['cinder_pass']            = "rooter"
+    parameters['cinder_user']            = "admin"
+    parameters['cinder_tenant']          = "admin"
+    parameters['cinder_controller']      = local_vsa_ip
 
     if parameters['type'] == 'alba':
-        parameters['connection_backend'] = [b for b in BackendList.get_backends() if b.name == 'alba'][0].alba_backend_guid
+        parameters['connection_backend'] = [b for b in BackendList.get_backends() if b.name.startswith('alba')][0].alba_backend_guid
 
     print "Adding Vpool: "
     print parameters
@@ -449,7 +423,6 @@ def api_add_vpool(vpool_name          = None,
                 kill_service_in_screen(sd.storagerouter.ip,srv[0])
                 time.sleep(2)
                 restart_service_in_screen(sd.storagerouter.ip, srv[0], srv[1])
-
 
     return parameters
 
@@ -691,3 +664,76 @@ def check_mountpoints(storagedrivers, is_present = True):
                                                                                                               node,
                                                                                                               out)
 
+
+def validate_logstash_open_files_amount():
+    ls_proc_pid = None
+    file_counters = {'libs'     : {'description' : 'Lib Components',
+                                   'amount'      : 0,
+                                   'regex'       : '^.+\.jar$'},
+                     'devs'     : {'description' : 'Device Handles',
+                                   'amount'      : 0,
+                                   'regex'       : '^/dev/.+$'},
+                     'sockets'  : {'description' : 'Socket Handlers',
+                                   'amount'      : 0,
+                                   'regex'       : '^socket:.+$'},
+                     'patterns' : {'description' : 'Logstash Patterns',
+                                   'amount'      : 0,
+                                   'regex'       : '^.+logstash/patterns.+$'},
+                     'patterns' : {'description' : 'Logstash Patterns',
+                                   'amount'      : 0,
+                                   'regex'       : '^.+logstash/patterns.+$'},
+                     'logs'     : {'description' : 'Logging Files',
+                                   'amount'      : 0,
+                                   'regex'       : '^/var/log/.+$'},
+                     'others'   : {'description' : 'Other Files',
+                                   'amount'      : 0}}
+    pids = [pid for pid in os.listdir('/proc') if pid.isdigit()]
+    for pid in pids:
+        try:
+            with open(os.path.join('/proc', pid, 'cmdline'), 'rb') as proc_cmdline_handler:
+                proc_cmdline = proc_cmdline_handler.read()
+                if re.match('^.+bin/java.+logstash/runner.rb.*$', proc_cmdline):
+                    ls_proc_pid = pid
+                    break
+        except IOError:
+            # proc already terminated
+            continue
+
+    assert not ls_proc_pid is None, "Logstash process not running. PID not found"
+
+    of_path = os.path.join('/proc', ls_proc_pid, 'fd')
+    open_files = os.listdir(of_path)
+    for of in open_files:
+        of_link = os.readlink(os.path.join(of_path, of))
+        match_found = False
+        for info in file_counters.values():
+            if info.get('regex') and re.match(info['regex'], of_link):
+                info['amount'] += 1
+                match_found = True
+                break
+        if not match_found:
+            file_counters['others']['amount'] += 1
+
+    # Print info
+    print '\nLogstash Process ID : {0}\n'.format(ls_proc_pid)
+    of_total = 0
+    for counter_info in file_counters.values():
+        of_total += counter_info['amount']
+        print 'Amount of {0} : {1} (files)'.format(counter_info['description'],
+                                                   counter_info['amount'])
+    print '\nTotal amount of open files : {0}'.format(of_total)
+
+    # Get maximum allowed open files
+    max_allowed_of = None
+    try:
+        with open(os.path.join('/proc', ls_proc_pid, 'limits'), 'rb') as limits_file:
+            for line in limits_file.readlines():
+                if line.startswith('Max open files'):
+                    line_parts = line.split()
+                    max_allowed_of = int(line_parts[4])
+                    break
+        print 'Maximum allowed open files : {0}'.format(max_allowed_of)
+    except:
+        print 'Cannot retrieve the Maximum allowed open files'
+    if max_allowed_of:
+        assert of_total < 90 * max_allowed_of / 100, 'Reached more than 90% of Logstash maximum allowed open files : {0}'.format(max_allowed_of)
