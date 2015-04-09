@@ -137,10 +137,13 @@ def create_volume(image_id, cinder_type, volume_name, volume_size):
 
 
 def create_snapshot(volume_id):
+    volume = get_vol(volume_id)
+    assert volume, "Volume with id {0} not found".format(volume_id)
 
+    snapshot_name = "{0}_snapshot_{1}".format(volume[0]["DisplayName"], int(time.time()))
     cmd = "cinder snapshot-create {volume_id} \
                                   --display-name {display_name}".format(volume_id    = volume_id,
-                                                                        display_name = "AT_snapshot" + str(time.time()))
+                                                                        display_name = snapshot_name)
     r = get_formated_cmd_output(cmd)
     snapshot_id = general.get_elem_with_val(r, "Property", "id")
     assert snapshot_id, "Unexpected output from cinder snapshot-create {0}".format(snapshot_id)
@@ -156,8 +159,8 @@ def create_instance(instance_name, volume_id = "", image_id = "", snapshot_id = 
     assert [bool(volume_id), bool(image_id), bool(snapshot_id)].count(True) == 1, "Need to specify only one of volume_id or image_id or snapshot_id"
 
     if volume_id:
-        volumes = get_formated_cmd_output("cinder list")
-        assert general.get_elem_with_val(volumes, "ID", volume_id), "Volume with id {0} not found".format(volume_id)
+        volume = get_vol(volume_id)
+        assert volume, "Volume with id {0} not found".format(volume_id)
 
     flavor_name = "m1.small"
     flavors     = get_formated_cmd_output("nova flavor-list")
@@ -193,12 +196,10 @@ def create_instance(instance_name, volume_id = "", image_id = "", snapshot_id = 
     vm_host = get_instance_host(instance_id)
     assert vm_host == host, "Instance has wrong host, expected {0} got {1}".format(host, vm_host)
 
-    vm_name = get_vm_name_hpv(instance_id)
-
     #check vm is registered in ovs too
     retries = 30
     while retries:
-        vm = VMachineList.get_vmachine_by_name(vm_name)
+        vm = VMachineList.get_vmachine_by_name(instance_name)
         if vm:
             break
         time.sleep(1)
@@ -206,7 +207,7 @@ def create_instance(instance_name, volume_id = "", image_id = "", snapshot_id = 
     time.sleep(5)
     assert vm, "Instance created with nova is not registered in ovs"
     vm = vm[0]
-    assert len(vm.vdisks) == 1, "Vm {0} doesnt have expected disks but {1}".format(vm_name, len(vm.vdisks))
+    assert len(vm.vdisks) == 1, "Vm {0} doesnt have expected disks but {1}".format(instance_name, len(vm.vdisks))
 
     return instance_id
 
@@ -281,12 +282,24 @@ def delete_instance(instance_id):
 
 
 def get_vol(volume_id):
-    vols    = get_formated_cmd_output("cinder list")
-    vol     = general.get_elem_with_val(vols, "ID", volume_id)
+    vols = get_formated_cmd_output("cinder list")
+    vol  = general.get_elem_with_val(vols, "ID", volume_id)
     return vol
 
 
-def wait_for_volume_to_disappear(volume_id, vol_name, retries = 100):
+def get_snapshot(snapshot_id):
+    snapshots = get_formated_cmd_output("cinder snapshot-list")
+    snapshot  = general.get_elem_with_val(snapshots, "ID", snapshot_id)
+    return snapshot
+
+
+def get_image(image_id):
+    images = get_formated_cmd_output("glance image-list")
+    image  = general.get_elem_with_val(images, "ID", image_id)
+    return image
+
+
+def wait_for_volume_to_disappear(volume_id, vol_name, retries=100):
     vol = get_vol(volume_id)
 
     retries = 100
@@ -303,8 +316,7 @@ def wait_for_volume_to_disappear(volume_id, vol_name, retries = 100):
     assert not vol, "Volume is still present after deleting it from cinder"
 
 
-def delete_volume(volume_id, wait = True):
-
+def delete_volume(volume_id, wait=True):
     vol = get_vol(volume_id)
     if not vol:
         return
@@ -315,6 +327,25 @@ def delete_volume(volume_id, wait = True):
     if wait:
         #wait for volume to be gone
         wait_for_volume_to_disappear(volume_id, vol_name)
+
+
+def delete_snapshot(snapshot_id, wait=True):
+    snapshot = get_snapshot(snapshot_id)
+    if not snapshot:
+        return
+
+    general.execute_command("cinder snapshot-delete {0}".format(snapshot_id))
+    if wait:
+        retries = 100
+        while retries:
+            snapshot = get_snapshot(snapshot_id)
+
+            if not snapshot:
+                break
+            time.sleep(1)
+            retries -= 1
+
+    assert not snapshot, "Snapshot is still present after deleting it from cinder"
 
 
 def cleanup():

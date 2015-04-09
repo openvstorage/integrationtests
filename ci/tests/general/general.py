@@ -1,6 +1,5 @@
 import os
 import re
-import pwd
 import sys
 import json
 import stat
@@ -355,19 +354,6 @@ def api_add_vpool(vpool_name           = None,
                   apply_to_all_nodes   = False,
                   config_cinder        = False):
 
-    def kill_service_in_screen(node_ip, name):
-        #just send the ctrl+c key in window name of screen
-        print "killing ", name
-        execute_command_on_node(node_ip, r"""su -c 'screen -x stack -p {0} -X stuff "^C"' stack""".format(name))
-
-    def restart_service_in_screen(node_ip, name, process_name):
-        #just send the up key + enter in window name of screen
-        print "restarting ", name
-        execute_command_on_node(node_ip, r"""su -c 'screen -x stack -p {0} -X stuff "^[[A^[[A^[[A\n"' stack""".format(name))
-        out = execute_command_on_node(node_ip, "ps aux | awk '/{0}/ && !/awk/'".format(process_name))
-        if process_name not in out:
-            execute_command_on_node(node_ip, r"""su -c 'screen -x stack -p {0} -X stuff "^[[A^[[A\n"' stack""".format(name))
-
     cfg = autotests.getConfigIni()
 
     local_vsa_ip = get_local_vsa().ip
@@ -409,20 +395,10 @@ def api_add_vpool(vpool_name           = None,
 
     if config_cinder:
         instances_dir = "/mnt/{0}/instances".format(parameters['vpool_name'])
-        stack_user = "stack"
         print instances_dir
         if not os.path.exists(instances_dir):
             print "creating instances dir", instances_dir
             os.makedirs(instances_dir)
-            passwd = pwd.getpwnam(stack_user)
-            os.chown(instances_dir, passwd.pw_uid, passwd.pw_gid)
-
-        vpool = vpoollist.VPoolList.get_vpool_by_name(parameters['vpool_name'])
-        for sd in vpool.storagedrivers:
-            for srv in [("c-api", "cinder-api"), ("c-sch", "cinder-scheduler"), ("c-vol", "cinder-volume"), ("n-cpu", "nova-compute")]:
-                kill_service_in_screen(sd.storagerouter.ip,srv[0])
-                time.sleep(2)
-                restart_service_in_screen(sd.storagerouter.ip, srv[0], srv[1])
 
     return parameters
 
