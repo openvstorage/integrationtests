@@ -26,7 +26,7 @@ def setup():
     autotests.setOs('ubuntu_server14_kvm')
 
     #make sure we start with clean env
-    #general.cleanup()
+    general.cleanup()
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
@@ -156,6 +156,10 @@ def boot_nova_instance_from_snapshot_test():
     general.checkPrereqs(testCaseNumber = 4,
                          testsToRun     = testsToRun)
 
+    # Skip this test due to an issue in voldrv
+    # Bug reference : OVS-2022
+    raise SkipTest()
+
     if not general_openstack.is_openstack_present():
         raise SkipTest()
 
@@ -195,17 +199,20 @@ def boot_nova_instance_from_snapshot_test():
 
 
 def permissions_check_test():
-
+    """
+    Check group and owner of the vpool
+    Create an empty volume and check file/directory permissions
+    """
     general.checkPrereqs(testCaseNumber = 5,
                          testsToRun     = testsToRun)
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
 
-    expected_owner      = "stack"
-    expected_group      = "stack"
-    expected_dir_perms  = "755"
-    expected_file_perms = "664"
+    expected_owner      = "ovs"
+    expected_group      = "ovs"
+    expected_dir_perms  = "775"
+    expected_file_perms = "775"
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     mountpoint = vpool.storagedrivers[0].mountpoint
@@ -217,7 +224,7 @@ def permissions_check_test():
     assert owner == expected_owner, "Wrong owner for {0}, expected {1} got {2}".format(mountpoint, expected_owner, owner)
     assert group == expected_group, "Wrong group for {0}, expected {1} got {2}".format(mountpoint, expected_group, group)
 
-    volume_name = machinename + str(time.time()) + "empty_vol"
+    volume_name   = "{0}_empty_vol".format(machinename, int(time.time()))
     volume_id = general_openstack.create_volume(image_id    = "",
                                                 cinder_type = cinder_type,
                                                 volume_name = volume_name,
@@ -231,6 +238,8 @@ def permissions_check_test():
 
     dir_perms = general.get_file_perms("/mnt/{0}/instances".format(vpool_name))
     assert dir_perms[-3:] == expected_dir_perms, "Dir permissions wrong, expected {0} got {1}".format(expected_dir_perms, dir_perms)
+
+    general_openstack.delete_volume(volume_id)
 
 
 def live_migration_test():
@@ -289,7 +298,7 @@ def delete_multiple_volumes_test():
     volume_name = "{0}_{1}_del_multi".format(machinename, int(time.time()))
 
     images = [img for img in general_openstack.get_formated_cmd_output("glance image-list") if img['ContainerFormat'] not in ["aki", "ari"]]
-    images = sorted(images, key = lambda x: int(x['Size']))
+    images = sorted(images, key=lambda x: int(x['Size']))
     glance_image_id = images[0]['ID']
 
     disks_to_create = 10
