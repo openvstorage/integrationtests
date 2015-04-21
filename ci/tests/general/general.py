@@ -179,6 +179,7 @@ def cleanup():
 
         for sdg in vpool.storagedrivers_guids:
             StorageRouterController.remove_storagedriver(sdg)
+            time.sleep(3)
 
         if general_hypervisor.get_hypervisor_type() == "VMWARE":
             hypervisorInfo = autotests.getHypervisorInfo()

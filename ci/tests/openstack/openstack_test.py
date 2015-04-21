@@ -26,7 +26,7 @@ def setup():
     autotests.setOs('ubuntu_server14_kvm')
 
     #make sure we start with clean env
-    general.cleanup()
+    #general.cleanup()
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
@@ -243,7 +243,11 @@ def permissions_check_test():
 
 
 def live_migration_test():
-
+    """
+    Create a volume from image.
+    Create and boot an instance using the volume
+    Validate Live Migration of the instance to a different host
+    """
     general.checkPrereqs(testCaseNumber = 6,
                          testsToRun     = testsToRun)
 
@@ -300,26 +304,36 @@ def delete_multiple_volumes_test():
     images = [img for img in general_openstack.get_formated_cmd_output("glance image-list") if img['ContainerFormat'] not in ["aki", "ari"]]
     images = sorted(images, key=lambda x: int(x['Size']))
     glance_image_id = images[0]['ID']
+    glance_image = general_openstack.get_image(glance_image_id)
+
+    # Adjust volume size according to the size of the image
+    volume_size = 1
+    if glance_image:
+        glance_image_size = int(glance_image[0]['Size']) / 1024 ** 3
+        if glance_image_size > volume_size:
+            volume_size = glance_image_size
 
     disks_to_create = 10
     vol_ids = {}
     for idx in range(disks_to_create):
+        time.sleep(5)
         vol_name = "{0}_{1}".format(volume_name, idx)
         vol_id = general_openstack.create_volume(image_id    = glance_image_id,
                                                  cinder_type = cinder_type,
                                                  volume_name = vol_name,
-                                                 volume_size = 3)
+                                                 volume_size = volume_size)
         vol_ids[vol_id] = vol_name
 
     for vol_id in vol_ids:
-        general_openstack.delete_volume(vol_id, wait = False)
+        general_openstack.delete_volume(vol_id, wait=False)
 
     for vol_id, vol_name in vol_ids.iteritems():
-        general_openstack.wait_for_volume_to_disappear(vol_id, vol_name, retries = 900)
+        general_openstack.wait_for_volume_to_disappear(vol_id, vol_name, retries=900)
 
 
 def fillup_multinode_system_test():
-
+    """
+    """
     general.checkPrereqs(testCaseNumber = 8,
                          testsToRun     = testsToRun)
 
@@ -334,25 +348,32 @@ def fillup_multinode_system_test():
 
     volumes_limit       = int(general.get_elem_with_val(quotas, "Property", "volumes")[0]['Value'])
     volumes_limit_vpool = int(general.get_elem_with_val(quotas, "Property", "volumes_{0}".format(cinder_type))[0]['Value'])
+    max_vols_per_node   = min(volumes_limit, volumes_limit_vpool)
 
-    max_vols_per_node = min(volumes_limit, volumes_limit_vpool)
-
-    t = str(time.time())
-    name = machinename + t + "max_vols"
+    volume_name = "{0}_{1}_max_vols".format(machinename, int(time.time()))
 
     images = [img for img in general_openstack.get_formated_cmd_output("glance image-list") if img['ContainerFormat'] not in ["aki", "ari"]]
     images = sorted(images, key = lambda x: int(x['Size']))
     glance_image_id = images[0]['ID']
+    glance_image = general_openstack.get_image(glance_image_id)
+
+    # Adjust volume size according to the size of the image
+    volume_size = 1
+    if glance_image:
+        glance_image_size = int(glance_image[0]['Size']) / 1024 ** 3
+        if glance_image_size > volume_size:
+            volume_size = glance_image_size
 
     existing_volumes = general_openstack.get_formated_cmd_output("cinder list")
     vols_to_create = max_vols_per_node * len(hosts) - len(existing_volumes)
 
     for idx in range(vols_to_create):
         time.sleep(5)
+        vol_name = "{0}_{1}".format(volume_name, idx)
         general_openstack.create_volume(image_id    = glance_image_id,
                                         cinder_type = cinder_type,
-                                        volume_name = name + str(idx),
-                                        volume_size = 1)
+                                        volume_name = vol_name,
+                                        volume_size = volume_size)
 
     hosts_usage = dict(zip(hosts, [0] * len(hosts)))
     cinder_vols = general_openstack.get_formated_cmd_output("cinder list")
