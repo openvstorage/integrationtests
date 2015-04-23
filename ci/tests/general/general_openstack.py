@@ -233,9 +233,10 @@ def get_vm_uptime(vm_ip):
 
 def live_migration(instance_id, new_host):
     prev_host = get_instance_host(instance_id)
-    vm_ip = get_instance_ip(instance_id)
 
-    uptime_before = get_vm_uptime(vm_ip)
+    # get last launched timestamp of instance
+    instance_info = get_formated_cmd_output('nova show {0}'.format(instance_id))
+    ts_before = general.get_elem_with_val(instance_info, 'Property', 'OS-SRV-USG:launched_at')[0]['Value']
 
     cmd = "nova live-migration {0} {1}".format(instance_id, new_host)
     general.execute_command(cmd)
@@ -257,8 +258,9 @@ def live_migration(instance_id, new_host):
     out = general.execute_command_on_node(new_host, "virsh list --all | grep {0} || true".format(vm_name))
     assert out, "Vm should have been moved to new node after live migration\n{0}".format(out)
 
-    uptime_after = get_vm_uptime(vm_ip)
-    assert uptime_after >= uptime_before, "Vm did not remain up after live migration"
+    instance_info = get_formated_cmd_output('nova show {0}'.format(instance_id))
+    ts_after = general.get_elem_with_val(instance_info, 'Property', 'OS-SRV-USG:launched_at')[0]['Value']
+    assert ts_before == ts_after, "Vm did not remain up after live migration"
 
 
 def delete_instance(instance_id):

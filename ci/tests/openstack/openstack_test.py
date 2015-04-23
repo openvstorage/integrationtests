@@ -275,12 +275,6 @@ def live_migration_test():
                                                         instance_name = instance_name,
                                                         host          = main_host)
 
-    vm_name = general_openstack.get_vm_name_hpv(instance_id)
-    vm_ip   = general_openstack.get_instance_ip(instance_id)
-
-    hpv = general_hypervisor.Hypervisor.get(vpool_name)
-    hpv.wait_for_vm_pingable(vm_name, vm_ip = vm_ip)
-
     new_host = [h for h in hosts if h != main_host][random.randint(0, len(hosts) - 2)]
     general_openstack.live_migration(instance_id, new_host)
 
