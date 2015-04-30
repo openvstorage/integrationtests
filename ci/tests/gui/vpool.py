@@ -24,64 +24,59 @@
 import time
 import urlparse
 
-from browser_ovs          import BrowserOvs
-from ci                   import autotests
-from ci.tests.general     import general, general_hypervisor
+from browser_ovs import BrowserOvs
+from ci import autotests
+from ci.tests.general import general, general_hypervisor
 from ci.tests.api         import connection
-from nose.plugins.skip    import SkipTest
-
+from nose.plugins.skip import SkipTest
 from splinter.driver.webdriver import NoSuchElementException
-
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 
 REMOTE_VPOOL_TYPES = ['Ceph S3', 'S3 compatible', 'Swift S3']
 
+
 class Vpool(BrowserOvs):
     def __init__(self,
-                 vpool_name          = '',
-                 vpool_type_name     = '',
-                 vpool_host          = '',
-                 vpool_port          = '',
-                 vpool_access_key    = '',
-                 vpool_secret_key    = '',
-                 vpool_temp_mp       = '',
-                 vpool_md_mp         = '',
-                 vpool_readcache1_mp = '',
-                 vpool_readcache2_mp = '',
-                 vpool_writecache_mp = '',
-                 vpool_foc_mp        = '',
-                 vpool_bfs_mp        = '',
-                 vpool_vrouter_port  = '',
-                 vpool_storage_ip    = '',
-                 browser_choice      = 'chrome'):
+                 vpool_name='',
+                 vpool_type_name='',
+                 vpool_host='',
+                 vpool_port='',
+                 vpool_access_key='',
+                 vpool_secret_key='',
+                 vpool_temp_mp='',
+                 vpool_md_mp='',
+                 vpool_readcaches_mp='',
+                 vpool_writecaches_mp='',
+                 vpool_foc_mp='',
+                 vpool_bfs_mp='',
+                 vpool_storage_ip='',
+                 browser_choice='chrome'):
 
         if not getattr(self, "scr_name", ""):
             self.scr_name = general.getFunctionName(1)
 
-        self.bt = BrowserOvs.__init__(self, browser_choice = browser_choice)
+        self.bt = BrowserOvs.__init__(self, browser_choice=browser_choice)
 
         cfg = autotests.getConfigIni()
 
-        self.vpool_name             = vpool_name          or cfg.get("vpool", "vpool_name")
-        self.vpool_type_name        = vpool_type_name     or cfg.get("vpool", "vpool_type_name")
-        self.vpool_host             = vpool_host          or cfg.get("vpool", "vpool_host")
-        self.vpool_port             = vpool_port          or cfg.get("vpool", "vpool_port")
-        self.vpool_access_key       = vpool_access_key    or cfg.get("vpool", "vpool_access_key")
-        self.vpool_secret_key       = vpool_secret_key    or cfg.get("vpool", "vpool_secret_key")
-        self.vpool_temp_mp          = vpool_temp_mp       or cfg.get("vpool", "vpool_temp_mp")
-        self.vpool_md_mp            = vpool_md_mp         or cfg.get("vpool", "vpool_md_mp")
-        self.vpool_readcache1_mp    = vpool_readcache1_mp or cfg.get("vpool", "vpool_readcache1_mp")
-        self.vpool_readcache2_mp    = vpool_readcache2_mp or cfg.get("vpool", "vpool_readcache2_mp")
-        self.vpool_writecache_mp    = vpool_writecache_mp or cfg.get("vpool", "vpool_writecache_mp")
-        self.vpool_foc_mp           = vpool_foc_mp        or cfg.get("vpool", "vpool_foc_mp")
-        self.vpool_bfs_mp           = vpool_bfs_mp
+        self.vpool_name = vpool_name or cfg.get("vpool", "vpool_name")
+        self.vpool_type_name = vpool_type_name or cfg.get("vpool", "vpool_type_name")
+        self.vpool_host = vpool_host or cfg.get("vpool", "vpool_host")
+        self.vpool_port = vpool_port or cfg.get("vpool", "vpool_port")
+        self.vpool_access_key = vpool_access_key or cfg.get("vpool", "vpool_access_key")
+        self.vpool_secret_key = vpool_secret_key or cfg.get("vpool", "vpool_secret_key")
+        self.vpool_temp_mp = vpool_temp_mp or cfg.get("vpool", "vpool_temp_mp")
+        self.vpool_md_mp = vpool_md_mp or cfg.get("vpool", "vpool_md_mp")
+        self.vpool_readcaches_mp = vpool_readcaches_mp or cfg.get("vpool", "vpool_readcaches_mp")
+        self.vpool_writecaches_mp = vpool_writecaches_mp or cfg.get("vpool", "vpool_writecaches_mp")
+        self.vpool_foc_mp = vpool_foc_mp or cfg.get("vpool", "vpool_foc_mp")
+        self.vpool_bfs_mp = vpool_bfs_mp
         if self.vpool_type_name in ["Local FS"]:
-            self.vpool_bfs_mp       = vpool_bfs_mp        or cfg.get("vpool", "vpool_bfs_mp")
-        self.vpool_vrouter_port     = vpool_vrouter_port  or cfg.get("vpool", "vpool_vrouter_port")
-        self.vpool_storage_ip       = vpool_storage_ip    or cfg.get("vpool", "vpool_storage_ip")
+            self.vpool_bfs_mp = vpool_bfs_mp or cfg.get("vpool", "vpool_bfs_mp")
+        self.vpool_storage_ip = vpool_storage_ip or cfg.get("vpool", "vpool_storage_ip")
 
         for e in ["vpool_name", "vpool_type_name", "vpool_temp_mp", "vpool_md_mp",
-                  "vpool_readcache1_mp", "vpool_readcache2_mp", "vpool_writecache_mp", "vpool_foc_mp", "vpool_vrouter_port"]:
+                  "vpool_readcaches_mp", "vpool_writecaches_mp", "vpool_foc_mp"]:
             if not getattr(self, e):
                 raise SkipTest(e)
 
@@ -171,32 +166,23 @@ class Vpool(BrowserOvs):
 
     vpool_bfs_mp = property(get_vpool_bfs_mp, set_vpool_bfs_mp)
 
-    def get_vpool_readcache1_mp(self):
-        return self.vpool_readcache1_mp
+    def get_vpool_readcaches_mp(self):
+        return self.vpool_readcaches_mp
 
-    def set_vpool_readcache1_mp(self, vpool_readcache1_mp):
-        assert isinstance(vpool_readcache1_mp, str), 'Vpool readcache mountpoint must be a string'
-        self.vpool_readcache1_mp = vpool_readcache1_mp
+    def set_vpool_readcaches_mp(self, vpool_readcaches_mp):
+        assert isinstance(vpool_readcaches_mp, list), 'Vpool readcaches mountpoint must be a list'
+        self.vpool_readcaches_mp = vpool_readcaches_mp
 
-    vpool_readcache1_mp = property(get_vpool_readcache1_mp, set_vpool_readcache1_mp)
+    vpool_readcaches_mp = property(get_vpool_readcaches_mp, set_vpool_readcaches_mp)
 
-    def get_vpool_readcache2_mp(self):
-        return self.vpool_readcache2_mp
+    def get_vpool_writecaches_mp(self):
+        return self.vpool_writecaches_mp
 
-    def set_vpool_readcache2_mp(self, vpool_readcache2_mp):
-        assert isinstance(vpool_readcache2_mp, str), 'Vpool readcache mountpoint must be a string'
-        self.vpool_readcache2_mp = vpool_readcache2_mp
+    def set_vpool_writecaches_mp(self, vpool_writecaches_mp):
+        assert isinstance(vpool_writecaches_mp, list), 'Vpool writecaches mountpoint must be a list'
+        self.vpool_writecaches_mp = vpool_writecaches_mp
 
-    vpool_readcache2_mp = property(get_vpool_readcache2_mp, set_vpool_readcache2_mp)
-
-    def get_vpool_writecache_mp(self):
-        return self.vpool_writecache_mp
-
-    def set_vpool_writecache_mp(self, vpool_writecache_mp):
-        assert isinstance(vpool_writecache_mp, str), 'Vpool writecache mountpoint must be a string'
-        self.vpool_writecache_mp = vpool_writecache_mp
-
-    vpool_writecache_mp = property(get_vpool_writecache_mp, set_vpool_writecache_mp)
+    vpool_writecaches_mp = property(get_vpool_writecaches_mp, set_vpool_writecaches_mp)
 
     def get_vpool_foc_mp(self):
         return self.vpool_foc_mp
@@ -228,15 +214,14 @@ class Vpool(BrowserOvs):
     def get_vpool_url(self):
         return urlparse.urljoin(self.get_url(), '/#full/vpools')
 
-    def wait_for_backend(self, retries = 40):
-        retries = 40
+    def wait_for_backend(self, retries=40):
         while retries:
             backends = self.browser.find_link_by_partial_href("#full/backend-alba/")
             if backends:
                 return backends
             retries -= 1
 
-    def wait_for_tbl_row_with_button(self, retries = 30):
+    def wait_for_tbl_row_with_button(self, retries=30):
         while retries:
             b = [e for e in self.browser.find_by_xpath("//tr/td/i") if e.visible and len(e.text) < 2]
             if b:
@@ -249,8 +234,8 @@ class Vpool(BrowserOvs):
             self.browse_to(self.get_url() + '#full/backends', 'backends')
             backends = self.wait_for_backend(15)
             if not backends:
-                input = self.browser.find_by_xpath("//tr/td/input")[0]
-                input.fill("alba")
+                input_field = self.browser.find_by_xpath("//tr/td/input")[0]
+                input_field.fill("alba")
                 ok = self.wait_for_tbl_row_with_button()
                 ok.click()
 
@@ -258,7 +243,7 @@ class Vpool(BrowserOvs):
                 assert backends
                 backends[0].click()
 
-                self.click_on_tbl_header('management', retries = 30)
+                self.click_on_tbl_header('management', retries=30)
                 add = self.wait_for_tbl_row_with_button(120)
                 add.click()
                 self.wait_for_modal()
@@ -284,8 +269,8 @@ class Vpool(BrowserOvs):
         time.sleep(3)
 
         # necessary to load local alba backend list
-        if self.vpool_type_name == 'Alternate Backend':
-            self.click_on('Next', retries=100)
+        if self.vpool_type_name == 'Open vStorage Backend':
+            self.click_on('Reload', retries=100)
 
         if self.vpool_type_name in REMOTE_VPOOL_TYPES:
             self.fill_out('inputVpoolHost', self.vpool_host)
@@ -294,16 +279,17 @@ class Vpool(BrowserOvs):
             self.fill_out('inputVpoolSecretKey', self.vpool_secret_key)
         time.sleep(3)
 
-        self.click_on('Next', retries = 150)
+        # add check for alba with remote nodes
+
+        self.click_on('Next', retries=150)
         time.sleep(3)
 
         # wait for page to load
-        assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 40), 'vPool wizard with mountpoint details not present (yet)'
+        assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 40), \
+            'vPool wizard with mountpoint details not present (yet)'
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
-        self.fill_out_custom_field('dropdown-button-mtpt-readcache1', self.vpool_readcache1_mp)
-        self.fill_out_custom_field('dropdown-button-mtpt-readcache2', self.vpool_readcache2_mp)
-        self.fill_out_custom_field('dropdown-button-mtpt-writecache', self.vpool_writecache_mp)
+        # @todo: accept defaults for read/write caches
         self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
 
         if self.vpool_type_name not in REMOTE_VPOOL_TYPES and 'Alternate' not in self.vpool_type_name:
@@ -321,10 +307,11 @@ class Vpool(BrowserOvs):
 
         self.click_on('Finish', retries=100)
 
-        self.wait_for_wait_notification('Creation of vPool {} finished.'.format(self.vpool_name), retries = 300)
+        self.wait_for_wait_notification('Creation of vPool {} finished.'.format(self.vpool_name), retries=300)
 
         # check vpool is present after adding it
         retries = 100
+        link = None
         while retries:
             print "Waiting for vpool"
             try:
@@ -367,7 +354,7 @@ class Vpool(BrowserOvs):
         self.click_on('VpoolSaveChanges', retries=300)
 
         time.sleep(3)
-        self.wait_for_text('Finish', timeout = 300)
+        self.wait_for_text('Finish', timeout=300)
         self.click_on('Finish')
 
         self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success')
@@ -395,4 +382,5 @@ class Vpool(BrowserOvs):
         self.wait_for_text('Finish', timeout=30)
         self.click_on('Finish')
 
-        self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success', retries = 300)
+        self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success',
+                                        retries=300)

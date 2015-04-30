@@ -19,32 +19,31 @@ import urllib2
 import base64
 import json
 
-from splinter.browser               import Browser
-from splinter.driver                import webdriver
-from splinter.exceptions            import ElementDoesNotExist
+from splinter.browser import Browser
+from splinter.driver import webdriver
+from splinter.exceptions import ElementDoesNotExist
 from selenium.webdriver.common.keys import Keys
 
-
-from ci.tests.general    import general
-from ci                  import autotests
-
+from ci.tests.general import general
+from ci import autotests
 
 
 class BrowserOvs():
     BUTTON_TAG = 'button'
     INPUT_TAG = 'input'
 
-    def __init__(self, username = '', password = '', url = '', browser_choice = 'chrome'):
-        if not browser_choice in ['chrome', 'firefox', 'phantomjs', 'zope.testbrowser']:
+    def __init__(self, username='', password='', url='', browser_choice='chrome'):
+        if browser_choice not in ['chrome', 'firefox', 'phantomjs', 'zope.testbrowser']:
             browser_choice = 'chrome'
 
-        self.browser = Browser(browser_choice, service_args = ['--verbose ', '--webdriver-loglevel=DEBUG', '--log-path=/var/log/chromedriver.log'])
+        self.browser = Browser(browser_choice, service_args=['--verbose ', '--webdriver-loglevel=DEBUG',
+                                                             '--log-path=/var/log/chromedriver.log'])
 
         if browser_choice == 'phantomjs':
             self.log("phantomjs")
-            phdriver = webdriver.phantomjs.PhantomJS(service_args=['--ignore-ssl-errors=true', '--webdriver-loglevel=DEBUG',   '--ssl-protocol=any', '--web-security=false'])
-
-
+            phdriver = webdriver.phantomjs.PhantomJS(service_args=['--ignore-ssl-errors=true',
+                                                                   '--webdriver-loglevel=DEBUG', '--ssl-protocol=any',
+                                                                   '--web-security=false'])
             phdriver.set_script_timeout(60)
             phdriver.set_page_load_timeout(60)
             self.browser.driver = phdriver
@@ -53,7 +52,7 @@ class BrowserOvs():
         self.browser.driver.set_window_size(1280, 1024)
         self.username = username or autotests.getUserName()
         self.password = password or autotests.getPassword()
-        self.url      = url or 'https://{0}/'.format(general.get_local_vsa().ip)
+        self.url = url or 'https://{0}/'.format(general.get_local_vsa().ip)
 
         self.debug = True
         self.screens_location = "/var/tmp"
@@ -91,12 +90,12 @@ class BrowserOvs():
 
     def set_debug(self, on=True):
         assert isinstance(on, bool), 'Debug must be a boolean'
-        self.__debug = on
+        self.debug = on
 
     debug = property('', set_debug)
 
     def setup(self):
-        #@todo: add authentication
+        # @todo: add authentication
         pass
         # password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
         # password_mgr.add_password(None, self.url, self.username, self.password)
@@ -144,13 +143,7 @@ class BrowserOvs():
 
         assert retries, "Couldnt find {0}".format(identifier)
 
-    def get_task_response(self, url, internal=False):
-
-        if internal:
-            customer_api = self.url + '/api/internal/'
-        else:
-            customer_api = self.url + '/api/customer/'
-
+    def get_task_response(self, url):
         self.log(url)
         request = urllib2.Request(self.url)
         base64string = base64.encodestring('%s:%s' % (self.username, self.password)).replace('\n', '')
@@ -168,7 +161,7 @@ class BrowserOvs():
         self.log('JSON: {0}'.format(data))
         return data
 
-    def wait_for_wait_notification(self, text, retries = 100, fail_on_error = True):
+    def wait_for_wait_notification(self, text, retries=100, fail_on_error=True):
         while retries:
             notifs_all = self.browser.find_by_css("div.ui-pnotify-text")
 
@@ -201,8 +194,10 @@ class BrowserOvs():
 
         assert retries, "Couldnt find notification with text: " + text
 
-    def wait_for_modal(self, should_exist = True):
+    def wait_for_modal(self, should_exist=True):
+        modal = self.browser.find_by_css("#my-modal")
         retries = 30
+
         while retries:
             time.sleep(1)
             modal = self.browser.find_by_css("#my-modal")
@@ -220,8 +215,8 @@ class BrowserOvs():
 
     def click_modal_button(self, button_name):
         modal = self.wait_for_modal()
-
         retries = 10
+
         while retries:
             buttons = modal.find_by_tag("button")
             button = [b for b in buttons if b.text == button_name]
@@ -232,10 +227,10 @@ class BrowserOvs():
         button.click()
         return button
 
-    def browse_to(self, url, wait_for_title = '', retries = 100):
+    def browse_to(self, url, wait_for_title='', retries=100):
         self.browser.visit(url)
         if wait_for_title:
-            while (not wait_for_title in self.browser.title.lower()) and retries:
+            while (wait_for_title not in self.browser.title.lower()) and retries:
                 time.sleep(1)
                 retries -= 1
             assert retries
@@ -254,18 +249,18 @@ class BrowserOvs():
                 button = button[0]
                 button.click()
         if button:
-            bclicked = False
+            button_clicked = False
             uls = button.find_by_xpath("//ul/li")
             for ul in uls:
                 if value in ul.text and ul.visible:
                     ul.click()
-                    bclicked = True
-            if not bclicked:
+                    button_clicked = True
+            if not button_clicked:
                 self.log("Choose: could not find value {}".format(value))
         else:
             self.log("Choose: couldn't find identifier {}".format(identifier))
 
-    def click_on(self, identifier, retries = 5):
+    def click_on(self, identifier, retries=5):
 
         while retries:
             retries -= 1
@@ -291,7 +286,6 @@ class BrowserOvs():
             if not (button and button.visible):
                 continue
 
-            #assert button, "Could not find {}".format(identifier)
             try:
                 button.click()
                 return button
@@ -314,7 +308,7 @@ class BrowserOvs():
                 self.log('Click on tbl header: {0}'.format(item_text))
                 item.click()
 
-    def click_on_tbl_header(self, identifier, retries = 10):
+    def click_on_tbl_header(self, identifier, retries=10):
 
         while retries:
             try:
@@ -339,13 +333,13 @@ class BrowserOvs():
                 count += 1
         return count
 
-    def fill_out(self, identifier, value, clear_first = False):
+    def fill_out(self, identifier, value, clear_first=False):
         input_field = self.get_single_item_by_id(identifier)
         if input_field.value != str(value):
             self.log('Filling out {0} in {1}'.format(value, identifier))
             if clear_first:
-                 input_field.fill('')
-                 input_field.type(Keys.BACKSPACE)
+                input_field.fill('')
+                input_field.type(Keys.BACKSPACE)
             input_field.click()
             input_field.fill(value)
         else:
@@ -384,7 +378,7 @@ class BrowserOvs():
             break
         return True
 
-    def login(self, wait = True):
+    def login(self, wait=True):
         self.browser.visit(self.url)
         self.browser.is_element_present_by_id('buttonLogin', wait_time=10)
         if self.debug:
@@ -401,7 +395,7 @@ class BrowserOvs():
         alert = [al for al in alerts if al.visible and "ovs:login.invalidcredentials" in al.outer_html]
         assert alert, "Could not find invalid credentials alert"
 
-    def uncheck_checkboxes(self, element = ''):
+    def uncheck_checkboxes(self, element=''):
         search = element if element else self.browser
         for cb in search.find_by_tag(self.INPUT_TAG):
             cb.uncheck()
@@ -414,21 +408,21 @@ class BrowserOvs():
             retries -= 1
         assert retries, "Page title did not change to {}, in due time".format(title_text)
 
-    def wait_for_visible_element_by_id(self, id, timeout=10):
-        self.browser.is_element_present_by_id(id, timeout)
-        element = self.browser.find_by_id(id)[0]
+    def wait_for_visible_element_by_id(self, identifier, timeout=10):
+        self.browser.is_element_present_by_id(identifier, timeout)
+        element = self.browser.find_by_id(identifier)[0]
         while timeout > 0:
             if element.visible:
                 return True
             time.sleep(1)
-            timeout = timeout - 1
+            timeout -= 1
         return False
 
-    def wait_for_text(self, text, timeout = 5):
+    def wait_for_text(self, text, timeout=5):
         r = self.browser.is_text_present(text, timeout)
         assert r, "Text '{0}' did not appear in due time".format(text)
         time.sleep(1)
 
-    def wait_for_text_to_vanish(self, text, timeout = 5):
+    def wait_for_text_to_vanish(self, text, timeout=5):
         r = self.browser.is_text_not_present(text, timeout)
         assert r, "Text '{0}' did not vanish in due time".format(text)
