@@ -12,16 +12,23 @@ import inspect
 import pexpect
 import paramiko
 import subprocess
+
+import general_hypervisor
+
+from ci                import autotests
 from nose.plugins.skip import SkipTest
 
-from ovs.dal.lists                      import vmachinelist, storagerouterlist, vpoollist
-import general_hypervisor
-from ci                                 import autotests
+from ovs.dal.lists                      import vmachinelist
+from ovs.dal.lists                      import vpoollist
+from ovs.dal.lists                      import storagerouterlist
+from ovs.dal.lists                      import licenselist
 from ovs.dal.lists.storagerouterlist    import StorageRouterList
+from ovs.dal.lists.backendlist          import BackendList
+
 from ovs.lib.storagerouter              import StorageRouterController
 from ovs.lib.setup                      import SetupController
 from ovs.extensions.generic.sshclient   import SSHClient
-from ovs.dal.lists.backendlist          import BackendList
+
 
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
@@ -62,6 +69,11 @@ def get_elem_with_val(iterable, key, value):
 def lineno():
     """Returns the current line number in our program."""
     return inspect.currentframe().f_back.f_lineno
+
+
+def get_alba_license():
+    """Returns the active license"""
+    return licenselist.LicenseList.get_by_component('alba')
 
 
 def checkPrereqs(testCaseNumber, testsToRun):

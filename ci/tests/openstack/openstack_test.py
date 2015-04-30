@@ -8,8 +8,11 @@ from nose.plugins.skip      import SkipTest
 from ci.tests.general       import general
 from ci.tests.general       import general_hypervisor
 from ci.tests.general       import general_openstack
+from ci.tests.general       import general_alba
 
-from ovs.dal.lists.vpoollist        import VPoolList
+from ovs.dal.lists.vpoollist import VPoolList
+from ovs.lib.albacontroller  import AlbaController
+from ovs.dal.lists.albanodelist import AlbaNodeList
 
 testsToRun     = general.getTestsToRun(autotests.getTestLevel())
 machinename    = "AT_" + __name__.split(".")[-1]
@@ -41,6 +44,9 @@ def teardown():
     autotests.setOs(prev_os)
     if autotests.getConfigIni().get("main", "cleanup") == "True":
         general_openstack.cleanup()
+
+    # Check the amount of open log files at the end at the test suite
+    general.validate_logstash_open_files_amount()
 
 
 def create_empty_volume_test():
@@ -325,8 +331,11 @@ def delete_multiple_volumes_test():
         general_openstack.wait_for_volume_to_disappear(vol_id, vol_name, retries=900)
 
 
-def fillup_multinode_system_test():
+def alba_license_volumes_limitation_test():
     """
+    Get the active license of the OpenvStorage-Backend and
+    test its boundaries
+     - Create maximum allowed namespaces
     """
     general.checkPrereqs(testCaseNumber = 8,
                          testsToRun     = testsToRun)
@@ -334,15 +343,17 @@ def fillup_multinode_system_test():
     if not general_openstack.is_openstack_present():
         raise SkipTest()
 
-    hosts = set([s['Host'] for s in general_openstack.get_formated_cmd_output("nova service-list")])
-    if len(hosts) < 2:
-        raise SkipTest("Need at least 2 nodes required")
+    # Get alba license
+    alba_license = general.get_alba_license()
+    if not alba_license:
+        raise SkipTest()
 
-    quotas = general_openstack.get_formated_cmd_output("cinder quota-show $(keystone tenant-get admin | awk '/id/ {print $4}')")
-
-    volumes_limit       = int(general.get_elem_with_val(quotas, "Property", "volumes")[0]['Value'])
-    volumes_limit_vpool = int(general.get_elem_with_val(quotas, "Property", "volumes_{0}".format(cinder_type))[0]['Value'])
-    max_vols_per_node   = min(volumes_limit, volumes_limit_vpool)
+    # If an unlimited license is in use, check the quota vpool limit
+    if alba_license.data['namespaces'] == None:
+        quotas = general_openstack.get_formated_cmd_output("cinder quota-show $(keystone tenant-get admin | awk '/id/ {print $4}')")
+        volumes_limit = int(general.get_elem_with_val(quotas, "Property", "volumes_{0}".format(cinder_type))[0]['Value'])
+    else:
+        volumes_limit = alba_license.data['namespaces']
 
     volume_name = "{0}_{1}_max_vols".format(machinename, int(time.time()))
 
@@ -358,51 +369,126 @@ def fillup_multinode_system_test():
         if glance_image_size > volume_size:
             volume_size = glance_image_size
 
+    # Max allowed volumes to create, for a license with 100 namespaces:
+    # - Every volume = 1 namespace
+    # - Every vpool = 1 namespace
+    # So we can create 99 volumes, because one namespace is reserved for the vpool
+    # Trying to create more than 99 volumes should fail
     existing_volumes = general_openstack.get_formated_cmd_output("cinder list")
-    vols_to_create = max_vols_per_node * len(hosts) - len(existing_volumes)
+    vols_to_create = volumes_limit - len(existing_volumes) -1
 
+    vol_ids = {}
+    vol_limit_exceeded = False
     for idx in range(vols_to_create):
         time.sleep(5)
         vol_name = "{0}_{1}".format(volume_name, idx)
-        general_openstack.create_volume(image_id    = glance_image_id,
-                                        cinder_type = cinder_type,
-                                        volume_name = vol_name,
-                                        volume_size = volume_size)
+        vol_id = general_openstack.create_volume(image_id    = glance_image_id,
+                                                 cinder_type = cinder_type,
+                                                 volume_name = vol_name,
+                                                 volume_size = volume_size)
+        vol_ids[vol_id] = vol_name
 
-    hosts_usage = dict(zip(hosts, [0] * len(hosts)))
-    cinder_vols = general_openstack.get_formated_cmd_output("cinder list")
+    # Try to create one more volume (should fail)
+    try:
+        vol_id = None
+        vol_name = "{0}_{1}".format(volume_name, idx + 1)
+        vol_id = general_openstack.create_volume(image_id    = glance_image_id,
+                                                 cinder_type = cinder_type,
+                                                 volume_name = vol_name,
+                                                 volume_size = volume_size)
+        if vol_id:
+            vol_limit_exceeded = True
+    except Exception as ex:
+        print 'Cannot exceed license namespaces limitation : {0}'.format(str(ex))
 
-    for cvol in cinder_vols:
-        cvol_info = general_openstack.get_formated_cmd_output("cinder show {0}".format(cvol['ID']))
-        host = general.get_elem_with_val(cvol_info, "Property", "os-vol-host-attr:host")[0]["Value"]
-        hosts_usage[host] += 1
+    # Cleanup vols
+    for vol_id in vol_ids:
+        general_openstack.delete_volume(vol_id, wait=True)
 
-    assert all([(max_vols_per_node - 2 < hu < max_vols_per_node + 2) for hu in hosts_usage.values()]), "Cinder volumes are not evenly distributed: {0}".format(hosts_usage)
+    assert not vol_limit_exceeded, 'Exceeding license namespaces limitation was allowed'
 
-"""
-def boot_nova_instance_from_image_test():
 
+def alba_license_OSDs_limitation_test():
+    """
+    Get the active license of the OpenvStorage-Backend and
+    test its boundaries
+     - Create maximum allowed OSDs
+    """
     general.checkPrereqs(testCaseNumber = 9,
                          testsToRun     = testsToRun)
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
 
-    instance_name = machinename + str(time.time()) + "_boot_from_image"
+    # Get alba license
+    alba_license = general.get_alba_license()
+    if not alba_license:
+        raise SkipTest()
 
-    glance_image_id = general_openstack.create_glance_image()
+    # Validate maximum allowed OSDs
+    asds = {}
+    osd_limit_exceeded = False
+    asd_create_error = False
+    if alba_license.data['osds']:
+        alba_be = general_alba.get_alba_backend()
+        alba_node = AlbaNodeList.get_albanodes()[0]
+        box_id = alba_node.box_id
 
-    main_host = general.get_this_hostname()
+        nr_asds_to_create = alba_license.data['osds'] - len(alba_be.asds_guids)
+        if nr_asds_to_create > 0:
+            try:
+                for idx in range(nr_asds_to_create):
+                    # Create and start Dummy ASD
+                    asd_id = 'AT_asd_{0}'.format(idx)
+                    port = 8630 + idx
+                    path = '/mnt/alba-asd/{0}'.format(asd_id)
+                    general_alba.asd_start(asd_id, port, path, box_id, False)
 
-    instance_id     = general_openstack.create_instance(image_id      = glance_image_id,
-                                                        instance_name = instance_name,
-                                                        host          = main_host)
+                    # Add ASD in the OVS lib
+                    AlbaController.add_units(alba_be.guid, {asd_id : alba_node.guid})
 
-    vm_name = general_openstack.get_vm_name_hpv(instance_id)
-    vm_ip   = general_openstack.get_instance_ip(instance_id)
+                    # Update asds list
+                    asds[asd_id] = {'port'      : port,
+                                    'path'      : path}
+            except Exception as ex:
+                print 'ASD creation failed {0} with error: {1}'.format(asd_id, str(ex))
+                asd_create_error = True
 
-    hpv = general_hypervisor.Hypervisor.get(vpool_name)
-    hpv.wait_for_vm_pingable(vm_name, vm_ip = vm_ip)
+            if not asd_create_error:
+                # Try to exceed the OSDs license limit
+                try:
+                    idx = idx + 1
+                    asd_id = 'AT_asd_{0}'.format(idx)
+                    port = 8630 + idx
+                    path = '/mnt/alba-asd/{0}'.format(asd_id)
+                    general_alba.asd_start(asd_id, port, path, box_id, False)
 
-    general_openstack.delete_instance(instance_id)
-"""
+                    # Add ASD in the OVS lib
+                    AlbaController.add_units(alba_be.guid, {asd_id: alba_node.guid})
+
+                    # Update ASDs list
+                    asds[asd_id] = {'port': port,
+                                    'path': path}
+                    osd_limit_exceeded = True
+                except Exception as ex:
+                    print 'Cannot exceed license OSDs limitation : {0}'.format(str(ex))
+
+    # Cleanup created ASDs
+    if asds:
+        for asd_id, asd_info in asds.iteritems():
+            AlbaController.remove_units(alba_be.guid, [asd_id])
+
+            # Stop the ASD
+            general_alba.asd_stop(asd_info['port'])
+
+            # Remove leftover files
+            os.popen('rm -r {0}'.format(asd_info['path']))
+
+        # Remove ASD from the model
+        alba_be = general_alba.get_alba_backend()
+        for asd in alba_be.asds:
+            if asd.asd_id in asds.keys():
+                asd.delete()
+
+    assert not asd_create_error, 'Failed to create ODSs'
+    assert not osd_limit_exceeded, 'Exceeding license OSDs limitation was allowed'
