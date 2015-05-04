@@ -1,24 +1,23 @@
 import time
 import datetime
 
-from browser_ovs                    import BrowserOvs
-from ovs.dal.lists.vmachinelist     import VMachineList
-from ovs.dal.lists                  import vpoollist
-from ci.tests.general               import general_hypervisor
-from ci.tests.gui.vpool             import Vpool
-from ci.tests.general               import general
+from browser_ovs import BrowserOvs
+from ovs.dal.lists.vmachinelist import VMachineList
+from ovs.dal.lists import vpoollist
+from ci.tests.general import general_hypervisor
+from ci.tests.gui.vpool import Vpool
+from ci.tests.general import general
+
 
 class Vmachine(BrowserOvs):
-    def __init__(self,
-                 browser_choice     = 'chrome' ):
+    def __init__(self, browser_choice='chrome'):
 
         if not getattr(self, "scr_name", ""):
             self.scr_name = general.getFunctionName(1)
 
-        self.bt = BrowserOvs.__init__(self, browser_choice = browser_choice)
+        self.bt = BrowserOvs.__init__(self, browser_choice=browser_choice)
 
-
-    def check_machine_is_present(self, machinename, retries = 30):
+    def check_machine_is_present(self, machinename, retries=30):
         vmachines_url = self.get_url() + '#full/vmachines'
         if self.browser.url != vmachines_url:
             self.browse_to(vmachines_url, 'vmachines')
@@ -28,19 +27,19 @@ class Vmachine(BrowserOvs):
         self.wait_for_text(machinename, retries)
         time.sleep(2)
 
-    def check_machine_is_not_present(self, machinename, retries = 30):
+    def check_machine_is_not_present(self, machinename, retries=30):
         self.browse_to(self.get_url() + '#full/vmachines', 'vmachines')
 
         self.wait_for_text_to_vanish(machinename, retries)
 
-    def check_machine_disk_is_present(self, name = ''):
+    def check_machine_disk_is_present(self, name=''):
         """
         assume currently on machine page
         """
         self.log(self.browser.url)
 
         check_ok = False
-        retries = 500
+        retries = 5000
         while retries:
             disk_links_all = self.browser.find_link_by_partial_href("#full/vdisk/")
 
@@ -59,8 +58,7 @@ class Vmachine(BrowserOvs):
 
         assert check_ok, "Failed to check machine disks"
 
-
-    def set_as_template(self, name, should_not_allow = False):
+    def set_as_template(self, name, should_not_allow=False):
         self.check_machine_is_present(name)
 
         setastemplate_button = self.get_single_item_by_id("buttonVmachineSetAsTemplate")
@@ -78,17 +76,16 @@ class Vmachine(BrowserOvs):
 
             self.click_modal_button('Set as Template')
 
-            self.wait_for_wait_notification('Machine {} set as template'.format(name), retries = 150)
+            self.wait_for_wait_notification('Machine {} set as template'.format(name), retries=150)
         else:
             try:
                 setastemplate_button.click()
             except Exception as ex:
                 if "Element is not clickable" not in str(ex):
                     raise
-            self.wait_for_modal(should_exist = False)
+            self.wait_for_modal(should_exist=False)
 
-
-    def check_vm_stats_overview_update(self, vm_name, prev_stats = "", retries = 30):
+    def check_vm_stats_overview_update(self, vm_name, prev_stats="", retries=30):
         """
         check stats are updating under the vmachines overview page
         """
@@ -105,17 +102,18 @@ class Vmachine(BrowserOvs):
         vm_tr = vm_tr[0]
 
         tds = vm_tr.find_by_tag("td")
+        stats_line = ""
         while retries:
             stats_line = [td.text for td in tds]
             if stats_line != prev_stats:
                 break
             time.sleep(1)
             retries -= 1
-        assert stats_line != prev_stats, "Vm stats did not change for vm {0}, prev:\n{1}\nactual:\n{2}".format(vm_name, prev_stats, stats_line)
+        assert stats_line != prev_stats,\
+            "Vm stats did not change for vm {0}, prev:\n{1}\nactual:\n{2}".format(vm_name, prev_stats, stats_line)
         return stats_line
 
-
-    def check_vm_stats_detail_update(self, vm_name, prev_stats = "", retries = 30):
+    def check_vm_stats_detail_update(self, vm_name, prev_stats="", retries=30):
         """
         check stats are updating under the vmachine detail page
         """
@@ -126,21 +124,22 @@ class Vmachine(BrowserOvs):
         if vm_obj.guid not in self.browser.url:
             self.check_machine_is_present(vm_name)
 
-        #only handling first disk currently
+        # only handling first disk currently
         vm_tr = self.browser.find_by_id("vdisk_{}".format(vm_obj.vdisks[0].guid))
-        assert vm_tr, "Didnt find table row for {} disk in the vmachines overview".format(vm_obj.vdisks[0].name)
+        assert vm_tr, "Didn't find table row for {} disk in the vmachines overview".format(vm_obj.vdisks[0].name)
         vm_tr = vm_tr[0]
 
         tds = vm_tr.find_by_tag("td")
+        stats_line = ""
         while retries:
             stats_line = [td.text for td in tds]
             if stats_line != prev_stats:
                 break
             time.sleep(1)
             retries -= 1
-        assert stats_line != prev_stats, "Disk stats did not change for vm {0}, prev:\n{1}\nactual:\n{2}".format(vm_name, prev_stats, stats_line)
+        assert stats_line != prev_stats,\
+            "Disk stats did not change for vm {0}, prev:\n{1}\nactual:\n{2}".format(vm_name, prev_stats, stats_line)
         return stats_line
-
 
     def create_from_template(self, template_name, vm_name):
         self.browse_to(self.get_url() + '#full/vtemplates', 'vtemplates')
@@ -155,15 +154,15 @@ class Vmachine(BrowserOvs):
         clone_button = self.browser.find_by_id(clone_button_id)
         clone_button.click()
 
-        #wait for the wizard modal window
-        modal = self.wait_for_modal()
+        # wait for wizard modal window
+        _ = self.wait_for_modal()
 
-        #fill out the wizard
+        # fill out the wizard
         self.fill_out('name', vm_name)
         self.click_on('Nothing selected')
         time.sleep(2)
 
-        #Choose hypervisor node
+        # Choose hypervisor node
         menu = [m for m in self.browser.find_by_css("ul.dropdown-menu") if m.visible]
         assert menu
         menu = menu[0]
@@ -172,15 +171,15 @@ class Vmachine(BrowserOvs):
         pmachine_name = local_vsa.pmachine.name
 
         item = [item for item in items if pmachine_name in item.text]
-        assert item, "Pmachine {0} not found in list of pmachines {1}".format(pmachine_name, [item.text for item in items])
+        assert item,\
+            "Pmachine {0} not found in list of pmachines {1}".format(pmachine_name, [item.text for item in items])
         item[0].click()
 
-        self.click_on('Finish', retries = 100)
+        self.click_on('Finish', retries=100)
 
-        self.wait_for_wait_notification('Creating from {} successfully'.format(template_name), retries = 500)
+        self.wait_for_wait_notification('Creating from {} successfully'.format(template_name), retries=500)
 
-
-    def delete_template(self, template_name, should_fail = False):
+    def delete_template(self, template_name, should_fail=False):
 
         tmpl = VMachineList.get_vmachine_by_name(template_name)
         assert tmpl, "Couldnt find template {}".format(template_name)
@@ -196,18 +195,19 @@ class Vmachine(BrowserOvs):
         delete_button.click()
 
         if not should_fail:
-            modal = self.wait_for_modal()
+            _ = self.wait_for_modal()
             self.click_modal_button("Yes")
 
             self.wait_for_wait_notification("Machine {} deleted".format(template_name))
             self.wait_for_text_to_vanish(template_name, 25)
 
-            assert not VMachineList.get_vmachine_by_name(template_name), "Deleting template did not remove it from the model"
+            assert not VMachineList.get_vmachine_by_name(template_name),\
+                "Deleting template did not remove it from the model"
         else:
             time.sleep(15)
-            self.wait_for_modal(should_exist = False)
+            self.wait_for_modal(should_exist=False)
 
-    def snapshot(self, vm_name, snapshot_name, consistent = False):
+    def snapshot(self, vm_name, snapshot_name, consistent=False):
         self.check_machine_is_present(vm_name)
 
         snapshot_button = self.browser.find_by_id("buttonVmachineSnapshot")
@@ -215,7 +215,7 @@ class Vmachine(BrowserOvs):
         snapshot_button = snapshot_button[0]
         snapshot_button.click()
 
-        vm =  VMachineList.get_vmachine_by_name(vm_name)
+        vm = VMachineList.get_vmachine_by_name(vm_name)
         assert vm, "Vm with name {} not found".format(vm_name)
 
         self.wait_for_modal()
@@ -228,13 +228,13 @@ class Vmachine(BrowserOvs):
         time.sleep(2)
 
     def check_snapshot_present(self, vm_name, snapshot_name):
-        #verify snapshot present in snapshot tab
+        # verify snapshot present in snapshot tab
         self.check_machine_is_present(vm_name)
 
         self.click_on_tbl_header('snapshots')
         self.wait_for_text(snapshot_name)
 
-    def rollback(self, vm_name, ss_name, should_not_allow = False):
+    def rollback(self, vm_name, ss_name, should_not_allow=False):
         vm = VMachineList.get_vmachine_by_name(vm_name)
         assert vm, "Vm with name {} not found".format(vm_name)
         vm = vm[0]
@@ -248,14 +248,13 @@ class Vmachine(BrowserOvs):
         assert snapshot_button
         snapshot_button = snapshot_button[0]
 
-
         if should_not_allow:
             try:
                 snapshot_button.click()
             except Exception as ex:
                 if "Element is not clickable" not in str(ex):
                     raise
-            self.wait_for_modal(should_exist = False)
+            self.wait_for_modal(should_exist=False)
         else:
             snapshot_button.click()
             self.wait_for_modal()
@@ -263,7 +262,7 @@ class Vmachine(BrowserOvs):
             if d.startswith("0"):
                 d = d[1:]
 
-            self.choose(identifier = '(', value = d)
+            self.choose(identifier='(', value=d)
             self.click_modal_button('Finish')
             self.wait_for_wait_notification("rollback successfully")
 
@@ -271,7 +270,8 @@ class Vmachine(BrowserOvs):
     def check_snapshot_model(snapshots_before, snapshot_name, vm_obj):
         snapshots_after = vm_obj.snapshots
         assert len(snapshots_after) > len(snapshots_before), "Created snapshot did not appear in model"
-        assert [ss for ss in vm_obj.snapshots if ss['label'] == snapshot_name], "Newly created snapshot not found in model"
+        assert [ss for ss in vm_obj.snapshots if ss['label'] == snapshot_name],\
+            "Newly created snapshot not found in model"
 
     @staticmethod
     def get_template(machinename, vpool_name):

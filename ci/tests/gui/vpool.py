@@ -27,13 +27,12 @@ import urlparse
 from browser_ovs import BrowserOvs
 from ci import autotests
 from ci.tests.general import general, general_hypervisor
-from ci.tests.api         import connection
 from nose.plugins.skip import SkipTest
 from splinter.driver.webdriver import NoSuchElementException
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 
+LOCAL_VPOOL_TYPES = ['Local FS']
 REMOTE_VPOOL_TYPES = ['Ceph S3', 'S3 compatible', 'Swift S3']
-
 
 class Vpool(BrowserOvs):
     def __init__(self,
@@ -230,7 +229,7 @@ class Vpool(BrowserOvs):
             time.sleep(1)
 
     def add_backend(self):
-        if self.vpool_type_name == "Alternate Backend":
+        if self.vpool_type_name == "Remote Alternate Backend":
             self.browse_to(self.get_url() + '#full/backends', 'backends')
             backends = self.wait_for_backend(15)
             if not backends:
@@ -292,7 +291,7 @@ class Vpool(BrowserOvs):
         # @todo: accept defaults for read/write caches
         self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
 
-        if self.vpool_type_name not in REMOTE_VPOOL_TYPES and 'Alternate' not in self.vpool_type_name:
+        if self.vpool_type_name in LOCAL_VPOOL_TYPES:
             self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
 
         if general_hypervisor.get_hypervisor_type().lower() != "kvm":
