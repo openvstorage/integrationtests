@@ -106,11 +106,20 @@ class DebianPackager(object):
         Uploads a given set of packages
         """
         distribution, version, suffix, build, version_string, revision_date = source_metadata
-        DebianPackager._run(
-            'dput -c {0}/debian/dput.cfg ovs-apt {0}/debian/{1}_{2}-1_amd64.changes'.format(DebianPackager.package_path,
-                                                                                            DebianPackager.package_name,
-                                                                                            version_string),
-            DebianPackager.package_path)
+        new_package = version_string not in DebianPackager._run(
+            'ssh ovs-apt@packages.cloudfounders.com "grep \'{0}_{1}-1_amd64\' /data/www/apt/*/Packages" || true'.format(
+                DebianPackager.package_name, version_string
+            ),
+            DebianPackager.package_path
+        )
+        print 'Uploading {0} package: {1}'.format('new' if new_package else 'existing', '{0}_{1}-1_amd64'.format(
+            DebianPackager.package_name, version_string
+        ))
+        DebianPackager._run('dput -c {0}/debian/dput.cfg ovs-apt {0}/debian/{1}_{2}-1_amd64.changes'.format(
+            DebianPackager.package_path, DebianPackager.package_name, version_string
+        ), DebianPackager.package_path)
+        reload_repo = 'ssh ovs-apt@packages.cloudfounders.com "mini-dinstall -b{0}"'.format('' if new_package else ' --no-db')
+        DebianPackager._run(reload_repo, DebianPackager.package_path)
 
     @staticmethod
     def _run(command, working_directory):
