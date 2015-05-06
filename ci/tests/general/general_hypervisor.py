@@ -3,22 +3,22 @@ import time
 import paramiko
 import urllib
 import urlparse
-import random
 from xml.dom import minidom
 
 from ci import autotests
 import general
 
 
-from ovs.dal.lists.vpoollist                        import VPoolList
-from ovs.dal.lists.vmachinelist                     import VMachineList
-from ovs.dal.lists.pmachinelist                     import PMachineList
-from ovs.extensions.hypervisor.hypervisors.kvm      import Sdk as Kvm_sdk
-from ovs.extensions.hypervisor.hypervisors.vmware   import Sdk as Vmware_sdk
-from ovs.lib.vdisk                                  import VDiskController
+from ovs.dal.lists.vpoollist import VPoolList
+from ovs.dal.lists.vmachinelist import VMachineList
+from ovs.dal.lists.pmachinelist import PMachineList
+from ovs.extensions.hypervisor.hypervisors.kvm import Sdk as Kvm_sdk
+from ovs.extensions.hypervisor.hypervisors.vmware import Sdk as Vmware_sdk
+from ovs.lib.vdisk import VDiskController
 
 import logging
-#disable excesive logging
+
+# disable excessive logging
 logging.getLogger('suds.client').setLevel(logging.WARNING)
 logging.getLogger('suds.transport').setLevel(logging.WARNING)
 logging.getLogger('suds.xsd.schema').setLevel(logging.WARNING)
@@ -37,9 +37,10 @@ logging.getLogger('suds.xsd.sxbase').setLevel(logging.WARNING)
 
 PUBLIC_BRIDGE_NAME_ESX = "CloudFramesPublic"
 
+
 class Hypervisor(object):
     @staticmethod
-    def get(vpool_name, htype = None):
+    def get(vpool_name, htype=None):
         vpool = [v for v in VPoolList.get_vpools() if v.name == vpool_name]
         assert vpool, "Vpool with name {} not found".format(vpool_name)
         vpool = vpool[0]
@@ -66,7 +67,8 @@ class Hypervisor(object):
         else:
             raise Exception("{} not implemented".format(htype))
 
-def _download_to_vpool(url, path, overwrite_if_exists = False):
+
+def _download_to_vpool(url, path, overwrite_if_exists=False):
     """
     special method to download to vpool because voldrv does not support extending file at write
     """
@@ -75,38 +77,43 @@ def _download_to_vpool(url, path, overwrite_if_exists = False):
     if os.path.exists(path) and not overwrite_if_exists:
         return
     u = urllib.urlopen(url)
+    file_size = u.info()['Content-Length']
     bsize = 4096 * 1024
     VDiskController.create_volume(path, 0)
-    with open(path, "w") as f:
-
+    with open(path, "wb") as f:
         size_written = 0
+        os.ftruncate(f.fileno(), int(file_size))
         while 1:
             s = u.read(bsize)
             size_written += len(s)
-            os.ftruncate(f.fileno(), size_written)
             f.write(s)
             if len(s) < bsize:
                 break
     u.close()
 
+
 def get_hypervisor_type():
     return PMachineList.get_pmachines()[0].hvtype
+
 
 def _xml_get_child(dom, name):
     c = [e for e in dom.childNodes if e.localName == name]
     return c
 
+
 def get_vm_ip_from_mac(mac):
     ip = general.get_virbr_ip()
-    cmd = "nmap -sP {ip} >/dev/null && arp -an | grep -i {mac} | awk '{{print $2;}}' | sed 's/[()]//g'".format(ip = ip, mac = mac)
+    cmd = "nmap -sP {ip} >/dev/null && arp -an | grep -i {mac} | awk '{{print $2;}}' | sed 's/[()]//g'".format(ip=ip,
+                                                                                                               mac=mac)
     out = general.execute_command(cmd)
     return out[0].strip()
+
 
 class HypervisorBase(object):
     def __init__(self):
         self.autotest_check_code = "autotest_check_code"
 
-    def wait_for_vm_pingable(self, name, retries = 50, pingable = True, vm_ip = None):
+    def wait_for_vm_pingable(self, name, retries=50, pingable=True, vm_ip=None):
         while retries:
             mac = self.get_mac_address(name)
             print mac
@@ -142,13 +149,10 @@ class HypervisorBase(object):
         ssh_con = paramiko.SSHClient()
         ssh_con.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         username, password = "root", "rooter"
-        ssh_con.connect(vm_ip,
-                        username = username,
-                        password = password,
-                        timeout  = 200)
+        ssh_con.connect(vm_ip, username=username, password=password, timeout=200)
         return ssh_con
 
-    def write_test_data(self, vm_name, filename, zero_filled = False, zero_filled_count = 1):
+    def write_test_data(self, vm_name, filename, zero_filled=False, zero_filled_count=1):
         ssh_con = self.get_ssh_con(vm_name)
 
         path = os.path.join(os.sep, "opt", filename)
@@ -157,30 +161,29 @@ class HypervisorBase(object):
         else:
             cmd = "dd if=/dev/zero of={0} bs=1K count={1}".format(path, zero_filled_count)
 
-        _stdin, stdout, _stderr = ssh_con.exec_command(cmd)
+        _, stdout, _ = ssh_con.exec_command(cmd)
         stdout.readlines()
         time.sleep(1)
 
     def delete_test_data(self, vm_name, filename):
         ssh_con = self.get_ssh_con(vm_name)
         path = os.path.join(os.sep, "opt", filename)
-        _stdin, stdout, _stderr = ssh_con.exec_command("rm {0}".format(path))
+        _, stdout, _ = ssh_con.exec_command("rm {0}".format(path))
         stdout.readlines()
         time.sleep(1)
 
-    def check_test_data(self, vm_name, filename, not_present = False):
+    def check_test_data(self, vm_name, filename, not_present=False):
         ssh_con = self.get_ssh_con(vm_name)
         path = os.path.join(os.sep, "opt", filename)
-        _stdin, stdout, _stderr = ssh_con.exec_command("cat {0}".format(path))
+        _, stdout, _ = ssh_con.exec_command("cat {0}".format(path))
         out = stdout.readlines()
         out = out[0] if out else ''
         if not_present:
-            assert not out, "Data shouldnt be there: {}".format(out)
+            assert not out, "Data shouldn't be there: {}".format(out)
         else:
             assert out == self.autotest_check_code, "Wrong test data:{}".format(out)
 
         time.sleep(1)
-
 
 
 class Vmware(HypervisorBase):
@@ -192,11 +195,10 @@ class Vmware(HypervisorBase):
         assert hypervisorInfo, "No hypervisor info specified use autotests.setHypervisorInfo"
         self.sdk = Vmware_sdk(*hypervisorInfo)
 
-    def create_vm(self, name, cpus = 1, ram = 1024):
-
-        #not sure if its the propper way to get the datastore
+    def create_vm(self, name, cpus=1, ram=1024):
+        # not sure if its the proper way to get the datastore
         esxhost = self.sdk._validate_host(None)
-        datastores = self.sdk._get_object(esxhost, properties = ['datastore']).datastore.ManagedObjectReference
+        datastores = self.sdk._get_object(esxhost, properties=['datastore']).datastore.ManagedObjectReference
         datastore = [d for d in datastores if self.vpool.name in d.value]
         assert datastore, "Did not found datastore"
         datastore = self.sdk._get_object(datastore[0])
@@ -207,15 +209,14 @@ class Vmware(HypervisorBase):
 
         os.mkdir(os.path.join(self.mountpoint, name))
 
-        diskName = "bootdisk.vmdk"
-        diskNameFlat = "bootdisk-flat.vmdk"
-        bootdisk_path = os.path.join(self.mountpoint, name, diskName)
-        bootdisk_flat_path = os.path.join(self.mountpoint, name, diskNameFlat)
+        disk_name = "bootdisk.vmdk"
+        disk_name_flat = "bootdisk-flat.vmdk"
+        bootdisk_path = os.path.join(self.mountpoint, name, disk_name)
+        bootdisk_flat_path = os.path.join(self.mountpoint, name, disk_name_flat)
 
         template_server = autotests.getTemplateServer()
-        bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote + diskName)
-        bootdisk_flat_url = urlparse.urljoin(template_server, bootdisk_path_remote + diskNameFlat)
-
+        bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote + disk_name)
+        bootdisk_flat_url = urlparse.urljoin(template_server, bootdisk_path_remote + disk_name_flat)
 
         _download_to_vpool(bootdisk_url, bootdisk_path)
         _download_to_vpool(bootdisk_flat_url, bootdisk_flat_path)
@@ -232,11 +233,9 @@ class Vmware(HypervisorBase):
         self.sdk.validate_result(task)
         """
 
+        nics = [{'bridge': PUBLIC_BRIDGE_NAME_ESX}]
 
-        nics      = [{'bridge': PUBLIC_BRIDGE_NAME_ESX}]
-
-        esxhost  = self.sdk._validate_host(None)
-        hostdata = self.sdk._get_host_data(esxhost)
+        esxhost = self.sdk._validate_host(None)
 
         # Build basic config information
         config = self.sdk._client.factory.create('ns0:VirtualMachineConfigSpec')
@@ -284,18 +283,12 @@ class Vmware(HypervisorBase):
                                               item[0],
                                               item[1]))
 
-        task = self.sdk._client.service.CreateVM_Task(hostdata['folder'],
-                                                  config=config,
-                                                  pool=hostdata['resourcePool'],
-                                                  host=hostdata['host'])
-
-
-
         retries = 100
+        vm = None
         while retries:
-            vmObjects = self._get_vms()
+            vm_objects = self._get_vms()
 
-            vm = [vm for vm in vmObjects if vm['name'] == name]
+            vm = [vm for vm in vm_objects if vm['name'] == name]
             if vm:
                 vm = vm[0]
                 if getattr(vm, "config", None):
@@ -305,35 +298,36 @@ class Vmware(HypervisorBase):
 
         assert vm, "Did not found vm after creating it"
 
-        vmDirName = vm.config.files.vmPathName.split()[1].split("/")[0]
-        virtIdeController = [dev for dev in vm.config.hardware.device if "VirtualIDEController" in str(type(dev))][0]
+        vm_dir_name = vm.config.files.vmPathName.split()[1].split("/")[0]
+        virt_ide_controller = [dev for dev in vm.config.hardware.device if "VirtualIDEController" in str(type(dev))][0]
 
-        sdkClient = self.sdk._client
-        vmSpec    = sdkClient.factory.create('ns0:VirtualMachineConfigSpec')
+        sdk_client = self.sdk._client
+        vm_spec = sdk_client.factory.create('ns0:VirtualMachineConfigSpec')
 
         unit = 0
-        deviceInfo         = sdkClient.factory.create('ns0:Description')
-        deviceInfo.label   = diskName
-        deviceInfo.summary = diskName
+        device_info = sdk_client.factory.create('ns0:Description')
+        device_info.label = disk_name
+        device_info.summary = disk_name
 
-        backing          = sdkClient.factory.create('ns0:VirtualDiskFlatVer2BackingInfo')
+        backing = sdk_client.factory.create('ns0:VirtualDiskFlatVer2BackingInfo')
         backing.diskMode = 'persistent'
-        backing.fileName = '[{datastore}] {fileName}'.format(datastore = datastore.info.name, fileName = os.path.join(vmDirName, diskName))
+        backing.fileName = '[{datastore}] {fileName}'.format(datastore=datastore.info.name,
+                                                             fileName=os.path.join(vm_dir_name, disk_name))
 
-        device               = sdkClient.factory.create('ns0:VirtualDisk')
-        device.controllerKey = virtIdeController.key
-        device.key           = -200 - unit
-        device.unitNumber    = unit
-        device.deviceInfo    = deviceInfo
-        device.backing       = backing
+        device = sdk_client.factory.create('ns0:VirtualDisk')
+        device.controllerKey = virt_ide_controller.key
+        device.key = -200 - unit
+        device.unitNumber = unit
+        device.deviceInfo = device_info
+        device.backing = backing
 
-        diskSpec               = sdkClient.factory.create('ns0:VirtualDeviceConfigSpec')
-        diskSpec.operation     = 'add'
-        diskSpec.fileOperation = None
-        diskSpec.device        = device
-        vmSpec.deviceChange.append(diskSpec)
+        disk_spec = sdk_client.factory.create('ns0:VirtualDeviceConfigSpec')
+        disk_spec.operation = 'add'
+        disk_spec.fileOperation = None
+        disk_spec.device = device
+        vm_spec.deviceChange.append(disk_spec)
 
-        task = sdkClient.service.ReconfigVM_Task(vm.obj_identifier, vmSpec)
+        task = sdk_client.service.ReconfigVM_Task(vm.obj_identifier, vm_spec)
         self.sdk.wait_for_task(task)
         self.sdk.validate_result(task)
 
@@ -342,12 +336,10 @@ class Vmware(HypervisorBase):
     def _get_vms(self):
         esxhost = self.sdk._validate_host(None)
         return self.sdk._get_object(esxhost,
-                                    prop_type   = 'VirtualMachine',
-                                    traversal  = {'name': 'HostSystemTraversalSpec',
-                                                  'type': 'HostSystem',
-                                                  'path': 'vm',
-                                                  })
-
+                                    prop_type='VirtualMachine',
+                                    traversal={'name': 'HostSystemTraversalSpec',
+                                               'type': 'HostSystem',
+                                               'path': 'vm'})
 
     def start(self, name):
         vms = self._get_vms()
@@ -383,7 +375,6 @@ class Vmware(HypervisorBase):
         self.sdk.wait_for_task(task)
         self.sdk.validate_result(task)
 
-
     def delete(self, name):
         vms = self._get_vms()
         vm = [v for v in vms if v.name == name]
@@ -402,7 +393,7 @@ class Kvm(HypervisorBase):
         self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
         self.sdk = Kvm_sdk()
 
-    def create_vm(self, name, ram = 1024):
+    def create_vm(self, name, ram=1024):
         import general_openstack
 
         os_name = autotests.getOs()
@@ -419,16 +410,14 @@ class Kvm(HypervisorBase):
 
             _download_to_vpool(bootdisk_url, bootdisk_path)
 
-            #When running with devstack need to set kvm group
+            # When running with devstack need to set kvm group
             if general_openstack.is_openstack_present():
                 general.execute_command("chgrp kvm {0}".format(bootdisk_path))
 
-
             cmd = "virt-install --connect qemu:///system -n {name} -r {ram} --disk {bootdisk_path},device=disk,format=raw,bus=virtio --import --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,model=e1000 --boot hd"
-            cmd = cmd.format(name = name,
-                             bootdisk_path = bootdisk_path,
-                             ram = ram
-                             )
+            cmd = cmd.format(name=name,
+                             bootdisk_path=bootdisk_path,
+                             ram=ram)
             general.execute_command(cmd)
 
     def _wait_for_state(self, name, state):
@@ -440,8 +429,8 @@ class Kvm(HypervisorBase):
             retries -= 1
             time.sleep(1)
 
-        actuall_state = self.sdk.get_power_state(name)
-        assert actuall_state == state, "Vm did not go into state {0}, actual {1}".format(state, actuall_state)
+        actual_state = self.sdk.get_power_state(name)
+        assert actual_state == state, "Vm did not go into state {0}, actual {1}".format(state, actual_state)
 
     def shutdown(self, name):
         if self.sdk.get_power_state(name) == 'TURNEDOFF':
@@ -472,10 +461,8 @@ class Kvm(HypervisorBase):
 
     def delete(self, name):
         vm = VMachineList.get_vmachine_by_name(name)
-        assert vm, "Couldnt find vm with name {}".format(name)
+        assert vm, "Couldn't find vm with name {}".format(name)
         vm = vm[0]
 
         self.poweroff(name)
         self.sdk.delete_vm(name, vm.devicename, None)
-
-

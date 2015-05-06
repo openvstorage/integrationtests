@@ -155,7 +155,7 @@ def getFunctionName(level = 0):
 
 def cleanup():
     machinename = "AT_"
-    vpool_name  = autotests.getConfigIni().get("vpool", "vpool_name")
+    vpool_name = autotests.getConfigIni().get("vpool", "vpool_name")
 
     vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
     if vpool:
