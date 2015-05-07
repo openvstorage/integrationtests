@@ -409,13 +409,13 @@ class BrowserOvs():
         assert retries, "Page title did not change to {}, in due time".format(title_text)
 
     def wait_for_visible_element_by_id(self, identifier, timeout=10):
-        self.browser.is_element_present_by_id(identifier, timeout)
-        element = self.browser.find_by_id(identifier)[0]
-        while timeout > 0:
-            if element.visible:
-                return True
-            time.sleep(1)
-            timeout -= 1
+        if self.browser.is_element_present_by_id(identifier, timeout):
+            element = self.browser.find_by_id(identifier)[0]
+            while timeout > 0:
+                if element.visible:
+                    return True
+                time.sleep(1)
+                timeout -= 1
         return False
 
     def wait_for_text(self, text, timeout=5):

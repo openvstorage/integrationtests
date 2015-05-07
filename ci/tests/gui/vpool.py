@@ -253,19 +253,19 @@ class Vpool(BrowserOvs):
         self.add_backend()
 
         self.browse_to(self.get_url() + '#full/vpools', 'vpools')
-        assert self.wait_for_visible_element_by_id('buttonAddVpool', 15), 'Button Add vPool not present (yet)'
+        assert self.wait_for_visible_element_by_id('buttonAddVpool', 5), 'Button Add vPool not present (yet)'
         self.click_on('AddVpool', retries=20)
         assert self.wait_for_visible_element_by_id('form.gather.vpool', 5), 'Add vPool wizard not present (yet)'
         self.choose('Local FS', self.vpool_type_name)
         self.fill_out('inputVpoolName', self.vpool_name)
-        time.sleep(3)
+        # time.sleep(3)
 
         # for grid select current node as initial storage router
         current_node_hostname = general.get_this_hostname()
         current_node_selection = sorted([sr.name for sr in StorageRouterList.get_storagerouters()])
         if current_node_selection[0] != current_node_hostname:
             self.choose(current_node_selection[0], current_node_hostname)
-        time.sleep(3)
+        time.sleep(2)
 
         # necessary to load local alba backend list
         if self.vpool_type_name == 'Open vStorage Backend':
@@ -276,32 +276,30 @@ class Vpool(BrowserOvs):
             self.fill_out('inputVpoolPort', self.vpool_port, clear_first=True)
             self.fill_out('inputVpoolAccessKey', self.vpool_access_key)
             self.fill_out('inputVpoolSecretKey', self.vpool_secret_key)
-        time.sleep(3)
+        time.sleep(2)
 
         # add check for alba with remote nodes
 
         self.click_on('Next', retries=150)
-        time.sleep(3)
+        time.sleep(2)
 
         # wait for page to load
-        assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 40), \
+        assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 5), \
             'vPool wizard with mountpoint details not present (yet)'
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
         # @todo: accept defaults for read/write caches
         self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
-
         if self.vpool_type_name in LOCAL_VPOOL_TYPES:
             self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
-
         if general_hypervisor.get_hypervisor_type().lower() != "kvm":
             self.choose('dropdown-button-storageip', self.vpool_storage_ip)
-
         self.click_on('Next', retries=100)
 
-        if self.wait_for_visible_element_by_id('configCinder', 15):
+        if self.wait_for_visible_element_by_id('configCinder', 5):
             self.fill_out('inputcinderPassword', "rooter")
             self.fill_out('inputcinderCtrlIP', general.get_local_vsa().ip)
+
         self.click_on('Next', retries=100)
 
         self.click_on('Finish', retries=100)
