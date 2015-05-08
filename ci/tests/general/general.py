@@ -55,7 +55,7 @@ def execute_command(command, wait = True, shell = True):
 
 
 def execute_command_on_node(host, command, password = None):
-    cl = SSHClient.load(host, password = password)
+    cl = SSHClient(host, username='root', password=password)
     return cl.run(command)
 
 
@@ -448,7 +448,7 @@ def apply_disk_layout(disk_layout):
 
     print "Disk layout to apply: {0}".format(disk_layout)
 
-    client = SSHClient.load('127.0.0.1', 'rooter')
+    client = SSHClient('127.0.0.1', username='root', password='rooter')
     sc = SetupController()
 
     print "Fstab before apply_flexible_disk_layout\n", execute_command("cat /etc/fstab")[0]
