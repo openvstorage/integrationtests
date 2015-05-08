@@ -1,21 +1,14 @@
-
 import os
 import itertools
 import random
 
-from ci.tests.general                   import general
-from ci                                 import autotests
-
-from ovs.lib.setup                      import SetupController
-from ovs.extensions.generic.sshclient   import SSHClient
-from ovs.lib.storagerouter              import StorageRouterController
-
-from nose.plugins.skip                  import SkipTest
-from ovs.dal.lists.vpoollist            import VPoolList
+from ci.tests.general import general
+from ovs.lib.setup   import SetupController
+from ovs.extensions.generic.sshclient import SSHClient
+from nose.plugins.skip import SkipTest
 
 
 def setup():
-
     global client
     global sc
     global fstab_contents
@@ -23,12 +16,12 @@ def setup():
     print "setup called " + __name__
 
     client = SSHClient.load('127.0.0.1', 'rooter')
-    sc     = SetupController()
+    sc = SetupController()
 
     with open("/etc/fstab") as f:
         fstab_contents = f.read()
 
-    #make sure we start with clean env
+    # make sure we start with clean env
     general.cleanup()
 
 
@@ -38,96 +31,80 @@ def teardown():
         f.write(fstab_contents)
 
 
-def each_mountpoint_own_partition_test():
-
-    unused_disks = general.get_unused_disks()
-
-    if not unused_disks:
-        raise SkipTest("Need at least one unused disk")
-
-    vpool_readcache1_mp  = "/mnt/test_cache1"
-    vpool_readcache2_mp  = "/mnt/test_cache2"
-    vpool_writecache_mp  = "/mnt/test_wcache"
-    vpool_foc_mp         = "/mnt/test_fcache"
-
-    disk_layout = {vpool_readcache1_mp: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_cache1'},
-                   vpool_readcache2_mp: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_cache2'},
-                   vpool_writecache_mp: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_wcache'},
-                   vpool_foc_mp:        {'device': unused_disks[0], 'percentage': 25, 'label': 'test_foc'}}
-
+def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
+                                  initial_part_used_space=None):
     vpool_params = {}
+
     try:
-
         general.apply_disk_layout(disk_layout)
-
-        vpool_params = general.api_add_vpool(vpool_readcache1_mp = vpool_readcache1_mp,
-                                             vpool_readcache2_mp = vpool_readcache2_mp,
-                                             vpool_writecache_mp = vpool_writecache_mp,
-                                             vpool_foc_mp        = vpool_foc_mp)
-
-        general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout)
-
+        vpool_params = general.api_add_vpool(vpool_readcaches_mp=vpool_readcaches_mp,
+                                             vpool_writecaches_mp=vpool_writecaches_mp,
+                                             vpool_foc_mp=vpool_foc_mp)
+        general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
     finally:
         if vpool_params:
             general.api_remove_vpool(vpool_params['vpool_name'])
         general.clean_disk_layout(disk_layout)
+
+
+def each_mountpoint_own_partition_test():
+    unused_disks = general.get_unused_disks()
+    if not unused_disks:
+        raise SkipTest("Need at least one unused disk")
+
+    vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
+    vpool_writecaches_mp = ["/mnt/test_wcache"]
+    vpool_foc_mp = "/mnt/test_fcache"
+
+    disk_layout = {vpool_readcaches_mp[0]: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_cache1',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_readcaches_mp[1]: {'device': unused_disks[1] if len(unused_disks) > 1 else unused_disks[0],
+                                            'percentage': 25, 'label': 'test_cache2', 'type': 'readcache',
+                                            'ssd': False},
+                   vpool_writecaches_mp[0]: {'device': unused_disks[2] if len(unused_disks) > 2 else unused_disks[0],
+                                             'percentage': 25, 'label': 'test_wcache', 'type': 'writecache',
+                                             'ssd': False},
+                   vpool_foc_mp: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_foc'}}
+
+    run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp)
 
 
 def all_mountpoints_root_partition_test():
 
-    vpool_readcache1_mp  = "/mnt/test_cache1"
-    vpool_readcache2_mp  = "/mnt/test_cache2"
-    vpool_writecache_mp  = "/mnt/test_wcache"
-    vpool_foc_mp         = "/mnt/test_fcache"
+    vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
+    vpool_writecaches_mp = ["/mnt/test_wcache"]
+    vpool_foc_mp = "/mnt/test_fcache"
 
-    disk_layout = {vpool_readcache1_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1'},
-                   vpool_readcache2_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache2'},
-                   vpool_writecache_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_wcache'},
-                   vpool_foc_mp:        {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_foc'}}
+    disk_layout = {vpool_readcaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_readcaches_mp[1]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache2',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_writecaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_wcache',
+                                             'type': 'writecache', 'ssd': False},
+                   vpool_foc_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_foc', 'type': 'writecache',
+                                  'ssd': False}}
     initial_part_used_space = {"/": general.get_filesystem_size("/")[3]}
-    vpool_params = {}
-    try:
-        general.apply_disk_layout(disk_layout)
 
-        vpool_params = general.api_add_vpool(vpool_readcache1_mp = vpool_readcache1_mp,
-                                             vpool_readcache2_mp = vpool_readcache2_mp,
-                                             vpool_writecache_mp = vpool_writecache_mp,
-                                             vpool_foc_mp        = vpool_foc_mp)
-
-
-        general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
-    finally:
-        if vpool_params:
-            general.api_remove_vpool(vpool_params['vpool_name'])
-        general.clean_disk_layout(disk_layout)
+    run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
+                                  initial_part_used_space)
 
 
 def all_mountpoints_root_partition_one_readcache_test():
 
-    vpool_readcache1_mp  = "/mnt/test_cache1"
-    vpool_writecache_mp  = "/mnt/test_wcache"
-    vpool_foc_mp         = "/mnt/test_fcache"
+    vpool_readcaches_mp = ["/mnt/test_cache1"]
+    vpool_writecaches_mp = ["/mnt/test_wcache"]
+    vpool_foc_mp = "/mnt/test_fcache"
 
-    disk_layout = {vpool_readcache1_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1'},
-                   vpool_writecache_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_wcache'},
-                   vpool_foc_mp:        {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_foc'}}
+    disk_layout = {vpool_readcaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_writecaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_wcache',
+                                             'type': 'writecache', 'ssd': False},
+                   vpool_foc_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_foc', 'type': 'writecache',
+                                  'ssd': False}}
     initial_part_used_space = {"/": general.get_filesystem_size("/")[3]}
-    vpool_params = {}
-    try:
-        general.apply_disk_layout(disk_layout)
 
-        vpool_params = general.api_add_vpool(vpool_readcache1_mp = vpool_readcache1_mp,
-                                             vpool_readcache2_mp = vpool_readcache1_mp,
-                                             vpool_writecache_mp = vpool_writecache_mp,
-                                             vpool_foc_mp        = vpool_foc_mp)
-
-
-        general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
-
-    finally:
-        if vpool_params:
-            general.api_remove_vpool(vpool_params['vpool_name'])
-        general.clean_disk_layout(disk_layout)
+    run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
+                                  initial_part_used_space)
 
 
 def dir_and_partition_layout_test():
@@ -137,36 +114,26 @@ def dir_and_partition_layout_test():
     if not unused_disks:
         raise SkipTest("Need at least one unused disk")
 
-    vpool_readcache1_mp  = "/mnt/test_cache1"
-    vpool_readcache2_mp  = "/mnt/test_cache2"
-    vpool_writecache_mp  = "/mnt/test_wcache"
-    vpool_foc_mp         = "/mnt/test_fcache"
+    vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
+    vpool_writecaches_mp = ["/mnt/test_wcache"]
+    vpool_foc_mp = "/mnt/test_fcache"
 
     for idx in range(4):
         l = [unused_disks[0]] * 4
         l[idx] = 'DIR_ONLY'
-        disk_layout = {vpool_readcache1_mp: {'device': l[0], 'percentage': 25, 'label': 'test_cache1'},
-                       vpool_readcache2_mp: {'device': l[1], 'percentage': 25, 'label': 'test_cache2'},
-                       vpool_writecache_mp: {'device': l[2], 'percentage': 25, 'label': 'test_wcache'},
-                       vpool_foc_mp:        {'device': l[3], 'percentage': 25, 'label': 'test_foc'}}
+        disk_layout = {vpool_readcaches_mp[0]: {'device': l[0], 'percentage': 25, 'label': 'test_cache1',
+                                                'type': 'readcache', 'ssd': False},
+                       vpool_readcaches_mp[1]: {'device': l[1], 'percentage': 25, 'label': 'test_cache2',
+                                                'type': 'readcache', 'ssd': False},
+                       vpool_writecaches_mp[0]: {'device': l[2], 'percentage': 25, 'label': 'test_wcache',
+                                                 'type': 'writecache', 'ssd': False},
+                       vpool_foc_mp: {'device': l[3], 'percentage': 25, 'label': 'test_foc', 'type': 'writecache',
+                                      'ssd': False}}
 
         initial_part_used_space = {"/": general.get_filesystem_size("/")[3]}
 
-        vpool_params = {}
-        try:
-            general.apply_disk_layout(disk_layout)
-
-            vpool_params = general.api_add_vpool(vpool_readcache1_mp = vpool_readcache1_mp,
-                                                 vpool_readcache2_mp = vpool_readcache2_mp,
-                                                 vpool_writecache_mp = vpool_writecache_mp,
-                                                 vpool_foc_mp        = vpool_foc_mp)
-
-            general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
-        finally:
-            if vpool_params:
-                general.api_remove_vpool(vpool_params['vpool_name'])
-            general.clean_disk_layout(disk_layout)
-
+        run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
+                                      initial_part_used_space)
 
 
 def two_disks_layout_test():
@@ -176,37 +143,24 @@ def two_disks_layout_test():
     if len(unused_disks) < 2:
         raise SkipTest("Need at least 2 unused disks")
 
-    vpool_readcache1_mp  = "/mnt/test_cache1"
-    vpool_readcache2_mp  = "/mnt/test_cache2"
-    vpool_writecache_mp  = "/mnt/test_wcache"
-    vpool_foc_mp         = "/mnt/test_fcache"
+    vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
+    vpool_writecaches_mp = ["/mnt/test_wcache"]
+    vpool_foc_mp = "/mnt/test_fcache"
 
-    combinations = [comb for comb in list(itertools.product([0,1], repeat = 4)) if comb.count(0) >= 1 and comb.count(1) >= 1]
+    combinations = [comb for comb in list(itertools.product([0, 1], repeat=4)) if comb.count(0) >= 1 and
+                    comb.count(1) >= 1]
     random.shuffle(combinations)
     for comb in combinations[:6]:
 
-        disk_layout = {vpool_readcache1_mp: {'device': unused_disks[comb[0]], 'percentage': 25, 'label': 'test_cache1'},
-                       vpool_readcache2_mp: {'device': unused_disks[comb[1]], 'percentage': 25, 'label': 'test_cache2'},
-                       vpool_writecache_mp: {'device': unused_disks[comb[2]], 'percentage': 25, 'label': 'test_wcache'},
-                       vpool_foc_mp:        {'device': unused_disks[comb[3]], 'percentage': 25, 'label': 'test_foc'}}
-
-        vpool_params = {}
-        try:
-            general.apply_disk_layout(disk_layout)
-
-            vpool_params = general.api_add_vpool(vpool_readcache1_mp = vpool_readcache1_mp,
-                                                 vpool_readcache2_mp = vpool_readcache2_mp,
-                                                 vpool_writecache_mp = vpool_writecache_mp,
-                                                 vpool_foc_mp        = vpool_foc_mp)
-
-
-            general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout)
-        finally:
-            if vpool_params:
-                general.api_remove_vpool(vpool_params['vpool_name'])
-            general.clean_disk_layout(disk_layout)
-
-
+        disk_layout = {vpool_readcaches_mp[0]: {'device': unused_disks[comb[0]], 'percentage': 25,
+                                                'label': 'test_cache1', 'type': 'readcache', 'ssd': False},
+                       vpool_readcaches_mp[1]: {'device': unused_disks[comb[0]], 'percentage': 25,
+                                                'label': 'test_cache2', 'type': 'readcache', 'ssd': False},
+                       vpool_writecaches_mp[0]: {'device': unused_disks[comb[0]], 'percentage': 25,
+                                                 'label': 'test_wcache', 'type': 'writecache', 'ssd': False},
+                       vpool_foc_mp: {'device': unused_disks[comb[0]], 'percentage': 25, 'label': 'test_foc',
+                                      'type': 'writecache', 'ssd': False}}
+        run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp)
 
 
 def same_disk_different_percentages_layout_test():
@@ -216,54 +170,33 @@ def same_disk_different_percentages_layout_test():
     if not unused_disks:
         raise SkipTest("Need at least 1 unused disk")
 
-    vpool_readcache1_mp  = "/mnt/test_cache1"
-    vpool_readcache2_mp  = "/mnt/test_cache2"
-    vpool_writecache_mp  = "/mnt/test_wcache"
-    vpool_foc_mp         = "/mnt/test_fcache"
+    vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
+    vpool_writecaches_mp = ["/mnt/test_wcache"]
+    vpool_foc_mp = "/mnt/test_fcache"
 
-    #Layout1
-    disk_layout = {vpool_readcache1_mp: {'device': unused_disks[0], 'percentage': 10, 'label': 'test_cache1'},
-                   vpool_readcache2_mp: {'device': unused_disks[0], 'percentage': 40, 'label': 'test_cache2'},
-                   vpool_writecache_mp: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_wcache'},
-                   vpool_foc_mp:        {'device': unused_disks[0], 'percentage': 25, 'label': 'test_foc'}}
+    # Layout 1
+    disk_layout = {vpool_readcaches_mp[0]: {'device': unused_disks[0], 'percentage': 10, 'label': 'test_cache1',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_readcaches_mp[1]: {'device': unused_disks[0], 'percentage': 40, 'label': 'test_cache2',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_writecaches_mp[0]: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_wcache',
+                                             'type': 'writecache', 'ssd': False},
+                   vpool_foc_mp: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_foc',
+                                  'type': 'writecache', 'ssd': False}}
 
-    vpool_params = {}
-    try:
-        general.apply_disk_layout(disk_layout)
+    run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp)
 
-        vpool_params = general.api_add_vpool(vpool_readcache1_mp = vpool_readcache1_mp,
-                                             vpool_readcache2_mp = vpool_readcache2_mp,
-                                             vpool_writecache_mp = vpool_writecache_mp,
-                                             vpool_foc_mp        = vpool_foc_mp)
+    # Layout 1
+    disk_layout = {vpool_readcaches_mp[0]: {'device': unused_disks[0], 'percentage': 40, 'label': 'test_cache1',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_readcaches_mp[1]: {'device': unused_disks[0], 'percentage': 10, 'label': 'test_cache2',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_writecaches_mp[0]: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_wcache',
+                                             'type': 'writecache', 'ssd': False},
+                   vpool_foc_mp: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_foc',
+                                  'type': 'writecache', 'ssd': False}}
 
-
-        general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout)
-    finally:
-        if vpool_params:
-            general.api_remove_vpool(vpool_params['vpool_name'])
-        general.clean_disk_layout(disk_layout)
-
-
-    #Layout2
-    disk_layout = {vpool_readcache1_mp: {'device': unused_disks[0], 'percentage': 40, 'label': 'test_cache1'},
-                   vpool_readcache2_mp: {'device': unused_disks[0], 'percentage': 10, 'label': 'test_cache2'},
-                   vpool_writecache_mp: {'device': unused_disks[0], 'percentage': 25, 'label': 'test_wcache'},
-                   vpool_foc_mp:        {'device': unused_disks[0], 'percentage': 25, 'label': 'test_foc'}}
-    vpool_params = {}
-    try:
-        general.apply_disk_layout(disk_layout)
-
-        vpool_params = general.api_add_vpool(vpool_readcache1_mp = vpool_readcache1_mp,
-                                             vpool_readcache2_mp = vpool_readcache2_mp,
-                                             vpool_writecache_mp = vpool_writecache_mp,
-                                             vpool_foc_mp        = vpool_foc_mp)
-
-
-        general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout)
-    finally:
-        if vpool_params:
-            general.api_remove_vpool(vpool_params['vpool_name'])
-        general.clean_disk_layout(disk_layout)
+    run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp)
 
 
 def root_partition_already_at_60_percent_test():
@@ -278,60 +211,44 @@ def root_partition_already_at_60_percent_test():
         cmd = "fallocate -l {0} {1}".format(to_alocate, big_file)
         general.execute_command(cmd)
 
-    vpool_readcache1_mp  = "/mnt/test_cache1"
-    vpool_readcache2_mp  = "/mnt/test_cache2"
-    vpool_writecache_mp  = "/mnt/test_wcache"
-    vpool_foc_mp         = "/mnt/test_fcache"
+    vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
+    vpool_writecaches_mp = ["/mnt/test_wcache"]
+    vpool_foc_mp = "/mnt/test_fcache"
 
-    disk_layout = {vpool_readcache1_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1'},
-                   vpool_readcache2_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache2'},
-                   vpool_writecache_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_wcache'},
-                   vpool_foc_mp:        {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_foc'}}
+    disk_layout = {vpool_readcaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_readcaches_mp[1]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache2',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_writecaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_wcache',
+                                             'type': 'writecache', 'ssd': False},
+                   vpool_foc_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_foc', 'type': 'writecache',
+                                  'ssd': False}}
 
     initial_part_used_space = {"/": general.get_filesystem_size("/")[3]}
 
-    vpool_params = {}
-    try:
-        general.apply_disk_layout(disk_layout)
-
-        vpool_params = general.api_add_vpool(vpool_readcache1_mp = vpool_readcache1_mp,
-                                             vpool_readcache2_mp = vpool_readcache2_mp,
-                                             vpool_writecache_mp = vpool_writecache_mp,
-                                             vpool_foc_mp        = vpool_foc_mp)
-
-
-        general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
-    finally:
-        os.remove(big_file)
-        if vpool_params:
-            general.api_remove_vpool(vpool_params['vpool_name'])
-        general.clean_disk_layout(disk_layout)
+    run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
+                                  initial_part_used_space)
+    os.remove(big_file)
 
 
 def readcache_and_writecache_same_dir_test():
 
-    vpool_cache_mp = "/mnt/test_cache"
-    vpool_foc_mp   = "/mnt/test_fcache"
+    vpool_readcaches_mp = ["/mnt/test_cache", "/mnt/test_cache"]
+    vpool_writecaches_mp = ["/mnt/test_cache"]
+    vpool_foc_mp = "/mnt/test_fcache"
 
-    disk_layout = {vpool_cache_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1'},
-                   vpool_foc_mp:   {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_foc'}}
+    disk_layout = {vpool_readcaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_readcaches_mp[1]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache2',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_writecaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_wcache',
+                                             'type': 'writecache', 'ssd': False},
+                   vpool_foc_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_foc', 'type': 'writecache',
+                                  'ssd': False}}
     initial_part_used_space = {"/": general.get_filesystem_size("/")[3]}
-    vpool_params = {}
-    try:
-        general.apply_disk_layout(disk_layout)
 
-        vpool_params = general.api_add_vpool(vpool_readcache1_mp = vpool_cache_mp,
-                                             vpool_readcache2_mp = vpool_cache_mp,
-                                             vpool_writecache_mp = vpool_cache_mp,
-                                             vpool_foc_mp        = vpool_foc_mp)
-
-
-        general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
-
-    finally:
-        if vpool_params:
-            general.api_remove_vpool(vpool_params['vpool_name'])
-        general.clean_disk_layout(disk_layout)
+    run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
+                                  initial_part_used_space)
 
 
 def three_disks_layout_test():
@@ -341,32 +258,22 @@ def three_disks_layout_test():
     if len(unused_disks) < 3:
         raise SkipTest("Need at least 3 unused disks")
 
-    vpool_readcache1_mp  = "/mnt/test_cache1"
-    vpool_readcache2_mp  = "/mnt/test_cache2"
-    vpool_writecache_mp  = "/mnt/test_wcache"
-    vpool_foc_mp         = "/mnt/test_fcache"
+    vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
+    vpool_writecaches_mp = ["/mnt/test_wcache"]
+    vpool_foc_mp = "/mnt/test_fcache"
 
-    combinations = [comb for comb in list(itertools.product([0, 1, 2], repeat = 4)) if comb.count(0) >= 1 and comb.count(1) >= 1 and comb.count(2) >= 1]
+    combinations = [comb for comb in list(itertools.product([0, 1, 2], repeat=4)) if comb.count(0) >= 1 and
+                    comb.count(1) >= 1 and comb.count(2) >= 1]
     random.shuffle(combinations)
 
     for comb in combinations[:6]:
-        disk_layout = {vpool_readcache1_mp: {'device': unused_disks[comb[0]], 'percentage': 25, 'label': 'test_cache1'},
-                       vpool_readcache2_mp: {'device': unused_disks[comb[1]], 'percentage': 25, 'label': 'test_cache2'},
-                       vpool_writecache_mp: {'device': unused_disks[comb[2]], 'percentage': 25, 'label': 'test_wcache'},
-                       vpool_foc_mp:        {'device': unused_disks[comb[3]], 'percentage': 25, 'label': 'test_foc'}}
+        disk_layout = {vpool_readcaches_mp[0]: {'device': unused_disks[comb[0]], 'percentage': 25,
+                                                'label': 'test_cache1', 'type': 'readcache', 'ssd': False},
+                       vpool_readcaches_mp[1]: {'device': unused_disks[comb[0]], 'percentage': 25,
+                                                'label': 'test_cache2', 'type': 'readcache', 'ssd': False},
+                       vpool_writecaches_mp[0]: {'device': unused_disks[comb[0]], 'percentage': 25,
+                                                 'label': 'test_wcache', 'type': 'writecache', 'ssd': False},
+                       vpool_foc_mp: {'device': unused_disks[comb[0]], 'percentage': 25, 'label': 'test_foc',
+                                      'type': 'writecache', 'ssd': False}}
 
-        vpool_params = {}
-        try:
-            general.apply_disk_layout(disk_layout)
-
-            vpool_params = general.api_add_vpool(vpool_readcache1_mp = vpool_readcache1_mp,
-                                                 vpool_readcache2_mp = vpool_readcache2_mp,
-                                                 vpool_writecache_mp = vpool_writecache_mp,
-                                                 vpool_foc_mp        = vpool_foc_mp)
-
-
-            general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout)
-        finally:
-            if vpool_params:
-                general.api_remove_vpool(vpool_params['vpool_name'])
-            general.clean_disk_layout(disk_layout)
+        run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp)

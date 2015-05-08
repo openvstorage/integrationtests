@@ -446,6 +446,8 @@ def apply_disk_layout(disk_layout):
     ovs_fstab_start = "BEGIN Open vStorage"
     execute_command("sed -i '/{0}/d' /etc/fstab".format(ovs_fstab_start))
 
+    print "Disk layout to apply: {0}".format(disk_layout)
+
     client = SSHClient.load('127.0.0.1', 'rooter')
     sc = SetupController()
 

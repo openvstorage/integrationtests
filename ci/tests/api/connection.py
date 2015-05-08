@@ -17,6 +17,7 @@ import urllib2
 import urllib
 import json
 
+
 class Connection:
     def __init__(self, ip='', username='', password=''):
         self.ip = ip
@@ -53,19 +54,20 @@ class Connection:
     ip = property(get_ip, set_ip)
 
     def authenticate(self):
-        if self.headers.has_key('Authorization'):
+        if self.headers in 'Authorization':
             self.headers.pop('Authorization')
 
         auth_url = 'https://{0}/api/oauth2/token/'.format(self.get_ip())
 
-        request = urllib2.Request(auth_url, data=urllib.urlencode({'grant_type': 'password',
-                                                                   'username': self.get_username(),
-                                                                   'password': self.get_password()}), headers=self.headers)
+        request = urllib2.Request(auth_url,
+                                  data=urllib.urlencode({'grant_type': 'password',
+                                                         'username': self.get_username(),
+                                                         'password': self.get_password()}),
+                                  headers=self.headers)
         response = urllib2.urlopen(request).read()
 
         self.token = json.loads(response)['access_token']
         self.headers['Authorization'] = 'Bearer {0}'.format(self.token)
-
 
     def get_active_tasks(self):
         base_url = 'https://{0}/api/customer/{{0}}'.format(self.get_ip())
