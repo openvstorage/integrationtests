@@ -58,7 +58,7 @@ class BrowserOvs():
         self.screens_location = "/var/tmp"
         self.teardown_done = False
         if not getattr(self, "scr_name", ""):
-            self.scr_name = general.getFunctionName(1)
+            self.scr_name = general.get_function_name(1)
         self.log('BrowserOvs initialized')
 
     def get_username(self):
@@ -217,6 +217,7 @@ class BrowserOvs():
         modal = self.wait_for_modal()
         retries = 10
 
+        button = None
         while retries:
             buttons = modal.find_by_tag("button")
             button = [b for b in buttons if b.text == button_name]

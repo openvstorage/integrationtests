@@ -4,31 +4,27 @@ import sys
 import json
 import stat
 import time
-import random
-import urllib
 import shutil
 import logging
 import inspect
-import pexpect
 import paramiko
 import subprocess
 
 import general_hypervisor
 
-from ci                import autotests
+from ci import autotests
 from nose.plugins.skip import SkipTest
 
-from ovs.dal.lists                      import vmachinelist
-from ovs.dal.lists                      import vpoollist
-from ovs.dal.lists                      import storagerouterlist
-from ovs.dal.lists                      import licenselist
-from ovs.dal.lists.storagerouterlist    import StorageRouterList
-from ovs.dal.lists.backendlist          import BackendList
+from ovs.dal.lists import vmachinelist
+from ovs.dal.lists import vpoollist
+from ovs.dal.lists import storagerouterlist
+from ovs.dal.lists import licenselist
+from ovs.dal.lists.storagerouterlist import StorageRouterList
+from ovs.dal.lists.backendlist import BackendList
 
-from ovs.lib.storagerouter              import StorageRouterController
-from ovs.lib.setup                      import SetupController
-from ovs.extensions.generic.sshclient   import SSHClient
-
+from ovs.lib.storagerouter import StorageRouterController
+from ovs.lib.setup import SetupController
+from ovs.extensions.generic.sshclient import SSHClient
 
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
@@ -41,20 +37,20 @@ if not hasattr(sys, "debugEnabled"):
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 
-def execute_command(command, wait = True, shell = True):
-    childProc = subprocess.Popen(command,
-                                 shell  = shell,
-                                 stdin  = subprocess.PIPE,
-                                 stdout = subprocess.PIPE,
-                                 stderr = subprocess.PIPE)
+def execute_command(command, wait=True, shell=True):
+    child_process = subprocess.Popen(command,
+                                     shell=shell,
+                                     stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
 
     if not wait:
-        return childProc.pid
-    (out, error) = childProc.communicate()
+        return child_process.pid
+    (out, error) = child_process.communicate()
     return out, error
 
 
-def execute_command_on_node(host, command, password = None):
+def execute_command_on_node(host, command, password=None):
     cl = SSHClient(host, username='root', password=password)
     return cl.run(command)
 
@@ -66,7 +62,7 @@ def get_elem_with_val(iterable, key, value):
     return [e for e in iterable if e.get(key, "iNvAlId_VaLuE") == value]
 
 
-def lineno():
+def get_line_number():
     """Returns the current line number in our program."""
     return inspect.currentframe().f_back.f_lineno
 
@@ -76,56 +72,57 @@ def get_alba_license():
     return licenselist.LicenseList.get_by_component('alba')
 
 
-def checkPrereqs(testCaseNumber, testsToRun):
+def check_prereqs(testcase_number, tests_to_run):
     """
-    Check whetever test needs to run or not
-    @param testCaseNumber:    Number of testcase --> Used to determine if test needs to be executed
-    @type testCaseNumber:     Integer
+    Check which test needs to run
+    @param testcase_number:    Number of testcase --> Used to determine if test needs to be executed
+    @type testcase_number:     Integer
 
-    @param testsToRun:        Number(s) of tests of a testsuite to execute
-    @type testsToRun:         List of Integers
+    @param tests_to_run:       Number(s) of tests of a testsuite to execute
+    @type tests_to_run:        List of Integers
 
     @return:                  None
     """
-    if 0 not in testsToRun and testCaseNumber not in testsToRun:
+    if 0 not in tests_to_run and testcase_number not in tests_to_run:
         raise SkipTest
 
 
-def getTestsToRun(test_level):
+def get_tests_to_run(test_level):
     """
     Retrieves the tests to be executed in the testsuite (from autotest config file)
 
     @return:     List of numbers of tests to be executed
     @returntype: List of integers
     """
-    tests      = test_level
-    testsToRun = []
+
+    tests = test_level
+    tests_to_run = []
     if tests:
         for number in tests.split(','):
             if not number.find('-') >= 0:
-                testsToRun.append(int(number))
+                tests_to_run.append(int(number))
             else:
                 numbers = number.split('-')
                 if int(numbers[0]) > int(numbers[1]):
-                    hulp       = numbers[0]
+                    swap_number = numbers[0]
                     numbers[0] = numbers[1]
-                    numbers[1] = hulp
+                    numbers[1] = swap_number
 
-                testsToRun.append(int(numbers[0]))
-                for k in range(int(numbers[0])+1,int(numbers[1])+1):
-                    testsToRun.append(k)
+                tests_to_run.append(int(numbers[0]))
+                for k in range(int(numbers[0])+1, int(numbers[1])+1):
+                    tests_to_run.append(k)
 
-    return sorted(list(set(testsToRun)))
+    return sorted(list(set(tests_to_run)))
 
 
-def getRemoteSshCon(ipAddress, username, password):
+def get_remote_ssh_connection(ip_address, username, password):
     """
     """
-    sshCon = paramiko.SSHClient()
-    sshCon.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    sshCon.connect(ipAddress, username = username, password = password, timeout  = 2)
-    sftp = sshCon.open_sftp()
-    return sshCon, sftp
+    ssh_connection = paramiko.SSHClient()
+    ssh_connection.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh_connection.connect(ip_address, username=username, password=password, timeout=2)
+    sftp = ssh_connection.open_sftp()
+    return ssh_connection, sftp
 
 
 def get_virbr_ip():
@@ -134,13 +131,13 @@ def get_virbr_ip():
 
 
 def get_local_vsa():
-    local_ip_info =  execute_command("ip a")[0]
+    local_ip_info = execute_command("ip a")[0]
     for vsa in storagerouterlist.StorageRouterList.get_storagerouters():
         if vsa.ip in local_ip_info:
             return vsa
 
 
-def getFunctionName(level = 0):
+def get_function_name(level=0):
     """
     Returns the functionName of the test being executed currently
 
@@ -150,11 +147,11 @@ def getFunctionName(level = 0):
     @return:      Name of the test
     @returntype:  String
     """
-    return sys._getframe( level + 1 ).f_code.co_name
+    return sys._getframe(level + 1).f_code.co_name
 
 
 def cleanup():
-    machinename = "AT_"
+    machine_name = "AT_"
     vpool_name = autotests.getConfigIni().get("vpool", "vpool_name")
 
     vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
@@ -166,7 +163,7 @@ def cleanup():
             if not vm:
                 continue
             vm = vm[0]
-            if not vm.name.startswith(machinename):
+            if not vm.name.startswith(machine_name):
                 continue
             if vm.is_vtemplate:
                 hpv.delete_clones(vm.name)
@@ -177,7 +174,7 @@ def cleanup():
             mountpoint = vpool.storagedrivers[0].mountpoint
             if os.path.exists(mountpoint):
                 for d in os.listdir(mountpoint):
-                    if d.startswith(machinename):
+                    if d.startswith(machine_name):
                         p = os.path.join(mountpoint, d)
                         if os.path.isdir(p):
                             shutil.rmtree(p)
@@ -194,8 +191,8 @@ def cleanup():
             time.sleep(3)
 
         if general_hypervisor.get_hypervisor_type() == "VMWARE":
-            hypervisorInfo = autotests.getHypervisorInfo()
-            ssh_con = getRemoteSshCon(*hypervisorInfo)[0]
+            hypervisor_info = autotests.getHypervisorInfo()
+            ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
             cmd = "esxcli storage nfs remove -v {0}".format(vpool.name)
             ssh_con.exec_command(cmd)
 
@@ -207,34 +204,34 @@ def add_vpool(browser):
         browser.add_gsrs_to_vpool(browser.vpool_name)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
-        hypervisorInfo = autotests.getHypervisorInfo()
+        hypervisor_info = autotests.getHypervisorInfo()
 
-        vpool_name  = browser.vpool_name
+        vpool_name = browser.vpool_name
         vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
 
         for sd in vpool.storagedrivers:
-            hypervisorInfo[0] = sd.storagerouter.pmachine.ip
-            ssh_con = getRemoteSshCon(*hypervisorInfo)[0]
+            hypervisor_info[0] = sd.storagerouter.pmachine.ip
+            ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
 
             storage_ip = sd.storage_ip
 
             cmd = "esxcli storage nfs add -H {0} -s /mnt/{1} -v {1}".format(storage_ip, vpool_name)
-            os.write(1, str(hypervisorInfo) + "\n")
+            os.write(1, str(hypervisor_info) + "\n")
             os.write(1, cmd + "\n")
-            _stdin, stdout, stderr = ssh_con.exec_command(cmd)
+            _, stdout, stderr = ssh_con.exec_command(cmd)
             os.write(1, str(stdout.readlines()))
             os.write(1, str(stderr.readlines()))
 
 
 def remove_vpool(browser):
-    vpool_name  = browser.vpool_name
+    vpool_name = browser.vpool_name
     browser.remove_vpool(vpool_name)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
-        hypervisorInfo = autotests.getHypervisorInfo()
-        ssh_con = getRemoteSshCon(*hypervisorInfo)[0]
+        hypervisor_info = autotests.getHypervisorInfo()
+        ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
 
-        _stdin, stdout, _stderr = ssh_con.exec_command("esxcli storage nfs list")
+        _, stdout, _ = ssh_con.exec_command("esxcli storage nfs list")
         out = "\n".join(stdout.readlines())
         if vpool_name in out:
 
@@ -273,12 +270,12 @@ def get_disk_path_by_label(label):
     return execute_command("readlink /dev/disk/by-label/{0} -f".format(label))[0].strip()
 
 
-def get_filesystem_size(mountpoint):
-    statvfs = os.statvfs(mountpoint)
+def get_filesystem_size(mount_point):
+    statvfs = os.statvfs(mount_point)
     full_size = statvfs.f_frsize * statvfs.f_blocks
     available_size = statvfs.f_bavail * statvfs.f_frsize
     used_size = (statvfs.f_blocks - statvfs.f_bfree) * statvfs.f_frsize
-    nonroot_total  = available_size + used_size
+    nonroot_total = available_size + used_size
 
     return full_size, nonroot_total, available_size, used_size
 
@@ -318,13 +315,12 @@ def human2bytes(s):
           ...
       ValueError: can't interpret '12 foo'
     """
-    SYMBOLS = {
-                'customary'     : ('B', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'),
-                'customary_ext' : ('byte', 'kilo', 'mega', 'giga', 'tera', 'peta', 'exa',
-                                   'zetta', 'iotta'),
-                'iec'           : ('Bi', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'),
-                'iec_ext'       : ('byte', 'kibi', 'mebi', 'gibi', 'tebi', 'pebi', 'exbi',
-                                   'zebi', 'yobi'),
+    symbols = {'customary': ('B', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'),
+               'customary_ext': ('byte', 'kilo', 'mega', 'giga', 'tera', 'peta', 'exa',
+                                 'zetta', 'iotta'),
+               'iec': ('Bi', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'),
+               'iec_ext': ('byte', 'kibi', 'mebi', 'gibi', 'tebi', 'pebi', 'exbi',
+                           'zebi', 'yobi'),
                }
 
     init = s
@@ -334,70 +330,73 @@ def human2bytes(s):
         s = s[1:]
     num = float(num)
     letter = s.strip()
-    for name, sset in SYMBOLS.items():
-        if letter in sset:
+    for name, units in symbols.items():
+        if letter in units:
             break
     else:
         if letter == 'k':
             # treat 'k' as an alias for 'K' as per: http://goo.gl/kTQMs
-            sset = SYMBOLS['customary']
+            units = symbols['customary']
             letter = letter.upper()
         else:
             raise ValueError("can't interpret %r" % init)
-    prefix = {sset[0]:1}
-    for i, s in enumerate(sset[1:]):
+    prefix = {units[0]: 1}
+    for i, s in enumerate(units[1:]):
         prefix[s] = 1 << (i+1)*10
     return int(num * prefix[letter])
 
 
-def api_add_vpool(vpool_name           = None,
-                  vpool_type           = None,
-                  vpool_host           = None,
-                  vpool_port           = None,
-                  vpool_access_key     = None,
-                  vpool_secret_key     = None,
-                  vpool_temp_mp        = None,
-                  vpool_md_mp          = None,
-                  vpool_readcaches_mp  = None,
-                  vpool_writecaches_mp = None,
-                  vpool_foc_mp         = None,
-                  vpool_bfs_mp         = None,
-                  vpool_vrouter_port   = None,
-                  vpool_storage_ip     = None,
-                  apply_to_all_nodes   = False,
-                  config_cinder        = False):
+def api_add_vpool(vpool_name=None,
+                  vpool_type=None,
+                  vpool_host=None,
+                  vpool_port=None,
+                  vpool_access_key=None,
+                  vpool_secret_key=None,
+                  vpool_temp_mp=None,
+                  vpool_md_mp=None,
+                  vpool_readcaches_mp=None,
+                  vpool_writecaches_mp=None,
+                  vpool_foc_mp=None,
+                  vpool_bfs_mp=None,
+                  vpool_vrouter_port=None,
+                  vpool_storage_ip=None,
+                  apply_to_all_nodes=False,
+                  config_cinder=False):
 
     cfg = autotests.getConfigIni()
 
     local_vsa_ip = get_local_vsa().ip
 
-    parameters = {}
-    parameters['storagerouter_ip']       = local_vsa_ip
-    parameters['vpool_name']             = vpool_name           or cfg.get("vpool", "vpool_name")
-    parameters['type']                   = vpool_type           or cfg.get("vpool", "vpool_type")
-    parameters['connection_host']        = vpool_host           or cfg.get("vpool", "vpool_host")
-    parameters['connection_timeout']     = 600
-    parameters['connection_port']        = vpool_port           or cfg.get("vpool", "vpool_port")
-    parameters['connection_username']    = vpool_access_key     or cfg.get("vpool", "vpool_access_key")
-    parameters['connection_password']    = vpool_secret_key     or cfg.get("vpool", "vpool_secret_key")
-    parameters['mountpoint_temp']        = vpool_temp_mp        or cfg.get("vpool", "vpool_temp_mp")
-    parameters['mountpoint_readcaches']  = vpool_readcaches_mp  or [mp.strip() for mp in cfg.get("vpool", "vpool_readcaches_mp").split(',')]
-    parameters['mountpoint_writecaches'] = vpool_writecaches_mp or [mp.strip() for mp in cfg.get("vpool", "vpool_writecaches_mp").split(',')]
-    parameters['mountpoint_md']          = vpool_md_mp          or cfg.get("vpool", "vpool_md_mp")
-    parameters['mountpoint_foc']         = vpool_foc_mp         or cfg.get("vpool", "vpool_foc_mp")
-    parameters['mountpoint_bfs']         = vpool_bfs_mp         or cfg.get("vpool", "vpool_bfs_mp")
-    parameters['storage_ip']             = vpool_storage_ip     or cfg.get("vpool", "vpool_storage_ip")
-    parameters['config_cinder']          = config_cinder
-
-    parameters['cinder_pass']            = "rooter"
-    parameters['cinder_user']            = "admin"
-    parameters['cinder_tenant']          = "admin"
-    parameters['cinder_controller']      = local_vsa_ip
+    parameters = {'storagerouter_ip': local_vsa_ip,
+                  'vpool_name': vpool_name or cfg.get("vpool", "vpool_name"),
+                  'type': vpool_type or cfg.get("vpool", "vpool_type"),
+                  'connection_host': vpool_host or cfg.get("vpool", "vpool_host"),
+                  'connection_timeout': 600,
+                  'connection_port': vpool_port or cfg.get("vpool", "vpool_port"),
+                  'connection_username': vpool_access_key or cfg.get("vpool", "vpool_access_key"),
+                  'connection_password': vpool_secret_key or cfg.get("vpool", "vpool_secret_key"),
+                  'mountpoint_temp': vpool_temp_mp or cfg.get("vpool", "vpool_temp_mp"),
+                  'mountpoint_readcaches': vpool_readcaches_mp
+                                          or [mp.strip() for mp in cfg.get("vpool", "vpool_readcaches_mp").split(',')],
+                  'mountpoint_writecaches': vpool_writecaches_mp
+                                            or [mp.strip()
+                                                for mp in cfg.get("vpool", "vpool_writecaches_mp").split(',')],
+                  'mountpoint_md': vpool_md_mp or cfg.get("vpool", "vpool_md_mp"),
+                  'mountpoint_foc': vpool_foc_mp or cfg.get("vpool", "vpool_foc_mp"),
+                  'mountpoint_bfs': vpool_bfs_mp or cfg.get("vpool", "vpool_bfs_mp"),
+                  'storage_ip': vpool_storage_ip or cfg.get("vpool", "vpool_storage_ip"),
+                  'config_cinder': config_cinder,
+                  'cinder_pass': "rooter",
+                  'cinder_user': "admin",
+                  'cinder_tenant': "admin",
+                  'cinder_controller': local_vsa_ip
+                  }
 
     if parameters['type'] == 'alba':
-        parameters['connection_backend'] = [b for b in BackendList.get_backends() if b.name.startswith('alba')][0].alba_backend_guid
+        parameters['connection_backend'] = \
+            [b for b in BackendList.get_backends() if b.name.startswith('alba')][0].alba_backend_guid
 
-    print "Adding Vpool: "
+    print "Adding vpool: "
     print parameters
 
     if apply_to_all_nodes:
@@ -424,25 +423,24 @@ def api_remove_vpool(vpool_name):
     local_vsa = get_local_vsa()
 
     for sd in vpool.storagedrivers:
-        mountpoint = ""
+        mount_point = ""
         if sd.cluster_ip == local_vsa.ip:
-            mountpoint = sd.mountpoint
+            mount_point = sd.mountpoint
         StorageRouterController.remove_storagedriver(sd.guid)
         time.sleep(3)
 
-    if mountpoint:
+    if mount_point:
         retries = 20
         while retries:
-            if not os.path.exists(mountpoint):
+            if not os.path.exists(mount_point):
                 break
             time.sleep(1)
             retries -= 1
-        assert retries, "Mountpoint {0} of vpool still exists after removing storage driver".format(mountpoint)
+        assert retries, "Mountpoint {0} of vpool still exists after removing storage driver".format(mount_point)
 
 
 def apply_disk_layout(disk_layout):
-
-    #@TODO: remove this when http://jira.cloudfounders.com/browse/OVS-1336 is fixed
+    # @TODO: remove this when http://jira.cloudfounders.com/browse/OVS-1336 is fixed
     ovs_fstab_start = "BEGIN Open vStorage"
     execute_command("sed -i '/{0}/d' /etc/fstab".format(ovs_fstab_start))
 
@@ -464,9 +462,11 @@ def apply_disk_layout(disk_layout):
         device = device['device']
         mount = [m for m in mounts if device in m and mp in m]
         if device != "DIR_ONLY":
-            assert mount, "{0}, device {1} was not mounted after issueing apply_flexible_disk_layout\nDisk Layout: {2}".format(mp, device, disk_layout)
+            assert mount, "{0}, device {1} was not mounted after apply_flexible_disk_layout\nDisk Layout: {2}".\
+                format(mp, device, disk_layout)
         else:
-            assert not mount, "DIR_ONLY {0} should not be mounted after isueing apply_flexible_disk_layout\nDisk Layout: {1}".format(mp, disk_layout)
+            assert not mount, "DIR_ONLY {0} should not be mounted after apply_flexible_disk_layout\nDisk Layout: {1}".\
+                format(mp, disk_layout)
 
 
 def clean_disk_layout(disk_layout):
@@ -493,7 +493,7 @@ def clean_disk_layout(disk_layout):
     print "df after clean \n", execute_command("df")[0]
 
 
-def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_space = {}):
+def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_space={}):
     """
 
     @param vpool_name:                  Name of vpool
@@ -508,34 +508,39 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
     @return:             None
     """
 
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
-    sd    = vpool.storagedrivers[0]
-
     with open("/opt/OpenvStorage/config/storagedriver/storagedriver/{0}.json".format(vpool_name)) as vpool_json_file:
         vpool_json = json.load(vpool_json_file)
 
-    mountpoints = vpool_json['content_addressed_cache']['clustercache_mount_points'] + vpool_json['scocache']['scocache_mount_points']
-    real_mountpoints = [(mp['path'], find_mount_point(mp['path'])) for mp in mountpoints]
+    mount_points = vpool_json['content_addressed_cache']['clustercache_mount_points'] +\
+                   vpool_json['scocache']['scocache_mount_points']
+    _temp_ = dict()
+    _temp_['path'] = vpool_json['failovercache']['failovercache_path']
+    _temp_['size'] = '0KiB'
+    mount_points.append(_temp_)
+    print "mount_points: {0}".format(mount_points)
+
+    real_mount_points = [(mp['path'], find_mount_point(mp['path'])) for mp in mount_points]
+    print "real_mount_points: {0}".format(real_mount_points)
 
     all_on_root = [find_mount_point(d) == "/" for d in disk_layout]
+    print "all_on_root: {0}".format(all_on_root)
 
     reserved_on_root = 0
 
-    print "Mountpoints:"
-    print mountpoints
-
-    for mp in mountpoints:
+    for mp in mount_points:
         mp_path = os.path.dirname(mp['path'])
         dl = disk_layout[mp_path]
         dev_path = dl['device']
-        real_mountpoint = None
-        print "mp: " , str(mp)
+        real_mount_point = None
+        print "mp_path: ", str(mp_path)
+        print "mp: ", str(mp)
         print "dl: ", str(dl)
         if dev_path == 'DIR_ONLY':
-            real_mountpoint = find_mount_point(mp['path'])
-            other_mountpoint = [rm for rm in real_mountpoints if rm[0] != mp['path'] and rm[1] == real_mountpoint]
-
-            if other_mountpoint:
+            real_mount_point = find_mount_point(mp['path'])
+            print 'real_mount_point: {0}'.format(real_mount_point)
+            other_mount_point = [rm for rm in real_mount_points if rm[0] != mp['path'] and rm[1] == real_mount_point]
+            print 'other_mount_point: {0}'.format(other_mount_point)
+            if other_mount_point:
                 if len(all_on_root) in [2, 3]:
                     if "sco" in mp['path']:
                         expected_reserved_percent = 20
@@ -546,22 +551,22 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
             else:
                 expected_reserved_percent = 49
 
-            mount_size = get_filesystem_size(real_mountpoint)[1] - initial_part_used_space[real_mountpoint]
+            mount_size = get_filesystem_size(real_mount_point)[1] - initial_part_used_space[real_mount_point]
 
-            if real_mountpoint == "/":
+            if real_mount_point == "/":
                 reserved_on_root += expected_reserved_percent
 
         else:
             mount_size = get_filesystem_size(mp_path)[1]
-
             expected_reserved_percent = 98
 
         mp['expected_reserved_percent'] = expected_reserved_percent
-        mp['mount_size']                = mount_size
-        mp['real_mountpoint']           = real_mountpoint
+        mp['mount_size'] = mount_size
+        if not real_mount_point:
+            mp['real_mountpoint'] = mp_path
 
     if find_mount_point(vpool_json['failovercache']['failovercache_path']) == "/":
-        root_mps = [mp['expected_reserved_percent'] for mp in mountpoints if mp['real_mountpoint'] == "/"]
+        root_mps = [mp['expected_reserved_percent'] for mp in mount_points if mp['real_mountpoint'] == "/"]
         if root_mps:
             reserved_on_root += min(root_mps)
     scale = None
@@ -572,15 +577,24 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
     elif reserved_on_root >= 320:
         scale = 8.0
 
+    print "mount_points: {0}".format(mount_points)
 
-    for mp in mountpoints:
+    result = dict()
+    for mp in mount_points:
         if mp['real_mountpoint'] == "/" and scale is not None:
             mp['expected_reserved_percent'] /= scale
         reserved_size = human2bytes(mp['size'])
         reserved_percent = int(round(reserved_size * 100 / float(mp['mount_size'])))
 
         expected_reserved_percent = int(mp['expected_reserved_percent'])
-        assert reserved_percent == expected_reserved_percent, "Expected {0} reserved percent but got {1}\nfor {2}".format(expected_reserved_percent, reserved_percent, str(mp))
+        # assert reserved_percent == expected_reserved_percent, "Expected {0} reserved percent but got {1}\nfor {2}".\
+        #     format(expected_reserved_percent, reserved_percent, str(mp))
+        result[mp['real_mountpoint']] = {'expected': expected_reserved_percent,
+                                         'actual': reserved_percent,
+                                         'path': mp['path']}
+    print result
+    return result
+
 
 
 def get_file_perms(file_path):
@@ -598,7 +612,7 @@ def get_file_perms(file_path):
     return perms
 
 
-def is_service_running(service_name, host_name = None):
+def is_service_running(service_name, host_name=None):
     cmd = "initctl list | grep {0} && initctl status {0} || true".format(service_name)
     if host_name is None:
         out = execute_command(cmd)[0]
@@ -613,14 +627,15 @@ def is_volume_present_in_model(volume_name):
     """
     status = {}
     for vsa in storagerouterlist.StorageRouterList.get_storagerouters():
-        cmd = """python -c 'from ovs.dal.lists.vdisklist import VDiskList;print bool([vd for vd in VDiskList.get_vdisks() if vd.name == "{0}"])'""".format(volume_name)
+        cmd = """python -c 'from ovs.dal.lists.vdisklist import VDiskList
+print bool([vd for vd in VDiskList.get_vdisks() if vd.name == "{0}"])'""".format(volume_name)
         out = execute_command_on_node(vsa.ip, cmd)
         status[vsa.ip] = eval(out)
 
     return status
 
 
-def check_voldrv_services(vpool_name, storagedrivers, running = True):
+def check_voldrv_services(vpool_name, storagedrivers, running=True):
     voldrv_services = (pr + vpool_name for pr in ("ovs-volumedriver_", "ovs-failovercache_"))
     for sd in storagedrivers:
         node = sd.storagerouter.ip
@@ -631,53 +646,40 @@ def check_voldrv_services(vpool_name, storagedrivers, running = True):
                     break
                 time.sleep(1)
                 retries -= 1
-            assert is_service_running(voldrv_service, node) == running, \
-            "Service {0} is not {1} on node {2}".format(voldrv_service,
-                                                       {True: "running", False: "stopped"}[running],
-                                                       node)
+            assert is_service_running(voldrv_service, node) == running,\
+                "Service {0} is not {1} on node {2}".format(voldrv_service,
+                                                            {True: "running", False: "stopped"}[running],
+                                                            node)
 
 
-def check_mountpoints(storagedrivers, is_present = True):
+def check_mountpoints(storagedrivers, is_present=True):
     for sd in storagedrivers:
-        mountpoint = sd.mountpoint
+        mount_point = sd.mountpoint
         node = sd.storagerouter.ip
 
         retries = 20
         while retries:
-            out = execute_command_on_node(node, "df | grep {0} || true".format(mountpoint))
-            if (mountpoint in out) == is_present:
+            out = execute_command_on_node(node, "df | grep {0} || true".format(mount_point))
+            if (mount_point in out) == is_present:
                 break
             time.sleep(1)
             retries -= 1
 
-        assert (mountpoint in out) == is_present, "Vpool mountpoint {0} is {1} mounted on node {2}\n{3}".format(mountpoint,
-                                                                                                              {True: "not", False: "still"}[is_present],
-                                                                                                              node,
-                                                                                                              out)
+        assert (mount_point in out) == is_present,\
+            "Vpool mountpoint {0} is {1} mounted on node {2}\n{3}".format(mount_point,
+                                                                          {True: "not", False: "still"}[is_present],
+                                                                          node, out)
 
 
 def validate_logstash_open_files_amount():
     ls_proc_pid = None
-    file_counters = {'libs'     : {'description' : 'Lib Components',
-                                   'amount'      : 0,
-                                   'regex'       : '^.+\.jar$'},
-                     'devs'     : {'description' : 'Device Handles',
-                                   'amount'      : 0,
-                                   'regex'       : '^/dev/.+$'},
-                     'sockets'  : {'description' : 'Socket Handlers',
-                                   'amount'      : 0,
-                                   'regex'       : '^socket:.+$'},
-                     'patterns' : {'description' : 'Logstash Patterns',
-                                   'amount'      : 0,
-                                   'regex'       : '^.+logstash/patterns.+$'},
-                     'patterns' : {'description' : 'Logstash Patterns',
-                                   'amount'      : 0,
-                                   'regex'       : '^.+logstash/patterns.+$'},
-                     'logs'     : {'description' : 'Logging Files',
-                                   'amount'      : 0,
-                                   'regex'       : '^/var/log/.+$'},
-                     'others'   : {'description' : 'Other Files',
-                                   'amount'      : 0}}
+    file_counters = {'libs': {'description': 'Lib Components', 'amount': 0, 'regex': '^.+\.jar$'},
+                     'devs': {'description': 'Device Handles', 'amount': 0, 'regex': '^/dev/.+$'},
+                     'sockets': {'description': 'Socket Handlers', 'amount': 0, 'regex': '^socket:.+$'},
+                     'patterns': {'description': 'Logstash Patterns', 'amount': 0, 'regex': '^.+logstash/patterns.+$'},
+                     'patterns': {'description': 'Logstash Patterns', 'amount': 0, 'regex': '^.+logstash/patterns.+$'},
+                     'logs': {'description': 'Logging Files', 'amount': 0, 'regex': '^/var/log/.+$'},
+                     'others': {'description': 'Other Files', 'amount': 0}}
     pids = [pid for pid in os.listdir('/proc') if pid.isdigit()]
     for pid in pids:
         try:
@@ -690,7 +692,7 @@ def validate_logstash_open_files_amount():
             # proc already terminated
             continue
 
-    assert not ls_proc_pid is None, "Logstash process not running. PID not found"
+    assert ls_proc_pid is not None, "Logstash process not running. PID not found"
 
     of_path = os.path.join('/proc', ls_proc_pid, 'fd')
     open_files = os.listdir(of_path)
@@ -727,4 +729,5 @@ def validate_logstash_open_files_amount():
     except:
         print 'Cannot retrieve the Maximum allowed open files'
     if max_allowed_of:
-        assert of_total < 90 * max_allowed_of / 100, 'Reached more than 90% of Logstash maximum allowed open files : {0}'.format(max_allowed_of)
+        assert of_total < 90 * max_allowed_of / 100,\
+            'Reached more than 90% of Logstash maximum allowed open files : {0}'.format(max_allowed_of)

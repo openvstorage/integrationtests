@@ -13,7 +13,7 @@ class Vmachine(BrowserOvs):
     def __init__(self, browser_choice='chrome'):
 
         if not getattr(self, "scr_name", ""):
-            self.scr_name = general.getFunctionName(1)
+            self.scr_name = general.get_function_name(1)
 
         self.bt = BrowserOvs.__init__(self, browser_choice=browser_choice)
 
@@ -299,7 +299,8 @@ class Vmachine(BrowserOvs):
                 browser_object = bt = Vmachine()
                 bt.login()
                 bt.set_as_template(tmpl_name)
-                templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid]
+                templates = [t for t in VMachineList.get_vtemplates()
+                             if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid]
                 bt.teardown()
 
             assert templates, "Failed to get template"

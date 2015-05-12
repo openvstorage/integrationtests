@@ -36,7 +36,7 @@ from selenium.webdriver.remote.remote_connection import LOGGER
 
 LOGGER.setLevel(logging.WARNING)
 
-testsToRun = general.getTestsToRun(autotests.getTestLevel())
+tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machinename = "AT_" + __name__.split(".")[-1]
 vpool_name = autotests.getConfigIni().get("vpool", "vpool_name")
 browser_object = None
@@ -92,8 +92,7 @@ def ovs_login_test():
     """
     """
 
-    general.checkPrereqs(testCaseNumber=1,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=1, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -107,8 +106,7 @@ def ovs_wrong_password_test():
     """
     """
 
-    general.checkPrereqs(testCaseNumber=2,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=2, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -125,8 +123,7 @@ def ovs_wrong_username_test():
     """
     """
 
-    general.checkPrereqs(testCaseNumber=3,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=3, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -142,10 +139,9 @@ def ovs_wrong_username_test():
 def vpool_add_test():
     """
     %s
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=4,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=4, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -166,10 +162,9 @@ def vpool_add_test():
 def vpool_remove_test():
     """
     %s
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=5,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=5, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -193,10 +188,9 @@ def vpool_remove_test():
 def validate_vpool_cleanup_test():
     """
     %s
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=6,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=6, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -237,10 +231,9 @@ def set_as_template_test():
     """
     %s
     Create a vm and check if it gets registered
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=7,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=7, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -277,10 +270,9 @@ def create_from_template_test():
     """
     %s
     * create vm from template
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=8,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=8, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -304,10 +296,9 @@ def create_from_template_test():
 def start_stop_vm_test():
     """
     %s
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=9,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=9, tests_to_run=tests_to_run)
 
     name = machinename + "_start" + str(random.randrange(0, 9999999))
 
@@ -353,10 +344,9 @@ def start_stop_vm_test():
 def delete_clone_test():
     """
     %s
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=10,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=10, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -387,10 +377,9 @@ def delete_clone_test():
 def machine_snapshot_rollback_test():
     """
     %s
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=11,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=11, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -459,10 +448,9 @@ def machine_snapshot_rollback_test():
 def try_to_delete_template_with_clones_test():
     """
     %s
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=12,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=12, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -497,10 +485,9 @@ def try_to_delete_template_with_clones_test():
 def delete_template_test():
     """
     %s
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=13,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=13, tests_to_run=tests_to_run)
 
     global browser_object
 
@@ -519,10 +506,9 @@ def delete_template_test():
 def multiple_vpools_test():
     """
     %s
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=14,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=14, tests_to_run=tests_to_run)
 
     global browser_object
 

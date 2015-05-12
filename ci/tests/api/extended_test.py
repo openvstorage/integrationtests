@@ -6,7 +6,7 @@ from nose.plugins.skip import SkipTest
 from ci.tests.general import general
 from ci import autotests
 
-testsToRun = general.getTestsToRun(autotests.getTestLevel())
+testsToRun = general.get_tests_to_run(autotests.getTestLevel())
 
 
 def setup():
@@ -16,10 +16,10 @@ def setup():
 def post_reboot_checks_test():
     """
     %s
-    """ % general.getFunctionName()
+    """ % general.get_function_name()
 
-    general.checkPrereqs(testCaseNumber=1,
-                         testsToRun=testsToRun)
+    general.check_prereqs(testcase_number=1,
+                          tests_to_run=testsToRun)
 
     rebooted_host = os.environ.get('POST_REBOOT_HOST')
     if not rebooted_host:
