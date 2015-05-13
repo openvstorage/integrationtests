@@ -49,11 +49,11 @@ from time import time
 from xml.sax import saxutils
 from StringIO import StringIO
 
-from nose.plugins.base import Plugin
-from nose.exc import SkipTest
-from nose.pyversion import force_unicode, format_exception
-from nose.loader import TestLoader
 from ci.scripts import testrailapi
+from nose.exc import SkipTest
+from nose.loader import TestLoader
+from nose.plugins.base import Plugin
+from nose.pyversion import force_unicode, format_exception
 
 import logging
 log = logging.getLogger('xunit.testrail')
@@ -171,7 +171,6 @@ class xunit_testrail(Plugin):
     error_report_file = None
 
     def __init__(self):
-        # super(Xunit, self).__init__()
         self._timer = ''
         self._capture_stack = []
         self._currentStdout = None
@@ -198,48 +197,48 @@ class xunit_testrail(Plugin):
         """Sets additional command line options."""
         Plugin.options(self, parser, env)
         parser.add_option('--xunit_file2',
-                          action    = 'store',
-                          dest      = 'xunit_file2',
-                          metavar   = "FILE",
-                          default   = env.get('NOSE_XUNIT_FILE', 'nosetests.xml'),
-                          help      = ("Path to xml file to store the xunit report in. "
-                                       "Default is nosetests.xml in the working directory "
-                                       "[NOSE_XUNIT_FILE]"))
+                          action='store',
+                          dest='xunit_file2',
+                          metavar="FILE",
+                          default=env.get('NOSE_XUNIT_FILE', 'nosetests.xml'),
+                          help=("Path to xml file to store the xunit report in. "
+                                "Default is nosetests.xml in the working directory "
+                                "[NOSE_XUNIT_FILE]"))
 
         parser.add_option('--testrail-ip',
-                          action    = "store",
-                          dest      = "testrailIp",
-                          metavar   = "FILE",
-                          default   = "testrail.cloudfounders.com",
-                          help      = "Url of testrail server")
+                          action="store",
+                          dest="testrailIp",
+                          metavar="FILE",
+                          default="testrail.cloudfounders.com",
+                          help="Url of testrail server")
 
         parser.add_option('--project-name',
-                          action    = "store",
-                          dest      = "projectName",
-                          metavar   = "FILE",
-                          default   = "OVS",
-                          help      = "Testrail project name")
+                          action="store",
+                          dest="projectName",
+                          metavar="FILE",
+                          default="OVS",
+                          help="Testrail project name")
 
         parser.add_option('--push-name',
-                          action    = "store",
-                          dest      = "pushName",
-                          metavar   = "FILE",
-                          default   = "AT push results",
-                          help      = "Testrail push name")
+                          action="store",
+                          dest="pushName",
+                          metavar="FILE",
+                          default="AT push results",
+                          help="Testrail push name")
 
         parser.add_option('--description',
-                          action    = "store",
-                          dest      = "description",
-                          metavar   = "FILE",
-                          default   = "",
-                          help      = "Testrail description")
+                          action="store",
+                          dest="description",
+                          metavar="FILE",
+                          default="",
+                          help="Testrail description")
 
         parser.add_option('--plan-id',
-                          action    = "store",
-                          dest      = "planId",
-                          metavar   = "FILE",
-                          default   = "",
-                          help      = "Existing plan id")
+                          action="store",
+                          dest="planId",
+                          metavar="FILE",
+                          default="",
+                          help="Existing plan id")
 
     def configure(self, options, config):
         """Configures the xunit plugin."""
@@ -247,7 +246,6 @@ class xunit_testrail(Plugin):
         Plugin.configure(self, options, config)
         self.config = config
         self.enabled = True
-        print 'plugin enabled: {0}'.format(self.enabled)
         if self.enabled:
             self.stats = {'errors': 0,
                           'failures': 0,
@@ -333,11 +331,10 @@ class xunit_testrail(Plugin):
         sys.stderr = Tee(self.encoding, self._currentStderr, sys.stderr)
 
     def startContext(self, context):
-        log.info('startContext...')
-        self._startCapture()
+        pass
 
     def stopContext(self, context):
-        self._endCapture()
+        pass
 
     def beforeTest(self, test):
         log.info('beforeTest...')
@@ -447,7 +444,7 @@ class xunit_testrail(Plugin):
                         runID = entry['runs'][0]['id']
                     self.runID = runID
 
-                allTestsForRun = self.testrailApi.getTests(runI= self.runID)
+                allTestsForRun = self.testrailApi.getTests(self.runID)
 
                 test = [t for t in allTestsForRun if t['case_id'] == self.caseItem['id']][0]
                 self.testId = test['id']
@@ -455,11 +452,11 @@ class xunit_testrail(Plugin):
                 self.durations = self.caseItem.get("custom_at_avg_duration", "")
 
                 testStatus = self.ongoingStatus['id']
-                self.testrailApi.addResult(testId       = self.testId,
-                                           statusId     = testStatus,
-                                           comment      = "",
-                                           version      = self.version,
-                                           customFields = {'custom_hypervisor': self.hypervisor})
+                self.testrailApi.addResult(testId=self.testId,
+                                           statusId=testStatus,
+                                           comment='',
+                                           version=self.version,
+                                           customFields={'custom_hypervisor': self.hypervisor})
 
                 now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 os.write(1, now + "|" + formatDurations(self.durations) + "-->")
@@ -469,7 +466,6 @@ class xunit_testrail(Plugin):
                 excStr = str(traceback.format_exception(etype, value, tb))
                 with open(CRASH_FILE_LOG, "a") as f:
                     f.write(excStr + "\n\n")
-        # self._timer = time()
 
     def addError(self, test, err, capt=None):
         """
@@ -521,7 +517,6 @@ class xunit_testrail(Plugin):
                 excStr = str(traceback.format_exception(etype, value, tb))
                 with open(CRASH_FILE_LOG, "a") as f:
                     f.write(excStr + "\n\n")
-        # self._timer = time()
 
     def addFailure(self, test, err, capt=None, tb_info=None):
         """Add failure output to Xunit report.

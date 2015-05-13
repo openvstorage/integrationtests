@@ -52,7 +52,6 @@ def execute_command(command, wait=True, shell=True):
 
 def execute_command_on_node(host, command, password=None):
     cl = SSHClient.load(host, password)
-    cl = SSHClient.load(host, password = password)
     return cl.run(command)
 
 
@@ -513,7 +512,7 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
         vpool_json = json.load(vpool_json_file)
 
     mount_points = vpool_json['content_addressed_cache']['clustercache_mount_points'] +\
-                   vpool_json['scocache']['scocache_mount_points']
+        vpool_json['scocache']['scocache_mount_points']
     _temp_ = dict()
     _temp_['path'] = vpool_json['failovercache']['failovercache_path']
     _temp_['size'] = '0KiB'
@@ -532,7 +531,6 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
         mp_path = os.path.dirname(mp['path'])
         dl = disk_layout[mp_path]
         dev_path = dl['device']
-        real_mount_point = None
         print "mp_path: ", str(mp_path)
         print "mp: ", str(mp)
         print "dl: ", str(dl)
@@ -551,20 +549,15 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
                     expected_reserved_percent = 24
             else:
                 expected_reserved_percent = 49
-
-            mount_size = get_filesystem_size(real_mount_point)[1] - initial_part_used_space[real_mount_point]
-
-            if real_mount_point == "/":
-                reserved_on_root += expected_reserved_percent
-
+            mount_size = get_filesystem_size(real_mount_point)[1] - initial_part_used_space['/']
+            reserved_on_root += expected_reserved_percent
         else:
             mount_size = get_filesystem_size(mp_path)[1]
             expected_reserved_percent = 98
 
         mp['expected_reserved_percent'] = expected_reserved_percent
         mp['mount_size'] = mount_size
-        if not real_mount_point:
-            mp['real_mountpoint'] = mp_path
+        mp['real_mountpoint'] = mp_path
 
     if find_mount_point(vpool_json['failovercache']['failovercache_path']) == "/":
         root_mps = [mp['expected_reserved_percent'] for mp in mount_points if mp['real_mountpoint'] == "/"]
@@ -595,7 +588,6 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
                                          'path': mp['path']}
     print result
     return result
-
 
 
 def get_file_perms(file_path):
