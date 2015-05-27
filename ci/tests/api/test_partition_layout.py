@@ -4,6 +4,7 @@ import random
 import logging
 
 from ci.tests.general import general
+from ci import autotests
 from ovs.lib.setup import SetupController
 from ovs.extensions.generic.sshclient import SSHClient
 from nose.plugins.skip import SkipTest
@@ -18,7 +19,8 @@ def setup():
 
     print "setup called " + __name__
 
-    client = SSHClient('127.0.0.1', username='root', password='rooter')
+    grid_ip = autotests.getConfigIni().get("main", "grid_ip")
+    client = SSHClient(grid_ip, username='root', password='rooter')
     sc = SetupController()
 
     with open("/etc/fstab") as f:

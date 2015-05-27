@@ -358,7 +358,6 @@ def api_add_vpool(vpool_name=None,
                   vpool_writecaches_mp=None,
                   vpool_foc_mp=None,
                   vpool_bfs_mp=None,
-                  vpool_vrouter_port=None,
                   vpool_storage_ip=None,
                   apply_to_all_nodes=False,
                   config_cinder=False):
@@ -367,12 +366,15 @@ def api_add_vpool(vpool_name=None,
 
     local_vsa_ip = get_local_vsa().ip
 
+    if not vpool_name:
+        vpool_name = cfg.get("vpool", "vpool_name")
+
     parameters = {'storagerouter_ip': local_vsa_ip,
-                  'vpool_name': vpool_name or cfg.get("vpool", "vpool_name"),
+                  'vpool_name': vpool_name,
                   'type': vpool_type or cfg.get("vpool", "vpool_type"),
                   'connection_host': vpool_host or cfg.get("vpool", "vpool_host"),
                   'connection_timeout': 600,
-                  'connection_port': vpool_port or cfg.get("vpool", "vpool_port"),
+                  'connection_port': vpool_port or int(cfg.get("vpool", "vpool_port")),
                   'connection_username': vpool_access_key or cfg.get("vpool", "vpool_access_key"),
                   'connection_password': vpool_secret_key or cfg.get("vpool", "vpool_secret_key"),
                   'mountpoint_temp': vpool_temp_mp or cfg.get("vpool", "vpool_temp_mp"),
@@ -393,8 +395,12 @@ def api_add_vpool(vpool_name=None,
                   }
 
     if parameters['type'] == 'alba':
-        parameters['connection_backend'] = \
-            [b for b in BackendList.get_backends() if b.name.startswith('alba')][0].alba_backend_guid
+        for backend in BackendList.get_backends():
+            if backend.name.startswith(vpool_name):
+                alba_backend_guid = backend.alba_backend_guid
+                break
+
+        parameters['connection_backend'] = {'backend': alba_backend_guid, 'metadata': 'default'}
 
     print "Adding vpool: "
     print parameters
@@ -446,7 +452,8 @@ def apply_disk_layout(disk_layout):
 
     print "Disk layout to apply: {0}".format(disk_layout)
 
-    client = SSHClient('127.0.0.1', username='root', password='rooter')
+    grid_ip = autotests.getConfigIni().get("main", "grid_ip")
+    client = SSHClient(grid_ip, username='root', password='rooter')
     sc = SetupController()
 
     print "Fstab before apply_flexible_disk_layout\n", execute_command("cat /etc/fstab")[0]
