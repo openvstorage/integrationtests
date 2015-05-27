@@ -649,16 +649,21 @@ def check_mountpoints(storagedrivers, is_present=True):
     for sd in storagedrivers:
         mount_point = sd.mountpoint
         node = sd.storagerouter.ip
-
+        mp = 'ignore-not-mounted'
         retries = 20
+
         while retries:
             out = execute_command_on_node(node, "df | grep {0} || true".format(mount_point))
-            if (mount_point in out) == is_present:
-                break
+            for mp in out.splitlines():
+                mp = mp.split()
+                if len(mp) == 6:
+                    mp = mp[5]
+                    if mount_point == mp:
+                        break
             time.sleep(1)
             retries -= 1
 
-        assert (mount_point in out) == is_present,\
+        assert (mount_point == mp) == is_present,\
             "Vpool mountpoint {0} is {1} mounted on node {2}\n{3}".format(mount_point,
                                                                           {True: "not", False: "still"}[is_present],
                                                                           node, out)
