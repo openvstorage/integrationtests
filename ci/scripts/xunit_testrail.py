@@ -171,7 +171,7 @@ class xunit_testrail(Plugin):
     error_report_file = None
 
     def __init__(self):
-        self._timer = ''
+        self._timer = 0.0
         self._capture_stack = []
         self._currentStdout = None
         self._currentStderr = None
