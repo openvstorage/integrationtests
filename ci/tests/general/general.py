@@ -152,49 +152,54 @@ def get_function_name(level=0):
 
 def cleanup():
     machine_name = "AT_"
-    vpool_name = autotests.getConfigIni().get("vpool", "vpool_name")
+    vpools = list()
+    cfg = autotests.getConfigIni()
+    for section in ['vpool', 'vpool2', 'vpool3', 'vpool4']:
+        if cfg.has_section(section):
+            vpools.append(cfg.get(section, 'vpool_name'))
 
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
-    if vpool:
-        hpv = general_hypervisor.Hypervisor.get(vpool.name)
-        vm_names = [vm.name for vm in vmachinelist.VMachineList.get_vmachines()]
-        for name in vm_names:
-            vm = vmachinelist.VMachineList.get_vmachine_by_name(name)
-            if not vm:
-                continue
-            vm = vm[0]
-            if not vm.name.startswith(machine_name):
-                continue
-            if vm.is_vtemplate:
-                hpv.delete_clones(vm.name)
-            hpv.delete(vm.name)
+    for vpool_name in vpools:
+        vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+        if vpool:
+            hpv = general_hypervisor.Hypervisor.get(vpool.name)
+            vm_names = [vm.name for vm in vmachinelist.VMachineList.get_vmachines()]
+            for name in vm_names:
+                vm = vmachinelist.VMachineList.get_vmachine_by_name(name)
+                if not vm:
+                    continue
+                vm = vm[0]
+                if not vm.name.startswith(machine_name):
+                    continue
+                if vm.is_vtemplate:
+                    hpv.delete_clones(vm.name)
+                hpv.delete(vm.name)
 
-        env_macs = execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()
-        if vpool.storagedrivers:
-            mountpoint = vpool.storagedrivers[0].mountpoint
-            if os.path.exists(mountpoint):
-                for d in os.listdir(mountpoint):
-                    if d.startswith(machine_name):
-                        p = os.path.join(mountpoint, d)
-                        if os.path.isdir(p):
-                            shutil.rmtree(p)
-                        else:
-                            os.remove(p)
-                for mac in env_macs:
-                    mac_path = os.path.join(mountpoint, mac)
-                    if os.path.exists(mac_path):
-                        for f in os.listdir(mac_path):
-                            os.remove(os.path.join(mac_path, f))
+            env_macs = execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()
+            if vpool.storagedrivers:
+                mountpoint = vpool.storagedrivers[0].mountpoint
+                if os.path.exists(mountpoint):
+                    for d in os.listdir(mountpoint):
+                        if d.startswith(machine_name):
+                            p = os.path.join(mountpoint, d)
+                            if os.path.isdir(p):
+                                shutil.rmtree(p)
+                            else:
+                                os.remove(p)
+                    for mac in env_macs:
+                        mac_path = os.path.join(mountpoint, mac)
+                        if os.path.exists(mac_path):
+                            for f in os.listdir(mac_path):
+                                os.remove(os.path.join(mac_path, f))
 
-        for sdg in vpool.storagedrivers_guids:
-            StorageRouterController.remove_storagedriver(sdg)
-            time.sleep(3)
+            for sdg in vpool.storagedrivers_guids:
+                StorageRouterController.remove_storagedriver(sdg)
+                time.sleep(3)
 
-        if general_hypervisor.get_hypervisor_type() == "VMWARE":
-            hypervisor_info = autotests.getHypervisorInfo()
-            ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
-            cmd = "esxcli storage nfs remove -v {0}".format(vpool.name)
-            ssh_con.exec_command(cmd)
+            if general_hypervisor.get_hypervisor_type() == "VMWARE":
+                hypervisor_info = autotests.getHypervisorInfo()
+                ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
+                cmd = "esxcli storage nfs remove -v {0}".format(vpool.name)
+                ssh_con.exec_command(cmd)
 
 
 def add_vpool(browser):

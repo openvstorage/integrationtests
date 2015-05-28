@@ -50,6 +50,7 @@ class Vpool(BrowserOvs):
                  vpool_foc_mp='',
                  vpool_bfs_mp='',
                  vpool_storage_ip='',
+                 vpool_vrouter_port='',
                  browser_choice='chrome'):
 
         if not getattr(self, "scr_name", ""):
@@ -73,6 +74,7 @@ class Vpool(BrowserOvs):
         self.vpool_bfs_mp = vpool_bfs_mp
         if self.vpool_type_name in ["Local FS"]:
             self.vpool_bfs_mp = vpool_bfs_mp or cfg.get("vpool", "vpool_bfs_mp")
+        self.vpool_vrouter_port = vpool_vrouter_port or cfg.get("vpool", "vpool_vrouter_port")
         self.vpool_storage_ip = vpool_storage_ip or cfg.get("vpool", "vpool_storage_ip")
 
         for e in ["vpool_name", "vpool_type_name", "vpool_temp_mp", "vpool_md_mp",
