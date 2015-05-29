@@ -298,6 +298,44 @@ class BrowserOvs():
 
         raise Exception("Could not find {}".format(identifier))
 
+    def click_on_dropdown_item(self, identifier, retries=5):
+
+        while retries:
+            retries -= 1
+            time.sleep(0.1)
+
+            if self.debug:
+                self.browser.screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time())))
+
+            button = None
+            try:
+                button = self.browser.find_by_id(identifier)[0]
+            except ElementDoesNotExist:
+                identifier_low = identifier.lower()
+                buttons = self.browser.find_by_tag(self.BUTTON_TAG)
+
+                self.log(str([(b.value, b.text) for b in buttons]))
+
+                for b in buttons:
+                    if identifier_low in b.text.lower() or identifier_low in b.value.lower():
+                        button = b
+                        break
+
+            if not (button and button.visible):
+                continue
+
+            try:
+                button.click()
+                return button
+            except Exception as ex:
+                self.log(str(ex))
+
+        if self.debug:
+            self.browser.screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time())))
+
+        raise Exception("Could not find {}".format(identifier))
+
+
     def click_on_tbl_item(self, identifier):
         for item in self.browser.find_by_xpath('//table/tbody/tr/td/a'):
             try:

@@ -514,7 +514,7 @@ def multiple_vpools_test():
 
     cfg = autotests.getConfigIni()
 
-    required_backends = ["swift_s3", "local", "ceph_s3"]
+    required_backends = ["alba", "local"]
 
     vpool_params = ['vpool_name', 'vpool_type_name', 'vpool_host', 'vpool_port', 'vpool_access_key', 'vpool_secret_key',
                     'vpool_temp_mp', 'vpool_md_mp', 'vpool_readcaches_mp', 'vpool_writecaches_mp', 'vpool_foc_mp',
@@ -522,8 +522,7 @@ def multiple_vpools_test():
 
     vpool_configs = {}
 
-    for idx in [] + range(2, 10):
-        section_name = "vpool" + str(idx)
+    for section_name in ['vpool', 'vpool2', 'vpool3', 'vpool4']:
         if cfg.has_section(section_name):
             vpool_type = cfg.get(section_name, "vpool_type")
             if vpool_type in required_backends:
