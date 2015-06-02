@@ -19,7 +19,7 @@ def post_reboot_checks_test():
     """ % general.get_function_name()
 
     general.check_prereqs(testcase_number=1,
-                         tests_to_run=testsToRun)
+                          tests_to_run=testsToRun)
 
     rebooted_host = os.environ.get('POST_REBOOT_HOST')
     if not rebooted_host:

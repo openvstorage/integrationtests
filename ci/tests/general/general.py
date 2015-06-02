@@ -50,8 +50,8 @@ def execute_command(command, wait=True, shell=True):
     return out, error
 
 
-def execute_command_on_node(host, command, password=None):
-    cl = SSHClient.load(host, password)
+def execute_command_on_node(host, command, username='root', password=None):
+    cl = SSHClient(host, username, password)
     return cl.run(command)
 
 
