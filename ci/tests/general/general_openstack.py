@@ -265,13 +265,15 @@ def live_migration(instance_id, new_host):
 
 def delete_instance(instance_id):
     vm_name = get_vm_name_hpv(instance_id)
-    general.execute_command("nova delete {0}".format(instance_id))
+    cmd = "nova delete {0}".format(instance_id)
+    out, error = general.execute_command(cmd)
+    assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
-    #wait for vm to be gone
+    # wait for vm to be gone
     retries = 50
     while retries:
-        vms    = get_formated_cmd_output("nova list")
-        vm     = general.get_elem_with_val(vms, "ID", instance_id)
+        vms = get_formated_cmd_output("nova list")
+        vm = general.get_elem_with_val(vms, "ID", instance_id)
         vm_ovs = VMachineList.get_vmachine_by_name(vm_name)
 
         if not (vm or vm_ovs):
@@ -324,7 +326,9 @@ def delete_volume(volume_id, wait=True):
         return
 
     vol_name = vol[0]['DisplayName']
-    general.execute_command("cinder delete {0}".format(volume_id))
+    cmd ="cinder delete {0}".format(volume_id)
+    out, error = general.execute_command(cmd)
+    assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
     if wait:
         #wait for volume to be gone
@@ -336,7 +340,10 @@ def delete_snapshot(snapshot_id, wait=True):
     if not snapshot:
         return
 
-    general.execute_command("cinder snapshot-delete {0}".format(snapshot_id))
+    cmd = "cinder snapshot-delete {0}".format(snapshot_id)
+    out, error = general.execute_command(cmd)
+    assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
+
     if wait:
         retries = 100
         while retries:
@@ -358,11 +365,17 @@ def cleanup():
 
     for snap in get_formated_cmd_output("cinder snapshot-list"):
         if snap['DisplayName'].startswith(autotest_prefix):
-            general.execute_command("cinder snapshot-delete {0}".format(snap['ID']))
+            cmd = "cinder snapshot-delete {0}".format(snap['ID'])
+            out, error = general.execute_command(cmd)
+            assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
     for vol in get_formated_cmd_output("cinder list"):
         if vol['DisplayName'].startswith(autotest_prefix):
-            general.execute_command("cinder delete {0}".format(vol["ID"]))
+            cmd = "cinder delete {0}".format(vol["ID"])
+            out, error = general.execute_command(cmd)
+            assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
-    general.execute_command("glance image-delete {0}".format(IMAGE_NAME))
+    cmd = "glance image-delete {0}".format(IMAGE_NAME)
+    out, error = general.execute_command(cmd)
+    assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 

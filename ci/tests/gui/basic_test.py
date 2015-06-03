@@ -214,7 +214,10 @@ def validate_vpool_cleanup_test():
         local_vsa = general.get_local_vsa()
         sd = [sd for sd in vpool.storagedrivers if sd.storagerouter.ip == local_vsa.ip][0]
         file_name = os.path.join(sd.mountpoint, "validate_vpool" + str(time.time()).replace(".", "") + ".raw")
-        general.execute_command("truncate {0} --size 10000000".format(file_name))
+
+        cmd = "truncate {0} --size 10000000".format(file_name)
+        out, error = general.execute_command(cmd)
+        assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
         time.sleep(10)
         general.execute_command("rm {0}".format(file_name))
