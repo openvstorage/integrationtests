@@ -214,7 +214,7 @@ def add_vpool(browser):
 
     # manually create instances dir for nova
     for storage_router in storage_routers:
-        ssh_con = get_remote_ssh_connection(storage_router.ip, 'root', 'rooter')
+        ssh_con, _ = get_remote_ssh_connection(storage_router.ip, 'root', 'rooter')
         cmd = 'mkdir -p /mnt/{0}/instances'.format(browser.vpool_name)
         _, stdout, stderr = ssh_con.exec_command(cmd)
 
