@@ -164,15 +164,18 @@ def cleanup():
             hpv = general_hypervisor.Hypervisor.get(vpool.name)
             vm_names = [vm.name for vm in vmachinelist.VMachineList.get_vmachines()]
             for name in vm_names:
-                vm = vmachinelist.VMachineList.get_vmachine_by_name(name)
-                if not vm:
+                vms = vmachinelist.VMachineList.get_vmachine_by_name(name)
+                if not vms:
                     continue
-                vm = vm[0]
-                if not vm.name.startswith(machine_name):
-                    continue
-                if vm.is_vtemplate:
-                    hpv.delete_clones(vm.name)
-                hpv.delete(vm.name)
+                for vm in vms:
+                    if not vm.name:
+                        vm.delete()
+                        continue
+                    if not vm.name.startswith(machine_name):
+                        continue
+                    if vm.is_vtemplate:
+                        hpv.delete_clones(vm.name)
+                    hpv.delete(vm.name)
 
             env_macs = execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()
             if vpool.storagedrivers:
@@ -415,6 +418,7 @@ def api_add_vpool(vpool_name=None,
                 alba_backend_guid = backend.alba_backend_guid
                 break
 
+        assert alba_backend_guid, "No backend of specified alba type found!"
         parameters['connection_backend'] = {'backend': alba_backend_guid, 'metadata': 'default'}
 
     print "Adding vpool: "

@@ -77,9 +77,8 @@ def each_mountpoint_own_partition_test():
 
     result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp)
     for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-        log.info(disk_layout[mp])
-        log.info(result[mp])
-
+        logging.log(1, disk_layout[mp])
+        logging.log(1, result[mp])
 
 def all_mountpoints_root_partition_test():
 
@@ -101,8 +100,8 @@ def all_mountpoints_root_partition_test():
                                            initial_part_used_space)
 
     for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-        log.info(disk_layout[mp])
-        log.info(result[mp])
+        logging.log(1, disk_layout[mp])
+        logging.log(1, result[mp])
 
 
 def all_mountpoints_root_partition_one_readcache_test():
@@ -122,8 +121,8 @@ def all_mountpoints_root_partition_one_readcache_test():
     result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
                                            initial_part_used_space)
     for mp in [vpool_readcaches_mp[0], vpool_writecaches_mp[0], vpool_foc_mp]:
-        log.info(disk_layout[mp])
-        log.info(result[mp])
+        logging.log(1, disk_layout[mp])
+        logging.log(1, result[mp])
 
 
 def dir_and_partition_layout_test():
@@ -153,10 +152,10 @@ def dir_and_partition_layout_test():
 
         result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
                                                initial_part_used_space)
-        log.info(idx)
+        logging.log(1, idx)
         for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-            log.info(disk_layout[mp])
-            log.info(result[mp])
+            logging.log(1, disk_layout[mp])
+            logging.log(1, result[mp])
 
 
 def two_disks_layout_test():
@@ -184,10 +183,10 @@ def two_disks_layout_test():
                        vpool_foc_mp: {'device': unused_disks[comb[0]], 'percentage': 25, 'label': 'test_foc',
                                       'type': 'writecache', 'ssd': False}}
         result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp)
-        log.info('comb')
+        logging.log(1, 'comb')
         for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-            log.info(disk_layout[mp])
-            log.info(result[mp])
+            logging.log(1, disk_layout[mp])
+            logging.log(1, result[mp])
 
 
 def same_disk_different_percentages_layout_test():
@@ -212,10 +211,10 @@ def same_disk_different_percentages_layout_test():
                                   'type': 'writecache', 'ssd': False}}
 
     result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp)
-    log.info('Layout 1:...')
+    logging.log(1, 'Layout 1:...')
     for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-        log.info(disk_layout[mp])
-        log.info(result[mp])
+        logging.log(1, disk_layout[mp])
+        logging.log(1, result[mp])
 
     # Layout 1
     disk_layout = {vpool_readcaches_mp[0]: {'device': unused_disks[0], 'percentage': 40, 'label': 'test_cache1',
@@ -228,10 +227,10 @@ def same_disk_different_percentages_layout_test():
                                   'type': 'writecache', 'ssd': False}}
 
     result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp)
-    log.info('Layout 2:...')
+    logging.log(1, 'Layout 2:...')
     for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-        log.info(disk_layout[mp])
-        log.info(result[mp])
+        logging.log(1, disk_layout[mp])
+        logging.log(1, result[mp])
 
 
 def root_partition_already_at_60_percent_test():
@@ -264,8 +263,8 @@ def root_partition_already_at_60_percent_test():
     result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
                                            initial_part_used_space)
     for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-        log.info(disk_layout[mp])
-        log.info(result[mp])
+        logging.log(1, disk_layout[mp])
+        logging.log(1, result[mp])
     os.remove(big_file)
 
 
@@ -288,8 +287,8 @@ def readcache_and_writecache_same_dir_test():
     result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
                                            initial_part_used_space)
     for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-        log.info(disk_layout[mp])
-        log.info(result[mp])
+        logging.log(1, disk_layout[mp])
+        logging.log(1, result[mp])
 
 
 def three_disks_layout_test():
@@ -318,7 +317,7 @@ def three_disks_layout_test():
                                       'type': 'writecache', 'ssd': False}}
 
         result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp)
-        log.info(comb)
+        logging.log(1, comb)
         for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-            log.info(disk_layout[mp])
-            log.info(result[mp])
+            logging.log(1, disk_layout[mp])
+            logging.log(1, result[mp])
