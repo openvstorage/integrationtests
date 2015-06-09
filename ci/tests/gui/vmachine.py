@@ -39,7 +39,9 @@ class Vmachine(BrowserOvs):
         self.log(self.browser.url)
 
         check_ok = False
-        retries = 5000
+        retries = 60
+        disk_links_all = ''
+
         while retries:
             disk_links_all = self.browser.find_link_by_partial_href("#full/vdisk/")
 
@@ -56,7 +58,7 @@ class Vmachine(BrowserOvs):
             retries -= 1
             time.sleep(1)
 
-        assert check_ok, "Failed to check machine disks"
+        assert check_ok, "Failed to check machine disks {0} with name: {1}".format(disk_links_all, name)
 
     def set_as_template(self, name, should_not_allow=False):
         self.check_machine_is_present(name)
