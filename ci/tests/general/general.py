@@ -15,11 +15,11 @@ import general_hypervisor
 from ci import autotests
 from nose.plugins.skip import SkipTest
 
-from ovs.dal.lists import vmachinelist
-from ovs.dal.lists import vpoollist
-from ovs.dal.lists import storagerouterlist
-from ovs.dal.lists import licenselist
+from ovs.dal.lists.vdisklist import VDiskList
+from ovs.dal.lists.vmachinelist import VMachineList
+from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.storagerouterlist import StorageRouterList
+from ovs.dal.lists.licenselist import LicenseList
 from ovs.dal.lists.backendlist import BackendList
 
 from ovs.lib.storagerouter import StorageRouterController
@@ -50,8 +50,8 @@ def execute_command(command, wait=True, shell=True):
     return out, error
 
 
-def execute_command_on_node(host, command, username='root', password=None):
-    cl = SSHClient(host, username, password)
+def execute_command_on_node(host, command, password=None):
+    cl = SSHClient.load(host, password)
     return cl.run(command)
 
 
@@ -69,7 +69,7 @@ def get_line_number():
 
 def get_alba_license():
     """Returns the active license"""
-    return licenselist.LicenseList.get_by_component('alba')
+    return LicenseList.get_by_component('alba')
 
 
 def check_prereqs(testcase_number, tests_to_run):
@@ -132,7 +132,7 @@ def get_virbr_ip():
 
 def get_local_vsa():
     local_ip_info = execute_command("ip a")[0]
-    for vsa in storagerouterlist.StorageRouterList.get_storagerouters():
+    for vsa in StorageRouterList.get_storagerouters():
         if vsa.ip in local_ip_info:
             return vsa
 
@@ -159,12 +159,12 @@ def cleanup():
             vpools.append(cfg.get(section, 'vpool_name'))
 
     for vpool_name in vpools:
-        vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+        vpool = VPoolList.get_vpool_by_name(vpool_name)
         if vpool:
             hpv = general_hypervisor.Hypervisor.get(vpool.name)
-            vm_names = [vm.name for vm in vmachinelist.VMachineList.get_vmachines()]
+            vm_names = [vm.name for vm in VMachineList.get_vmachines()]
             for name in vm_names:
-                vm = vmachinelist.VMachineList.get_vmachine_by_name(name)
+                vm = VMachineList.get_vmachine_by_name(name)
                 if not vm:
                     continue
                 vm = vm[0]
@@ -182,13 +182,16 @@ def cleanup():
                         if d.startswith(machine_name):
                             p = os.path.join(mountpoint, d)
                             if os.path.isdir(p):
+                                logging.log(1, "removing tree: {}".format(p))
                                 shutil.rmtree(p)
                             else:
+                                logging.log(1, "removing file: {}".format(p))
                                 os.remove(p)
                     for mac in env_macs:
                         mac_path = os.path.join(mountpoint, mac)
                         if os.path.exists(mac_path):
                             for f in os.listdir(mac_path):
+                                logging.log(1, "removing file: {}".format(f))
                                 os.remove(os.path.join(mac_path, f))
 
             for sdg in vpool.storagedrivers_guids:
@@ -201,6 +204,14 @@ def cleanup():
                 cmd = "esxcli storage nfs remove -v {0}".format(vpool.name)
                 ssh_con.exec_command(cmd)
 
+            vmachines = VMachineList.get_vmachines()
+            for vmachine in vmachines:
+                vmachine.delete()
+
+            vdisks = VDiskList.get_vdisks()
+            for vdisk in vdisks:
+                vdisk.delete()
+
 
 def add_vpool(browser):
     browser.add_vpool()
@@ -211,7 +222,7 @@ def add_vpool(browser):
 
     # manually create instances dir for nova
     for storage_router in storage_routers:
-        ssh_con = get_remote_ssh_connection(storage_router.ip, 'root', 'rooter')
+        ssh_con, _ = get_remote_ssh_connection(storage_router.ip, 'root', 'rooter')
         cmd = 'mkdir -p /mnt/{0}/instances'.format(browser.vpool_name)
         _, stdout, stderr = ssh_con.exec_command(cmd)
 
@@ -219,7 +230,7 @@ def add_vpool(browser):
         hypervisor_info = autotests.getHypervisorInfo()
 
         vpool_name = browser.vpool_name
-        vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+        vpool = VPoolList.get_vpool_by_name(vpool_name)
 
         for sd in vpool.storagedrivers:
             hypervisor_info[0] = sd.storagerouter.pmachine.ip
@@ -370,7 +381,6 @@ def api_add_vpool(vpool_name=None,
                   vpool_writecaches_mp=None,
                   vpool_foc_mp=None,
                   vpool_bfs_mp=None,
-                  vpool_vrouter_port=None,
                   vpool_storage_ip=None,
                   apply_to_all_nodes=False,
                   config_cinder=False):
@@ -379,20 +389,22 @@ def api_add_vpool(vpool_name=None,
 
     local_vsa_ip = get_local_vsa().ip
 
+    if not vpool_name:
+        vpool_name = cfg.get("vpool", "vpool_name")
+
     parameters = {'storagerouter_ip': local_vsa_ip,
-                  'vpool_name': vpool_name or cfg.get("vpool", "vpool_name"),
+                  'vpool_name': vpool_name,
                   'type': vpool_type or cfg.get("vpool", "vpool_type"),
                   'connection_host': vpool_host or cfg.get("vpool", "vpool_host"),
                   'connection_timeout': 600,
-                  'connection_port': vpool_port or cfg.get("vpool", "vpool_port"),
+                  'connection_port': vpool_port or int(cfg.get("vpool", "vpool_port")),
                   'connection_username': vpool_access_key or cfg.get("vpool", "vpool_access_key"),
                   'connection_password': vpool_secret_key or cfg.get("vpool", "vpool_secret_key"),
                   'mountpoint_temp': vpool_temp_mp or cfg.get("vpool", "vpool_temp_mp"),
-                  'mountpoint_readcaches': vpool_readcaches_mp
-                                           or [mp.strip() for mp in cfg.get("vpool", "vpool_readcaches_mp").split(',')],
-                  'mountpoint_writecaches': vpool_writecaches_mp
-                                            or [mp.strip()
-                                                for mp in cfg.get("vpool", "vpool_writecaches_mp").split(',')],
+                  'mountpoint_readcaches': vpool_readcaches_mp or [mp.strip() for mp in
+                                                                   cfg.get("vpool", "vpool_readcaches_mp").split(',')],
+                  'mountpoint_writecaches': vpool_writecaches_mp or [mp.strip() for mp in
+                                                                     cfg.get("vpool", "vpool_writecaches_mp").split(',')],
                   'mountpoint_md': vpool_md_mp or cfg.get("vpool", "vpool_md_mp"),
                   'mountpoint_foc': vpool_foc_mp or cfg.get("vpool", "vpool_foc_mp"),
                   'mountpoint_bfs': vpool_bfs_mp or cfg.get("vpool", "vpool_bfs_mp"),
@@ -412,7 +424,7 @@ def api_add_vpool(vpool_name=None,
     print parameters
 
     if apply_to_all_nodes:
-        storagerouters = [(sr.ip, sr.machine_id) for sr in storagerouterlist.StorageRouterList.get_storagerouters()]
+        storagerouters = [(sr.ip, sr.machine_id) for sr in StorageRouterList.get_storagerouters()]
         StorageRouterController.update_storagedrivers([], storagerouters, parameters)
     else:
         StorageRouterController.add_vpool(parameters)
@@ -428,7 +440,7 @@ def api_add_vpool(vpool_name=None,
 
 
 def api_remove_vpool(vpool_name):
-    vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
         return
 
@@ -441,14 +453,14 @@ def api_remove_vpool(vpool_name):
         StorageRouterController.remove_storagedriver(sd.guid)
         time.sleep(3)
 
-    if mount_point:
-        retries = 20
-        while retries:
-            if not os.path.exists(mount_point):
-                break
-            time.sleep(1)
-            retries -= 1
-        assert retries, "Mountpoint {0} of vpool still exists after removing storage driver".format(mount_point)
+        if mount_point:
+            retries = 20
+            while retries:
+                if not os.path.exists(mount_point):
+                    break
+                time.sleep(1)
+                retries -= 1
+            assert retries, "Mountpoint {0} of vpool still exists after removing storage driver".format(mount_point)
 
 
 def apply_disk_layout(disk_layout):
@@ -631,7 +643,7 @@ def is_volume_present_in_model(volume_name):
     Check if vdisk is present on all nodes
     """
     status = {}
-    for vsa in storagerouterlist.StorageRouterList.get_storagerouters():
+    for vsa in StorageRouterList.get_storagerouters():
         cmd = """python -c 'from ovs.dal.lists.vdisklist import VDiskList
 print bool([vd for vd in VDiskList.get_vdisks() if vd.name == "{0}"])'""".format(volume_name)
         out = execute_command_on_node(vsa.ip, cmd)

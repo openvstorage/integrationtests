@@ -419,7 +419,12 @@ class Kvm(HypervisorBase):
                              bootdisk_path=bootdisk_path,
                              ram=ram)
             out, error = general.execute_command(cmd)
-            assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
+            logging.log(1, cmd)
+            logging.log(1, '---')
+            logging.log(1, out)
+            logging.log(1, '---')
+            logging.log(1, error)
+            # assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
     def _wait_for_state(self, name, state):
         retries = 240

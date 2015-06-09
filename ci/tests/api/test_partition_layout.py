@@ -18,7 +18,7 @@ def setup():
 
     print "setup called " + __name__
 
-    client = SSHClient('127.0.0.1', username='root', password='rooter')
+    client = SSHClient.load('127.0.0.1', 'rooter')
     sc = SetupController()
 
     with open("/etc/fstab") as f:
