@@ -256,8 +256,13 @@ def set_as_template_test():
     browser_object = bt = Vmachine()
     bt.login()
 
+    logging.log(1, 'Check if vmachine with name: {0} is present'.format(name))
     bt.check_machine_is_present(name, 100)
-    bt.check_machine_disk_is_present()
+
+    vm = VMachineList.get_vmachine_by_name(name)[0]
+    for vdisk in vm.vdisks:
+        bt.check_machine_disk_is_present(vdisk.name)
+
     bt.set_as_template(name, should_not_allow=True)
 
     hpv.shutdown(name)
