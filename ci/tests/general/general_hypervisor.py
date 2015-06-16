@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 import paramiko
@@ -15,8 +16,6 @@ from ovs.dal.lists.pmachinelist import PMachineList
 from ovs.extensions.hypervisor.hypervisors.kvm import Sdk as Kvm_sdk
 from ovs.extensions.hypervisor.hypervisors.vmware import Sdk as Vmware_sdk
 from ovs.lib.vdisk import VDiskController
-
-import logging
 
 # disable excessive logging
 logging.getLogger('suds.client').setLevel(logging.WARNING)
@@ -380,10 +379,13 @@ class Vmware(HypervisorBase):
         vm = [v for v in vms if v.name == name]
         assert vm, "Vm with name {} not found".format(name)
         vm = vm[0]
+        logging.log(1, "Powering off vm: {0}:".format(vm.name))
         self.poweroff(name)
+        logging.log(1, "Deleting vm: {0}:".format(vm.name))
         task = self.sdk._client.service.Destroy_Task(vm.obj_identifier)
         self.sdk.wait_for_task(task)
         self.sdk.validate_result(task)
+        logging.log(1, "Deleted vm: {0}:".format(vm.name))
 
 
 class Kvm(HypervisorBase):
@@ -393,7 +395,7 @@ class Kvm(HypervisorBase):
         self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
         self.sdk = Kvm_sdk()
 
-    def create_vm(self, name, ram=1024):
+    def create_vm(self, name, ram=1024, small_image=True):
         import general_openstack
 
         os_name = autotests.getOs()
@@ -403,7 +405,10 @@ class Kvm(HypervisorBase):
         if not os.path.exists(vm_path):
             os.mkdir(vm_path)
 
-        bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
+        if small_image:
+            bootdisk_path = os.path.join(self.mountpoint, name, "bootdiskfast.raw")
+        else:
+            bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
         if not os.path.exists(bootdisk_path):
             template_server = autotests.getTemplateServer()
             bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
@@ -470,5 +475,8 @@ class Kvm(HypervisorBase):
         assert vm, "Couldn't find vm with name {}".format(name)
         vm = vm[0]
 
+        logging.log(1, "Powering off vm: {0}:".format(vm.name))
         self.poweroff(name)
+        logging.log(1, "Deleting off vm: {0}:".format(vm.name))
         self.sdk.delete_vm(name, vm.devicename, None)
+        logging.log(1, "Deleted vm: {0}:".format(vm.name))

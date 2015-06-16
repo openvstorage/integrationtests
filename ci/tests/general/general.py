@@ -194,6 +194,16 @@ def cleanup():
                                 logging.log(1, "removing file: {}".format(f))
                                 os.remove(os.path.join(mac_path, f))
 
+            # # remove existing disks
+            # vdisks = VDiskList.get_vdisks()
+            # for vdisk in vdisks:
+            #     if vdisk:
+            #         for junction in vdisk.mds_services:
+            #             if junction:
+            #                 junction.delete()
+            #         vdisk.delete()
+            #         logging.log(1, 'Removed leftover disk: {0}'.format(vdisk.name))
+            #
             for sdg in vpool.storagedrivers_guids:
                 StorageRouterController.remove_storagedriver(sdg)
                 time.sleep(3)
@@ -220,11 +230,11 @@ def add_vpool(browser):
     if len(storage_routers) > 1 and browser.vpool_type_name != 'Local FS':
         browser.add_gsrs_to_vpool(browser.vpool_name)
 
-    # manually create instances dir for nova
-    for storage_router in storage_routers:
-        ssh_con, _ = get_remote_ssh_connection(storage_router.ip, 'root', 'rooter')
-        cmd = 'mkdir -p /mnt/{0}/instances'.format(browser.vpool_name)
-        _, stdout, stderr = ssh_con.exec_command(cmd)
+    # # manually create instances dir for nova
+    # for storage_router in storage_routers:
+    #     ssh_con, _ = get_remote_ssh_connection(storage_router.ip, 'root', 'rooter')
+    #     cmd = 'mkdir -p /mnt/{0}/instances'.format(browser.vpool_name)
+    #     _, stdout, stderr = ssh_con.exec_command(cmd)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
         hypervisor_info = autotests.getHypervisorInfo()
@@ -382,7 +392,7 @@ def api_add_vpool(vpool_name=None,
                   vpool_foc_mp=None,
                   vpool_bfs_mp=None,
                   vpool_storage_ip=None,
-                  apply_to_all_nodes=False,
+                  apply_to_all_nodes=True,
                   config_cinder=False):
 
     cfg = autotests.getConfigIni()
@@ -404,7 +414,8 @@ def api_add_vpool(vpool_name=None,
                   'mountpoint_readcaches': vpool_readcaches_mp or [mp.strip() for mp in
                                                                    cfg.get("vpool", "vpool_readcaches_mp").split(',')],
                   'mountpoint_writecaches': vpool_writecaches_mp or [mp.strip() for mp in
-                                                                     cfg.get("vpool", "vpool_writecaches_mp").split(',')],
+                                                                     cfg.get("vpool",
+                                                                             "vpool_writecaches_mp").split(',')],
                   'mountpoint_md': vpool_md_mp or cfg.get("vpool", "vpool_md_mp"),
                   'mountpoint_foc': vpool_foc_mp or cfg.get("vpool", "vpool_foc_mp"),
                   'mountpoint_bfs': vpool_bfs_mp or cfg.get("vpool", "vpool_bfs_mp"),
@@ -416,7 +427,9 @@ def api_add_vpool(vpool_name=None,
                   'cinder_controller': local_vsa_ip
                   }
 
+
     if parameters['type'] == 'alba':
+        alba_backend_guid = ''
         for backend in BackendList.get_backends():
             if backend.name.startswith(vpool_name):
                 alba_backend_guid = backend.alba_backend_guid
@@ -434,12 +447,11 @@ def api_add_vpool(vpool_name=None,
     else:
         StorageRouterController.add_vpool(parameters)
 
-    if config_cinder:
-        instances_dir = "/mnt/{0}/instances".format(parameters['vpool_name'])
-        print instances_dir
-        if not os.path.exists(instances_dir):
-            print "creating instances dir", instances_dir
-            os.makedirs(instances_dir)
+    # if config_cinder:
+    #     instances_dir = "/mnt/{0}/instances".format(parameters['vpool_name'])
+    #     if not os.path.exists(instances_dir):
+    #         print "creating instances dir", instances_dir
+    #         os.makedirs(instances_dir)
 
     return parameters
 
@@ -682,6 +694,7 @@ def check_mountpoints(storagedrivers, is_present=True):
         mp = 'ignore-not-mounted'
         retries = 20
 
+        out = ''
         while retries:
             out = execute_command_on_node(node, "df | grep {0} || true".format(mount_point))
             for mp in out.splitlines():
@@ -704,7 +717,6 @@ def validate_logstash_open_files_amount():
     file_counters = {'libs': {'description': 'Lib Components', 'amount': 0, 'regex': '^.+\.jar$'},
                      'devs': {'description': 'Device Handles', 'amount': 0, 'regex': '^/dev/.+$'},
                      'sockets': {'description': 'Socket Handlers', 'amount': 0, 'regex': '^socket:.+$'},
-                     'patterns': {'description': 'Logstash Patterns', 'amount': 0, 'regex': '^.+logstash/patterns.+$'},
                      'patterns': {'description': 'Logstash Patterns', 'amount': 0, 'regex': '^.+logstash/patterns.+$'},
                      'logs': {'description': 'Logging Files', 'amount': 0, 'regex': '^/var/log/.+$'},
                      'others': {'description': 'Other Files', 'amount': 0}}
