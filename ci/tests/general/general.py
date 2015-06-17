@@ -222,6 +222,17 @@ def cleanup():
             for vdisk in vdisks:
                 vdisk.delete()
 
+    # alba namespace cleanup
+    # from ci.tests.general import general
+    cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg --to-json"
+    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg {0}"
+    out = execute_command(cmd_list)[0].replace('true', 'True')
+    nss = eval(out)['result']
+    logging.log(1, "Namespaces present on alba:\n{0}".foramt(str(nss)))
+    for ns in nss:
+        logging.log(1, "Deleting namespace: {0}".format(str(ns)))
+        print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
+
 
 def add_vpool(browser):
     browser.add_vpool()
