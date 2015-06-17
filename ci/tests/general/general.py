@@ -228,7 +228,7 @@ def cleanup():
     cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg {0}"
     out = execute_command(cmd_list)[0].replace('true', 'True')
     nss = eval(out)['result']
-    logging.log(1, "Namespaces present on alba:\n{0}".foramt(str(nss)))
+    logging.log(1, "Namespaces present on alba:\n{0}".format(str(nss)))
     for ns in nss:
         logging.log(1, "Deleting namespace: {0}".format(str(ns)))
         print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
@@ -437,7 +437,6 @@ def api_add_vpool(vpool_name=None,
                   'cinder_tenant': "admin",
                   'cinder_controller': local_vsa_ip
                   }
-
 
     if parameters['type'] == 'alba':
         alba_backend_guid = ''
