@@ -150,6 +150,28 @@ def get_function_name(level=0):
     return sys._getframe(level + 1).f_code.co_name
 
 
+def remove_alba_namespaces():
+    # alba namespace cleanup - this should not be necessary
+    cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg --to-json"
+    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg {0}"
+    out = execute_command(cmd_list)[0].replace('true', 'True')
+    nss = eval(out)['result']
+    logging.log(1, "Namespaces present on alba:\n{0}".format(str(nss)))
+    fd_namespaces = list()
+    for ns in nss:
+        if 'fd-' in ns:
+            fd_namespaces.append(ns)
+            logging.log(1, "Skipping vpool namespace: {0}".format(ns))
+            continue
+        logging.log(1, "Deleting namespace: {0}".format(str(ns)))
+        print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
+
+    for ns in fd_namespaces:
+        logging.log(1, "Deleting namespace: {0}".format(str(ns)))
+        print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
+    assert len(fd_namespaces) == 0, "Removing Alba namespaces should not be necessary!"
+
+
 def cleanup():
     machine_name = "AT_"
     vpools = list()
@@ -221,18 +243,7 @@ def cleanup():
             vdisks = VDiskList.get_vdisks()
             for vdisk in vdisks:
                 vdisk.delete()
-
-    # alba namespace cleanup
-    # from ci.tests.general import general
-    cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg --to-json"
-    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg {0}"
-    out = execute_command(cmd_list)[0].replace('true', 'True')
-    nss = eval(out)['result']
-    logging.log(1, "Namespaces present on alba:\n{0}".format(str(nss)))
-    for ns in nss:
-        logging.log(1, "Deleting namespace: {0}".format(str(ns)))
-        print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
-
+    remove_alba_namespaces()
 
 def add_vpool(browser):
     browser.add_vpool()
@@ -283,6 +294,7 @@ def remove_vpool(browser):
             stdin, stdout, stderr = ssh_con.exec_command(cmd)
             print stdout.readlines()
             print stderr.readlines()
+    remove_alba_namespaces()
 
 
 def get_this_hostname():
