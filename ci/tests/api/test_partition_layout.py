@@ -48,6 +48,7 @@ def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writec
     finally:
         if vpool_params:
             general.api_remove_vpool(vpool_params['vpool_name'])
+        general.remove_alba_namespaces()
         general.clean_disk_layout(disk_layout)
 
 
@@ -79,6 +80,7 @@ def each_mountpoint_own_partition_test():
     for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
         logging.log(1, disk_layout[mp])
         logging.log(1, result[mp])
+
 
 def all_mountpoints_root_partition_test():
 

@@ -163,11 +163,11 @@ def remove_alba_namespaces():
             fd_namespaces.append(ns)
             logging.log(1, "Skipping vpool namespace: {0}".format(ns))
             continue
-        logging.log(1, "Deleting namespace: {0}".format(str(ns)))
+        logging.log(1, "WARNING: Deleting leftover namespace: {0}".format(str(ns)))
         print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
 
     for ns in fd_namespaces:
-        logging.log(1, "Deleting namespace: {0}".format(str(ns)))
+        logging.log(1, "WARNING: Deleting leftover vpool namespace: {0}".format(str(ns)))
         print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
     assert len(fd_namespaces) == 0, "Removing Alba namespaces should not be necessary!"
 
@@ -216,16 +216,16 @@ def cleanup():
                                 logging.log(1, "removing file: {}".format(f))
                                 os.remove(os.path.join(mac_path, f))
 
-            # # remove existing disks
-            # vdisks = VDiskList.get_vdisks()
-            # for vdisk in vdisks:
-            #     if vdisk:
-            #         for junction in vdisk.mds_services:
-            #             if junction:
-            #                 junction.delete()
-            #         vdisk.delete()
-            #         logging.log(1, 'Removed leftover disk: {0}'.format(vdisk.name))
-            #
+            # remove existing disks
+            vdisks = VDiskList.get_vdisks()
+            for vdisk in vdisks:
+                if vdisk:
+                    for junction in vdisk.mds_services:
+                        if junction:
+                            junction.delete()
+                    vdisk.delete()
+                    logging.log(1, 'WARNING: Removed leftover disk: {0}'.format(vdisk.name))
+
             for sdg in vpool.storagedrivers_guids:
                 StorageRouterController.remove_storagedriver(sdg)
                 time.sleep(3)
@@ -238,12 +238,10 @@ def cleanup():
 
             vmachines = VMachineList.get_vmachines()
             for vmachine in vmachines:
+                logging.log(1, 'WARNING: Removing leftover vmachine: {0}'.format(vmachine.name))
                 vmachine.delete()
-
-            vdisks = VDiskList.get_vdisks()
-            for vdisk in vdisks:
-                vdisk.delete()
     remove_alba_namespaces()
+
 
 def add_vpool(browser):
     browser.add_vpool()
