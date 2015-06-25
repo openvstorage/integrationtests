@@ -51,7 +51,7 @@ def execute_command(command, wait=True, shell=True):
 
 
 def execute_command_on_node(host, command, password=None):
-    cl = SSHClient.load(host, password)
+    cl = SSHClient(host, username='root', password=password)
     return cl.run(command)
 
 
@@ -150,6 +150,32 @@ def get_function_name(level=0):
     return sys._getframe(level + 1).f_code.co_name
 
 
+def get_alba_namespaces():
+    cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg --to-json"
+    out = execute_command(cmd_list)[0].replace('true', 'True')
+    nss = eval(out)['result']
+    logging.log(1, "Namespaces present on alba:\n{0}".format(str(nss)))
+    return nss
+
+
+def remove_alba_namespaces():
+    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg {0}"
+    nss = get_alba_namespaces()
+    fd_namespaces = list()
+    for ns in nss:
+        if 'fd-' in ns:
+            fd_namespaces.append(ns)
+            logging.log(1, "Skipping vpool namespace: {0}".format(ns))
+            continue
+        logging.log(1, "WARNING: Deleting leftover namespace: {0}".format(str(ns)))
+        print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
+
+    for ns in fd_namespaces:
+        logging.log(1, "WARNING: Deleting leftover vpool namespace: {0}".format(str(ns)))
+        print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
+    assert len(fd_namespaces) == 0, "Removing Alba namespaces should not be necessary!"
+
+
 def cleanup():
     machine_name = "AT_"
     vpools = list()
@@ -172,6 +198,7 @@ def cleanup():
                     continue
                 if vm.is_vtemplate:
                     hpv.delete_clones(vm.name)
+                logging.log(1, "Deleting {0} on hypervisor".format(vm.name))
                 hpv.delete(vm.name)
 
             env_macs = execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()
@@ -194,6 +221,16 @@ def cleanup():
                                 logging.log(1, "removing file: {}".format(f))
                                 os.remove(os.path.join(mac_path, f))
 
+            # remove existing disks
+            vdisks = VDiskList.get_vdisks()
+            for vdisk in vdisks:
+                if vdisk:
+                    for junction in vdisk.mds_services:
+                        if junction:
+                            junction.delete()
+                    vdisk.delete()
+                    logging.log(1, 'WARNING: Removed leftover disk: {0}'.format(vdisk.name))
+
             for sdg in vpool.storagedrivers_guids:
                 StorageRouterController.remove_storagedriver(sdg)
                 time.sleep(3)
@@ -206,11 +243,9 @@ def cleanup():
 
             vmachines = VMachineList.get_vmachines()
             for vmachine in vmachines:
+                logging.log(1, 'WARNING: Removing leftover vmachine: {0}'.format(vmachine.name))
                 vmachine.delete()
-
-            vdisks = VDiskList.get_vdisks()
-            for vdisk in vdisks:
-                vdisk.delete()
+    remove_alba_namespaces()
 
 
 def add_vpool(browser):
@@ -220,11 +255,11 @@ def add_vpool(browser):
     if len(storage_routers) > 1 and browser.vpool_type_name != 'Local FS':
         browser.add_gsrs_to_vpool(browser.vpool_name)
 
-    # manually create instances dir for nova
-    for storage_router in storage_routers:
-        ssh_con, _ = get_remote_ssh_connection(storage_router.ip, 'root', 'rooter')
-        cmd = 'mkdir -p /mnt/{0}/instances'.format(browser.vpool_name)
-        _, stdout, stderr = ssh_con.exec_command(cmd)
+    # # manually create instances dir for nova
+    # for storage_router in storage_routers:
+    #     ssh_con, _ = get_remote_ssh_connection(storage_router.ip, 'root', 'rooter')
+    #     cmd = 'mkdir -p /mnt/{0}/instances'.format(browser.vpool_name)
+    #     _, stdout, stderr = ssh_con.exec_command(cmd)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
         hypervisor_info = autotests.getHypervisorInfo()
@@ -262,6 +297,7 @@ def remove_vpool(browser):
             stdin, stdout, stderr = ssh_con.exec_command(cmd)
             print stdout.readlines()
             print stderr.readlines()
+    remove_alba_namespaces()
 
 
 def get_this_hostname():
@@ -382,7 +418,7 @@ def api_add_vpool(vpool_name=None,
                   vpool_foc_mp=None,
                   vpool_bfs_mp=None,
                   vpool_storage_ip=None,
-                  apply_to_all_nodes=False,
+                  apply_to_all_nodes=True,
                   config_cinder=False):
 
     cfg = autotests.getConfigIni()
@@ -404,7 +440,8 @@ def api_add_vpool(vpool_name=None,
                   'mountpoint_readcaches': vpool_readcaches_mp or [mp.strip() for mp in
                                                                    cfg.get("vpool", "vpool_readcaches_mp").split(',')],
                   'mountpoint_writecaches': vpool_writecaches_mp or [mp.strip() for mp in
-                                                                     cfg.get("vpool", "vpool_writecaches_mp").split(',')],
+                                                                     cfg.get("vpool",
+                                                                             "vpool_writecaches_mp").split(',')],
                   'mountpoint_md': vpool_md_mp or cfg.get("vpool", "vpool_md_mp"),
                   'mountpoint_foc': vpool_foc_mp or cfg.get("vpool", "vpool_foc_mp"),
                   'mountpoint_bfs': vpool_bfs_mp or cfg.get("vpool", "vpool_bfs_mp"),
@@ -417,8 +454,14 @@ def api_add_vpool(vpool_name=None,
                   }
 
     if parameters['type'] == 'alba':
-        parameters['connection_backend'] = \
-            [b for b in BackendList.get_backends() if b.name.startswith('alba')][0].alba_backend_guid
+        alba_backend_guid = ''
+        for backend in BackendList.get_backends():
+            if backend.name.startswith(vpool_name):
+                alba_backend_guid = backend.alba_backend_guid
+                break
+
+        assert alba_backend_guid, "No backend of specified alba type found!"
+        parameters['connection_backend'] = {'backend': alba_backend_guid, 'metadata': 'default'}
 
     print "Adding vpool: "
     print parameters
@@ -429,12 +472,11 @@ def api_add_vpool(vpool_name=None,
     else:
         StorageRouterController.add_vpool(parameters)
 
-    if config_cinder:
-        instances_dir = "/mnt/{0}/instances".format(parameters['vpool_name'])
-        print instances_dir
-        if not os.path.exists(instances_dir):
-            print "creating instances dir", instances_dir
-            os.makedirs(instances_dir)
+    # if config_cinder:
+    #     instances_dir = "/mnt/{0}/instances".format(parameters['vpool_name'])
+    #     if not os.path.exists(instances_dir):
+    #         print "creating instances dir", instances_dir
+    #         os.makedirs(instances_dir)
 
     return parameters
 
@@ -470,7 +512,8 @@ def apply_disk_layout(disk_layout):
 
     print "Disk layout to apply: {0}".format(disk_layout)
 
-    client = SSHClient.load('127.0.0.1', 'rooter')
+    grid_ip = autotests.getConfigIni().get("main", "grid_ip")
+    client = SSHClient(grid_ip, username='root', password='rooter')
     sc = SetupController()
 
     print "Fstab before apply_flexible_disk_layout\n", execute_command("cat /etc/fstab")[0]
@@ -676,6 +719,7 @@ def check_mountpoints(storagedrivers, is_present=True):
         mp = 'ignore-not-mounted'
         retries = 20
 
+        out = ''
         while retries:
             out = execute_command_on_node(node, "df | grep {0} || true".format(mount_point))
             for mp in out.splitlines():
@@ -698,7 +742,6 @@ def validate_logstash_open_files_amount():
     file_counters = {'libs': {'description': 'Lib Components', 'amount': 0, 'regex': '^.+\.jar$'},
                      'devs': {'description': 'Device Handles', 'amount': 0, 'regex': '^/dev/.+$'},
                      'sockets': {'description': 'Socket Handlers', 'amount': 0, 'regex': '^socket:.+$'},
-                     'patterns': {'description': 'Logstash Patterns', 'amount': 0, 'regex': '^.+logstash/patterns.+$'},
                      'patterns': {'description': 'Logstash Patterns', 'amount': 0, 'regex': '^.+logstash/patterns.+$'},
                      'logs': {'description': 'Logging Files', 'amount': 0, 'regex': '^/var/log/.+$'},
                      'others': {'description': 'Other Files', 'amount': 0}}

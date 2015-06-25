@@ -185,7 +185,7 @@ class Vmachine(BrowserOvs):
     def delete_template(self, template_name, should_fail=False):
 
         tmpl = VMachineList.get_vmachine_by_name(template_name)
-        assert tmpl, "Couldnt find template {}".format(template_name)
+        assert tmpl, "Couldn't find template {}".format(template_name)
         tmpl = tmpl[0]
         assert tmpl.is_vtemplate, "Vm name is not a template {}".format(template_name)
 

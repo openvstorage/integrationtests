@@ -283,7 +283,7 @@ class Vpool(BrowserOvs):
 
         # add check for alba with remote nodes
 
-        self.click_on('Next', retries=150)
+        self.click_on('Next', retries=50)
         time.sleep(2)
 
         # wait for page to load
@@ -291,7 +291,18 @@ class Vpool(BrowserOvs):
             'vPool wizard with mountpoint details not present (yet)'
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
-        # @todo: accept defaults for read/write caches
+        # deselect defaults
+        self.click_on_dropdown_item('dropdown-button-mtpt-readcaches')
+        self.click_on_dropdown_item('dropdown-button-mtpt-readcaches-mntcache2')
+        self.click_on_dropdown_item('dropdown-button-mtpt-writecaches')
+        self.click_on_dropdown_item('dropdown-button-mtpt-writecaches-mntcache1')
+
+        for custom_rc in self.vpool_readcaches_mp.split(','):
+            self.fill_out('inputCustomRC', custom_rc)
+            self.click_on('AddCustomRC')
+        for custom_wc in self.vpool_writecaches_mp.split(','):
+            self.fill_out('inputCustomWC', custom_wc)
+            self.click_on('AddCustomWC')
         self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
         if self.vpool_type_name in LOCAL_VPOOL_TYPES:
             self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
