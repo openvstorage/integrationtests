@@ -473,10 +473,11 @@ class Kvm(HypervisorBase):
     def delete(self, name):
         vm = VMachineList.get_vmachine_by_name(name)
         assert vm, "Couldn't find vm with name {}".format(name)
+        assert len(vm) == 1, "More than 1 result when looking up vmachine with name: {0}".format(name)
         vm = vm[0]
 
-        logging.log(1, "Powering off vm: {0}:".format(vm.name))
+        logging.log(1, "Powering off vm: {0}".format(vm.name))
         self.poweroff(name)
-        logging.log(1, "Deleting off vm: {0}:".format(vm.name))
+        logging.log(1, "Deleting off vm: {0}".format(vm.name))
         self.sdk.delete_vm(name, vm.devicename, None)
-        logging.log(1, "Deleted vm: {0}:".format(vm.name))
+        logging.log(1, "Deleted vm: {0}".format(vm.name))

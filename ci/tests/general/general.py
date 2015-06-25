@@ -150,13 +150,17 @@ def get_function_name(level=0):
     return sys._getframe(level + 1).f_code.co_name
 
 
-def remove_alba_namespaces():
-    # alba namespace cleanup - this should not be necessary
+def get_alba_namespaces():
     cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg --to-json"
-    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg {0}"
     out = execute_command(cmd_list)[0].replace('true', 'True')
     nss = eval(out)['result']
     logging.log(1, "Namespaces present on alba:\n{0}".format(str(nss)))
+    return nss
+
+
+def remove_alba_namespaces():
+    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg {0}"
+    nss = get_alba_namespaces()
     fd_namespaces = list()
     for ns in nss:
         if 'fd-' in ns:
@@ -194,6 +198,7 @@ def cleanup():
                     continue
                 if vm.is_vtemplate:
                     hpv.delete_clones(vm.name)
+                logging.log(1, "Deleting {0} on hypervisor".format(vm.name))
                 hpv.delete(vm.name)
 
             env_macs = execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()

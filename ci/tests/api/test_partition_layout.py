@@ -323,3 +323,8 @@ def three_disks_layout_test():
         for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
             logging.log(1, disk_layout[mp])
             logging.log(1, result[mp])
+
+def verify_no_namespaces_remain_after_testsuite():
+    alba_namespaces = general.get_alba_namespaces()
+    assert len(alba_namespaces) == 0,\
+        "No alba namespaces should be present at the end of api test suite: {0}".format(alba_namespaces)
