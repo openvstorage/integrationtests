@@ -34,6 +34,7 @@ from ovs.dal.lists.storagerouterlist import StorageRouterList
 LOCAL_VPOOL_TYPES = ['Local FS']
 REMOTE_VPOOL_TYPES = ['Ceph S3', 'S3 compatible', 'Swift S3']
 
+
 class Vpool(BrowserOvs):
     def __init__(self,
                  vpool_name='',

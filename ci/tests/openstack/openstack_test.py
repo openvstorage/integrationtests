@@ -420,6 +420,7 @@ def alba_license_osds_limitation_test():
         if nr_asds_to_create > 0:
             asd_id = None
             idx = 0
+            asd_id = None
             try:
                 for idx in range(nr_asds_to_create):
                     # Create and start Dummy ASD
@@ -439,6 +440,7 @@ def alba_license_osds_limitation_test():
 
             if not asd_create_error:
                 # Try to exceed the OSDs license limit
+                idx = 0
                 try:
                     idx += 1
                     asd_id = 'AT_asd_{0}'.format(idx)
