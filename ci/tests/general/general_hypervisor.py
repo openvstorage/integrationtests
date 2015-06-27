@@ -32,7 +32,8 @@ logging.getLogger('suds.mx.core').setLevel(logging.WARNING)
 logging.getLogger('suds.sudsobject').setLevel(logging.WARNING)
 logging.getLogger('suds.metrics').setLevel(logging.WARNING)
 logging.getLogger('suds.xsd.sxbase').setLevel(logging.WARNING)
-
+logging.getLogger('plumbum.shell').setLevel(logging.WARNING)
+logging.getLogger('plumbum.local').setLevel(logging.WARNING)
 
 PUBLIC_BRIDGE_NAME_ESX = "CloudFramesPublic"
 
@@ -395,23 +396,25 @@ class Kvm(HypervisorBase):
         self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
         self.sdk = Kvm_sdk()
 
-    def create_vm(self, name, ram=1024, small_image=True):
+    def create_vm(self, name, ram=1024, small=False):
         import general_openstack
 
         os_name = autotests.getOs()
-        bootdisk_path_remote = autotests.getOsInfo(os_name)['bootdisk_location']
+        bootdisk_path_remote = autotests.getOsInfo(os_name + '_small' if small else os_name)['bootdisk_location']
 
         vm_path = os.path.join(self.mountpoint, name)
         if not os.path.exists(vm_path):
             os.mkdir(vm_path)
 
-        if small_image:
+        if small:
             bootdisk_path = os.path.join(self.mountpoint, name, "bootdiskfast.raw")
         else:
             bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
         if not os.path.exists(bootdisk_path):
             template_server = autotests.getTemplateServer()
             bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
+            logging.log(1, 'Template url: {0}'.format(bootdisk_url))
+            logging.log(1, 'Bootdisk path: {0}'.format(bootdisk_path))
 
             _download_to_vpool(bootdisk_url, bootdisk_path)
 
@@ -424,10 +427,12 @@ class Kvm(HypervisorBase):
                              bootdisk_path=bootdisk_path,
                              ram=ram)
             out, error = general.execute_command(cmd)
+            logging.log(1, 'cmd: ---')
             logging.log(1, cmd)
-            logging.log(1, '---')
+            logging.log(1, 'stdout: ---')
+            logging.log(1, 'stdout: ---')
             logging.log(1, out)
-            logging.log(1, '---')
+            logging.log(1, 'stderr: ---')
             logging.log(1, error)
             # assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 

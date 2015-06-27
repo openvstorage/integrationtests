@@ -203,7 +203,7 @@ def permissions_check_test():
 
     expected_owner = "ovs"
     expected_group = "ovs"
-    expected_dir_perms = "775"
+    expected_dir_perms = "755"
     expected_file_perms = "775"
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
@@ -229,7 +229,7 @@ def permissions_check_test():
     assert file_perms[-3:] == expected_file_perms, "File permissions wrong, expected {0} got {1}".\
         format(expected_file_perms, file_perms)
 
-    dir_perms = general.get_file_perms("/mnt/{0}/instances".format(vpool_name))
+    dir_perms = general.get_file_perms("/opt/stack/data/nova/instances")
     assert dir_perms[-3:] == expected_dir_perms, "Dir permissions wrong, expected {0} got {1}".\
         format(expected_dir_perms, dir_perms)
 

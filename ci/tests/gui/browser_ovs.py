@@ -228,7 +228,7 @@ class BrowserOvs():
         button.click()
         return button
 
-    def browse_to(self, url, wait_for_title='', retries=100):
+    def browse_to(self, url, wait_for_title='', retries=20):
         self.browser.visit(url)
         if wait_for_title:
             while (wait_for_title not in self.browser.title.lower()) and retries:

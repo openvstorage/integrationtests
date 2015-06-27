@@ -251,7 +251,7 @@ def set_as_template_test():
         vpool = VPoolList.get_vpool_by_name(vpool_name)
 
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
-    hpv.create_vm(name)
+    hpv.create_vm(name, small=True)
 
     browser_object = bt = Vmachine()
     bt.login()
@@ -261,12 +261,16 @@ def set_as_template_test():
 
     vm = VMachineList.get_vmachine_by_name(name)[0]
     for vdisk in vm.vdisks:
+        logging.log(1, 'Check if vdisk {0} is present'.format(vdisk.name))
         bt.check_machine_disk_is_present(vdisk.name)
 
-    bt.set_as_template(name, should_not_allow=True)
+    logging.log(1, 'Check if running vmachine {0} cannot be set as template'.format(name))
+    bt.set_as_template(name, allowed=False)
 
-    hpv.shutdown(name)
+    logging.log(1, 'Shutting down vmachine {0}'.format(name))
+    hpv.poweroff(name)
 
+    logging.log(1, 'Check if running vmachine {0} can be set as template'.format(name))
     bt.set_as_template(name)
     bt.check_machine_is_not_present(name)
 
@@ -287,7 +291,23 @@ def create_from_template_test():
     name = machinename + "_create" + str(random.randrange(0, 9999999))
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
+    if not vpool:
+        browser_object = vpt = Vpool()
+        vpt.login()
+        general.add_vpool(vpt)
+        vpt.teardown()
+        vpool = VPoolList.get_vpool_by_name(vpool_name)
+
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
+    hpv.create_vm(machinename, small=True)
+
+    browser_object = bt = Vmachine()
+    bt.login()
+
+    logging.log(1, 'Check if vmachine with name: {0} is present'.format(machinename))
+    bt.check_machine_is_present(machinename, 100)
+    hpv.poweroff(name)
+    bt.set_as_template(machinename, allowed=True)
 
     template = Vmachine.get_template(machinename, vpool_name)
 
@@ -439,7 +459,7 @@ def machine_snapshot_rollback_test():
     if general_hypervisor.get_hypervisor_type() == "KVM":
         hpv.delete_test_data(name, filename1)
 
-    bt.rollback(name, snapshot_name1, should_not_allow=True)
+    bt.rollback(name, snapshot_name1, allowed=False)
 
     hpv.shutdown(name)
     time.sleep(3)

@@ -37,7 +37,11 @@ class Vmachine(BrowserOvs):
         """
         assume currently on machine page
         """
-        self.log(self.browser.url)
+        vdisks_url = self.get_url() + '#full/vdisks'
+        if self.browser.url != vdisks_url:
+            self.browse_to(vdisks_url, 'vdisks')
+
+        logging.log(1, self.browser.url)
 
         check_ok = False
         retries = 60
@@ -45,8 +49,8 @@ class Vmachine(BrowserOvs):
 
         while retries:
             disk_links_all = self.browser.find_link_by_partial_href("#full/vdisk/")
+            logging.log(1, 'disk links: {0}'.format(disk_links_all))
 
-            self.log(str(disk_links_all))
             disk_links = [l for l in disk_links_all if name in l.text]
             if disk_links:
                 try:
@@ -61,12 +65,12 @@ class Vmachine(BrowserOvs):
 
         assert check_ok, "Failed to check machine disks {0} with name: {1}".format(disk_links_all, name)
 
-    def set_as_template(self, name, should_not_allow=False):
+    def set_as_template(self, name, allowed=True):
         self.check_machine_is_present(name)
 
         setastemplate_button = self.get_single_item_by_id("buttonVmachineSetAsTemplate")
 
-        if not should_not_allow:
+        if allowed:
             retries = 30
             while retries:
                 try:
@@ -237,7 +241,7 @@ class Vmachine(BrowserOvs):
         self.click_on_tbl_header('snapshots')
         self.wait_for_text(snapshot_name)
 
-    def rollback(self, vm_name, ss_name, should_not_allow=False):
+    def rollback(self, vm_name, ss_name, allowed=True):
         vm = VMachineList.get_vmachine_by_name(vm_name)
         assert vm, "Vm with name {} not found".format(vm_name)
         vm = vm[0]
@@ -251,7 +255,7 @@ class Vmachine(BrowserOvs):
         assert snapshot_button
         snapshot_button = snapshot_button[0]
 
-        if should_not_allow:
+        if allowed:
             try:
                 snapshot_button.click()
             except Exception as ex:
