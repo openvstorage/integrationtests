@@ -251,7 +251,7 @@ def set_as_template_test():
         vpool = VPoolList.get_vpool_by_name(vpool_name)
 
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
-    hpv.create_vm(name, small=True)
+    hpv.create_vm(name, small=False)
 
     browser_object = bt = Vmachine()
     bt.login()
@@ -306,7 +306,7 @@ def create_from_template_test():
 
     logging.log(1, 'Check if vmachine with name: {0} is present'.format(machinename))
     bt.check_machine_is_present(machinename, 100)
-    hpv.poweroff(name)
+    hpv.poweroff(machinename)
     bt.set_as_template(machinename, allowed=True)
 
     template = Vmachine.get_template(machinename, vpool_name)
@@ -583,7 +583,7 @@ def multiple_vpools_test():
 
         hpv = general_hypervisor.Hypervisor.get(vpool.name)
         vpool_config['vm_name'] = machinename + vpool.name
-        hpv.create_vm(vpool_config['vm_name'])
+        hpv.create_vm(vpool_config['vm_name'], small=True)
 
         vpt.teardown()
 
@@ -592,6 +592,7 @@ def multiple_vpools_test():
         del vpool_config['vm_name']
 
         hpv = general_hypervisor.Hypervisor.get(vpool_config['vpool_name'])
+        hpv.poweroff(vm_name)
         hpv.delete(vm_name)
 
         vpool = VPoolList.get_vpool_by_name(vpool_config['vpool_name'])

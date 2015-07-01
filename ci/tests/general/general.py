@@ -205,6 +205,7 @@ def cleanup():
                 if vm.is_vtemplate:
                     hpv.delete_clones(vm.name)
                 logging.log(1, "Deleting {0} on hypervisor".format(vm.name))
+                hpv.poweroff(vm.name)
                 hpv.delete(vm.name)
 
             env_macs = execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()

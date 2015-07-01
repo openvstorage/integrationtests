@@ -304,8 +304,8 @@ def three_disks_layout_test():
 
 def readcache_and_writecache_same_dir_test():
 
-    vpool_readcaches_mp = ["/mnt/test_cache", "/mnt/test_cache"]
-    vpool_writecaches_mp = ["/mnt/test_cache"]
+    vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
+    vpool_writecaches_mp = ["/mnt/test_cache1"]
     vpool_foc_mp = "/mnt/test_fcache"
 
     disk_layout = {vpool_readcaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1',
