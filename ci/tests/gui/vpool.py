@@ -385,13 +385,12 @@ class Vpool(BrowserOvs):
         assert management
         management = management[0]
 
-        save_changes_id = "VpoolSaveChanges"
-        self.browser.is_element_present_by_id(save_changes_id, wait_time=10)
-        self.uncheck_checkboxes(management)
-        self.click_on(save_changes_id)
+        for button in management.find_by_tag('button'):
+            if 'button_remove_' in button.outer_html:
+                button.click()
+                self.wait_for_text('Finish', timeout=30)
+                self.click_on('Finish')
 
-        self.wait_for_text('Finish', timeout=30)
-        self.click_on('Finish')
+                self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success',
+                                                retries=300)
 
-        self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success',
-                                        retries=300)

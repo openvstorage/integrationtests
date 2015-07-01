@@ -270,29 +270,6 @@ def root_partition_already_at_60_percent_test():
     os.remove(big_file)
 
 
-def readcache_and_writecache_same_dir_test():
-
-    vpool_readcaches_mp = ["/mnt/test_cache", "/mnt/test_cache"]
-    vpool_writecaches_mp = ["/mnt/test_cache"]
-    vpool_foc_mp = "/mnt/test_fcache"
-
-    disk_layout = {vpool_readcaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1',
-                                            'type': 'readcache', 'ssd': False},
-                   vpool_readcaches_mp[1]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache2',
-                                            'type': 'readcache', 'ssd': False},
-                   vpool_writecaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_wcache',
-                                             'type': 'writecache', 'ssd': False},
-                   vpool_foc_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_foc', 'type': 'writecache',
-                                  'ssd': False}}
-    initial_part_used_space = {"/": general.get_filesystem_size("/")[3]}
-
-    result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
-                                           initial_part_used_space)
-    for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-        logging.log(1, disk_layout[mp])
-        logging.log(1, result[mp])
-
-
 def three_disks_layout_test():
 
     unused_disks = general.get_unused_disks()
@@ -323,6 +300,30 @@ def three_disks_layout_test():
         for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
             logging.log(1, disk_layout[mp])
             logging.log(1, result[mp])
+
+
+def readcache_and_writecache_same_dir_test():
+
+    vpool_readcaches_mp = ["/mnt/test_cache", "/mnt/test_cache"]
+    vpool_writecaches_mp = ["/mnt/test_cache"]
+    vpool_foc_mp = "/mnt/test_fcache"
+
+    disk_layout = {vpool_readcaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache1',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_readcaches_mp[1]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_cache2',
+                                            'type': 'readcache', 'ssd': False},
+                   vpool_writecaches_mp[0]: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_wcache',
+                                             'type': 'writecache', 'ssd': False},
+                   vpool_foc_mp: {'device': 'DIR_ONLY', 'percentage': 25, 'label': 'test_foc', 'type': 'writecache',
+                                  'ssd': False}}
+    initial_part_used_space = {"/": general.get_filesystem_size("/")[3]}
+
+    result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
+                                           initial_part_used_space)
+    for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
+        logging.log(1, disk_layout[mp])
+        logging.log(1, result[mp])
+
 
 def verify_no_namespaces_remain_after_testsuite():
     alba_namespaces = general.get_alba_namespaces()

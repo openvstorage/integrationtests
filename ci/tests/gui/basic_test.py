@@ -175,7 +175,7 @@ def vpool_remove_test():
     if not vpool:
         general.add_vpool(vpt)
 
-    time.sleep(60)
+    time.sleep(30)
 
     general.remove_vpool(vpt)
 

@@ -153,9 +153,15 @@ def get_function_name(level=0):
 def get_alba_namespaces():
     cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg --to-json"
     out = execute_command(cmd_list)[0].replace('true', 'True')
-    nss = eval(out)['result']
-    logging.log(1, "Namespaces present on alba:\n{0}".format(str(nss)))
-    return nss
+    out = out.replace('false', 'False')
+    logging.log(1, "output: {0}".format(out))
+    out = eval(out)
+    if out['success']:
+        nss = out['result']
+        logging.log(1, "Namespaces present on alba:\n{0}".format(str(nss)))
+        return nss
+    else:
+        logging.log(1, "Error while retrieving namespaces: {0}".format(out['error']))
 
 
 def remove_alba_namespaces():
