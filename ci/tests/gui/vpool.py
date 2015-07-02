@@ -261,7 +261,6 @@ class Vpool(BrowserOvs):
         assert self.wait_for_visible_element_by_id('form.gather.vpool', 5), 'Add vPool wizard not present (yet)'
         self.choose('Local FS', self.vpool_type_name)
         self.fill_out('inputVpoolName', self.vpool_name)
-        # time.sleep(3)
 
         # for grid select current node as initial storage router
         current_node_hostname = general.get_this_hostname()

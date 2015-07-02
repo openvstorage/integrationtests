@@ -262,12 +262,6 @@ def add_vpool(browser):
     if len(storage_routers) > 1 and browser.vpool_type_name != 'Local FS':
         browser.add_gsrs_to_vpool(browser.vpool_name)
 
-    # # manually create instances dir for nova
-    # for storage_router in storage_routers:
-    #     ssh_con, _ = get_remote_ssh_connection(storage_router.ip, 'root', 'rooter')
-    #     cmd = 'mkdir -p /mnt/{0}/instances'.format(browser.vpool_name)
-    #     _, stdout, stderr = ssh_con.exec_command(cmd)
-
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
         hypervisor_info = autotests.getHypervisorInfo()
 

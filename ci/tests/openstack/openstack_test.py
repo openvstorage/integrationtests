@@ -10,8 +10,10 @@ from ci.tests.general import general
 from ci.tests.general import general_openstack
 from ci.tests.general import general_alba
 
+from nose.tools import timed
+
 from ovs.dal.lists.vpoollist import VPoolList
-from ovs.lib.albacontroller  import AlbaController
+from ovs.lib.albacontroller import AlbaController
 from ovs.dal.lists.albanodelist import AlbaNodeList
 
 from selenium.webdriver.remote.remote_connection import LOGGER
@@ -390,7 +392,9 @@ def alba_license_volumes_limitation_test():
     assert not vol_limit_exceeded, 'Exceeding license namespaces limitation was allowed'
 
 
-def alba_license_osds_limitation_test():
+# @todo: disabled
+@timed(3600)
+def alba_license_osds_limitation():
     """
     Get the active license of the OpenvStorage-Backend and
     test its boundaries

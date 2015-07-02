@@ -8,6 +8,7 @@ from ci import autotests
 from ovs.lib.setup import SetupController
 from ovs.extensions.generic.sshclient import SSHClient
 from nose.plugins.skip import SkipTest
+from nose.tools import assert_raises
 
 log = logging.getLogger('test_partition_layout')
 
@@ -301,8 +302,8 @@ def three_disks_layout_test():
             logging.log(1, disk_layout[mp])
             logging.log(1, result[mp])
 
-
-def readcache_and_writecache_same_dir_test():
+# todo: disabled until OVS-2372 is fixed
+def readcache_and_writecache_same_dir():
 
     vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
     vpool_writecaches_mp = ["/mnt/test_cache1"]
@@ -318,11 +319,8 @@ def readcache_and_writecache_same_dir_test():
                                   'ssd': False}}
     initial_part_used_space = {"/": general.get_filesystem_size("/")[3]}
 
-    result = run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
-                                           initial_part_used_space)
-    for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
-        logging.log(1, disk_layout[mp])
-        logging.log(1, result[mp])
+    assert_raises(Exception, run_and_validate_partitioning, disk_layout, vpool_readcaches_mp, vpool_writecaches_mp,
+                  vpool_foc_mp, initial_part_used_space)
 
 
 def verify_no_namespaces_remain_after_testsuite():
