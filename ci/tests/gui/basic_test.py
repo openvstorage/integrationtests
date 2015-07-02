@@ -299,7 +299,7 @@ def create_from_template_test():
         vpool = VPoolList.get_vpool_by_name(vpool_name)
 
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
-    hpv.create_vm(machinename, small=True)
+    hpv.create_vm(machinename, small=False)
 
     browser_object = bt = Vmachine()
     bt.login()
