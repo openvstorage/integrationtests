@@ -9,7 +9,6 @@ import logging
 import inspect
 import paramiko
 import subprocess
-
 import general_hypervisor
 
 from ci import autotests
@@ -36,6 +35,8 @@ if not hasattr(sys, "debugEnabled"):
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
+global test_config
+test_config = autotests.getConfigIni()
 
 def execute_command(command, wait=True, shell=True):
     child_process = subprocess.Popen(command,
@@ -67,9 +68,9 @@ def get_line_number():
     return inspect.currentframe().f_back.f_lineno
 
 
-def get_alba_license():
+def get_alba_license(backend_type=test_config.get('vpool', 'vpool_type')):
     """Returns the active license"""
-    return LicenseList.get_by_component('alba')
+    return LicenseList.get_by_component(backend_type)
 
 
 def check_prereqs(testcase_number, tests_to_run):
@@ -150,23 +151,23 @@ def get_function_name(level=0):
     return sys._getframe(level + 1).f_code.co_name
 
 
-def get_alba_namespaces():
-    cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg --to-json"
+def get_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
+    cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(backend_name)
     out = execute_command(cmd_list)[0].replace('true', 'True')
     out = out.replace('false', 'False')
     logging.log(1, "output: {0}".format(out))
     out = eval(out)
     if out['success']:
         nss = out['result']
-        logging.log(1, "Namespaces present on alba:\n{0}".format(str(nss)))
+        logging.log(1, "Namespaces present on vpool: {0}:\n{0}".format(backend_name, str(nss)))
         return nss
     else:
         logging.log(1, "Error while retrieving namespaces: {0}".format(out['error']))
 
 
-def remove_alba_namespaces():
-    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/alba-abm/alba-abm.cfg {0}"
-    nss = get_alba_namespaces()
+def remove_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
+    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg {0}".format(backend_name)
+    nss = get_alba_namespaces(backend_name)
     fd_namespaces = list()
     for ns in nss:
         if 'fd-' in ns:
@@ -185,10 +186,9 @@ def remove_alba_namespaces():
 def cleanup():
     machine_name = "AT_"
     vpools = list()
-    cfg = autotests.getConfigIni()
     for section in ['vpool', 'vpool2', 'vpool3', 'vpool4']:
-        if cfg.has_section(section):
-            vpools.append(cfg.get(section, 'vpool_name'))
+        if test_config.has_section(section):
+            vpools.append(test_config.get(section, 'vpool_name'))
 
     for vpool_name in vpools:
         vpool = VPoolList.get_vpool_by_name(vpool_name)
@@ -420,44 +420,47 @@ def api_add_vpool(vpool_name=None,
                   vpool_bfs_mp=None,
                   vpool_storage_ip=None,
                   apply_to_all_nodes=True,
-                  config_cinder=False):
-
-    cfg = autotests.getConfigIni()
+                  config_cinder=False,
+                  backend_name=None):
 
     local_vsa_ip = get_local_vsa().ip
 
     if not vpool_name:
-        vpool_name = cfg.get("vpool", "vpool_name")
+        vpool_name = test_config.get('vpool', 'vpool_name')
+
+    if not backend_name:
+        backend_name = test_config.get('main', 'backend_name')
 
     parameters = {'storagerouter_ip': local_vsa_ip,
                   'vpool_name': vpool_name,
-                  'type': vpool_type or cfg.get("vpool", "vpool_type"),
-                  'connection_host': vpool_host or cfg.get("vpool", "vpool_host"),
+                  'type': vpool_type or test_config.get("vpool", "vpool_type"),
+                  'connection_host': vpool_host or test_config.get("vpool", "vpool_host"),
                   'connection_timeout': 600,
-                  'connection_port': vpool_port or int(cfg.get("vpool", "vpool_port")),
-                  'connection_username': vpool_access_key or cfg.get("vpool", "vpool_access_key"),
-                  'connection_password': vpool_secret_key or cfg.get("vpool", "vpool_secret_key"),
-                  'mountpoint_temp': vpool_temp_mp or cfg.get("vpool", "vpool_temp_mp"),
+                  'connection_port': vpool_port or int(test_config.get("vpool", "vpool_port")),
+                  'connection_username': vpool_access_key or test_config.get("vpool", "vpool_access_key"),
+                  'connection_password': vpool_secret_key or test_config.get("vpool", "vpool_secret_key"),
+                  'mountpoint_temp': vpool_temp_mp or test_config.get("vpool", "vpool_temp_mp"),
                   'mountpoint_readcaches': vpool_readcaches_mp or [mp.strip() for mp in
-                                                                   cfg.get("vpool", "vpool_readcaches_mp").split(',')],
+                                                                   test_config.get("vpool", "vpool_readcaches_mp").split(',')],
                   'mountpoint_writecaches': vpool_writecaches_mp or [mp.strip() for mp in
-                                                                     cfg.get("vpool",
+                                                                     test_config.get("vpool",
                                                                              "vpool_writecaches_mp").split(',')],
-                  'mountpoint_md': vpool_md_mp or cfg.get("vpool", "vpool_md_mp"),
-                  'mountpoint_foc': vpool_foc_mp or cfg.get("vpool", "vpool_foc_mp"),
-                  'mountpoint_bfs': vpool_bfs_mp or cfg.get("vpool", "vpool_bfs_mp"),
-                  'storage_ip': vpool_storage_ip or cfg.get("vpool", "vpool_storage_ip"),
+                  'mountpoint_md': vpool_md_mp or test_config.get("vpool", "vpool_md_mp"),
+                  'mountpoint_foc': vpool_foc_mp or test_config.get("vpool", "vpool_foc_mp"),
+                  'mountpoint_bfs': vpool_bfs_mp or test_config.get("vpool", "vpool_bfs_mp"),
+                  'storage_ip': vpool_storage_ip or test_config.get("vpool", "vpool_storage_ip"),
                   'config_cinder': config_cinder,
                   'cinder_pass': "rooter",
                   'cinder_user': "admin",
                   'cinder_tenant': "admin",
-                  'cinder_controller': local_vsa_ip
+                  'cinder_controller': local_vsa_ip,
+                  'backend_name': backend_name
                   }
 
     if parameters['type'] == 'alba':
         alba_backend_guid = ''
         for backend in BackendList.get_backends():
-            if backend.name.startswith(vpool_name):
+            if backend.name.startswith(backend_name):
                 alba_backend_guid = backend.alba_backend_guid
                 break
 
@@ -472,12 +475,6 @@ def api_add_vpool(vpool_name=None,
         StorageRouterController.update_storagedrivers([], storagerouters, parameters)
     else:
         StorageRouterController.add_vpool(parameters)
-
-    # if config_cinder:
-    #     instances_dir = "/mnt/{0}/instances".format(parameters['vpool_name'])
-    #     if not os.path.exists(instances_dir):
-    #         print "creating instances dir", instances_dir
-    #         os.makedirs(instances_dir)
 
     return parameters
 
@@ -513,7 +510,7 @@ def apply_disk_layout(disk_layout):
 
     print "Disk layout to apply: {0}".format(disk_layout)
 
-    grid_ip = autotests.getConfigIni().get("main", "grid_ip")
+    grid_ip = test_config.get("main", "grid_ip")
     client = SSHClient(grid_ip, username='root', password='rooter')
     sc = SetupController()
 
@@ -538,7 +535,7 @@ def apply_disk_layout(disk_layout):
 
 
 def clean_disk_layout(disk_layout):
-    if autotests.getConfigIni().get("main", "cleanup") != "True":
+    if test_config.get("main", "cleanup") != "True":
         return
     print "df before clean\n", execute_command("df")[0]
     disks_to_clean = []

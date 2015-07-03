@@ -20,7 +20,7 @@ def setup():
 
     print "setup called " + __name__
 
-    grid_ip = autotests.getConfigIni().get("main", "grid_ip")
+    grid_ip = general.test_config.get("main", "grid_ip")
     client = SSHClient(grid_ip, username='root', password='rooter')
     sc = SetupController()
 

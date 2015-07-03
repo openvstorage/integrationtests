@@ -22,8 +22,8 @@ LOGGER.setLevel(logging.WARNING)
 
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machinename = "AT_" + __name__.split(".")[-1]
-CINDER_TYPE = autotests.getConfigIni().get("openstack", "cinder_type")
-vpool_name = autotests.getConfigIni().get("vpool", "vpool_name")
+CINDER_TYPE = general.test_config.get("openstack", "cinder_type")
+vpool_name = general.test_config.get("vpool", "vpool_name")
 
 
 def setup():
@@ -48,7 +48,7 @@ def teardown():
         return
 
     autotests.setOs(prev_os)
-    if autotests.getConfigIni().get("main", "cleanup") == "True":
+    if general.test_config.get("main", "cleanup") == "True":
         general_openstack.cleanup()
 
     # Check the amount of open log files at the end at the test suite
@@ -313,8 +313,8 @@ def delete_multiple_volumes_test():
     for vol_id, vol_name in vol_ids.iteritems():
         general_openstack.wait_for_volume_to_disappear(vol_id, vol_name, retries=900)
 
-
-def alba_license_volumes_limitation_test():
+# disabled as licensing will become obsolete
+def alba_license_volumes_limitation():
     """
     Get the active license of the OpenvStorage-Backend and
     test its boundaries
@@ -326,7 +326,7 @@ def alba_license_volumes_limitation_test():
         raise SkipTest()
 
     # Get alba license
-    alba_license = general.get_alba_license()
+    alba_license = general.get_alba_license('alba')
     if not alba_license:
         raise SkipTest()
 
@@ -392,7 +392,7 @@ def alba_license_volumes_limitation_test():
     assert not vol_limit_exceeded, 'Exceeding license namespaces limitation was allowed'
 
 
-# @todo: disabled
+# disabled as licensing will become obsolete
 @timed(3600)
 def alba_license_osds_limitation():
     """
@@ -406,7 +406,7 @@ def alba_license_osds_limitation():
         raise SkipTest()
 
     # Get alba license
-    alba_license = general.get_alba_license()
+    alba_license = general.get_alba_license('alba')
     if not alba_license:
         raise SkipTest()
 

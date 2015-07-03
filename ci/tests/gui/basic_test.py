@@ -38,7 +38,7 @@ LOGGER.setLevel(logging.WARNING)
 
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machinename = "AT_" + __name__.split(".")[-1]
-vpool_name = autotests.getConfigIni().get("vpool", "vpool_name")
+vpool_name = general.test_config.get("vpool", "vpool_name")
 browser_object = None
 
 
@@ -59,7 +59,7 @@ def setup():
     dnsmasq_pid = general.execute_command(cmd, wait=False, shell=False)
 
     screen_cap_pid = None
-    if autotests.getConfigIni().get("main", "screen_capture") == "True":
+    if general.test_config.get("main", "screen_capture") == "True":
         flv_cap_loc = "/root/screen_capture_{0}.flv".format(str(int(time.time())))
         cmd = ["flvrec.py", "-o", flv_cap_loc, "localhost:50"]
         screen_cap_pid = general.execute_command(cmd, wait=False, shell=False)
@@ -540,8 +540,6 @@ def multiple_vpools_test():
 
     global browser_object
 
-    cfg = autotests.getConfigIni()
-
     required_backends = ["alba", "local"]
 
     vpool_params = ['vpool_name', 'vpool_type_name', 'vpool_host', 'vpool_port', 'vpool_access_key', 'vpool_secret_key',
@@ -551,11 +549,11 @@ def multiple_vpools_test():
     vpool_configs = {}
 
     for section_name in ['vpool', 'vpool2', 'vpool3', 'vpool4']:
-        if cfg.has_section(section_name):
-            vpool_type = cfg.get(section_name, "vpool_type")
+        if general.test_config.has_section(section_name):
+            vpool_type = general.test_config.get(section_name, "vpool_type")
             if vpool_type in required_backends:
                 vpool_configs[vpool_type] = dict(
-                    [(vpool_param, cfg.get(section_name, vpool_param)) for vpool_param in vpool_params])
+                    [(vpool_param, general.test_config.get(section_name, vpool_param)) for vpool_param in vpool_params])
 
     if len(vpool_configs) < len(required_backends):
         raise SkipTest()
