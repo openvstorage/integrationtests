@@ -40,6 +40,7 @@ def teardown():
 def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_foc_mp,
                                   initial_part_used_space=None):
     vpool_params = {}
+    general.remove_alba_namespaces()
     try:
         general.apply_disk_layout(disk_layout)
         vpool_params = general.api_add_vpool(vpool_readcaches_mp=vpool_readcaches_mp,
@@ -49,8 +50,8 @@ def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writec
     finally:
         if vpool_params:
             general.api_remove_vpool(vpool_params['vpool_name'])
-        general.remove_alba_namespaces()
         general.clean_disk_layout(disk_layout)
+        verify_no_namespaces_remain_after_testsuite()
 
 
 def each_mountpoint_own_partition_test():
@@ -127,8 +128,8 @@ def all_mountpoints_root_partition_one_readcache_test():
         logging.log(1, disk_layout[mp])
         logging.log(1, result[mp])
 
-
-def dir_and_partition_layout_test():
+# @todo: enable when OVS-2393 is fixed
+def dir_and_partition_layout():
 
     unused_disks = general.get_unused_disks()
 

@@ -159,15 +159,16 @@ def get_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
     out = eval(out)
     if out['success']:
         nss = out['result']
-        logging.log(1, "Namespaces present on vpool: {0}:\n{0}".format(backend_name, str(nss)))
+        logging.log(1, "Namespaces present on backend: {0}:\n{1}".format(backend_name, str(nss)))
         return nss
     else:
         logging.log(1, "Error while retrieving namespaces: {0}".format(out['error']))
 
 
 def remove_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
-    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg {0}".format(backend_name)
+    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg ".format(backend_name)
     nss = get_alba_namespaces(backend_name)
+    logging.log(1, "Namespaces present: {0}".format(str(nss)))
     fd_namespaces = list()
     for ns in nss:
         if 'fd-' in ns:
@@ -175,11 +176,11 @@ def remove_alba_namespaces(backend_name=test_config.get('main', 'backend_name'))
             logging.log(1, "Skipping vpool namespace: {0}".format(ns))
             continue
         logging.log(1, "WARNING: Deleting leftover namespace: {0}".format(str(ns)))
-        print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
+        print execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')
 
     for ns in fd_namespaces:
         logging.log(1, "WARNING: Deleting leftover vpool namespace: {0}".format(str(ns)))
-        print execute_command(cmd_delete.format(ns['name']))[0].replace('true', 'True')
+        print execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')
     assert len(fd_namespaces) == 0, "Removing Alba namespaces should not be necessary!"
 
 
