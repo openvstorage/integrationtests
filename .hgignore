@@ -1,0 +1,12 @@
+.settings/
+.pyc$
+.swp$
+~$
+.project
+.idea
+.pydevproject
+.metadata
+.project
+syntax: regexp
+\._.*
+.orig$
