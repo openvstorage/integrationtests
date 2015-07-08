@@ -38,7 +38,7 @@ LOGGER.setLevel(logging.WARNING)
 
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machinename = "AT_" + __name__.split(".")[-1]
-vpool_name = autotests.getConfigIni().get("vpool", "vpool_name")
+vpool_name = general.test_config.get("vpool", "vpool_name")
 browser_object = None
 
 
@@ -59,7 +59,7 @@ def setup():
     dnsmasq_pid = general.execute_command(cmd, wait=False, shell=False)
 
     screen_cap_pid = None
-    if autotests.getConfigIni().get("main", "screen_capture") == "True":
+    if general.test_config.get("main", "screen_capture") == "True":
         flv_cap_loc = "/root/screen_capture_{0}.flv".format(str(int(time.time())))
         cmd = ["flvrec.py", "-o", flv_cap_loc, "localhost:50"]
         screen_cap_pid = general.execute_command(cmd, wait=False, shell=False)
@@ -175,7 +175,7 @@ def vpool_remove_test():
     if not vpool:
         general.add_vpool(vpt)
 
-    time.sleep(60)
+    time.sleep(30)
 
     general.remove_vpool(vpt)
 
@@ -251,7 +251,7 @@ def set_as_template_test():
         vpool = VPoolList.get_vpool_by_name(vpool_name)
 
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
-    hpv.create_vm(name)
+    hpv.create_vm(name, small=False)
 
     browser_object = bt = Vmachine()
     bt.login()
@@ -261,12 +261,16 @@ def set_as_template_test():
 
     vm = VMachineList.get_vmachine_by_name(name)[0]
     for vdisk in vm.vdisks:
+        logging.log(1, 'Check if vdisk {0} is present'.format(vdisk.name))
         bt.check_machine_disk_is_present(vdisk.name)
 
-    bt.set_as_template(name, should_not_allow=True)
+    logging.log(1, 'Check if running vmachine {0} cannot be set as template'.format(name))
+    bt.set_as_template(name, allowed=False)
 
-    hpv.shutdown(name)
+    logging.log(1, 'Shutting down vmachine {0}'.format(name))
+    hpv.poweroff(name)
 
+    logging.log(1, 'Check if running vmachine {0} can be set as template'.format(name))
     bt.set_as_template(name)
     bt.check_machine_is_not_present(name)
 
@@ -287,7 +291,23 @@ def create_from_template_test():
     name = machinename + "_create" + str(random.randrange(0, 9999999))
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
+    if not vpool:
+        browser_object = vpt = Vpool()
+        vpt.login()
+        general.add_vpool(vpt)
+        vpt.teardown()
+        vpool = VPoolList.get_vpool_by_name(vpool_name)
+
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
+    hpv.create_vm(machinename, small=False)
+
+    browser_object = bt = Vmachine()
+    bt.login()
+
+    logging.log(1, 'Check if vmachine with name: {0} is present'.format(machinename))
+    bt.check_machine_is_present(machinename, 100)
+    hpv.poweroff(machinename)
+    bt.set_as_template(machinename, allowed=True)
 
     template = Vmachine.get_template(machinename, vpool_name)
 
@@ -439,7 +459,7 @@ def machine_snapshot_rollback_test():
     if general_hypervisor.get_hypervisor_type() == "KVM":
         hpv.delete_test_data(name, filename1)
 
-    bt.rollback(name, snapshot_name1, should_not_allow=True)
+    bt.rollback(name, snapshot_name1, allowed=False)
 
     hpv.shutdown(name)
     time.sleep(3)
@@ -520,8 +540,6 @@ def multiple_vpools_test():
 
     global browser_object
 
-    cfg = autotests.getConfigIni()
-
     required_backends = ["alba", "local"]
 
     vpool_params = ['vpool_name', 'vpool_type_name', 'vpool_host', 'vpool_port', 'vpool_access_key', 'vpool_secret_key',
@@ -531,11 +549,11 @@ def multiple_vpools_test():
     vpool_configs = {}
 
     for section_name in ['vpool', 'vpool2', 'vpool3', 'vpool4']:
-        if cfg.has_section(section_name):
-            vpool_type = cfg.get(section_name, "vpool_type")
+        if general.test_config.has_section(section_name):
+            vpool_type = general.test_config.get(section_name, "vpool_type")
             if vpool_type in required_backends:
                 vpool_configs[vpool_type] = dict(
-                    [(vpool_param, cfg.get(section_name, vpool_param)) for vpool_param in vpool_params])
+                    [(vpool_param, general.test_config.get(section_name, vpool_param)) for vpool_param in vpool_params])
 
     if len(vpool_configs) < len(required_backends):
         raise SkipTest()
@@ -563,7 +581,7 @@ def multiple_vpools_test():
 
         hpv = general_hypervisor.Hypervisor.get(vpool.name)
         vpool_config['vm_name'] = machinename + vpool.name
-        hpv.create_vm(vpool_config['vm_name'])
+        hpv.create_vm(vpool_config['vm_name'], small=True)
 
         vpt.teardown()
 
@@ -572,6 +590,7 @@ def multiple_vpools_test():
         del vpool_config['vm_name']
 
         hpv = general_hypervisor.Hypervisor.get(vpool_config['vpool_name'])
+        hpv.poweroff(vm_name)
         hpv.delete(vm_name)
 
         vpool = VPoolList.get_vpool_by_name(vpool_config['vpool_name'])

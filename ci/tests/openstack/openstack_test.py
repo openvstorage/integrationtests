@@ -10,8 +10,10 @@ from ci.tests.general import general
 from ci.tests.general import general_openstack
 from ci.tests.general import general_alba
 
+from nose.tools import timed
+
 from ovs.dal.lists.vpoollist import VPoolList
-from ovs.lib.albacontroller  import AlbaController
+from ovs.lib.albacontroller import AlbaController
 from ovs.dal.lists.albanodelist import AlbaNodeList
 
 from selenium.webdriver.remote.remote_connection import LOGGER
@@ -20,8 +22,8 @@ LOGGER.setLevel(logging.WARNING)
 
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machinename = "AT_" + __name__.split(".")[-1]
-CINDER_TYPE = autotests.getConfigIni().get("openstack", "cinder_type")
-vpool_name = autotests.getConfigIni().get("vpool", "vpool_name")
+CINDER_TYPE = general.test_config.get("openstack", "cinder_type")
+vpool_name = general.test_config.get("vpool", "vpool_name")
 
 
 def setup():
@@ -46,7 +48,7 @@ def teardown():
         return
 
     autotests.setOs(prev_os)
-    if autotests.getConfigIni().get("main", "cleanup") == "True":
+    if general.test_config.get("main", "cleanup") == "True":
         general_openstack.cleanup()
 
     # Check the amount of open log files at the end at the test suite
@@ -203,7 +205,7 @@ def permissions_check_test():
 
     expected_owner = "ovs"
     expected_group = "ovs"
-    expected_dir_perms = "775"
+    expected_dir_perms = "755"
     expected_file_perms = "775"
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
@@ -229,7 +231,7 @@ def permissions_check_test():
     assert file_perms[-3:] == expected_file_perms, "File permissions wrong, expected {0} got {1}".\
         format(expected_file_perms, file_perms)
 
-    dir_perms = general.get_file_perms("/mnt/{0}/instances".format(vpool_name))
+    dir_perms = general.get_file_perms("/opt/stack/data/nova/instances")
     assert dir_perms[-3:] == expected_dir_perms, "Dir permissions wrong, expected {0} got {1}".\
         format(expected_dir_perms, dir_perms)
 
@@ -311,8 +313,8 @@ def delete_multiple_volumes_test():
     for vol_id, vol_name in vol_ids.iteritems():
         general_openstack.wait_for_volume_to_disappear(vol_id, vol_name, retries=900)
 
-
-def alba_license_volumes_limitation_test():
+# disabled as licensing will become obsolete
+def alba_license_volumes_limitation():
     """
     Get the active license of the OpenvStorage-Backend and
     test its boundaries
@@ -324,7 +326,7 @@ def alba_license_volumes_limitation_test():
         raise SkipTest()
 
     # Get alba license
-    alba_license = general.get_alba_license()
+    alba_license = general.get_alba_license('alba')
     if not alba_license:
         raise SkipTest()
 
@@ -390,7 +392,9 @@ def alba_license_volumes_limitation_test():
     assert not vol_limit_exceeded, 'Exceeding license namespaces limitation was allowed'
 
 
-def alba_license_osds_limitation_test():
+# disabled as licensing will become obsolete
+@timed(3600)
+def alba_license_osds_limitation():
     """
     Get the active license of the OpenvStorage-Backend and
     test its boundaries
@@ -402,7 +406,7 @@ def alba_license_osds_limitation_test():
         raise SkipTest()
 
     # Get alba license
-    alba_license = general.get_alba_license()
+    alba_license = general.get_alba_license('alba')
     if not alba_license:
         raise SkipTest()
 
