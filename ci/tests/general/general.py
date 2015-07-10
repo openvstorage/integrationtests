@@ -259,9 +259,10 @@ def cleanup():
 def add_vpool(browser):
     browser.add_vpool()
 
-    storage_routers = StorageRouterList.get_storagerouters()
-    if len(storage_routers) > 1 and browser.vpool_type_name != 'Local FS':
-        browser.add_gsrs_to_vpool(browser.vpool_name)
+    # storage_routers = StorageRouterList.get_storagerouters()
+    # @ todo: OVS-2398
+    # if len(storage_routers) > 1 and browser.vpool_type_name != 'Local FS':
+    #     browser.add_gsrs_to_vpool(browser.vpool_name)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
         hypervisor_info = autotests.getHypervisorInfo()
