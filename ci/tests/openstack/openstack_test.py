@@ -22,8 +22,10 @@ LOGGER.setLevel(logging.WARNING)
 
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machinename = "AT_" + __name__.split(".")[-1]
-CINDER_TYPE = general.test_config.get("openstack", "cinder_type")
-vpool_name = general.test_config.get("vpool", "vpool_name")
+# vpool_name = general.test_config.get("vpool", "vpool_name")
+# CINDER_TYPE = general.test_config.get("openstack", "cinder_type")
+vpool_name = 'openstack-vp'
+CINDER_TYPE = 'openstack-vp'
 
 
 def setup():
@@ -39,7 +41,7 @@ def setup():
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
-        general.api_add_vpool(apply_to_all_nodes=True, config_cinder=True)
+        general.api_add_vpool(vpool_name=vpool_name, apply_to_all_nodes=True, config_cinder=True)
         _ = VPoolList.get_vpool_by_name(vpool_name)
 
 
@@ -298,7 +300,7 @@ def delete_multiple_volumes_test():
         if glance_image_size > volume_size:
             volume_size = glance_image_size
 
-    disks_to_create = 10
+    disks_to_create = 5
     vol_ids = {}
     for idx in range(disks_to_create):
         time.sleep(5)

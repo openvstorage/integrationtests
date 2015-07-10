@@ -274,7 +274,7 @@ def set_as_template_test():
     bt.set_as_template(name)
     bt.check_machine_is_not_present(name)
 
-    bt.teardown()
+    # bt.teardown()
 
 
 @with_setup(None, close_browser)

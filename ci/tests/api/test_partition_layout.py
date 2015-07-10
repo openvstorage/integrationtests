@@ -11,6 +11,7 @@ from nose.plugins.skip import SkipTest
 from nose.tools import assert_raises
 
 log = logging.getLogger('test_partition_layout')
+vpool_name = 'api-vpool'
 
 
 def setup():
@@ -43,9 +44,11 @@ def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writec
     general.remove_alba_namespaces()
     try:
         general.apply_disk_layout(disk_layout)
-        vpool_params = general.api_add_vpool(vpool_readcaches_mp=vpool_readcaches_mp,
+        vpool_params = general.api_add_vpool(vpool_name=vpool_name,
+                                             vpool_readcaches_mp=vpool_readcaches_mp,
                                              vpool_writecaches_mp=vpool_writecaches_mp,
-                                             vpool_foc_mp=vpool_foc_mp)
+                                             vpool_foc_mp=vpool_foc_mp,
+                                             config_cinder=True)
         return general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
     finally:
         if vpool_params:
