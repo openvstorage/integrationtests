@@ -418,7 +418,7 @@ def alba_license_osds_limitation():
     if alba_license.data['osds']:
         alba_be = general_alba.get_alba_backend()
         alba_node = AlbaNodeList.get_albanodes()[0]
-        box_id = alba_node.box_id
+        node_id = alba_node.node_id
 
         nr_asds_to_create = alba_license.data['osds'] - len(alba_be.asds_guids)
         if nr_asds_to_create > 0:
@@ -431,7 +431,7 @@ def alba_license_osds_limitation():
                     asd_id = 'AT_asd_{0}'.format(idx)
                     port = 8630 + idx
                     path = '/mnt/alba-asd/{0}'.format(asd_id)
-                    general_alba.asd_start(asd_id, port, path, box_id, False)
+                    general_alba.asd_start(asd_id, port, path, node_id, False)
 
                     # Add ASD in the OVS lib
                     AlbaController.add_units(alba_be.guid, {asd_id: alba_node.guid})
@@ -450,7 +450,7 @@ def alba_license_osds_limitation():
                     asd_id = 'AT_asd_{0}'.format(idx)
                     port = 8630 + idx
                     path = '/mnt/alba-asd/{0}'.format(asd_id)
-                    general_alba.asd_start(asd_id, port, path, box_id, False)
+                    general_alba.asd_start(asd_id, port, path, node_id, False)
 
                     # Add ASD in the OVS lib
                     AlbaController.add_units(alba_be.guid, {asd_id: alba_node.guid})
