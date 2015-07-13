@@ -186,13 +186,7 @@ def remove_alba_namespaces(backend_name=test_config.get('main', 'backend_name'))
 
 def cleanup():
     machine_name = "AT_"
-    vpools = list()
-    for section in ['vpool', 'vpool2', 'vpool3', 'vpool4']:
-        if test_config.has_section(section):
-            vpools.append(test_config.get(section, 'vpool_name'))
-
-    for vpool_name in vpools:
-        vpool = VPoolList.get_vpool_by_name(vpool_name)
+    for vpool in VPoolList.get_vpools():
         if vpool:
             hpv = general_hypervisor.Hypervisor.get(vpool.name)
             vm_names = [vm.name for vm in VMachineList.get_vmachines()]
@@ -409,6 +403,7 @@ def human2bytes(s):
 
 
 def api_add_vpool(vpool_name=None,
+                  vpool_config='vpool',
                   vpool_type=None,
                   vpool_host=None,
                   vpool_port=None,
@@ -428,29 +423,29 @@ def api_add_vpool(vpool_name=None,
     local_vsa_ip = get_local_vsa().ip
 
     if not vpool_name:
-        vpool_name = test_config.get('vpool', 'vpool_name')
+        vpool_name = test_config.get(vpool_config, 'vpool_name')
 
     if not backend_name:
         backend_name = test_config.get('main', 'backend_name')
 
     parameters = {'storagerouter_ip': local_vsa_ip,
                   'vpool_name': vpool_name,
-                  'type': vpool_type or test_config.get("vpool", "vpool_type"),
-                  'connection_host': vpool_host or test_config.get("vpool", "vpool_host"),
+                  'type': vpool_type or test_config.get(vpool_config, "vpool_type"),
+                  'connection_host': vpool_host or test_config.get(vpool_config, "vpool_host"),
                   'connection_timeout': 600,
-                  'connection_port': vpool_port or int(test_config.get("vpool", "vpool_port")),
-                  'connection_username': vpool_access_key or test_config.get("vpool", "vpool_access_key"),
-                  'connection_password': vpool_secret_key or test_config.get("vpool", "vpool_secret_key"),
-                  'mountpoint_temp': vpool_temp_mp or test_config.get("vpool", "vpool_temp_mp"),
+                  'connection_port': vpool_port or int(test_config.get(vpool_config, "vpool_port")),
+                  'connection_username': vpool_access_key or test_config.get(vpool_config, "vpool_access_key"),
+                  'connection_password': vpool_secret_key or test_config.get(vpool_config, "vpool_secret_key"),
+                  'mountpoint_temp': vpool_temp_mp or test_config.get(vpool_config, "vpool_temp_mp"),
                   'mountpoint_readcaches': vpool_readcaches_mp or [mp.strip() for mp in
-                                                                   test_config.get("vpool", "vpool_readcaches_mp").split(',')],
+                                                                   test_config.get(vpool_config, "vpool_readcaches_mp").split(',')],
                   'mountpoint_writecaches': vpool_writecaches_mp or [mp.strip() for mp in
-                                                                     test_config.get("vpool",
+                                                                     test_config.get(vpool_config,
                                                                              "vpool_writecaches_mp").split(',')],
-                  'mountpoint_md': vpool_md_mp or test_config.get("vpool", "vpool_md_mp"),
-                  'mountpoint_foc': vpool_foc_mp or test_config.get("vpool", "vpool_foc_mp"),
-                  'mountpoint_bfs': vpool_bfs_mp or test_config.get("vpool", "vpool_bfs_mp"),
-                  'storage_ip': vpool_storage_ip or test_config.get("vpool", "vpool_storage_ip"),
+                  'mountpoint_md': vpool_md_mp or test_config.get(vpool_config, "vpool_md_mp"),
+                  'mountpoint_foc': vpool_foc_mp or test_config.get(vpool_config, "vpool_foc_mp"),
+                  'mountpoint_bfs': vpool_bfs_mp or test_config.get(vpool_config, "vpool_bfs_mp"),
+                  'storage_ip': vpool_storage_ip or test_config.get(vpool_config, "vpool_storage_ip"),
                   'config_cinder': config_cinder,
                   'cinder_pass': "rooter",
                   'cinder_user': "admin",
@@ -796,3 +791,11 @@ def validate_logstash_open_files_amount():
     if max_allowed_of:
         assert of_total < 90 * max_allowed_of / 100,\
             'Reached more than 90% of Logstash maximum allowed open files : {0}'.format(max_allowed_of)
+
+def get_or_setup_vpool(vpool_name, vpool_config='vpool'):
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
+    if not vpool:
+        api_add_vpool(vpool_name=vpool_name, vpool_config=vpool_config, config_cinder=True)
+        vpool = VPoolList.get_vpool_by_name(vpool_name)
+
+    return vpool

@@ -255,12 +255,8 @@ class Vmachine(BrowserOvs):
         assert snapshot_button
         snapshot_button = snapshot_button[0]
 
-        if allowed:
-            try:
-                snapshot_button.click()
-            except Exception as ex:
-                if "Element is not clickable" not in str(ex):
-                    raise
+        if not allowed:
+            snapshot_button.click()
             self.wait_for_modal(should_exist=False)
         else:
             snapshot_button.click()
@@ -281,36 +277,28 @@ class Vmachine(BrowserOvs):
             "Newly created snapshot not found in model"
 
     @staticmethod
-    def get_template(machinename, vpool_name):
+    def get_template(template_name, vpool_name):
         browser_object = None
         try:
-            vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
-            if not vpool:
-                browser_object = vpt = Vpool()
-                vpt.login()
-                general.add_vpool(vpt)
-                vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
-                vpt.teardown()
+            vpool = general.get_or_setup_vpool(vpool_name)
+            assert vpool, "Vpool with name: {0} not found!".format(vpool_name)
 
-            assert vpool, "Count not find usable vpool"
-
-            templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid]
-
+            templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and
+                         t.vdisks[0].vpool.guid == vpool.guid and t.name == template_name]
             if not templates:
-                tmpl_name = machinename + "tmpl"
                 hpv = general_hypervisor.Hypervisor.get(vpool.name)
-                hpv.create_vm(tmpl_name)
+                hpv.create_vm(template_name)
                 time.sleep(10)
-                hpv.shutdown(tmpl_name)
+                hpv.poweroff(template_name)
 
                 browser_object = bt = Vmachine()
                 bt.login()
-                bt.set_as_template(tmpl_name)
+                bt.set_as_template(template_name)
                 templates = [t for t in VMachineList.get_vtemplates()
-                             if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid]
+                             if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid and t.name == template_name]
                 bt.teardown()
 
-            assert templates, "Failed to get template"
+            assert len(templates) == 1, "Failed to get template"
             return templates[0]
         except:
             raise
