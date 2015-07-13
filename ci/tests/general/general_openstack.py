@@ -3,6 +3,8 @@ import os
 import time
 import urlparse
 
+from exceptions import NameError, SyntaxError
+
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.dal.lists.vmachinelist import VMachineList
 
@@ -199,7 +201,7 @@ def create_instance(instance_name, volume_id="", image_id="", snapshot_id="", ho
     time.sleep(5)
     assert vm, "Instance created with nova is not registered in ovs"
     vm = vm[0]
-    assert len(vm.vdisks) == 1, "Vm {0} doesnt have expected disks but {1}".format(instance_name, len(vm.vdisks))
+    assert len(vm.vdisks) == 1, "Vm {0} doesn't have expected disks but {1}".format(instance_name, len(vm.vdisks))
 
     return instance_id
 
@@ -208,6 +210,20 @@ def get_instance_host(instance_id):
     vm_host = general.get_elem_with_val(get_formated_cmd_output("nova show " + instance_id), "Property",
                                         "OS-EXT-SRV-ATTR:host")[0]['Value']
     return vm_host
+
+
+def get_instance_volumes(instance_id):
+    volumes = general.get_elem_with_val(get_formated_cmd_output("nova show " + instance_id), "Property",
+                                        "os-extended-volumes:volumes_attached")[0]['Value']
+    logging.log(1, 'Volumes attached to {0}: {1}'.format(instance_id, volumes))
+    try:
+        volumes = eval(volumes)
+    except SyntaxError:
+        volumes = list()
+    except NameError:
+        volumes = list()
+
+    return [disk['id'] for disk in volumes]
 
 
 def get_vm_name_hpv(instance_id):
@@ -259,7 +275,10 @@ def live_migration(instance_id, new_host):
     assert ts_before == ts_after, "Vm did not remain up after live migration"
 
 
-def delete_instance(instance_id):
+def delete_instance(instance_id, delete_volumes=False):
+    if delete_volumes:
+        volume_ids = get_instance_volumes(instance_id)
+
     vm_name = get_vm_name_hpv(instance_id)
     cmd = "nova delete {0}".format(instance_id)
     out, error = general.execute_command(cmd)
@@ -278,6 +297,11 @@ def delete_instance(instance_id):
             break
         time.sleep(1)
         retries -= 1
+
+    for id in volume_ids:
+        cmd = "cinder delete {0}".format(id)
+        out, error = general.execute_command(cmd)
+        assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
     assert not vm, "Vm is still present after deleting it from nova"
     assert not vm_ovs, "Vm still exists on OVS after deleting it from nova"
@@ -358,20 +382,21 @@ def cleanup():
     autotest_prefix = "AT_"
     for vm in get_formated_cmd_output("nova list"):
         if vm['Name'].startswith(autotest_prefix):
-            delete_instance(vm["ID"])
+            logging.log(1, "Deleting openstack instance: {0}".format(vm['Name']))
+            delete_instance(vm["ID"], delete_volumes=True)
 
     for snap in get_formated_cmd_output("cinder snapshot-list"):
         if snap['DisplayName'].startswith(autotest_prefix):
             cmd = "cinder snapshot-delete {0}".format(snap['ID'])
             out, error = general.execute_command(cmd)
-            assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
+            # assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
     for vol in get_formated_cmd_output("cinder list"):
         if vol['DisplayName'].startswith(autotest_prefix):
             cmd = "cinder delete {0}".format(vol["ID"])
             out, error = general.execute_command(cmd)
-            assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
+            # assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
     cmd = "glance image-delete {0}".format(IMAGE_NAME)
     out, error = general.execute_command(cmd)
-    assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
+    # assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)

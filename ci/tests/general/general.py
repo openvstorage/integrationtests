@@ -38,6 +38,7 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 global test_config
 test_config = autotests.getConfigIni()
 
+
 def execute_command(command, wait=True, shell=True):
     child_process = subprocess.Popen(command,
                                      shell=shell,
@@ -186,6 +187,7 @@ def remove_alba_namespaces(backend_name=test_config.get('main', 'backend_name'))
 
 def cleanup():
     machine_name = "AT_"
+
     for vpool in VPoolList.get_vpools():
         if vpool:
             hpv = general_hypervisor.Hypervisor.get(vpool.name)

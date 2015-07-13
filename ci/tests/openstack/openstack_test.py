@@ -22,10 +22,7 @@ LOGGER.setLevel(logging.WARNING)
 
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machinename = "AT_" + __name__.split(".")[-1]
-# vpool_name = general.test_config.get("vpool", "vpool_name")
-# CINDER_TYPE = general.test_config.get("openstack", "cinder_type")
-vpool_name = 'openstack-vp'
-CINDER_TYPE = 'openstack-vp'
+vpool_name = CINDER_TYPE = 'openstack-vp'
 
 
 def setup():
@@ -37,6 +34,8 @@ def setup():
     autotests.setOs('ubuntu_server14_kvm')
 
     # make sure we start with clean env
+    if general_openstack.is_openstack_present():
+        general_openstack.cleanup()
     general.cleanup()
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
@@ -67,6 +66,8 @@ def create_empty_volume_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
 
     name = "{0}_{1}_empty_vol".format(machinename, int(time.time()))
 
@@ -85,6 +86,10 @@ def create_volume_from_image_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
+
+    _ = general.get_or_setup_vpool(vpool_name)
 
     volume_name = machinename + str(time.time()) + "_vol_from_img"
 
@@ -115,6 +120,10 @@ def boot_nova_instance_from_volume_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
+
+    _ = general.get_or_setup_vpool(vpool_name)
 
     instance_name = "{0}_{1}_boot_from_vol".format(machinename, int(time.time()))
     volume_name = "{0}_disk".format(instance_name)
@@ -162,6 +171,10 @@ def boot_nova_instance_from_snapshot_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
+
+    _ = general.get_or_setup_vpool(vpool_name)
 
     instance_name = "{0}_{1}_boot_from_snap".format(machinename, int(time.time()))
     volume_name = "{0}_disk".format(instance_name)
@@ -190,9 +203,13 @@ def boot_nova_instance_from_snapshot_test():
     # hpv = general_hypervisor.Hypervisor.get(vpool_name)
     # hpv.wait_for_vm_pingable(vm_name, vm_ip = vm_ip)
 
-    general_openstack.delete_instance(instance_id)
+    logging.log(1, "Deleting instance with id: {0}".format(instance_id))
+    general_openstack.delete_instance(instance_id, delete_volumes=True)
+    logging.log(1, "Deleting snapshot with id: {0}".format(snapshot_id))
     general_openstack.delete_snapshot(snapshot_id)
+    logging.log(1, "Deleting volume with id:: {0}".format(volume_id))
     general_openstack.delete_volume(volume_id)
+    logging.log(1, "Cleanup complete".format())
 
 
 def permissions_check_test():
@@ -204,13 +221,16 @@ def permissions_check_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
 
     expected_owner = "ovs"
     expected_group = "ovs"
     expected_dir_perms = "755"
     expected_file_perms = "775"
 
-    vpool = VPoolList.get_vpool_by_name(vpool_name)
+    vpool = general.get_or_setup_vpool(vpool_name)
+
     mount_point = vpool.storagedrivers[0].mountpoint
 
     st = os.stat(mount_point)
@@ -250,6 +270,8 @@ def live_migration_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
 
     hosts = set([s['Host'] for s in general_openstack.get_formated_cmd_output("nova service-list")])
     if len(hosts) < 2:
@@ -284,6 +306,8 @@ def delete_multiple_volumes_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
 
     volume_name = "{0}_{1}_del_multi".format(machinename, int(time.time()))
 
