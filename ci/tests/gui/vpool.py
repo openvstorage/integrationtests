@@ -25,11 +25,12 @@ import time
 import urlparse
 
 from browser_ovs import BrowserOvs
-from ci import autotests
+# from ci import autotests
 from ci.tests.general import general, general_hypervisor
 from nose.plugins.skip import SkipTest
 from splinter.driver.webdriver import NoSuchElementException
 from ovs.dal.lists.storagerouterlist import StorageRouterList
+from ovs.dal.lists.vpoollist import VPoolList
 
 LOCAL_VPOOL_TYPES = ['Local FS']
 REMOTE_VPOOL_TYPES = ['Ceph S3', 'S3 compatible', 'Swift S3']
@@ -390,4 +391,3 @@ class Vpool(BrowserOvs):
 
                 self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success',
                                                 retries=300)
-
