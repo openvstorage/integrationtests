@@ -47,15 +47,15 @@ Q_AUTOMATED = "qAutomated"
 sys.path.append(SCRIPTS_DIR)
 
 
-def run(test_spec        = None,
-        output_format    = TestRunnerOutputFormat.CONSOLE,
-        output_folder    = None,
-        always_die       = False,
-        testrail_url     = "testrail.cloudfounders.com",
-        project_name     = None,
-        quality_level    = None,
-        version          = None,
-        existing_plan_id = ""):
+def run(test_spec=None,
+        output_format=TestRunnerOutputFormat.CONSOLE,
+        output_folder=None,
+        always_die=False,
+        testrail_url="testrail.openvstorage.com",
+        project_name=None,
+        quality_level=None,
+        version=None,
+        existing_plan_id=""):
     """
     Run only one test suite
     """
@@ -104,13 +104,13 @@ def run(test_spec        = None,
 
 
 def runMultiple(list_of_tests,
-                output_format   = TestRunnerOutputFormat.CONSOLE,
-                output_folder   = None,
-                always_die      = False,
-                testrail_url    = "testrail.cloudfounders.com",
-                project_name    = "IAAS3x ENG",
-                quality_level   = None,
-                version         = None):
+                output_format=TestRunnerOutputFormat.CONSOLE,
+                output_folder=None,
+                always_die=False,
+                testrail_url="testrail.openvstorage.com",
+                project_name="IAAS3x ENG",
+                quality_level=None,
+                version=None):
     """
     Run a selection of multiple test suites
     """
@@ -152,16 +152,16 @@ def runMultiple(list_of_tests,
     _runTests(arguments)
 
 
-def runAll(output_format      = TestRunnerOutputFormat.CONSOLE,
-           output_folder      = None,
-           always_die         = False,
-           specialSuitesToRun =None,
-           randomize          = False,
-           testrail_url       = "testrail.cloudfounders.com",
-           project_name       = "OVS",
-           quality_level      = None,
-           version            = None,
-           existing_plan_id   = ""):
+def runAll(output_format=TestRunnerOutputFormat.CONSOLE,
+           output_folder=None,
+           always_die=False,
+           specialSuitesToRun=None,
+           randomize=False,
+           testrail_url="testrail.openvstorage.com",
+           project_name="Open vStorage Engineering",
+           quality_level=None,
+           version=None,
+           existing_plan_id=""):
     """
     Run all test suites
     """
@@ -208,17 +208,17 @@ def runAll(output_format      = TestRunnerOutputFormat.CONSOLE,
     _runTests(arguments)
 
 
-def pushToTestrail(project                = None,
-                   qualityLevel           = None,
-                   version                = None,
-                   testrailIP             = "testrail.cloudfounders.com",
-                   folder                 = "/var/tmp",
-                   fileName               = "",
-                   milestone              = "",
-                   comment                = "",
-                   quality_level          = None,
-                   createInexistentSuites = None,
-                   createInexistentCases  = None):
+def pushToTestrail(project=None,
+                   qualityLevel=None,
+                   version=None,
+                   testrailIP="testrail.openvstorage.com",
+                   folder="/var/tmp",
+                   fileName="",
+                   milestone="",
+                   comment="",
+                   quality_level=None,
+                   createInexistentSuites=None,
+                   createInexistentCases=None):
     """
     Push xml file with test results to Testrail
     """
@@ -274,12 +274,12 @@ def _parseArgs(suite_name,
                output_format,
                output_folder,
                always_die,
-               list_of_tests    = None,
-               testrail_url     = None,
-               project_name     = None,
-               quality_level    = None,
-               version          = None,
-               existing_plan_id = ""):
+               list_of_tests=None,
+               testrail_url=None,
+               project_name=None,
+               quality_level=None,
+               version=None,
+               existing_plan_id=""):
     """
     Parse arguments in the format expected by nose
     """
@@ -445,7 +445,7 @@ def _getProject():
     """
     Retrieve project name for pushing
     """
-    return "OVS"
+    return "Open vStorage Engineering"
 
 
 def _getOvsVersion():

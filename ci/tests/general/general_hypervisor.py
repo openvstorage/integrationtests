@@ -46,7 +46,9 @@ class Hypervisor(object):
         vpool = vpool[0]
 
         local_vsa = general.get_local_vsa()
-        sg = [sg for sg in vpool.storagedrivers if sg.cluster_ip == local_vsa.ip][0]
+        sgs = [sg for sg in vpool.storagedrivers if sg.cluster_ip == local_vsa.ip]
+        assert sgs, "Vpool storagedriver with ip {0} not found".format(local_vsa.ip)
+        sg = sgs[0]
 
         retries = 5 * 60
         sleep_time = 5

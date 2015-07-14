@@ -209,14 +209,14 @@ class xunit_testrail(Plugin):
                           action="store",
                           dest="testrailIp",
                           metavar="FILE",
-                          default="testrail.cloudfounders.com",
+                          default="testrail.openvstorage.com",
                           help="Url of testrail server")
 
         parser.add_option('--project-name',
                           action="store",
                           dest="projectName",
                           metavar="FILE",
-                          default="OVS",
+                          default="Open vStorage Engineering",
                           help="Testrail project name")
 
         parser.add_option('--push-name',
@@ -274,16 +274,15 @@ class xunit_testrail(Plugin):
                 today = datetime.datetime.today()
                 name += "__" + today.strftime('%a %b %d %H:%M:%S')
 
-                self.version     = nameSplits[0]
-                self.hypervisor  = nameSplits[2]
+                self.version = nameSplits[0]
+                self.hypervisor = nameSplits[2]
                 self.projectName = options.projectName
 
                 allProjects = self.testrailApi.getProjects()
 
                 self.projectID = [p for p in allProjects if p['name'] == self.projectName]
                 if not self.projectID:
-                    raise Exception(
-                        message="No project found on %s with name '%s'" % (self.testrailIp, self.projectName))
+                    raise Exception("No project on {0} named: '{1}'".format(self.testrailIp, self.projectName))
                 self.projectID = self.projectID[0]['id']
 
                 self.existingPlan = bool(options.planId)
@@ -439,8 +438,8 @@ class xunit_testrail(Plugin):
                         entry = self.testrailApi.addPlanEntry(self.plan['id'],
                                                               suiteID['id'],
                                                               suiteNameTestrail,
-                                                              includeAll        = False,
-                                                              caseIds           = self.testsCaseIdsToSelect)
+                                                              includeAll=False,
+                                                              caseIds=self.testsCaseIdsToSelect)
                         runID = entry['runs'][0]['id']
                     self.runID = runID
 
