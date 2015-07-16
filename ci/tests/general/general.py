@@ -23,7 +23,8 @@ from ovs.dal.lists.backendlist import BackendList
 
 from ovs.lib.storagerouter import StorageRouterController
 from ovs.lib.setup import SetupController
-from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.generic.sshclient import SSHClient, UnableToConnectException
+from ovs.extensions.generic.system import System
 
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
@@ -190,7 +191,7 @@ def cleanup():
 
     for vpool in VPoolList.get_vpools():
         if vpool:
-            hpv = general_hypervisor.Hypervisor.get(vpool.name)
+            hpv = general_hypervisor.Hypervisor.get(vpool.name, cleanup=True)
             vm_names = [vm.name for vm in VMachineList.get_vmachines()]
             for name in vm_names:
                 vm = VMachineList.get_vmachine_by_name(name)
@@ -235,9 +236,7 @@ def cleanup():
                     vdisk.delete()
                     logging.log(1, 'WARNING: Removed leftover disk: {0}'.format(vdisk.name))
 
-            for sdg in vpool.storagedrivers_guids:
-                StorageRouterController.remove_storagedriver(sdg)
-                time.sleep(3)
+            api_remove_vpool(vpool.name)
 
             if general_hypervisor.get_hypervisor_type() == "VMWARE":
                 hypervisor_info = autotests.getHypervisorInfo()
@@ -483,23 +482,38 @@ def api_remove_vpool(vpool_name):
     if not vpool:
         return
 
-    local_vsa = get_local_vsa()
-
     for sd in vpool.storagedrivers:
-        mount_point = ""
-        if sd.cluster_ip == local_vsa.ip:
-            mount_point = sd.mountpoint
-        StorageRouterController.remove_storagedriver(sd.guid)
+        mount_point = sd.mountpoint
+        storagerouter = sd.storagerouter
+        storagerouter_machineid = storagerouter.machine_id
+        local_machineid = System.get_my_machine_id()
+        logging.log(1, "local_machineid: {0}".format(local_machineid))
+        logging.log(1, "storagerouter_machineid: {0}".format(storagerouter_machineid))
+
+        if local_machineid == storagerouter_machineid:
+            # Inline execution, since it's on the same node (preventing deadlocks)
+            StorageRouterController.remove_storagedriver(sd.guid)
+        else:
+            # Async execution, since it has to be executed on another node
+            # @TODO: Will break in Celery 3.2, need to find another solution
+            # Requirements:
+            # - This code cannot continue until this new task is completed (as all these VSAs need to be
+            # handled sequentially
+            # - The wait() or get() method are not allowed anymore from within a task to prevent deadlocks
+            result = StorageRouterController.remove_storagedriver.s(sd.guid).apply_async(
+                routing_key='sr.{0}'.format(storagerouter_machineid)
+            )
+            result.wait()
         time.sleep(3)
 
-        if mount_point:
-            retries = 20
-            while retries:
-                if not os.path.exists(mount_point):
-                    break
-                time.sleep(1)
-                retries -= 1
-            assert retries, "Mountpoint {0} of vpool still exists after removing storage driver".format(mount_point)
+    if mount_point:
+        retries = 20
+        while retries:
+            if not os.path.exists(mount_point):
+                break
+            time.sleep(1)
+            retries -= 1
+        assert retries, "Mountpoint {0} of vpool still exists after removing storage driver".format(mount_point)
 
 
 def apply_disk_layout(disk_layout):

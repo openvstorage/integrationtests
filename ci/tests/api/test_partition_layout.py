@@ -48,6 +48,7 @@ def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writec
                                              vpool_readcaches_mp=vpool_readcaches_mp,
                                              vpool_writecaches_mp=vpool_writecaches_mp,
                                              vpool_foc_mp=vpool_foc_mp,
+                                             apply_to_all_nodes=True,
                                              config_cinder=True)
         return general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
     finally:
