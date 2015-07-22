@@ -40,26 +40,35 @@ PUBLIC_BRIDGE_NAME_ESX = "CloudFramesPublic"
 
 class Hypervisor(object):
     @staticmethod
-    def get(vpool_name, htype=None):
+    def get(vpool_name, htype=None, cleanup=False):
         vpool = [v for v in VPoolList.get_vpools() if v.name == vpool_name]
         assert vpool, "Vpool with name {} not found".format(vpool_name)
         vpool = vpool[0]
 
         local_vsa = general.get_local_vsa()
         sgs = [sg for sg in vpool.storagedrivers if sg.cluster_ip == local_vsa.ip]
-        assert sgs, "Vpool storagedriver with ip {0} not found".format(local_vsa.ip)
-        sg = sgs[0]
+        if len(vpool.storagedrivers) > 0:
+            if sgs:
+                sg = sgs[0]
+            else:
+                logging.log(1, "Vpool storagedriver with ip {0} not found".format(local_vsa.ip))
+                return None
+        else:
+            logging.log(1, "Vpool present without any configured storagedriver")
+            vpool.delete()
+            return None
 
-        retries = 5 * 60
-        sleep_time = 5
-        while retries:
-            out = general.execute_command("df | grep {0}".format(sg.mountpoint))[0]
-            if sg.mountpoint in out:
-                break
-            retries -= sleep_time
-            time.sleep(sleep_time)
+        if not cleanup:
+            retries = 5 * 60
+            sleep_time = 5
+            while retries:
+                out = general.execute_command("df | grep {0}".format(sg.mountpoint))[0]
+                if sg.mountpoint in out:
+                    break
+                retries -= sleep_time
+                time.sleep(sleep_time)
 
-        assert retries > 0, "Vpool mountpoint {0} did not appear in due time".format(sg.mountpoint)
+            assert retries > 0, "Vpool mountpoint {0} did not appear in due time".format(sg.mountpoint)
 
         htype = htype or get_hypervisor_type()
         if htype == "VMWARE":
