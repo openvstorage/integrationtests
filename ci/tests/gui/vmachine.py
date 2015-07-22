@@ -128,12 +128,12 @@ class Vmachine(BrowserOvs):
         assert vm_obj, "Vm with name {} not found"
         vm_obj = vm_obj[0]
 
-        if vm_obj.guid not in self.browser.url:
-            self.check_machine_is_present(vm_name)
+        self.check_machine_is_present(vm_name)
 
         # only handling first disk currently
         vm_tr = self.browser.find_by_id("vdisk_{}".format(vm_obj.vdisks[0].guid))
-        assert vm_tr, "Didn't find table row for {} disk in the vmachines overview".format(vm_obj.vdisks[0].name)
+        logging.log(1, 'disk guid to look for: {0}'.format(vm_obj.vdisks[0].guid))
+        assert vm_tr, "Didn't find table row for {0} disk in the vmachines overview".format(vm_obj.vdisks[0].name)
         vm_tr = vm_tr[0]
 
         tds = vm_tr.find_by_tag("td")
@@ -285,6 +285,7 @@ class Vmachine(BrowserOvs):
 
             templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and
                          t.vdisks[0].vpool.guid == vpool.guid and t.name == template_name]
+            logging.log(1, "Detected templates: {0}".format(templates))
             if not templates:
                 hpv = general_hypervisor.Hypervisor.get(vpool.name)
                 hpv.create_vm(template_name)
@@ -296,6 +297,7 @@ class Vmachine(BrowserOvs):
                 bt.set_as_template(template_name)
                 templates = [t for t in VMachineList.get_vtemplates()
                              if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid and t.name == template_name]
+                logging.log(1, "Detected templates after creation: {0}".format(templates))
                 bt.teardown()
 
             assert len(templates) == 1, "Failed to get template"
