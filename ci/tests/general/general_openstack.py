@@ -292,9 +292,11 @@ def delete_instance(instance_id, delete_volumes=False):
     while retries:
         vms = get_formated_cmd_output("nova list")
         vm = general.get_elem_with_val(vms, "ID", instance_id)
+        logging.log(1, '{0} - vm = {1}'.format(retries, vm))
         vm_ovs = VMachineList.get_vmachine_by_name(vm_name)
+        logging.log(1, 'vm_ovs: {0}'.format(vm_ovs))
 
-        if not (vm or vm_ovs):
+        if not vm and not vm_ovs:
             break
         time.sleep(1)
         retries -= 1
@@ -304,7 +306,13 @@ def delete_instance(instance_id, delete_volumes=False):
         out, error = general.execute_command(cmd)
         assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
-    assert not vm, "Vm is still present after deleting it from nova"
+    # unless vm is in error it should no longer be present
+    if vm:
+        logging.log(1, 'vm status: {0} - TaskState: {1}'.format(vm[0]['Status'], vm[0]['TaskState']))
+        if vm[0]['Status'] in 'ERROR' and vm[0]['TaskState'] in 'deleting':
+            return
+
+    assert not vm, "Vm {0} is still present after deleting it from nova".format(vm[0]['Name'])
     assert not vm_ovs, "Vm still exists on OVS after deleting it from nova"
 
 
@@ -338,8 +346,9 @@ def wait_for_volume_to_disappear(volume_id, vol_name, retries=100):
         time.sleep(1)
         retries -= 1
 
-    assert not vd_ovs, "Volume still exists on OVS after deleting it from cinder"
-    assert not vol, "Volume is still present after deleting it from cinder"
+    assert not vd_ovs, "Volume {0} with name {1} still exists on OVS after deleting it from cinder".format(vd_ovs,
+                                                                                                           vol_name)
+    assert not vol, "Volume {0} with name {1} is still present after deleting it from cinder".format(vol, vol_name)
 
 
 def delete_volume(volume_id, wait=True):
