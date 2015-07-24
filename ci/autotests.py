@@ -889,7 +889,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
     return "http://%s/index.php?/plans/view/%s" % (IP, planID)
 
 
-def _get_ip(iface='eth0'):
+def _get_ips():
     """
     Get node ips based on model information
     """
