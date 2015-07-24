@@ -272,7 +272,7 @@ class xunit_testrail(Plugin):
                 nameSplits = options.pushName.split("__")
                 name = nameSplits[0]
                 today = datetime.datetime.today()
-                name += "__" + today.strftime('%a %b %d %H:%M:%S')
+                name += "_" + today.strftime('%a %b %d %H:%M:%S')
 
                 self.version = nameSplits[0]
                 self.hypervisor = nameSplits[2]

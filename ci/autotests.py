@@ -716,7 +716,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
 
     today = datetime.datetime.today()
     date = today.strftime('%a %b %d %H:%M:%S')
-    name = '%s__%s' % (version, date)
+    name = '%s_%s' % (version, date)
 
     projectMapping = os.path.join(CONFIG_DIR, "project_testsuite_mapping.cfg")
     projectIni = ConfigParser.ConfigParser()
