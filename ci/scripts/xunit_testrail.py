@@ -270,7 +270,7 @@ class xunit_testrail(Plugin):
                 self.blockedStatus = [s for s in allStatuses if s['name'].lower() == 'blocked'][0]
 
                 nameSplits = options.pushName.split("__")
-                name = "_".join(nameSplits[:2])
+                name = nameSplits[0]
                 today = datetime.datetime.today()
                 name += "__" + today.strftime('%a %b %d %H:%M:%S')
 
