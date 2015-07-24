@@ -269,7 +269,7 @@ class xunit_testrail(Plugin):
                 self.skippedStatus = [s for s in allStatuses if s['name'].lower() == 'skipped'][0]
                 self.blockedStatus = [s for s in allStatuses if s['name'].lower() == 'blocked'][0]
 
-                nameSplits = options.pushName.split("__")
+                nameSplits = options.pushName.split("_")
                 name = nameSplits[0]
                 today = datetime.datetime.today()
                 name += "_" + today.strftime('%a %b %d %H:%M:%S')
