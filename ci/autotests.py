@@ -30,10 +30,10 @@ TESTRAIL_KEY = "cWFAY2xvdWRmb3VuZGVycy5jb206UjAwdDNy"
 
 
 class TestRunnerOutputFormat(object):
-    CONSOLE     = 'CONSOLE'
-    LOGGER      = 'LOGGER'
-    XML         = 'XML'
-    TESTRAIL    = 'TESTRAIL'
+    CONSOLE = 'CONSOLE'
+    LOGGER = 'LOGGER'
+    XML = 'XML'
+    TESTRAIL = 'TESTRAIL'
 
 
 
@@ -74,28 +74,28 @@ def run(test_spec=None,
                                     msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
     if output_format == TestRunnerOutputFormat.TESTRAIL:
-        if quality_level == None:
+        if not quality_level:
             quality_level = _getQualityLevel()
 
-        if project_name == None:
+        if not project_name:
             project_name = _getProject()
 
         if not version:
             version = _getOvsVersion()
 
-    if test_spec == None:
+    if not test_spec:
         test_spec = check_input(predicate=lambda x: x,
                                 msg='Enter test suite: ')
 
-    arguments = _parseArgs(suite_name       = 'test_results',
-                           output_format    = output_format,
-                           output_folder    = output_folder,
-                           always_die       = always_die,
-                           testrail_url     = testrail_url,
-                           project_name     = project_name,
-                           quality_level    = quality_level,
-                           version          = version,
-                           existing_plan_id = existing_plan_id)
+    arguments = _parseArgs(suite_name='test_results',
+                           output_format=output_format,
+                           output_folder=output_folder,
+                           always_die=always_die,
+                           testrail_url=testrail_url,
+                           project_name=project_name,
+                           quality_level=quality_level,
+                           version=version,
+                           existing_plan_id=existing_plan_id)
 
     tests = _convertTestSpec(test_spec)
     arguments.append(tests)
@@ -130,25 +130,24 @@ def runMultiple(list_of_tests,
                                     msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
     if output_format == TestRunnerOutputFormat.TESTRAIL:
-        if quality_level == None:
+        if not quality_level:
             quality_level = _getQualityLevel()
 
-        if project_name == None:
+        if not project_name:
             project_name = _getProject()
 
         if not version:
             version = _getOvsVersion()
 
-    arguments = _parseArgs(suite_name       = 'test_results',
-                           output_format    = output_format,
-                           output_folder    = output_folder,
-                           always_die       = always_die,
-                           testrail_url     = testrail_url,
-                           project_name     = project_name,
-                           quality_level    = quality_level,
-                           version          = version,
-                           list_of_tests    = list_of_tests)
-
+    arguments = _parseArgs(suite_name='test_results',
+                           output_format=output_format,
+                           output_folder=output_folder,
+                           always_die=always_die,
+                           testrail_url=testrail_url,
+                           project_name=project_name,
+                           quality_level=quality_level,
+                           version=version,
+                           list_of_tests=list_of_tests)
     _runTests(arguments)
 
 
@@ -184,26 +183,26 @@ def runAll(output_format=TestRunnerOutputFormat.CONSOLE,
                                     msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
     if output_format == TestRunnerOutputFormat.TESTRAIL:
-        if quality_level == None:
+        if not quality_level:
             quality_level = _getQualityLevel()
 
-        if project_name == None:
+        if not project_name:
             project_name = _getProject()
 
         if not version:
             version = _getOvsVersion()
 
     toRun = None
-    arguments = _parseArgs(suite_name           = 'test_results',
-                           output_format        = output_format,
-                           output_folder        = output_folder,
-                           always_die           = always_die,
-                           testrail_url         = testrail_url,
-                           project_name         = project_name,
-                           quality_level        = quality_level,
-                           version              = version,
-                           list_of_tests        = toRun,
-                           existing_plan_id     = existing_plan_id)
+    arguments = _parseArgs(suite_name='test_results',
+                           output_format=output_format,
+                           output_folder=output_folder,
+                           always_die=always_die,
+                           testrail_url=testrail_url,
+                           project_name=project_name,
+                           quality_level=quality_level,
+                           version=version,
+                           list_of_tests=toRun,
+                           existing_plan_id=existing_plan_id)
 
     _runTests(arguments)
 
@@ -241,34 +240,33 @@ def pushToTestrail(project=None,
             fileNameIdx = eval(check_input(predicate=lambda x: eval(x) in filesToAskRange,
                                            msg="Please chose results file \n" + "\n".join(
                                                map(lambda x: str(x[0]) + "->" + str(x[1]), filesToAsk)) + ":\n"))
-
         fileName = os.path.join(folder, resultFiles[fileNameIdx])
 
     print fileName
 
-    if quality_level == None:
+    if not quality_level:
         quality_level = _getQualityLevel()
 
-    if project == None:
+    if not project:
         project = _getProject()
 
     if not version:
         version = _getOvsVersion()
 
-    url = _pushToTestrail(IP                     = testrailIP,
-                          fileName               = fileName,
-                          milestone              = milestone,
-                          project                = project,
-                          version                = version,
-                          qlevel                 = quality_level,
-                          planComment            = comment,
-                          createInexistentSuites = createInexistentSuites,
-                          createInexistentCases  = createInexistentCases)
-
+    url = _pushToTestrail(IP=testrailIP,
+                          fileName=fileName,
+                          milestone=milestone,
+                          project=project,
+                          version=version,
+                          qlevel=quality_level,
+                          planComment=comment,
+                          createInexistentSuites=createInexistentSuites,
+                          createInexistentCases=createInexistentCases)
     if url:
         print "\n" + url
 
     return url
+
 
 def _parseArgs(suite_name,
                output_format,
@@ -291,7 +289,7 @@ def _parseArgs(suite_name,
         arguments.append('--verbosity')
         arguments.append('3')
     elif output_format == TestRunnerOutputFormat.XML:
-        if output_folder == None:
+        if not output_folder:
             raise AttributeError("No output folder for the XML result files specified")
         if not os.path.exists(output_folder):
             raise AttributeError("Given output folder doesn't exist. Please create it first!")
@@ -309,17 +307,17 @@ def _parseArgs(suite_name,
         arguments.append('--description')
         arguments.append("")
     elif output_format == TestRunnerOutputFormat.TESTRAIL:
-        if output_folder == None:
+        if not output_folder:
             raise AttributeError("No output folder for the XML result files specified")
         if not os.path.exists(output_folder):
             raise AttributeError("Given output folder doesn't exist. Please create it first!")
-        if testrail_url == None:
+        if not testrail_url:
             raise AttributeError("No testrail ip specified")
-        if project_name == None:
+        if not project_name:
             raise AttributeError("No testrail project name specified")
-        if quality_level == None:
+        if not quality_level:
             raise AttributeError("No quality_level specified")
-        if version == None:
+        if not version:
             raise AttributeError("No version specified")
 
         arguments.append('--verbosity')
@@ -355,7 +353,7 @@ def _convertTestSpec(test_spec):
     """
     test_spec_parts = test_spec.split('.')
     test_spec_path = os.path.join(TESTS_DIR, *test_spec_parts)
-    if (os.path.isdir(test_spec_path)):
+    if os.path.isdir(test_spec_path):
         return test_spec.replace('.', '/')
     else:
         return test_spec
@@ -467,7 +465,7 @@ def _getResultFiles(folder):
     """
     xmlFiles = [f for f in os.listdir(folder) if ".xml" in f]
 
-    xmlFiles.sort(reverse = True)
+    xmlFiles.sort(reverse=True)
     return xmlFiles
 
 
@@ -535,10 +533,10 @@ def _getPackageInfo():
     command = "dpkg-query -W -f='${binary:Package} ${Version}\t${Description}\n' | grep 'openvstorage'"
 
     childProc = subprocess.Popen(command,
-                                 shell  = True,
-                                 stdin  = subprocess.PIPE,
-                                 stdout = subprocess.PIPE,
-                                 stderr = subprocess.PIPE)
+                                 shell=True,
+                                 stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
 
     (output, _error) = childProc.communicate()
     return output
@@ -737,13 +735,13 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
 
     # additionalResultsFile = getAdditionalResultsFile(testResultFile)
 
-    allCases, ranCases, suiteNameToId, sectionNameToId = _getCases(xmlfile                  = xmlfile,
-                                                                   testrailApi              = testrailApi,
-                                                                   projectIni               = projectIni,
-                                                                   projectName              = project,
-                                                                   projectID                = projectID,
-                                                                   createInexistentSuites   = createInexistentSuites,
-                                                                   createInexistentCases    = createInexistentCases)
+    allCases, ranCases, suiteNameToId, sectionNameToId = _getCases(xmlfile=xmlfile,
+                                                                   testrailApi=testrailApi,
+                                                                   projectIni=projectIni,
+                                                                   projectName=project,
+                                                                   projectID=projectID,
+                                                                   createInexistentSuites=createInexistentSuites,
+                                                                   createInexistentCases=createInexistentCases)
     testsCaseIdsToSelect = []
 
     def addPlan():
@@ -756,8 +754,8 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         classname = child.getAttribute('classname')
 
         if classname.startswith(('<nose', 'nose')):
-            if child.childNodes[0].childNodes and child.childNodes[0].childNodes[
-                0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
+            if child.childNodes[0].childNodes and \
+                    child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
                 errorMessages.append(child.childNodes[0].childNodes[0].data)
             else:
                 errorMessages.append(child.childNodes[0].getAttribute('message'))
@@ -826,10 +824,10 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         comment = ''
         if not child.childNodes:
             status_id = TESTRAIL_STATUS_ID_PASSED
-            #if additionalResultsFile and \
+            # if additionalResultsFile and \
             #   additionalResultsFile.checkSection(sectionName = suite) and \
             #   additionalResultsFile.checkParam(sectionName = suite, paramName = caseName):
-            #    comment = additionalResultsFile.getValue(sectionName = suite, paramName = caseName, raw = True).replace('||', '\n')
+            #   comment = additionalResultsFile.getValue(sectionName = suite, paramName = caseName, raw = True).replace('||', '\n')
         elif child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest':
             if isBlocked:
                 status_id = TESTRAIL_STATUS_ID_BLOCKED
@@ -848,12 +846,12 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         elapsed = int(child.getAttribute('time'))
         if elapsed == 0:
             elapsed = 1
-        testrailApi.addResult(testId        = testID,
-                              statusId      = status_id,
-                              comment       = comment,
-                              version       = version,
-                              elapsed       = '%ss' % elapsed,
-                              customFields  = {'custom_hypervisor': _getHypervisor()})
+        testrailApi.addResult(testId=testID,
+                              statusId=status_id,
+                              comment=comment,
+                              version=version,
+                              elapsed='%ss' % elapsed,
+                              customFields={'custom_hypervisor': _getHypervisor()})
 
     xmlfile.unlink()
     del xmlfile
@@ -993,6 +991,7 @@ def setHypervisorInfo(ip, username, password):
     _saveConfigIni(atCfg)
 
     return True
+
 
 def listOs():
     """
