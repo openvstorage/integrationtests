@@ -18,7 +18,6 @@ import random
 import logging
 
 from ci.tests.general import general
-from ci import autotests
 from ovs.lib.setup import SetupController
 from ovs.extensions.generic.sshclient import SSHClient
 from nose.plugins.skip import SkipTest

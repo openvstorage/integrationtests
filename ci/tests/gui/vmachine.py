@@ -18,9 +18,7 @@ import datetime
 
 from browser_ovs import BrowserOvs
 from ovs.dal.lists.vmachinelist import VMachineList
-from ovs.dal.lists import vpoollist
 from ci.tests.general import general_hypervisor
-from ci.tests.gui.vpool import Vpool
 from ci.tests.general import general
 
 
