@@ -12,11 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import time
-
-from nose.plugins.skip import SkipTest
-
 from ci.tests.general import general
 from ci import autotests
 
