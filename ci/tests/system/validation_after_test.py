@@ -49,12 +49,12 @@ def ovs_2493_detect_could_not_acquire_lock_events_test():
                           tests_to_run=testsToRun)
 
     errorlist = ""
-    import os
+    command = "grep  -C 1 'Could not acquire lock' /var/log/ovs/lib.log"
     gridips = autotests._get_ips()
 
     for gridip in gridips:
-        out = general.execute_command_on_node(gridip, "grep 'Could not acquire lock' /var/log/ovs/lib.log | wc -l")
+        out = general.execute_command_on_node(gridip, command + " | wc -l")
         if not out == '0':
-            errorlist += "Lock errors detected on node %s in lib logs\n:{0}\n\n".format(general.execute_command_on_node(gridip, "grep -C 1 'Could not acquire lock' /var/log/ovs/lib.log").splitlines()) % gridip
+            errorlist += "node %s \n:{0}\n\n".format(general.execute_command_on_node(gridip, command).splitlines()) % gridip
 
-    assert len(errorlist) == 0 , errorlist
+    assert len(errorlist) == 0 , "Lock errors detected in lib logs on \n" + errorlist
