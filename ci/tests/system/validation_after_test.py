@@ -38,3 +38,23 @@ def ovs_2053_check_for_alba_warnings_test():
     out = general.execute_command_on_node('127.0.0.1', "grep warn /var/log/upstart/*-asd-*.log | wc -l")
     assert out == '0', \
         "syncfs warnings detected in asd logs\n:{0}".format(out.splitlines())
+
+
+def ovs_2493_detect_could_not_acquire_lock_events_test():
+    """
+    %s
+    """ % general.get_function_name()
+
+    general.check_prereqs(testcase_number=2,
+                          tests_to_run=testsToRun)
+
+    errorlist = ""
+    import os
+    gridips = autotests._get_ips()
+
+    for gridip in gridips:
+        out = general.execute_command_on_node(gridip, "grep 'Could not acquire lock' /var/log/ovs/lib.log | wc -l")
+        if not out == '0':
+            errorlist += "Lock errors detected on node %s in lib logs\n:{0}\n\n".format(general.execute_command_on_node(gridip, "grep -C 1 'Could not acquire lock' /var/log/ovs/lib.log").splitlines()) % gridip
+
+    assert len(errorlist) == 0 , errorlist
