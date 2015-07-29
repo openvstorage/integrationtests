@@ -50,7 +50,6 @@ class TestRunnerOutputFormat(object):
     TESTRAIL = 'TESTRAIL'
 
 
-
 TESTRAIL_STATUS_ID_PASSED = '1'
 TESTRAIL_STATUS_ID_BLOCKED = '2'
 TESTRAIL_STATUS_ID_FAILED = '5'
@@ -459,7 +458,10 @@ def _getProject():
     """
     Retrieve project name for pushing
     """
-    return "Open vStorage Engineering"
+
+    autotest_config = getConfigIni()
+
+    return autotest_config.get(section="main", option="test_project")
 
 
 def _getOvsVersion():
@@ -938,23 +940,23 @@ def getTestLevel():
     """
     Read test level from config file
     """
-    autotestCfgL = getConfigIni()
+    autotest_config = getConfigIni()
 
-    return autotestCfgL.get(section="main", option="testlevel")
+    return autotest_config.get(section="main", option="testlevel")
 
 
-def setTestLevel(testLevel):
+def setTestLevel(test_level):
     """
     Set test level : 1,2,3,8-12,15
     """
-    testLevelRegex = "^([0-9]|[1-9][0-9])([,-]([1-9]|[1-9][0-9])){0,}$"
-    if not re.match(testLevelRegex, testLevel):
+    testlevel_regex = "^([0-9]|[1-9][0-9])([,-]([1-9]|[1-9][0-9])){0,}$"
+    if not re.match(testlevel_regex, test_level):
         print('Wrong testlevel specified\neg: 1,2,3,8-12,15')
         return False
 
-    atCfg = getConfigIni()
-    atCfg.set(section="main", option="testlevel", value=testLevel)
-    _saveConfigIni(atCfg)
+    at_config = getConfigIni()
+    at_config.set(section="main", option="testlevel", value=test_level)
+    _saveConfigIni(at_config)
 
     return True
 
@@ -963,14 +965,14 @@ def getHypervisorInfo():
     """
     Retrieve info about hypervisor (ip, username, password)
     """
-    autotestCfgL = getConfigIni()
+    autotest_config = getConfigIni()
 
-    hi = autotestCfgL.get(section="main", option="hypervisorinfo")
-    hiList = hi.split(",")
-    if not len(hiList) == 3:
+    hi = autotest_config.get(section="main", option="hypervisorinfo")
+    hpv_list = hi.split(",")
+    if not len(hpv_list) == 3:
         print "No hypervisor info present in config"
         return
-    return hiList
+    return hpv_list
 
 
 def setHypervisorInfo(ip, username, password):
@@ -1000,9 +1002,9 @@ def setHypervisorInfo(ip, username, password):
         return False
 
     value = ','.join([ip, username, password])
-    atCfg = getConfigIni()
-    atCfg.set(section="main", option="hypervisorinfo", value=value)
-    _saveConfigIni(atCfg)
+    at_config = getConfigIni()
+    at_config.set(section="main", option="hypervisorinfo", value=value)
+    _saveConfigIni(at_config)
 
     return True
 
@@ -1012,42 +1014,38 @@ def listOs():
     List os' configured in os_mapping
     """
 
-    osMappingCfg = ConfigParser.ConfigParser()
-    osMappingCfg.read(OS_MAPPING_CFG_FILE)
+    os_mapping_config = ConfigParser.ConfigParser()
+    os_mapping_config.read(OS_MAPPING_CFG_FILE)
 
-    osNames = osMappingCfg.sections()
-
-    return osNames
+    return os_mapping_config.sections()
 
 
-def getOsInfo(osName):
+def getOsInfo(os_name):
     """
     Get info about an os configured in os_mapping
     """
-    osMappingCfg = ConfigParser.ConfigParser()
-    osMappingCfg.read(OS_MAPPING_CFG_FILE)
+    os_mapping_config = ConfigParser.ConfigParser()
+    os_mapping_config.read(OS_MAPPING_CFG_FILE)
 
-    if not osMappingCfg.has_section(osName):
-        print("No configuration found for os {0} in config".format(osName))
+    if not os_mapping_config.has_section(os_name):
+        print("No configuration found for os {0} in config".format(os_name))
         return
 
-    osInfo = dict(osMappingCfg.items(osName))
-
-    return osInfo
+    return dict(os_mapping_config.items(os_name))
 
 
-def setOs(osName):
+def setOs(os_name):
     """
     Set current os to be used by tests
     """
-    osList = listOs()
-    if not osName in osList:
-        print("Invalid os specified, available options are {0}".format(str(osList)))
+    os_list = listOs()
+    if os_name not in os_list:
+        print("Invalid os specified, available options are {0}".format(str(os_list)))
         return False
 
-    atCfg = getConfigIni()
-    atCfg.set(section="main", option="os", value=osName)
-    _saveConfigIni(atCfg)
+    at_config = getConfigIni()
+    at_config.set(section="main", option="os", value=os_name)
+    _saveConfigIni(at_config)
 
     return True
 
@@ -1056,21 +1054,19 @@ def getOs():
     """
     Retrieve current configured os for autotests
     """
-    autotestCfgL = getConfigIni()
+    autotest_config = getConfigIni()
 
-    osName = autotestCfgL.get(section="main", option="os")
-
-    return osName
+    return autotest_config.get(section="main", option="os")
 
 
-def setTemplateServer(templateServer):
+def setTemplateServer(template_server):
     """
     Set current template server to be used by tests
     """
 
-    atCfg = getConfigIni()
-    atCfg.set(section="main", option="template_server", value=templateServer)
-    _saveConfigIni(atCfg)
+    autotest_config = getConfigIni()
+    autotest_config.set(section="main", option="template_server", value=template_server)
+    _saveConfigIni(autotest_config)
 
     return True
 
@@ -1079,27 +1075,26 @@ def getTemplateServer():
     """
     Retrieve current configured template server for autotests
     """
-    autotestCfgL = getConfigIni()
+    autotest_config = getConfigIni()
 
-    templateServer = autotestCfgL.get(section = "main", option = "template_server")
+    return autotest_config.get(section="main", option="template_server")
 
-    return templateServer
 
 def getUserName():
     """
     Get username to use in tests
     """
-    autotestCfgL = getConfigIni()
-    username = autotestCfgL.get(section = "main", option = "username")
-    return username
+    autotest_config = getConfigIni()
+    return autotest_config.get(section="main", option="username")
+
 
 def setUserName(username):
     """
     Set username to use in tests
     """
-    atCfg = getConfigIni()
-    atCfg.set(section = "main", option = "username", value = username)
-    _saveConfigIni(atCfg)
+    autotest_config = getConfigIni()
+    autotest_config.set(section="main", option="username", value=username)
+    _saveConfigIni(autotest_config)
 
     return True
 
@@ -1108,16 +1103,16 @@ def getPassword():
     """
     Get password to use in tests
     """
-    autotestCfgL = getConfigIni()
-    username = autotestCfgL.get(section = "main", option = "username")
-    return username
+    autotest_config = getConfigIni()
+    return autotest_config.get(section="main", option="username")
+
 
 def setPassword(password):
     """
     Set password to use in tests
     """
-    atCfg = getConfigIni()
-    atCfg.set(section = "main", option = "password", value = password)
-    _saveConfigIni(atCfg)
+    autotest_config = getConfigIni()
+    autotest_config.set(section="main", option="password", value=password)
+    _saveConfigIni(autotest_config)
 
     return True
