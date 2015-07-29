@@ -232,7 +232,8 @@ def cleanup():
                                 shutil.rmtree(p)
                             else:
                                 logging.log(1, "removing file: {}".format(p))
-                                os.remove(p)
+                                if os.path.isfile(p):
+                                    os.remove(p)
                     for mac in env_macs:
                         mac_path = os.path.join(mountpoint, mac)
                         if os.path.exists(mac_path):
@@ -825,6 +826,7 @@ def validate_logstash_open_files_amount():
     if max_allowed_of:
         assert of_total < 90 * max_allowed_of / 100,\
             'Reached more than 90% of Logstash maximum allowed open files : {0}'.format(max_allowed_of)
+
 
 def get_or_setup_vpool(vpool_name, vpool_config='vpool'):
     vpool = VPoolList.get_vpool_by_name(vpool_name)

@@ -245,6 +245,7 @@ def permissions_check_test():
 
     vpool = general.get_or_setup_vpool(vpool_name)
 
+    assert vpool.storagedrivers, "At least one storagedriver should be configured for vpool: {0}".format(vpool.name)
     mount_point = vpool.storagedrivers[0].mountpoint
 
     st = os.stat(mount_point)

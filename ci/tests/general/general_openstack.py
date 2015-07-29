@@ -348,7 +348,7 @@ def get_image(image_id):
     return image
 
 
-def wait_for_volume_to_disappear(volume_id, vol_name, retries=100):
+def wait_for_volume_to_disappear(volume_id, vol_name, retries=180):
     vol = get_vol(volume_id)
     vd_ovs = ''
     while retries:
