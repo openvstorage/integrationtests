@@ -265,6 +265,10 @@ def cleanup():
     remove_alba_namespaces()
 
 
+def get_vpools():
+    return VPoolList.get_vpools()
+
+
 def add_vpool(browser):
     browser.add_vpool()
 

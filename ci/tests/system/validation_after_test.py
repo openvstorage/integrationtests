@@ -58,3 +58,29 @@ def ovs_2493_detect_could_not_acquire_lock_events_test():
             errorlist += "node %s \n:{0}\n\n".format(general.execute_command_on_node(gridip, command).splitlines()) % gridip
 
     assert len(errorlist) == 0 , "Lock errors detected in lib logs on \n" + errorlist
+
+
+def ovs_2468_verify_no_mds_files_left_after_remove_vpool_test():
+    """
+    %s
+    """ % general.get_function_name()
+
+    general.check_prereqs(testcase_number=3,
+                          tests_to_run=testsToRun)
+
+    vpools = general.get_vpools()
+    vpool_names = [vpool.name for vpool in vpools]
+    command = "find /mnt -name '*mds*'"
+    mdsvpoolnames = []
+
+    out = general.execute_command(command + " | wc -l")
+    if not out == '0':
+        mdsvpoolnames = [line.split('/')[-1] for line in general.execute_command(command)[0].splitlines()]
+
+    mds_files_still_in_filesystem = ""
+
+    for mdsvpoolname in mdsvpoolnames:
+        if mdsvpoolname.split('_')[1] not in vpool_names:
+            mds_files_still_in_filesystem += mdsvpoolname + "\n"
+
+    assert len(mds_files_still_in_filesystem) == 0, "MDS files still present in filesystem after remove vpool test:\n %s" % mds_files_still_in_filesystem
