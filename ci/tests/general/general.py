@@ -1,3 +1,17 @@
+# Copyright 2014 Open vStorage NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import re
 import sys
@@ -218,7 +232,8 @@ def cleanup():
                                 shutil.rmtree(p)
                             else:
                                 logging.log(1, "removing file: {}".format(p))
-                                os.remove(p)
+                                if os.path.isfile(p):
+                                    os.remove(p)
                     for mac in env_macs:
                         mac_path = os.path.join(mountpoint, mac)
                         if os.path.exists(mac_path):
@@ -249,6 +264,10 @@ def cleanup():
                 logging.log(1, 'WARNING: Removing leftover vmachine: {0}'.format(vmachine.name))
                 vmachine.delete()
     remove_alba_namespaces()
+
+
+def get_vpools():
+    return VPoolList.get_vpools()
 
 
 def add_vpool(browser):
@@ -807,6 +826,7 @@ def validate_logstash_open_files_amount():
     if max_allowed_of:
         assert of_total < 90 * max_allowed_of / 100,\
             'Reached more than 90% of Logstash maximum allowed open files : {0}'.format(max_allowed_of)
+
 
 def get_or_setup_vpool(vpool_name, vpool_config='vpool'):
     vpool = VPoolList.get_vpool_by_name(vpool_name)

@@ -1,10 +1,10 @@
-# Copyright 2014 CloudFounders NV
+# Copyright 2014 Open vStorage NV
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -555,10 +555,14 @@ def multiple_vpools_test():
     if len(vpool_configs) < len(required_backends):
         raise SkipTest()
 
+    logging.log(1, 'vpool configs to use: {0}'.format(vpool_configs))
+
     for vpool_config in vpool_configs.itervalues():
 
+        logging.log(1, 'vpool_config: {0}'.format(vpool_config))
         browser_object = vpt = Vpool(**vpool_config)
         vpt.login()
+        logging.log(3, 'vpool vpool_name: {0}'.format(vpt.vpool_name))
         vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
         if vpool:
             general.remove_vpool(vpt)
@@ -566,7 +570,7 @@ def multiple_vpools_test():
         general.add_vpool(vpt)
 
         vpt.browse_to(vpt.get_url() + '#full/vpools', '')
-        time.sleep(20)
+        time.sleep(10)
         vpt.wait_for_text(vpt.vpool_name)
 
         vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
@@ -577,7 +581,7 @@ def multiple_vpools_test():
         general.check_mountpoints(storagedrivers)
 
         hpv = general_hypervisor.Hypervisor.get(vpool.name)
-        vpool_config['vm_name'] = machine_name + vpool.name
+        vpool_config['vm_name'] = machine_name + '_' + vpool.name
         hpv.create_vm(vpool_config['vm_name'], small=True)
 
         vpt.teardown()

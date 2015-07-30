@@ -1,10 +1,10 @@
-# Copyright 2014 CloudFounders NV
+# Copyright 2014 Open vStorage NV
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,12 +25,10 @@ import time
 import urlparse
 
 from browser_ovs import BrowserOvs
-# from ci import autotests
 from ci.tests.general import general, general_hypervisor
 from nose.plugins.skip import SkipTest
 from splinter.driver.webdriver import NoSuchElementException
 from ovs.dal.lists.storagerouterlist import StorageRouterList
-from ovs.dal.lists.vpoollist import VPoolList
 
 LOCAL_VPOOL_TYPES = ['Local FS']
 REMOTE_VPOOL_TYPES = ['Ceph S3', 'S3 compatible', 'Swift S3']

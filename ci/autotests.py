@@ -1,3 +1,17 @@
+# Copyright 2014 Open vStorage NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Autotests lib
 """
@@ -30,11 +44,10 @@ TESTRAIL_KEY = "cWFAY2xvdWRmb3VuZGVycy5jb206UjAwdDNy"
 
 
 class TestRunnerOutputFormat(object):
-    CONSOLE     = 'CONSOLE'
-    LOGGER      = 'LOGGER'
-    XML         = 'XML'
-    TESTRAIL    = 'TESTRAIL'
-
+    CONSOLE = 'CONSOLE'
+    LOGGER = 'LOGGER'
+    XML = 'XML'
+    TESTRAIL = 'TESTRAIL'
 
 
 TESTRAIL_STATUS_ID_PASSED = '1'
@@ -74,28 +87,28 @@ def run(test_spec=None,
                                     msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
     if output_format == TestRunnerOutputFormat.TESTRAIL:
-        if quality_level == None:
+        if not quality_level:
             quality_level = _getQualityLevel()
 
-        if project_name == None:
+        if not project_name:
             project_name = _getProject()
 
         if not version:
             version = _getOvsVersion()
 
-    if test_spec == None:
+    if not test_spec:
         test_spec = check_input(predicate=lambda x: x,
                                 msg='Enter test suite: ')
 
-    arguments = _parseArgs(suite_name       = 'test_results',
-                           output_format    = output_format,
-                           output_folder    = output_folder,
-                           always_die       = always_die,
-                           testrail_url     = testrail_url,
-                           project_name     = project_name,
-                           quality_level    = quality_level,
-                           version          = version,
-                           existing_plan_id = existing_plan_id)
+    arguments = _parseArgs(suite_name='test_results',
+                           output_format=output_format,
+                           output_folder=output_folder,
+                           always_die=always_die,
+                           testrail_url=testrail_url,
+                           project_name=project_name,
+                           quality_level=quality_level,
+                           version=version,
+                           existing_plan_id=existing_plan_id)
 
     tests = _convertTestSpec(test_spec)
     arguments.append(tests)
@@ -108,7 +121,7 @@ def runMultiple(list_of_tests,
                 output_folder=None,
                 always_die=False,
                 testrail_url="testrail.openvstorage.com",
-                project_name="IAAS3x ENG",
+                project_name=None,
                 quality_level=None,
                 version=None):
     """
@@ -130,25 +143,24 @@ def runMultiple(list_of_tests,
                                     msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
     if output_format == TestRunnerOutputFormat.TESTRAIL:
-        if quality_level == None:
+        if not quality_level:
             quality_level = _getQualityLevel()
 
-        if project_name == None:
+        if not project_name:
             project_name = _getProject()
 
         if not version:
             version = _getOvsVersion()
 
-    arguments = _parseArgs(suite_name       = 'test_results',
-                           output_format    = output_format,
-                           output_folder    = output_folder,
-                           always_die       = always_die,
-                           testrail_url     = testrail_url,
-                           project_name     = project_name,
-                           quality_level    = quality_level,
-                           version          = version,
-                           list_of_tests    = list_of_tests)
-
+    arguments = _parseArgs(suite_name='test_results',
+                           output_format=output_format,
+                           output_folder=output_folder,
+                           always_die=always_die,
+                           testrail_url=testrail_url,
+                           project_name=project_name,
+                           quality_level=quality_level,
+                           version=version,
+                           list_of_tests=list_of_tests)
     _runTests(arguments)
 
 
@@ -158,7 +170,7 @@ def runAll(output_format=TestRunnerOutputFormat.CONSOLE,
            specialSuitesToRun=None,
            randomize=False,
            testrail_url="testrail.openvstorage.com",
-           project_name="Open vStorage Engineering",
+           project_name=None,
            quality_level=None,
            version=None,
            existing_plan_id=""):
@@ -184,26 +196,26 @@ def runAll(output_format=TestRunnerOutputFormat.CONSOLE,
                                     msg='Incorrect parameter output_folder: %s is not a directory or does not exist: ' % output_folder)
 
     if output_format == TestRunnerOutputFormat.TESTRAIL:
-        if quality_level == None:
+        if not quality_level:
             quality_level = _getQualityLevel()
 
-        if project_name == None:
+        if not project_name:
             project_name = _getProject()
 
         if not version:
             version = _getOvsVersion()
 
     toRun = None
-    arguments = _parseArgs(suite_name           = 'test_results',
-                           output_format        = output_format,
-                           output_folder        = output_folder,
-                           always_die           = always_die,
-                           testrail_url         = testrail_url,
-                           project_name         = project_name,
-                           quality_level        = quality_level,
-                           version              = version,
-                           list_of_tests        = toRun,
-                           existing_plan_id     = existing_plan_id)
+    arguments = _parseArgs(suite_name='test_results',
+                           output_format=output_format,
+                           output_folder=output_folder,
+                           always_die=always_die,
+                           testrail_url=testrail_url,
+                           project_name=project_name,
+                           quality_level=quality_level,
+                           version=version,
+                           list_of_tests=toRun,
+                           existing_plan_id=existing_plan_id)
 
     _runTests(arguments)
 
@@ -241,34 +253,33 @@ def pushToTestrail(project=None,
             fileNameIdx = eval(check_input(predicate=lambda x: eval(x) in filesToAskRange,
                                            msg="Please chose results file \n" + "\n".join(
                                                map(lambda x: str(x[0]) + "->" + str(x[1]), filesToAsk)) + ":\n"))
-
         fileName = os.path.join(folder, resultFiles[fileNameIdx])
 
     print fileName
 
-    if quality_level == None:
+    if not quality_level:
         quality_level = _getQualityLevel()
 
-    if project == None:
+    if not project:
         project = _getProject()
 
     if not version:
         version = _getOvsVersion()
 
-    url = _pushToTestrail(IP                     = testrailIP,
-                          fileName               = fileName,
-                          milestone              = milestone,
-                          project                = project,
-                          version                = version,
-                          qlevel                 = quality_level,
-                          planComment            = comment,
-                          createInexistentSuites = createInexistentSuites,
-                          createInexistentCases  = createInexistentCases)
-
+    url = _pushToTestrail(IP=testrailIP,
+                          fileName=fileName,
+                          milestone=milestone,
+                          project=project,
+                          version=version,
+                          qlevel=quality_level,
+                          planComment=comment,
+                          createInexistentSuites=createInexistentSuites,
+                          createInexistentCases=createInexistentCases)
     if url:
         print "\n" + url
 
     return url
+
 
 def _parseArgs(suite_name,
                output_format,
@@ -291,7 +302,7 @@ def _parseArgs(suite_name,
         arguments.append('--verbosity')
         arguments.append('3')
     elif output_format == TestRunnerOutputFormat.XML:
-        if output_folder == None:
+        if not output_folder:
             raise AttributeError("No output folder for the XML result files specified")
         if not os.path.exists(output_folder):
             raise AttributeError("Given output folder doesn't exist. Please create it first!")
@@ -309,17 +320,17 @@ def _parseArgs(suite_name,
         arguments.append('--description')
         arguments.append("")
     elif output_format == TestRunnerOutputFormat.TESTRAIL:
-        if output_folder == None:
+        if not output_folder:
             raise AttributeError("No output folder for the XML result files specified")
         if not os.path.exists(output_folder):
             raise AttributeError("Given output folder doesn't exist. Please create it first!")
-        if testrail_url == None:
+        if not testrail_url:
             raise AttributeError("No testrail ip specified")
-        if project_name == None:
+        if not project_name:
             raise AttributeError("No testrail project name specified")
-        if quality_level == None:
+        if not quality_level:
             raise AttributeError("No quality_level specified")
-        if version == None:
+        if not version:
             raise AttributeError("No version specified")
 
         arguments.append('--verbosity')
@@ -355,7 +366,7 @@ def _convertTestSpec(test_spec):
     """
     test_spec_parts = test_spec.split('.')
     test_spec_path = os.path.join(TESTS_DIR, *test_spec_parts)
-    if (os.path.isdir(test_spec_path)):
+    if os.path.isdir(test_spec_path):
         return test_spec.replace('.', '/')
     else:
         return test_spec
@@ -405,8 +416,10 @@ def _getDescription(planComment="", durations=""):
     Generate description for pushing to Testrail
     """
     description = ""
-    mgmtNodeIP = _get_ip("pubbr")
-    for item, value in (("ip", "* %s" % mgmtNodeIP),
+    nodeIPs = ""
+    for ip in _get_ips():
+        nodeIPs += "* " + ip + "\n"
+    for item, value in (("ip", "%s" % nodeIPs),
                         ("testsuite", durations),
                         ("Hypervisor", _getHypervisor()),
                         ("hardware", _getHardwareInfo()),
@@ -445,7 +458,10 @@ def _getProject():
     """
     Retrieve project name for pushing
     """
-    return "Open vStorage Engineering"
+
+    autotest_config = getConfigIni()
+
+    return autotest_config.get(section="main", option="test_project")
 
 
 def _getOvsVersion():
@@ -457,7 +473,7 @@ def _getOvsVersion():
     if not mainP:
         return ""
 
-    return re.split("\s*", mainP[0])[2]
+    return re.split("\s*", mainP[0])[1]
 
 def _getResultFiles(folder):
     """
@@ -465,7 +481,7 @@ def _getResultFiles(folder):
     """
     xmlFiles = [f for f in os.listdir(folder) if ".xml" in f]
 
-    xmlFiles.sort(reverse = True)
+    xmlFiles.sort(reverse=True)
     return xmlFiles
 
 
@@ -530,16 +546,17 @@ def _getPackageInfo():
     """
     Retrieve package information for installation
     """
-    command = "dpkg -l \*openvstorage\* | grep openvstorage"
+    command = "dpkg-query -W -f='${binary:Package} ${Version}\t${Description}\n' | grep 'openvstorage'"
 
     childProc = subprocess.Popen(command,
-                                 shell  = True,
-                                 stdin  = subprocess.PIPE,
-                                 stdout = subprocess.PIPE,
-                                 stderr = subprocess.PIPE)
+                                 shell=True,
+                                 stdin=subprocess.PIPE,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
 
     (output, _error) = childProc.communicate()
     return output
+
 
 def _getDurations(xmlfile):
     """
@@ -713,7 +730,7 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
 
     today = datetime.datetime.today()
     date = today.strftime('%a %b %d %H:%M:%S')
-    name = '%s.%s__%s' % (version, qlevel, date)
+    name = '%s_%s' % (version, date)
 
     projectMapping = os.path.join(CONFIG_DIR, "project_testsuite_mapping.cfg")
     projectIni = ConfigParser.ConfigParser()
@@ -734,13 +751,13 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
 
     # additionalResultsFile = getAdditionalResultsFile(testResultFile)
 
-    allCases, ranCases, suiteNameToId, sectionNameToId = _getCases(xmlfile                  = xmlfile,
-                                                                   testrailApi              = testrailApi,
-                                                                   projectIni               = projectIni,
-                                                                   projectName              = project,
-                                                                   projectID                = projectID,
-                                                                   createInexistentSuites   = createInexistentSuites,
-                                                                   createInexistentCases    = createInexistentCases)
+    allCases, ranCases, suiteNameToId, sectionNameToId = _getCases(xmlfile=xmlfile,
+                                                                   testrailApi=testrailApi,
+                                                                   projectIni=projectIni,
+                                                                   projectName=project,
+                                                                   projectID=projectID,
+                                                                   createInexistentSuites=createInexistentSuites,
+                                                                   createInexistentCases=createInexistentCases)
     testsCaseIdsToSelect = []
 
     def addPlan():
@@ -753,8 +770,8 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         classname = child.getAttribute('classname')
 
         if classname.startswith(('<nose', 'nose')):
-            if child.childNodes[0].childNodes and child.childNodes[0].childNodes[
-                0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
+            if child.childNodes[0].childNodes and \
+                    child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
                 errorMessages.append(child.childNodes[0].childNodes[0].data)
             else:
                 errorMessages.append(child.childNodes[0].getAttribute('message'))
@@ -823,10 +840,10 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         comment = ''
         if not child.childNodes:
             status_id = TESTRAIL_STATUS_ID_PASSED
-            #if additionalResultsFile and \
+            # if additionalResultsFile and \
             #   additionalResultsFile.checkSection(sectionName = suite) and \
             #   additionalResultsFile.checkParam(sectionName = suite, paramName = caseName):
-            #    comment = additionalResultsFile.getValue(sectionName = suite, paramName = caseName, raw = True).replace('||', '\n')
+            #   comment = additionalResultsFile.getValue(sectionName = suite, paramName = caseName, raw = True).replace('||', '\n')
         elif child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest':
             if isBlocked:
                 status_id = TESTRAIL_STATUS_ID_BLOCKED
@@ -845,12 +862,12 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
         elapsed = int(child.getAttribute('time'))
         if elapsed == 0:
             elapsed = 1
-        testrailApi.addResult(testId        = testID,
-                              statusId      = status_id,
-                              comment       = comment,
-                              version       = version,
-                              elapsed       = '%ss' % elapsed,
-                              customFields  = {'custom_hypervisor': _getHypervisor()})
+        testrailApi.addResult(testId=testID,
+                              statusId=status_id,
+                              comment=comment,
+                              version=version,
+                              elapsed='%ss' % elapsed,
+                              customFields={'custom_hypervisor': _getHypervisor()})
 
     xmlfile.unlink()
     del xmlfile
@@ -886,25 +903,16 @@ def _pushToTestrail(IP, fileName, milestone, project, version, qlevel, planComme
     return "http://%s/index.php?/plans/view/%s" % (IP, planID)
 
 
-def _get_ip(iface='eth0'):
+def _get_ips():
     """
-    Get ip of interface using SIOCGIFADDR ioctl
+    Get node ips based on model information
     """
-    import socket, struct, fcntl
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sockfd = sock.fileno()
-    SIOCGIFADDR = 0x8915
-
-    # set ifreq.ifr_name, ifreq.ifr_addr.sa_family and pad with 0
-    ifreq = struct.pack('16sH14s', iface, socket.AF_INET, '\x00' * 14)
-    try:
-        res = fcntl.ioctl(sockfd, SIOCGIFADDR, ifreq)
-    except Exception:
-        return None
-    ip = struct.unpack('16sH2x4s8x', res)[2]
-    # ip is packed in a in_addr c struct
-    return socket.inet_ntoa(ip)
+    ips = []
+    from ovs.dal.lists.pmachinelist import PMachineList
+    pms = PMachineList.get_pmachines()
+    for machine in pms:
+        ips.append(str(machine.ip))
+    return ips
 
 
 def getConfigIni():
@@ -932,23 +940,23 @@ def getTestLevel():
     """
     Read test level from config file
     """
-    autotestCfgL = getConfigIni()
+    autotest_config = getConfigIni()
 
-    return autotestCfgL.get(section="main", option="testlevel")
+    return autotest_config.get(section="main", option="testlevel")
 
 
-def setTestLevel(testLevel):
+def setTestLevel(test_level):
     """
     Set test level : 1,2,3,8-12,15
     """
-    testLevelRegex = "^([0-9]|[1-9][0-9])([,-]([1-9]|[1-9][0-9])){0,}$"
-    if not re.match(testLevelRegex, testLevel):
+    testlevel_regex = "^([0-9]|[1-9][0-9])([,-]([1-9]|[1-9][0-9])){0,}$"
+    if not re.match(testlevel_regex, test_level):
         print('Wrong testlevel specified\neg: 1,2,3,8-12,15')
         return False
 
-    atCfg = getConfigIni()
-    atCfg.set(section="main", option="testlevel", value=testLevel)
-    _saveConfigIni(atCfg)
+    at_config = getConfigIni()
+    at_config.set(section="main", option="testlevel", value=test_level)
+    _saveConfigIni(at_config)
 
     return True
 
@@ -957,14 +965,14 @@ def getHypervisorInfo():
     """
     Retrieve info about hypervisor (ip, username, password)
     """
-    autotestCfgL = getConfigIni()
+    autotest_config = getConfigIni()
 
-    hi = autotestCfgL.get(section="main", option="hypervisorinfo")
-    hiList = hi.split(",")
-    if not len(hiList) == 3:
+    hi = autotest_config.get(section="main", option="hypervisorinfo")
+    hpv_list = hi.split(",")
+    if not len(hpv_list) == 3:
         print "No hypervisor info present in config"
         return
-    return hiList
+    return hpv_list
 
 
 def setHypervisorInfo(ip, username, password):
@@ -994,53 +1002,50 @@ def setHypervisorInfo(ip, username, password):
         return False
 
     value = ','.join([ip, username, password])
-    atCfg = getConfigIni()
-    atCfg.set(section="main", option="hypervisorinfo", value=value)
-    _saveConfigIni(atCfg)
+    at_config = getConfigIni()
+    at_config.set(section="main", option="hypervisorinfo", value=value)
+    _saveConfigIni(at_config)
 
     return True
+
 
 def listOs():
     """
     List os' configured in os_mapping
     """
 
-    osMappingCfg = ConfigParser.ConfigParser()
-    osMappingCfg.read(OS_MAPPING_CFG_FILE)
+    os_mapping_config = ConfigParser.ConfigParser()
+    os_mapping_config.read(OS_MAPPING_CFG_FILE)
 
-    osNames = osMappingCfg.sections()
-
-    return osNames
+    return os_mapping_config.sections()
 
 
-def getOsInfo(osName):
+def getOsInfo(os_name):
     """
     Get info about an os configured in os_mapping
     """
-    osMappingCfg = ConfigParser.ConfigParser()
-    osMappingCfg.read(OS_MAPPING_CFG_FILE)
+    os_mapping_config = ConfigParser.ConfigParser()
+    os_mapping_config.read(OS_MAPPING_CFG_FILE)
 
-    if not osMappingCfg.has_section(osName):
-        print("No configuration found for os {0} in config".format(osName))
+    if not os_mapping_config.has_section(os_name):
+        print("No configuration found for os {0} in config".format(os_name))
         return
 
-    osInfo = dict(osMappingCfg.items(osName))
-
-    return osInfo
+    return dict(os_mapping_config.items(os_name))
 
 
-def setOs(osName):
+def setOs(os_name):
     """
     Set current os to be used by tests
     """
-    osList = listOs()
-    if not osName in osList:
-        print("Invalid os specified, available options are {0}".format(str(osList)))
+    os_list = listOs()
+    if os_name not in os_list:
+        print("Invalid os specified, available options are {0}".format(str(os_list)))
         return False
 
-    atCfg = getConfigIni()
-    atCfg.set(section="main", option="os", value=osName)
-    _saveConfigIni(atCfg)
+    at_config = getConfigIni()
+    at_config.set(section="main", option="os", value=os_name)
+    _saveConfigIni(at_config)
 
     return True
 
@@ -1049,21 +1054,19 @@ def getOs():
     """
     Retrieve current configured os for autotests
     """
-    autotestCfgL = getConfigIni()
+    autotest_config = getConfigIni()
 
-    osName = autotestCfgL.get(section="main", option="os")
-
-    return osName
+    return autotest_config.get(section="main", option="os")
 
 
-def setTemplateServer(templateServer):
+def setTemplateServer(template_server):
     """
     Set current template server to be used by tests
     """
 
-    atCfg = getConfigIni()
-    atCfg.set(section="main", option="template_server", value=templateServer)
-    _saveConfigIni(atCfg)
+    autotest_config = getConfigIni()
+    autotest_config.set(section="main", option="template_server", value=template_server)
+    _saveConfigIni(autotest_config)
 
     return True
 
@@ -1072,27 +1075,26 @@ def getTemplateServer():
     """
     Retrieve current configured template server for autotests
     """
-    autotestCfgL = getConfigIni()
+    autotest_config = getConfigIni()
 
-    templateServer = autotestCfgL.get(section = "main", option = "template_server")
+    return autotest_config.get(section="main", option="template_server")
 
-    return templateServer
 
 def getUserName():
     """
     Get username to use in tests
     """
-    autotestCfgL = getConfigIni()
-    username = autotestCfgL.get(section = "main", option = "username")
-    return username
+    autotest_config = getConfigIni()
+    return autotest_config.get(section="main", option="username")
+
 
 def setUserName(username):
     """
     Set username to use in tests
     """
-    atCfg = getConfigIni()
-    atCfg.set(section = "main", option = "username", value = username)
-    _saveConfigIni(atCfg)
+    autotest_config = getConfigIni()
+    autotest_config.set(section="main", option="username", value=username)
+    _saveConfigIni(autotest_config)
 
     return True
 
@@ -1101,16 +1103,16 @@ def getPassword():
     """
     Get password to use in tests
     """
-    autotestCfgL = getConfigIni()
-    username = autotestCfgL.get(section = "main", option = "username")
-    return username
+    autotest_config = getConfigIni()
+    return autotest_config.get(section="main", option="username")
+
 
 def setPassword(password):
     """
     Set password to use in tests
     """
-    atCfg = getConfigIni()
-    atCfg.set(section = "main", option = "password", value = password)
-    _saveConfigIni(atCfg)
+    autotest_config = getConfigIni()
+    autotest_config.set(section="main", option="password", value=password)
+    _saveConfigIni(autotest_config)
 
     return True
