@@ -36,7 +36,8 @@ LOGGER.setLevel(logging.WARNING)
 
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machinename = "AT_" + __name__.split(".")[-1]
-vpool_name = CINDER_TYPE = 'openstack-vp'
+vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = 'openstack-' + vpool_name
 
 
 def setup():

@@ -39,6 +39,7 @@ LOGGER.setLevel(logging.WARNING)
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machine_name = "AT_" + __name__.split(".")[-1]
 vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = 'gui-' + vpool_name
 browser_object = None
 
 
@@ -145,7 +146,7 @@ def vpool_add_test():
 
     global browser_object
 
-    browser_object = vpt = Vpool()
+    browser_object = vpt = Vpool(vpool_name=vpool_name)
     vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
     if vpool:
         general.remove_vpool(vpt)
@@ -168,7 +169,7 @@ def vpool_remove_test():
 
     global browser_object
 
-    browser_object = vpt = Vpool()
+    browser_object = vpt = Vpool(vpool_name=vpool_name)
     vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
 
     vpt.login()
@@ -194,7 +195,7 @@ def validate_vpool_cleanup_test():
 
     global browser_object
 
-    browser_object = vpt = Vpool()
+    browser_object = vpt = Vpool(vpool_name=vpool_name)
     vpt.login()
 
     vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)

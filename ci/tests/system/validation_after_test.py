@@ -15,6 +15,9 @@
 from ci.tests.general import general
 from ci import autotests
 
+vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = 'system-' + vpool_name
+
 testsToRun = general.get_tests_to_run(autotests.getTestLevel())
 
 
