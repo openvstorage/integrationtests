@@ -38,7 +38,7 @@ def ovs_2053_check_for_alba_warnings_test():
     general.check_prereqs(testcase_number=1,
                           tests_to_run=testsToRun)
 
-    out = general.execute_command_on_node('127.0.0.1', "grep warn /var/log/upstart/*-asd-*.log | wc -l")
+    out = general.execute_command_on_node('127.0.0.1', 'grep "warning: syncfs" /var/log/upstart/*-asd-*.log | wc -l')
     assert out == '0', \
         "syncfs warnings detected in asd logs\n:{0}".format(out.splitlines())
 
