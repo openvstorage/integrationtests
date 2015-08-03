@@ -867,7 +867,7 @@ def validate_vpool_cleanup(vpool_name):
             detected_issues += output
 
         # look for errors in storagedriver log file - only log these
-        cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' error '".format(vpool_name)
+        cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' error '; echo true > /dev/null".format(vpool_name)
         out = execute_command_on_node(pm.ip, cmd)
         output = ""
         for line in out.splitlines():
@@ -879,7 +879,7 @@ def validate_vpool_cleanup(vpool_name):
             logging.log(1, output)
 
         # look for fatals in storagedriver log file
-        cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' fatal '".format(vpool_name)
+        cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' fatal '; echo true > /dev/null".format(vpool_name)
         out = execute_command_on_node(pm.ip, cmd)
         if out:
             detected_issues += '\n\n{0} - volumedriver log file contains fatals\n'.format(pm.ip)
