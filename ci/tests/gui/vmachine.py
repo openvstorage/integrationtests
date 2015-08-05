@@ -217,7 +217,6 @@ class Vmachine(BrowserOvs):
         assert len(templates) == 1, "There should be only one template: {0}".format(','.join(names))
 
         template = templates[0]
-        assert template, "Couldn't find template {}".format(template_name)
         assert template.is_vtemplate, "Vm name is not a template {}".format(template_name)
 
         self.browse_to(self.get_url() + '#full/vtemplates', 'vtemplates')
