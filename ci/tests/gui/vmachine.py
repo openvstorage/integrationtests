@@ -212,18 +212,20 @@ class Vmachine(BrowserOvs):
 
     def delete_template(self, template_name, should_fail=False):
 
-        tmpl = VMachineList.get_vmachine_by_name(template_name)
-        if should_fail:
-            assert tmpl, "Couldn't find template {}".format(template_name)
-            tmpl = tmpl[0]
-            assert tmpl.is_vtemplate, "Vm name is not a template {}".format(template_name)
+        templates = VMachineList.get_vmachine_by_name(template_name)
+        names = [vm.name for vm in templates]
+        assert len(templates) == 1, "There should be only one template: {0}".format(','.join(names))
+
+        template = templates[0]
+        assert template, "Couldn't find template {}".format(template_name)
+        assert template.is_vtemplate, "Vm name is not a template {}".format(template_name)
 
         self.browse_to(self.get_url() + '#full/vtemplates', 'vtemplates')
         self.take_screenshot("before_delete_template")
         self.wait_for_text(template_name, 15)
         self.take_screenshot("after_1_delete_template")
 
-        delete_button_id = "vtemplateDelete_{0}".format(tmpl.guid)
+        delete_button_id = "vtemplateDelete_{0}".format(template.guid)
         delete_button = self.browser.find_by_id(delete_button_id)
         delete_button.click()
         self.take_screenshot("after_2_delete_template")
