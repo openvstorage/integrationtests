@@ -36,7 +36,8 @@ LOGGER.setLevel(logging.WARNING)
 
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machinename = "AT_" + __name__.split(".")[-1]
-vpool_name = CINDER_TYPE = 'openstack-vp'
+vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = 'openstack-' + vpool_name
 
 
 def setup():
@@ -85,7 +86,7 @@ def create_empty_volume_test():
 
     name = "{0}_{1}_empty_vol".format(machinename, int(time.time()))
 
-    vol_id = general_openstack.create_volume(image_id="", cinder_type=CINDER_TYPE, volume_name=name, volume_size=1)
+    vol_id = general_openstack.create_volume(image_id="", cinder_type=vpool_name, volume_name=name, volume_size=1)
 
     general_openstack.delete_volume(vol_id)
 
@@ -117,7 +118,7 @@ def create_volume_from_image_test():
         if glance_image_size > volume_size:
             volume_size = glance_image_size
 
-    vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=CINDER_TYPE, volume_name=volume_name,
+    vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name, volume_name=volume_name,
                                              volume_size=volume_size)
     general_openstack.delete_volume(vol_id)
 
@@ -152,7 +153,7 @@ def boot_nova_instance_from_volume_test():
         if glance_image_size > volume_size:
             volume_size = glance_image_size
 
-    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=CINDER_TYPE,
+    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                 volume_name=volume_name, volume_size=volume_size)
 
     main_host = general.get_this_hostname()
@@ -203,7 +204,7 @@ def boot_nova_instance_from_snapshot_test():
         if glance_image_size > volume_size:
             volume_size = glance_image_size
 
-    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=CINDER_TYPE,
+    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                 volume_name=volume_name, volume_size=volume_size)
     snapshot_id = general_openstack.create_snapshot(volume_id=volume_id)
 
@@ -258,7 +259,7 @@ def permissions_check_test():
         format(mount_point, expected_group, group)
 
     volume_name = "{0}_empty_vol".format(machinename, int(time.time()))
-    volume_id = general_openstack.create_volume(image_id="", cinder_type=CINDER_TYPE, volume_name=volume_name,
+    volume_id = general_openstack.create_volume(image_id="", cinder_type=vpool_name, volume_name=volume_name,
                                                 volume_size=1)
 
     raw_file_name = os.path.join(mount_point, volume_name + ".raw")
@@ -298,7 +299,7 @@ def live_migration_test():
 
     glance_image_id = general_openstack.create_glance_image()
 
-    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=CINDER_TYPE,
+    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                 volume_name=volume_name, volume_size=5)
 
     main_host = general.get_this_hostname()
@@ -344,7 +345,7 @@ def delete_multiple_volumes_test():
     for idx in range(disks_to_create):
         time.sleep(5)
         vol_name = "{0}_{1}".format(volume_name, idx)
-        vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=CINDER_TYPE,
+        vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                  volume_name=vol_name, volume_size=volume_size)
         vol_ids[vol_id] = vol_name
 
@@ -375,7 +376,7 @@ def alba_license_volumes_limitation():
     if alba_license.data['namespaces'] is None:
         quotas = general_openstack.get_formated_cmd_output("cinder quota-show $(keystone tenant-get admin | awk '/id/ {print $4}')")
         volumes_limit = int(general.get_elem_with_val(quotas, "Property", "volumes_{0}".
-                                                      format(CINDER_TYPE))[0]['Value'])
+                                                      format(vpool_name))[0]['Value'])
     else:
         volumes_limit = alba_license.data['namespaces']
 
@@ -411,7 +412,7 @@ def alba_license_volumes_limitation():
         time.sleep(2)
         vol_name = "{0}_{1}".format(volume_name, idx)
         vol_id = general_openstack.create_volume(image_id=glance_image_id,
-                                                 cinder_type=CINDER_TYPE,
+                                                 cinder_type=vpool_name,
                                                  volume_name=vol_name,
                                                  volume_size=volume_size)
         vol_ids[vol_id] = vol_name
@@ -419,7 +420,7 @@ def alba_license_volumes_limitation():
     # Try to create one more volume (should fail)
     try:
         vol_name = "{0}_{1}".format(volume_name, idx + 1)
-        vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=CINDER_TYPE,
+        vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                  volume_name=vol_name, volume_size=volume_size)
         if vol_id:
             vol_limit_exceeded = True
