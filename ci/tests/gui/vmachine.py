@@ -31,19 +31,26 @@ class Vmachine(BrowserOvs):
         self.bt = BrowserOvs.__init__(self, browser_choice=browser_choice)
 
     def check_machine_is_present(self, machinename, retries=30):
+        logging.log(1, "Checking if vm: {0} is present".format(machinename))
         vmachines_url = self.get_url() + '#full/vmachines'
+        self.take_screenshot("before_check_machine_is_not_present")
         if self.browser.url != vmachines_url:
             self.browse_to(vmachines_url, 'vmachines')
-
+        self.take_screenshot("before1_check_machine_is_not_present")
         self.wait_for_text(machinename, retries)
         self.click_on_tbl_item(machinename)
+        time.sleep(2)
+        self.take_screenshot("after_check_machine_is_not_present")
         self.wait_for_text(machinename, retries)
         time.sleep(2)
+        self.take_screenshot("after1_check_machine_is_not_present")
 
     def check_machine_is_not_present(self, machinename, retries=30):
+        self.take_screenshot("before_check_machine_is_not_present")
         self.browse_to(self.get_url() + '#full/vmachines', 'vmachines')
-
+        self.take_screenshot("before1_check_machine_is_not_present")
         self.wait_for_text_to_vanish(machinename, retries)
+        self.take_screenshot("after_check_machine_is_not_present")
 
     def check_machine_disk_is_present(self, name=''):
         """
@@ -59,6 +66,7 @@ class Vmachine(BrowserOvs):
         retries = 60
         disk_links_all = ''
 
+        self.take_screenshot("before_check_machine_disk_is_present")
         while retries:
             disk_links_all = self.browser.find_link_by_partial_href("#full/vdisk/")
             logging.log(1, 'disk links: {0}'.format(disk_links_all))
@@ -74,7 +82,7 @@ class Vmachine(BrowserOvs):
 
             retries -= 1
             time.sleep(1)
-
+        self.take_screenshot("after_check_machine_disk_is_present")
         assert check_ok, "Failed to check machine disks {0} with name: {1}".format(disk_links_all, name)
 
     def set_as_template(self, name, allowed=True):
@@ -116,9 +124,11 @@ class Vmachine(BrowserOvs):
         assert vm_obj, "Vm with name {} not found"
         vm_obj = vm_obj[0]
 
+        self.take_screenshot("before_check_vm_stats_overview_update")
         vm_tr = self.browser.find_by_id("vmachine_{}".format(vm_obj.guid))
-        assert vm_tr, "Didnt find table row for {} vm in the vmachines overview".format(vm_name)
+        assert vm_tr, "Didn't find table row for {} vm in the vmachines overview".format(vm_name)
         vm_tr = vm_tr[0]
+        self.take_screenshot("after_check_vm_stats_overview_update")
 
         tds = vm_tr.find_by_tag("td")
         stats_line = ""
@@ -142,10 +152,12 @@ class Vmachine(BrowserOvs):
 
         self.check_machine_is_present(vm_name)
 
+        self.take_screenshot("before_check_vm_stats_detail_update")
         # only handling first disk currently
         vm_tr = self.browser.find_by_id("vdisk_{}".format(vm_obj.vdisks[0].guid))
         logging.log(1, 'disk guid to look for: {0}'.format(vm_obj.vdisks[0].guid))
-        assert vm_tr, "Didn't find table row for {0} disk in the vmachines overview".format(vm_obj.vdisks[0].name)
+        self.take_screenshot("after_check_vm_stats_detail_update")
+        assert vm_tr, "Didn't find table row for {0} disk in the vmachine detail overview".format(vm_obj.vdisks[0].name)
         vm_tr = vm_tr[0]
 
         tds = vm_tr.find_by_tag("td")
@@ -200,18 +212,22 @@ class Vmachine(BrowserOvs):
 
     def delete_template(self, template_name, should_fail=False):
 
-        tmpl = VMachineList.get_vmachine_by_name(template_name)
-        assert tmpl, "Couldn't find template {}".format(template_name)
-        tmpl = tmpl[0]
-        assert tmpl.is_vtemplate, "Vm name is not a template {}".format(template_name)
+        templates = VMachineList.get_vmachine_by_name(template_name)
+        names = [vm.name for vm in templates]
+        assert len(templates) == 1, "There should be only one template: {0}".format(','.join(names))
+
+        template = templates[0]
+        assert template.is_vtemplate, "Vm name is not a template {}".format(template_name)
 
         self.browse_to(self.get_url() + '#full/vtemplates', 'vtemplates')
-
+        self.take_screenshot("before_delete_template")
         self.wait_for_text(template_name, 15)
+        self.take_screenshot("after_1_delete_template")
 
-        delete_button_id = "vtemplateDelete_{0}".format(tmpl.guid)
+        delete_button_id = "vtemplateDelete_{0}".format(template.guid)
         delete_button = self.browser.find_by_id(delete_button_id)
         delete_button.click()
+        self.take_screenshot("after_2_delete_template")
 
         if not should_fail:
             _ = self.wait_for_modal()
@@ -219,6 +235,7 @@ class Vmachine(BrowserOvs):
 
             self.wait_for_wait_notification("Machine {} deleted".format(template_name))
             self.wait_for_text_to_vanish(template_name, 25)
+            self.take_screenshot("after_3_delete_template")
 
             assert not VMachineList.get_vmachine_by_name(template_name),\
                 "Deleting template did not remove it from the model"

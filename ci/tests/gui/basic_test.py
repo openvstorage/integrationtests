@@ -39,6 +39,7 @@ LOGGER.setLevel(logging.WARNING)
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machine_name = "AT_" + __name__.split(".")[-1]
 vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = 'gui-' + vpool_name
 browser_object = None
 
 
@@ -97,8 +98,9 @@ def ovs_login_test():
     global browser_object
 
     browser_object = bt = BrowserOvs()
-
+    bt.take_screenshot("start_ovs_login_test")
     bt.login()
+    bt.take_screenshot("end_ovs_login_test")
 
 
 @with_setup(None, close_browser)
@@ -111,10 +113,12 @@ def ovs_wrong_password_test():
     global browser_object
 
     browser_object = bt = BrowserOvs()
+    bt.take_screenshot("start_ovs_wrong_password_test")
     bt.password = "wrong_password"
     bt.login(wait=False)
     time.sleep(5)
     bt.check_invalid_credentials_alert()
+    bt.take_screenshot("end_ovs_wrong_password_test")
     assert "dashboard" not in bt.browser.title, "Failed login should not go to dashboard"
 
 
@@ -128,10 +132,12 @@ def ovs_wrong_username_test():
     global browser_object
 
     browser_object = bt = BrowserOvs()
+    bt.take_screenshot("start_ovs_wrong_username_test")
     bt.username = "wrong_username"
     bt.login(wait=False)
     time.sleep(5)
     bt.check_invalid_credentials_alert()
+    bt.take_screenshot("end_ovs_wrong_username_test")
     assert "dashboard" not in bt.browser.title, "Failed login should not go to dashboard"
 
 
@@ -145,17 +151,19 @@ def vpool_add_test():
 
     global browser_object
 
-    browser_object = vpt = Vpool()
-    vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
+    browser_object = bt = Vpool(vpool_name=vpool_name)
+    bt.take_screenshot("start_vpool_add_test")
+    vpool = VPoolList.get_vpool_by_name(bt.vpool_name)
     if vpool:
-        general.remove_vpool(vpt)
+        general.remove_vpool(bt)
 
-    vpt.login()
-    general.add_vpool(vpt)
+    bt.login()
+    general.add_vpool(bt)
 
-    vpt.browse_to(vpt.get_url() + '#full/vpools', '')
+    bt.browse_to(bt.get_url() + '#full/vpools', '')
     time.sleep(5)
-    vpt.wait_for_text(vpt.vpool_name)
+    bt.wait_for_text(bt.vpool_name)
+    bt.take_screenshot("end_vpool_add_test")
 
 
 @with_setup(None, close_browser)
@@ -168,20 +176,22 @@ def vpool_remove_test():
 
     global browser_object
 
-    browser_object = vpt = Vpool()
-    vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
+    browser_object = bt = Vpool(vpool_name=vpool_name)
+    bt.take_screenshot("start_vpool_remove_test")
+    vpool = VPoolList.get_vpool_by_name(bt.vpool_name)
 
-    vpt.login()
+    bt.login()
     if not vpool:
-        general.add_vpool(vpt)
+        general.add_vpool(bt)
 
     time.sleep(30)
 
-    general.remove_vpool(vpt)
+    general.remove_vpool(bt)
 
-    vpt.browse_to(vpt.get_url() + '#full/vpools', '')
+    bt.browse_to(bt.get_url() + '#full/vpools', '')
     time.sleep(5)
-    vpt.wait_for_text_to_vanish(vpt.vpool_name)
+    bt.wait_for_text_to_vanish(bt.vpool_name)
+    bt.take_screenshot("end_vpool_remove_test")
 
 
 @with_setup(None, close_browser)
@@ -193,17 +203,17 @@ def validate_vpool_cleanup_test():
     general.check_prereqs(testcase_number=6, tests_to_run=tests_to_run)
 
     global browser_object
+    browser_object = bt = Vpool(vpool_name=vpool_name)
+    bt.take_screenshot("start_validate_vpool_cleanup_test")
+    bt.login()
 
-    browser_object = vpt = Vpool()
-    vpt.login()
-
-    vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
+    vpool = VPoolList.get_vpool_by_name(bt.vpool_name)
     if vpool:
-        general.remove_vpool(vpt)
+        general.remove_vpool(bt)
 
     for _idx in range(2):
-        general.add_vpool(vpt)
-        vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
+        general.add_vpool(bt)
+        vpool = VPoolList.get_vpool_by_name(bt.vpool_name)
         # hold a copy of these for later
         storagedrivers = list(vpool.storagedrivers)
 
@@ -222,11 +232,12 @@ def validate_vpool_cleanup_test():
         time.sleep(10)
         general.execute_command("rm {0}".format(file_name))
 
-        general.remove_vpool(vpt)
+        general.remove_vpool(bt)
 
         time.sleep(5)
         general.check_voldrv_services(vpool_name, storagedrivers, running=False)
         general.check_mountpoints(storagedrivers, is_present=False)
+    bt.take_screenshot("end_validate_vpool_cleanup_test")
 
 
 @with_setup(None, close_browser)
@@ -239,15 +250,15 @@ def set_as_template_test():
     general.check_prereqs(testcase_number=7, tests_to_run=tests_to_run)
 
     global browser_object
+    browser_object = bt = Vmachine()
+    bt.login()
+    bt.take_screenshot("start_set_as_template_test")
 
     name = machine_name + "_set_as_template"
 
     vpool = general.get_or_setup_vpool(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
     hpv.create_vm(name, small=False)
-
-    browser_object = bt = Vmachine()
-    bt.login()
 
     logging.log(1, 'Check if vmachine with name: {0} is present'.format(name))
     bt.check_machine_is_present(name, 100)
@@ -267,7 +278,7 @@ def set_as_template_test():
     bt.set_as_template(name)
     bt.check_machine_is_not_present(name)
 
-    # bt.teardown()
+    bt.take_screenshot("end_set_as_template_test")
 
 
 @with_setup(None, close_browser)
@@ -280,15 +291,15 @@ def create_from_template_test():
     general.check_prereqs(testcase_number=8, tests_to_run=tests_to_run)
 
     global browser_object
+    browser_object = bt = Vmachine()
+    bt.login()
+    bt.take_screenshot("start_create_from_template_test")
 
     name = machine_name + "_create" + str(random.randrange(0, 9999999))
 
     vpool = general.get_or_setup_vpool(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
     hpv.create_vm(machine_name, small=False)
-
-    browser_object = bt = Vmachine()
-    bt.login()
 
     logging.log(1, 'Check if vmachine with name: {0} is present'.format(machine_name))
     bt.check_machine_is_present(machine_name, 100)
@@ -304,6 +315,7 @@ def create_from_template_test():
     bt.check_machine_is_present(name)
 
     hpv.delete(name)
+    bt.take_screenshot("end_create_from_template_test")
 
 
 @with_setup(None, close_browser)
@@ -317,13 +329,14 @@ def start_stop_vm_test():
     name = machine_name + "_start" + str(random.randrange(0, 9999999))
     template_name = machine_name + '_template'
 
+    bt = Vmachine()
+    bt.login()
+    bt.take_screenshot("start_start_stop_vm_test")
+
     vpool = general.get_or_setup_vpool(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
 
     template = Vmachine.get_template(template_name, vpool_name)
-
-    bt = Vmachine()
-    bt.login()
 
     bt.create_from_template(template.name, name)
     bt.check_machine_is_present(name)
@@ -353,6 +366,7 @@ def start_stop_vm_test():
         hpv.wait_for_vm_pingable(name, pingable=False, vm_ip=vm_ip)
 
     hpv.delete(name)
+    bt.take_screenshot("end_start_stop_vm_test")
 
 
 @with_setup(None, close_browser)
@@ -364,12 +378,12 @@ def delete_clone_test():
     general.check_prereqs(testcase_number=10, tests_to_run=tests_to_run)
 
     global browser_object
+    browser_object = bt = Vmachine()
+    bt.login()
+    bt.take_screenshot("start_delete_clone_test")
 
     name = machine_name + "_delete" + str(random.randrange(0, 9999999))
     template = Vmachine.get_template(machine_name, vpool_name)
-
-    browser_object = bt = Vmachine()
-    bt.login()
 
     bt.create_from_template(template.name, name)
     bt.check_machine_is_present(name)
@@ -385,6 +399,7 @@ def delete_clone_test():
     bt.wait_for_text_to_vanish(name, timeout=10)
 
     assert not VMachineList.get_vmachine_by_name(name), "Vmachine was not deleted from model after hypervisor deletion"
+    bt.take_screenshot("end_delete_clone_test")
 
 
 @with_setup(None, close_browser)
@@ -396,15 +411,15 @@ def machine_snapshot_rollback_test():
     general.check_prereqs(testcase_number=11, tests_to_run=tests_to_run)
 
     global browser_object
+    browser_object = bt = Vmachine()
+    bt.login()
+    bt.take_screenshot("start_machine_snapshot_rollback_test")
 
     name = machine_name + "_sn_roll" + str(random.randrange(0, 9999999))
     vpool = general.get_or_setup_vpool(vpool_name)
     template = Vmachine.get_template(machine_name, vpool_name)
 
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
-
-    browser_object = bt = Vmachine()
-    bt.login()
 
     bt.create_from_template(template.name, name)
     bt.check_machine_is_present(name)
@@ -456,6 +471,8 @@ def machine_snapshot_rollback_test():
         hpv.check_test_data(name, filename1)
         hpv.check_test_data(name, filename2, not_present=True)
 
+    bt.take_screenshot("end_machine_snapshot_rollback_test")
+
 
 @with_setup(None, close_browser)
 def try_to_delete_template_with_clones_test():
@@ -466,6 +483,9 @@ def try_to_delete_template_with_clones_test():
     general.check_prereqs(testcase_number=12, tests_to_run=tests_to_run)
 
     global browser_object
+    browser_object = bt = Vmachine()
+    bt.login()
+    bt.take_screenshot("start_try_to_delete_template_with_clones_test")
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if vpool:
@@ -476,9 +496,6 @@ def try_to_delete_template_with_clones_test():
     vpool = general.get_or_setup_vpool(vpool_name)
     template = Vmachine.get_template(machine_name, vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool.name)
-
-    browser_object = bt = Vmachine()
-    bt.login()
 
     bt.create_from_template(template.name, name)
     bt.check_machine_is_present(name)
@@ -497,6 +514,8 @@ def try_to_delete_template_with_clones_test():
     if general_hypervisor.get_hypervisor_type() == "KVM" and vm_ip:
         hpv.wait_for_vm_pingable(name, pingable=False, vm_ip=vm_ip)
 
+    bt.take_screenshot("end_try_to_delete_template_with_clones_test")
+
 
 @with_setup(None, close_browser)
 def delete_template_test():
@@ -511,6 +530,9 @@ def delete_template_test():
     general.check_prereqs(testcase_number=13, tests_to_run=tests_to_run)
 
     global browser_object
+    browser_object = bt = Vmachine()
+    bt.login()
+    bt.take_screenshot("start_delete_template_test")
 
     template = Vmachine.get_template(machine_name, vpool_name)
     vpool = VPoolList.get_vpool_by_name(vpool_name)
@@ -518,9 +540,8 @@ def delete_template_test():
     # first delete all clones:
     hpv.delete_clones(template.name)
 
-    browser_object = bt = Vmachine()
-    bt.login()
     bt.delete_template(template.name)
+    bt.take_screenshot("end_delete_template_test")
 
 
 @with_setup(None, close_browser)
@@ -557,34 +578,38 @@ def multiple_vpools_test():
 
     logging.log(1, 'vpool configs to use: {0}'.format(vpool_configs))
 
+    browser_object = bt = Vpool(vpool_name=vpool_name)
+    bt.login()
+    bt.take_screenshot("start_multiple_vpools_test")
+
     for vpool_config in vpool_configs.itervalues():
 
         logging.log(1, 'vpool_config: {0}'.format(vpool_config))
-        browser_object = vpt = Vpool(**vpool_config)
-        vpt.login()
-        logging.log(3, 'vpool vpool_name: {0}'.format(vpt.vpool_name))
-        vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
+        browser_object = bt = Vpool(**vpool_config)
+        bt.login()
+        logging.log(3, 'vpool vpool_name: {0}'.format(bt.vpool_name))
+        vpool = VPoolList.get_vpool_by_name(bt.vpool_name)
         if vpool:
-            general.remove_vpool(vpt)
+            general.remove_vpool(bt)
 
-        general.add_vpool(vpt)
+        general.add_vpool(bt)
 
-        vpt.browse_to(vpt.get_url() + '#full/vpools', '')
+        bt.browse_to(bt.get_url() + '#full/vpools', '')
         time.sleep(10)
-        vpt.wait_for_text(vpt.vpool_name)
+        bt.wait_for_text(bt.vpool_name)
 
-        vpool = VPoolList.get_vpool_by_name(vpt.vpool_name)
+        vpool = VPoolList.get_vpool_by_name(bt.vpool_name)
 
         storagedrivers = list(vpool.storagedrivers)
 
-        general.check_voldrv_services(vpt.vpool_name, storagedrivers)
+        general.check_voldrv_services(bt.vpool_name, storagedrivers)
         general.check_mountpoints(storagedrivers)
 
         hpv = general_hypervisor.Hypervisor.get(vpool.name)
         vpool_config['vm_name'] = machine_name + '_' + vpool.name
         hpv.create_vm(vpool_config['vm_name'], small=True)
 
-        vpt.teardown()
+        bt.teardown()
 
     for vpool_config in vpool_configs.itervalues():
         vm_name = vpool_config['vm_name']
@@ -597,11 +622,12 @@ def multiple_vpools_test():
         vpool = VPoolList.get_vpool_by_name(vpool_config['vpool_name'])
         storagedrivers = list(vpool.storagedrivers)
 
-        vpt = Vpool(**vpool_config)
-        vpt.login()
-        general.remove_vpool(vpt)
+        bt = Vpool(**vpool_config)
+        bt.login()
+        general.remove_vpool(bt)
 
         general.check_voldrv_services(vpool_config['vpool_name'], storagedrivers, running=False)
         general.check_mountpoints(storagedrivers, is_present=False)
 
-        vpt.teardown()
+        bt.take_screenshot("end_multiple_vpools_test")
+        bt.teardown()

@@ -274,7 +274,8 @@ def live_migration(instance_id, new_host):
             break
         time.sleep(1)
         retries -= 1
-    assert retries, "Wrong host after live migration, expected {0} got {1}".format(new_host, vm_host)
+    assert retries, "Wrong host after live migration, expected {0} got {1} - source was {2}".format(
+        new_host, vm_host, prev_host)
 
     vm_name = get_vm_name_hpv(instance_id)
 
