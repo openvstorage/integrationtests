@@ -23,17 +23,19 @@ import logging
 import inspect
 import paramiko
 import subprocess
+import general
 import general_hypervisor
 
 from ci import autotests
 from nose.plugins.skip import SkipTest
 
+from ovs.dal.lists.backendlist import BackendList
+from ovs.dal.lists.licenselist import LicenseList
+from ovs.dal.lists.pmachinelist import PMachineList
+from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.dal.lists.vmachinelist import VMachineList
 from ovs.dal.lists.vpoollist import VPoolList
-from ovs.dal.lists.storagerouterlist import StorageRouterList
-from ovs.dal.lists.licenselist import LicenseList
-from ovs.dal.lists.backendlist import BackendList
 
 from ovs.lib.storagerouter import StorageRouterController
 from ovs.lib.setup import SetupController
@@ -140,6 +142,15 @@ def get_remote_ssh_connection(ip_address, username, password):
     ssh_connection.connect(ip_address, username=username, password=password, timeout=2)
     sftp = ssh_connection.open_sftp()
     return ssh_connection, sftp
+
+
+def get_ip_for(hostname):
+    cmd = "cat /etc/hosts | awk '/{0}/".format(hostname) + " {print $1}'"
+    ips = execute_command(cmd)[0].splitlines()
+    for ip in ips:
+        if ip == '127.0.0.1':
+            continue
+    return ip
 
 
 def get_virbr_ip():
@@ -315,6 +326,7 @@ def remove_vpool(browser):
             print stdout.readlines()
             print stderr.readlines()
     remove_alba_namespaces()
+    general.validate_vpool_cleanup(vpool_name)
 
 
 def get_this_hostname():
@@ -497,6 +509,7 @@ def api_add_vpool(vpool_name=None,
 
 
 def api_remove_vpool(vpool_name):
+    mount_point = ''
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
         return
@@ -835,3 +848,52 @@ def get_or_setup_vpool(vpool_name, vpool_config='vpool'):
         vpool = VPoolList.get_vpool_by_name(vpool_name)
 
     return vpool
+
+
+def validate_vpool_cleanup(vpool_name):
+    pms = PMachineList.get_pmachines()
+    detected_issues = ""
+    vpool_path = '/mnt/' + vpool_name
+    for pm in pms:
+        logging.log(1, 'checking host: {0}'.format(pm.ip))
+
+        # check if mountpoint is still present
+        if os.path.isdir(vpool_path):
+            detected_issues += '\n{0} - vpool_mountpoint {1} still present\n'.format(pm.ip, vpool_path)
+            cmd = "ls -la {0}".format(vpool_path)
+            out = execute_command_on_node(pm.ip, cmd)
+            detected_issues += out
+
+        # detected remaining storagedriver process
+        cmd = "ps -ef | awk '/volumedriver_fs/ && /{0}/'".format(vpool_name)
+        out = execute_command_on_node(pm.ip, cmd)
+        output = ""
+        for line in out.splitlines():
+            if "awk" in line and "volumedriver_fs" in line:
+                continue
+            output += line
+        if output:
+            detected_issues += '\n\n{0} - volumedriver_fs process still running\n'.format(pm.ip)
+            detected_issues += output
+
+        # look for errors in storagedriver log file - only log these
+        cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' error '; echo true > /dev/null".format(vpool_name)
+        out = execute_command_on_node(pm.ip, cmd)
+        output = ""
+        for line in out.splitlines():
+            if "HierarchicalArakoon" in line:
+                continue
+            output += line
+        if output:
+            logging.log(1, '\n\n{0} - volumedriver log file contains errors\n'.format(pm.ip))
+            logging.log(1, output)
+
+        # look for fatals in storagedriver log file
+        cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' fatal '; echo true > /dev/null".format(vpool_name)
+        out = execute_command_on_node(pm.ip, cmd)
+        if out:
+            detected_issues += '\n\n{0} - volumedriver log file contains fatals\n'.format(pm.ip)
+            detected_issues += out
+
+        assert len(detected_issues) == 0,\
+            "Vpool cleanup for {0} was incomplete:\n{1}".format(vpool_name, detected_issues)
