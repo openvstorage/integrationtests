@@ -145,7 +145,7 @@ def create_volume(image_id, cinder_type, volume_name, volume_size, wait_for_volu
         wait_for_status_on_item("cinder list", "ID", volume_id, "Status", "available")
 
         vdisk = [vd for vd in VDiskList.get_vdisks() if vd.name == volume_name]
-        assert vdisk, "Cinder volume did not appear on ovs side"
+        assert vdisk, "Cinder volume {0} did not appear on ovs side".format(volume_name)
     return volume_id
 
 
