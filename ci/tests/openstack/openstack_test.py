@@ -298,15 +298,21 @@ def live_migration_test():
     volume_name = instance_name + "_disk"
 
     glance_image_id = general_openstack.create_glance_image()
+    logging.log(1, "image created: {0}".format(glance_image_id))
 
     volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                 volume_name=volume_name, volume_size=5)
+    logging.log(1, "volume created: {0}".format(volume_id))
 
     main_host = general.get_this_hostname()
+    logging.log(1, "main host: {0}".format(main_host))
 
     instance_id = general_openstack.create_instance(volume_id=volume_id, instance_name=instance_name, host=main_host)
+    logging.log(1, "instance id: {0}".format(instance_id))
 
     new_host = [h for h in hosts if h != main_host][random.randint(0, len(hosts) - 2)]
+    logging.log(1, "target host: {0}".format(new_host))
+
     general_openstack.live_migration(instance_id, new_host)
 
     general_openstack.delete_instance(instance_id)

@@ -144,6 +144,15 @@ def get_remote_ssh_connection(ip_address, username, password):
     return ssh_connection, sftp
 
 
+def get_ip_for(hostname):
+    cmd = "cat /etc/hosts | awk '/{0}/".format(hostname) + " {print $1}'"
+    ips = execute_command(cmd)[0].splitlines()
+    for ip in ips:
+        if ip == '127.0.0.1':
+            continue
+    return ip
+
+
 def get_virbr_ip():
     ip = execute_command("ip a | awk '/inet/ && /virbr0/ {print $2}'")[0].strip()
     return ip
