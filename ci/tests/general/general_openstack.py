@@ -145,7 +145,7 @@ def create_volume(image_id, cinder_type, volume_name, volume_size, wait_for_volu
         wait_for_status_on_item("cinder list", "ID", volume_id, "Status", "available")
 
         vdisk = [vd for vd in VDiskList.get_vdisks() if vd.name == volume_name]
-        assert vdisk, "Cinder volume did not appear on ovs side"
+        assert vdisk, "Cinder volume {0} did not appear on ovs side".format(volume_name)
     return volume_id
 
 
@@ -361,8 +361,10 @@ def wait_for_volume_to_disappear(volume_id, vol_name, retries=180):
         time.sleep(1)
         retries -= 1
 
-    assert not vd_ovs, "Volume {0} with name {1} still exists on OVS after deleting it from cinder".format(vd_ovs,
+    assert not vd_ovs, "Volume {0} with name {1} still exists on OVS after deleting it from cinder".format(vd_ovs.volume_id,
                                                                                                            vol_name)
+    if vol:
+        logging.log(1, get_formated_cmd_output("cinder list"))
     assert not vol, "Volume {0} with name {1} is still present after deleting it from cinder".format(vol, vol_name)
 
 
