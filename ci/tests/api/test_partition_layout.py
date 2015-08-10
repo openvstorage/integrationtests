@@ -24,8 +24,8 @@ from nose.plugins.skip import SkipTest
 from nose.tools import assert_raises
 
 log = logging.getLogger('test_partition_layout')
-vpool_name = 'api-vpool'
-
+vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = 'api-' + vpool_name
 
 def setup():
     global client
@@ -67,9 +67,9 @@ def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writec
     finally:
         if vpool_params:
             general.api_remove_vpool(vpool_params['vpool_name'])
+            general.validate_vpool_cleanup(vpool_params['vpool_name'])
         general.clean_disk_layout(disk_layout)
         verify_no_namespaces_remain_after_testsuite()
-
 
 def each_mountpoint_own_partition_test():
     unused_disks = general.get_unused_disks()
