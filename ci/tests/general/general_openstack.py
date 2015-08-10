@@ -361,8 +361,10 @@ def wait_for_volume_to_disappear(volume_id, vol_name, retries=180):
         time.sleep(1)
         retries -= 1
 
-    assert not vd_ovs, "Volume {0} with name {1} still exists on OVS after deleting it from cinder".format(vd_ovs,
+    assert not vd_ovs, "Volume {0} with name {1} still exists on OVS after deleting it from cinder".format(vd_ovs.volume_id,
                                                                                                            vol_name)
+    if vol:
+        logging.log(1, get_formated_cmd_output("cinder list"))
     assert not vol, "Volume {0} with name {1} is still present after deleting it from cinder".format(vol, vol_name)
 
 

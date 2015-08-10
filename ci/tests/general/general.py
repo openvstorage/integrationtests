@@ -509,6 +509,7 @@ def api_add_vpool(vpool_name=None,
 
 
 def api_remove_vpool(vpool_name):
+    mount_point = ''
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
         return

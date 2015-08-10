@@ -351,14 +351,17 @@ def delete_multiple_volumes_test():
     for idx in range(disks_to_create):
         time.sleep(5)
         vol_name = "{0}_{1}".format(volume_name, idx)
+        logging.log(1, "Creating volume: {0}".format(vol_name))
         vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                  volume_name=vol_name, volume_size=volume_size)
         vol_ids[vol_id] = vol_name
 
     for vol_id in vol_ids:
+        logging.log(1, "Deleting volume: {0}".format(vol_name))
         general_openstack.delete_volume(vol_id, wait=False)
 
     for vol_id, vol_name in vol_ids.iteritems():
+        logging.log(1, "Waiting for volume: {0} to dissappear on openstack level".format(vol_name))
         general_openstack.wait_for_volume_to_disappear(vol_id, vol_name, retries=900)
 
 # disabled as licensing will become obsolete
