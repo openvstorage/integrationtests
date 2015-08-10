@@ -279,10 +279,10 @@ def live_migration(instance_id, new_host):
 
     vm_name = get_vm_name_hpv(instance_id)
 
-    out = general.execute_command_on_node(prev_host, "virsh list --all | grep {0} || true".format(vm_name))
+    out = general.execute_command_on_node(general.get_ip_for(prev_host), "virsh list --all | grep {0} || true".format(vm_name))
     assert not out, "Vm should have been moved from current node after live migration\n{0}".format(out)
 
-    out = general.execute_command_on_node(new_host, "virsh list --all | grep {0} || true".format(vm_name))
+    out = general.execute_command_on_node(general.get_ip_for(new_host), "virsh list --all | grep {0} || true".format(vm_name))
     assert out, "Vm should have been moved to new node after live migration\n{0}".format(out)
 
     instance_info = get_formated_cmd_output('nova show {0}'.format(instance_id))
