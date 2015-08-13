@@ -1,3 +1,17 @@
+# Copyright 2014 Open vStorage NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import os
 import re
 import sys
@@ -9,22 +23,24 @@ import logging
 import inspect
 import paramiko
 import subprocess
-
+import general
 import general_hypervisor
 
 from ci import autotests
 from nose.plugins.skip import SkipTest
 
+from ovs.dal.lists.backendlist import BackendList
+from ovs.dal.lists.licenselist import LicenseList
+from ovs.dal.lists.pmachinelist import PMachineList
+from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.dal.lists.vmachinelist import VMachineList
 from ovs.dal.lists.vpoollist import VPoolList
-from ovs.dal.lists.storagerouterlist import StorageRouterList
-from ovs.dal.lists.licenselist import LicenseList
-from ovs.dal.lists.backendlist import BackendList
 
 from ovs.lib.storagerouter import StorageRouterController
 from ovs.lib.setup import SetupController
-from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.generic.sshclient import SSHClient, UnableToConnectException
+from ovs.extensions.generic.system import System
 
 ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
 sys.path.append(ScriptsDir)
@@ -35,6 +51,9 @@ if not hasattr(sys, "debugEnabled"):
     debug.listen()
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
+
+global test_config
+test_config = autotests.getConfigIni()
 
 
 def execute_command(command, wait=True, shell=True):
@@ -51,7 +70,7 @@ def execute_command(command, wait=True, shell=True):
 
 
 def execute_command_on_node(host, command, password=None):
-    cl = SSHClient.load(host, password)
+    cl = SSHClient(host, username='root', password=password)
     return cl.run(command)
 
 
@@ -67,9 +86,9 @@ def get_line_number():
     return inspect.currentframe().f_back.f_lineno
 
 
-def get_alba_license():
+def get_alba_license(backend_type=test_config.get('vpool', 'vpool_type')):
     """Returns the active license"""
-    return LicenseList.get_by_component('alba')
+    return LicenseList.get_by_component(backend_type)
 
 
 def check_prereqs(testcase_number, tests_to_run):
@@ -125,6 +144,15 @@ def get_remote_ssh_connection(ip_address, username, password):
     return ssh_connection, sftp
 
 
+def get_ip_for(hostname):
+    cmd = "cat /etc/hosts | awk '/{0}/".format(hostname) + " {print $1}'"
+    ips = execute_command(cmd)[0].splitlines()
+    for ip in ips:
+        if ip == '127.0.0.1':
+            continue
+    return ip
+
+
 def get_virbr_ip():
     ip = execute_command("ip a | awk '/inet/ && /virbr0/ {print $2}'")[0].strip()
     return ip
@@ -150,18 +178,45 @@ def get_function_name(level=0):
     return sys._getframe(level + 1).f_code.co_name
 
 
+def get_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
+    cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(backend_name)
+    out = execute_command(cmd_list)[0].replace('true', 'True')
+    out = out.replace('false', 'False')
+    logging.log(1, "output: {0}".format(out))
+    out = eval(out)
+    if out['success']:
+        nss = out['result']
+        logging.log(1, "Namespaces present on backend: {0}:\n{1}".format(backend_name, str(nss)))
+        return nss
+    else:
+        logging.log(1, "Error while retrieving namespaces: {0}".format(out['error']))
+
+
+def remove_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
+    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg ".format(backend_name)
+    nss = get_alba_namespaces(backend_name)
+    logging.log(1, "Namespaces present: {0}".format(str(nss)))
+    fd_namespaces = list()
+    for ns in nss:
+        if 'fd-' in ns:
+            fd_namespaces.append(ns)
+            logging.log(1, "Skipping vpool namespace: {0}".format(ns))
+            continue
+        logging.log(1, "WARNING: Deleting leftover namespace: {0}".format(str(ns)))
+        print execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')
+
+    for ns in fd_namespaces:
+        logging.log(1, "WARNING: Deleting leftover vpool namespace: {0}".format(str(ns)))
+        print execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')
+    assert len(fd_namespaces) == 0, "Removing Alba namespaces should not be necessary!"
+
+
 def cleanup():
     machine_name = "AT_"
-    vpools = list()
-    cfg = autotests.getConfigIni()
-    for section in ['vpool', 'vpool2', 'vpool3', 'vpool4']:
-        if cfg.has_section(section):
-            vpools.append(cfg.get(section, 'vpool_name'))
 
-    for vpool_name in vpools:
-        vpool = VPoolList.get_vpool_by_name(vpool_name)
+    for vpool in VPoolList.get_vpools():
         if vpool:
-            hpv = general_hypervisor.Hypervisor.get(vpool.name)
+            hpv = general_hypervisor.Hypervisor.get(vpool.name, cleanup=True)
             vm_names = [vm.name for vm in VMachineList.get_vmachines()]
             for name in vm_names:
                 vm = VMachineList.get_vmachine_by_name(name)
@@ -172,6 +227,8 @@ def cleanup():
                     continue
                 if vm.is_vtemplate:
                     hpv.delete_clones(vm.name)
+                logging.log(1, "Deleting {0} on hypervisor".format(vm.name))
+                hpv.poweroff(vm.name)
                 hpv.delete(vm.name)
 
             env_macs = execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()
@@ -186,7 +243,8 @@ def cleanup():
                                 shutil.rmtree(p)
                             else:
                                 logging.log(1, "removing file: {}".format(p))
-                                os.remove(p)
+                                if os.path.isfile(p):
+                                    os.remove(p)
                     for mac in env_macs:
                         mac_path = os.path.join(mountpoint, mac)
                         if os.path.exists(mac_path):
@@ -194,9 +252,17 @@ def cleanup():
                                 logging.log(1, "removing file: {}".format(f))
                                 os.remove(os.path.join(mac_path, f))
 
-            for sdg in vpool.storagedrivers_guids:
-                StorageRouterController.remove_storagedriver(sdg)
-                time.sleep(3)
+            # remove existing disks
+            vdisks = VDiskList.get_vdisks()
+            for vdisk in vdisks:
+                if vdisk:
+                    for junction in vdisk.mds_services:
+                        if junction:
+                            junction.delete()
+                    vdisk.delete()
+                    logging.log(1, 'WARNING: Removed leftover disk: {0}'.format(vdisk.name))
+
+            api_remove_vpool(vpool.name)
 
             if general_hypervisor.get_hypervisor_type() == "VMWARE":
                 hypervisor_info = autotests.getHypervisorInfo()
@@ -206,25 +272,22 @@ def cleanup():
 
             vmachines = VMachineList.get_vmachines()
             for vmachine in vmachines:
+                logging.log(1, 'WARNING: Removing leftover vmachine: {0}'.format(vmachine.name))
                 vmachine.delete()
+    remove_alba_namespaces()
 
-            vdisks = VDiskList.get_vdisks()
-            for vdisk in vdisks:
-                vdisk.delete()
+
+def get_vpools():
+    return VPoolList.get_vpools()
 
 
 def add_vpool(browser):
     browser.add_vpool()
 
-    storage_routers = StorageRouterList.get_storagerouters()
-    if len(storage_routers) > 1 and browser.vpool_type_name != 'Local FS':
-        browser.add_gsrs_to_vpool(browser.vpool_name)
-
-    # manually create instances dir for nova
-    for storage_router in storage_routers:
-        ssh_con, _ = get_remote_ssh_connection(storage_router.ip, 'root', 'rooter')
-        cmd = 'mkdir -p /mnt/{0}/instances'.format(browser.vpool_name)
-        _, stdout, stderr = ssh_con.exec_command(cmd)
+    # storage_routers = StorageRouterList.get_storagerouters()
+    # @ todo: OVS-2398
+    # if len(storage_routers) > 1 and browser.vpool_type_name != 'Local FS':
+    #     browser.add_gsrs_to_vpool(browser.vpool_name)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
         hypervisor_info = autotests.getHypervisorInfo()
@@ -262,6 +325,8 @@ def remove_vpool(browser):
             stdin, stdout, stderr = ssh_con.exec_command(cmd)
             print stdout.readlines()
             print stderr.readlines()
+    remove_alba_namespaces()
+    general.validate_vpool_cleanup(vpool_name)
 
 
 def get_this_hostname():
@@ -370,6 +435,7 @@ def human2bytes(s):
 
 
 def api_add_vpool(vpool_name=None,
+                  vpool_config='vpool',
                   vpool_type=None,
                   vpool_host=None,
                   vpool_port=None,
@@ -382,43 +448,53 @@ def api_add_vpool(vpool_name=None,
                   vpool_foc_mp=None,
                   vpool_bfs_mp=None,
                   vpool_storage_ip=None,
-                  apply_to_all_nodes=False,
-                  config_cinder=False):
-
-    cfg = autotests.getConfigIni()
+                  apply_to_all_nodes=True,
+                  config_cinder=False,
+                  backend_name=None):
 
     local_vsa_ip = get_local_vsa().ip
 
     if not vpool_name:
-        vpool_name = cfg.get("vpool", "vpool_name")
+        vpool_name = test_config.get(vpool_config, 'vpool_name')
+
+    if not backend_name:
+        backend_name = test_config.get('main', 'backend_name')
 
     parameters = {'storagerouter_ip': local_vsa_ip,
                   'vpool_name': vpool_name,
-                  'type': vpool_type or cfg.get("vpool", "vpool_type"),
-                  'connection_host': vpool_host or cfg.get("vpool", "vpool_host"),
+                  'type': vpool_type or test_config.get(vpool_config, "vpool_type"),
+                  'connection_host': vpool_host or test_config.get(vpool_config, "vpool_host"),
                   'connection_timeout': 600,
-                  'connection_port': vpool_port or int(cfg.get("vpool", "vpool_port")),
-                  'connection_username': vpool_access_key or cfg.get("vpool", "vpool_access_key"),
-                  'connection_password': vpool_secret_key or cfg.get("vpool", "vpool_secret_key"),
-                  'mountpoint_temp': vpool_temp_mp or cfg.get("vpool", "vpool_temp_mp"),
+                  'connection_port': vpool_port or int(test_config.get(vpool_config, "vpool_port")),
+                  'connection_username': vpool_access_key or test_config.get(vpool_config, "vpool_access_key"),
+                  'connection_password': vpool_secret_key or test_config.get(vpool_config, "vpool_secret_key"),
+                  'mountpoint_temp': vpool_temp_mp or test_config.get(vpool_config, "vpool_temp_mp"),
                   'mountpoint_readcaches': vpool_readcaches_mp or [mp.strip() for mp in
-                                                                   cfg.get("vpool", "vpool_readcaches_mp").split(',')],
+                                                                   test_config.get(vpool_config, "vpool_readcaches_mp").split(',')],
                   'mountpoint_writecaches': vpool_writecaches_mp or [mp.strip() for mp in
-                                                                     cfg.get("vpool", "vpool_writecaches_mp").split(',')],
-                  'mountpoint_md': vpool_md_mp or cfg.get("vpool", "vpool_md_mp"),
-                  'mountpoint_foc': vpool_foc_mp or cfg.get("vpool", "vpool_foc_mp"),
-                  'mountpoint_bfs': vpool_bfs_mp or cfg.get("vpool", "vpool_bfs_mp"),
-                  'storage_ip': vpool_storage_ip or cfg.get("vpool", "vpool_storage_ip"),
+                                                                     test_config.get(vpool_config,
+                                                                             "vpool_writecaches_mp").split(',')],
+                  'mountpoint_md': vpool_md_mp or test_config.get(vpool_config, "vpool_md_mp"),
+                  'mountpoint_foc': vpool_foc_mp or test_config.get(vpool_config, "vpool_foc_mp"),
+                  'mountpoint_bfs': vpool_bfs_mp or test_config.get(vpool_config, "vpool_bfs_mp"),
+                  'storage_ip': vpool_storage_ip or test_config.get(vpool_config, "vpool_storage_ip"),
                   'config_cinder': config_cinder,
                   'cinder_pass': "rooter",
                   'cinder_user': "admin",
                   'cinder_tenant': "admin",
-                  'cinder_controller': local_vsa_ip
+                  'cinder_controller': local_vsa_ip,
+                  'backend_name': backend_name
                   }
 
     if parameters['type'] == 'alba':
-        parameters['connection_backend'] = \
-            [b for b in BackendList.get_backends() if b.name.startswith('alba')][0].alba_backend_guid
+        alba_backend_guid = ''
+        for backend in BackendList.get_backends():
+            if backend.name.startswith(backend_name):
+                alba_backend_guid = backend.alba_backend_guid
+                break
+
+        assert alba_backend_guid, "No backend of specified alba type found!"
+        parameters['connection_backend'] = {'backend': alba_backend_guid, 'metadata': 'default'}
 
     print "Adding vpool: "
     print parameters
@@ -429,38 +505,47 @@ def api_add_vpool(vpool_name=None,
     else:
         StorageRouterController.add_vpool(parameters)
 
-    if config_cinder:
-        instances_dir = "/mnt/{0}/instances".format(parameters['vpool_name'])
-        print instances_dir
-        if not os.path.exists(instances_dir):
-            print "creating instances dir", instances_dir
-            os.makedirs(instances_dir)
-
     return parameters
 
 
 def api_remove_vpool(vpool_name):
+    mount_point = ''
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
         return
 
-    local_vsa = get_local_vsa()
-
     for sd in vpool.storagedrivers:
-        mount_point = ""
-        if sd.cluster_ip == local_vsa.ip:
-            mount_point = sd.mountpoint
-        StorageRouterController.remove_storagedriver(sd.guid)
+        mount_point = sd.mountpoint
+        storagerouter = sd.storagerouter
+        storagerouter_machineid = storagerouter.machine_id
+        local_machineid = System.get_my_machine_id()
+        logging.log(1, "local_machineid: {0}".format(local_machineid))
+        logging.log(1, "storagerouter_machineid: {0}".format(storagerouter_machineid))
+
+        if local_machineid == storagerouter_machineid:
+            # Inline execution, since it's on the same node (preventing deadlocks)
+            StorageRouterController.remove_storagedriver(sd.guid)
+        else:
+            # Async execution, since it has to be executed on another node
+            # @TODO: Will break in Celery 3.2, need to find another solution
+            # Requirements:
+            # - This code cannot continue until this new task is completed (as all these VSAs need to be
+            # handled sequentially
+            # - The wait() or get() method are not allowed anymore from within a task to prevent deadlocks
+            result = StorageRouterController.remove_storagedriver.s(sd.guid).apply_async(
+                routing_key='sr.{0}'.format(storagerouter_machineid)
+            )
+            result.wait()
         time.sleep(3)
 
-        if mount_point:
-            retries = 20
-            while retries:
-                if not os.path.exists(mount_point):
-                    break
-                time.sleep(1)
-                retries -= 1
-            assert retries, "Mountpoint {0} of vpool still exists after removing storage driver".format(mount_point)
+    if mount_point:
+        retries = 20
+        while retries:
+            if not os.path.exists(mount_point):
+                break
+            time.sleep(1)
+            retries -= 1
+        assert retries, "Mountpoint {0} of vpool still exists after removing storage driver".format(mount_point)
 
 
 def apply_disk_layout(disk_layout):
@@ -470,7 +555,8 @@ def apply_disk_layout(disk_layout):
 
     print "Disk layout to apply: {0}".format(disk_layout)
 
-    client = SSHClient.load('127.0.0.1', 'rooter')
+    grid_ip = test_config.get("main", "grid_ip")
+    client = SSHClient(grid_ip, username='root', password='rooter')
     sc = SetupController()
 
     print "Fstab before apply_flexible_disk_layout\n", execute_command("cat /etc/fstab")[0]
@@ -494,7 +580,7 @@ def apply_disk_layout(disk_layout):
 
 
 def clean_disk_layout(disk_layout):
-    if autotests.getConfigIni().get("main", "cleanup") != "True":
+    if test_config.get("main", "cleanup") != "True":
         return
     print "df before clean\n", execute_command("df")[0]
     disks_to_clean = []
@@ -676,6 +762,7 @@ def check_mountpoints(storagedrivers, is_present=True):
         mp = 'ignore-not-mounted'
         retries = 20
 
+        out = ''
         while retries:
             out = execute_command_on_node(node, "df | grep {0} || true".format(mount_point))
             for mp in out.splitlines():
@@ -698,7 +785,6 @@ def validate_logstash_open_files_amount():
     file_counters = {'libs': {'description': 'Lib Components', 'amount': 0, 'regex': '^.+\.jar$'},
                      'devs': {'description': 'Device Handles', 'amount': 0, 'regex': '^/dev/.+$'},
                      'sockets': {'description': 'Socket Handlers', 'amount': 0, 'regex': '^socket:.+$'},
-                     'patterns': {'description': 'Logstash Patterns', 'amount': 0, 'regex': '^.+logstash/patterns.+$'},
                      'patterns': {'description': 'Logstash Patterns', 'amount': 0, 'regex': '^.+logstash/patterns.+$'},
                      'logs': {'description': 'Logging Files', 'amount': 0, 'regex': '^/var/log/.+$'},
                      'others': {'description': 'Other Files', 'amount': 0}}
@@ -753,3 +839,61 @@ def validate_logstash_open_files_amount():
     if max_allowed_of:
         assert of_total < 90 * max_allowed_of / 100,\
             'Reached more than 90% of Logstash maximum allowed open files : {0}'.format(max_allowed_of)
+
+
+def get_or_setup_vpool(vpool_name, vpool_config='vpool'):
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
+    if not vpool:
+        api_add_vpool(vpool_name=vpool_name, vpool_config=vpool_config, config_cinder=True)
+        vpool = VPoolList.get_vpool_by_name(vpool_name)
+
+    return vpool
+
+
+def validate_vpool_cleanup(vpool_name):
+    pms = PMachineList.get_pmachines()
+    detected_issues = ""
+    vpool_path = '/mnt/' + vpool_name
+    for pm in pms:
+        logging.log(1, 'checking host: {0}'.format(pm.ip))
+
+        # check if mountpoint is still present
+        if os.path.isdir(vpool_path):
+            detected_issues += '\n{0} - vpool_mountpoint {1} still present\n'.format(pm.ip, vpool_path)
+            cmd = "ls -la {0}".format(vpool_path)
+            out = execute_command_on_node(pm.ip, cmd)
+            detected_issues += out
+
+        # detected remaining storagedriver process
+        cmd = "ps -ef | awk '/volumedriver_fs/ && /{0}/'".format(vpool_name)
+        out = execute_command_on_node(pm.ip, cmd)
+        output = ""
+        for line in out.splitlines():
+            if "awk" in line and "volumedriver_fs" in line:
+                continue
+            output += line
+        if output:
+            detected_issues += '\n\n{0} - volumedriver_fs process still running\n'.format(pm.ip)
+            detected_issues += output
+
+        # look for errors in storagedriver log file - only log these
+        cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' error '; echo true > /dev/null".format(vpool_name)
+        out = execute_command_on_node(pm.ip, cmd)
+        output = ""
+        for line in out.splitlines():
+            if "HierarchicalArakoon" in line:
+                continue
+            output += line
+        if output:
+            logging.log(1, '\n\n{0} - volumedriver log file contains errors\n'.format(pm.ip))
+            logging.log(1, output)
+
+        # look for fatals in storagedriver log file
+        cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' fatal '; echo true > /dev/null".format(vpool_name)
+        out = execute_command_on_node(pm.ip, cmd)
+        if out:
+            detected_issues += '\n\n{0} - volumedriver log file contains fatals\n'.format(pm.ip)
+            detected_issues += out
+
+        assert len(detected_issues) == 0,\
+            "Vpool cleanup for {0} was incomplete:\n{1}".format(vpool_name, detected_issues)

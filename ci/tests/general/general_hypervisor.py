@@ -1,3 +1,18 @@
+# Copyright 2014 Open vStorage NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import logging
 import os
 import time
 import paramiko
@@ -16,8 +31,6 @@ from ovs.extensions.hypervisor.hypervisors.kvm import Sdk as Kvm_sdk
 from ovs.extensions.hypervisor.hypervisors.vmware import Sdk as Vmware_sdk
 from ovs.lib.vdisk import VDiskController
 
-import logging
-
 # disable excessive logging
 logging.getLogger('suds.client').setLevel(logging.WARNING)
 logging.getLogger('suds.transport').setLevel(logging.WARNING)
@@ -33,31 +46,43 @@ logging.getLogger('suds.mx.core').setLevel(logging.WARNING)
 logging.getLogger('suds.sudsobject').setLevel(logging.WARNING)
 logging.getLogger('suds.metrics').setLevel(logging.WARNING)
 logging.getLogger('suds.xsd.sxbase').setLevel(logging.WARNING)
-
+logging.getLogger('plumbum.shell').setLevel(logging.WARNING)
+logging.getLogger('plumbum.local').setLevel(logging.WARNING)
 
 PUBLIC_BRIDGE_NAME_ESX = "CloudFramesPublic"
 
 
 class Hypervisor(object):
     @staticmethod
-    def get(vpool_name, htype=None):
+    def get(vpool_name, htype=None, cleanup=False):
         vpool = [v for v in VPoolList.get_vpools() if v.name == vpool_name]
         assert vpool, "Vpool with name {} not found".format(vpool_name)
         vpool = vpool[0]
 
         local_vsa = general.get_local_vsa()
-        sg = [sg for sg in vpool.storagedrivers if sg.cluster_ip == local_vsa.ip][0]
+        sgs = [sg for sg in vpool.storagedrivers if sg.cluster_ip == local_vsa.ip]
+        if len(vpool.storagedrivers) > 0:
+            if sgs:
+                sg = sgs[0]
+            else:
+                logging.log(1, "Vpool storagedriver with ip {0} not found".format(local_vsa.ip))
+                return None
+        else:
+            logging.log(1, "Vpool present without any configured storagedriver")
+            vpool.delete()
+            return None
 
-        retries = 5 * 60
-        sleep_time = 5
-        while retries:
-            out = general.execute_command("df | grep {0}".format(sg.mountpoint))[0]
-            if sg.mountpoint in out:
-                break
-            retries -= sleep_time
-            time.sleep(sleep_time)
+        if not cleanup:
+            retries = 5 * 60
+            sleep_time = 5
+            while retries:
+                out = general.execute_command("df | grep {0}".format(sg.mountpoint))[0]
+                if sg.mountpoint in out:
+                    break
+                retries -= sleep_time
+                time.sleep(sleep_time)
 
-        assert retries > 0, "Vpool mountpoint {0} did not appear in due time".format(sg.mountpoint)
+            assert retries > 0, "Vpool mountpoint {0} did not appear in due time".format(sg.mountpoint)
 
         htype = htype or get_hypervisor_type()
         if htype == "VMWARE":
@@ -380,10 +405,13 @@ class Vmware(HypervisorBase):
         vm = [v for v in vms if v.name == name]
         assert vm, "Vm with name {} not found".format(name)
         vm = vm[0]
+        logging.log(1, "Powering off vm: {0}:".format(vm.name))
         self.poweroff(name)
+        logging.log(1, "Deleting vm: {0}:".format(vm.name))
         task = self.sdk._client.service.Destroy_Task(vm.obj_identifier)
         self.sdk.wait_for_task(task)
         self.sdk.validate_result(task)
+        logging.log(1, "Deleted vm: {0}:".format(vm.name))
 
 
 class Kvm(HypervisorBase):
@@ -393,20 +421,25 @@ class Kvm(HypervisorBase):
         self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
         self.sdk = Kvm_sdk()
 
-    def create_vm(self, name, ram=1024):
+    def create_vm(self, name, ram=1024, small=False):
         import general_openstack
 
         os_name = autotests.getOs()
-        bootdisk_path_remote = autotests.getOsInfo(os_name)['bootdisk_location']
+        bootdisk_path_remote = autotests.getOsInfo(os_name + '_small' if small else os_name)['bootdisk_location']
 
         vm_path = os.path.join(self.mountpoint, name)
         if not os.path.exists(vm_path):
             os.mkdir(vm_path)
 
-        bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
+        if small:
+            bootdisk_path = os.path.join(self.mountpoint, name, "bootdiskfast.raw")
+        else:
+            bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
         if not os.path.exists(bootdisk_path):
             template_server = autotests.getTemplateServer()
             bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
+            logging.log(1, 'Template url: {0}'.format(bootdisk_url))
+            logging.log(1, 'Bootdisk path: {0}'.format(bootdisk_path))
 
             _download_to_vpool(bootdisk_url, bootdisk_path)
 
@@ -419,10 +452,12 @@ class Kvm(HypervisorBase):
                              bootdisk_path=bootdisk_path,
                              ram=ram)
             out, error = general.execute_command(cmd)
+            logging.log(1, 'cmd: ---')
             logging.log(1, cmd)
-            logging.log(1, '---')
+            logging.log(1, 'stdout: ---')
+            logging.log(1, 'stdout: ---')
             logging.log(1, out)
-            logging.log(1, '---')
+            logging.log(1, 'stderr: ---')
             logging.log(1, error)
             # assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
@@ -468,7 +503,11 @@ class Kvm(HypervisorBase):
     def delete(self, name):
         vm = VMachineList.get_vmachine_by_name(name)
         assert vm, "Couldn't find vm with name {}".format(name)
+        assert len(vm) == 1, "More than 1 result when looking up vmachine with name: {0}".format(name)
         vm = vm[0]
 
+        logging.log(1, "Powering off vm: {0}".format(vm.name))
         self.poweroff(name)
+        logging.log(1, "Deleting off vm: {0}".format(vm.name))
         self.sdk.delete_vm(name, vm.devicename, None)
+        logging.log(1, "Deleted vm: {0}".format(vm.name))

@@ -1,10 +1,24 @@
+# Copyright 2014 Open vStorage NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import json
 import os
 
 from uuid import uuid4
 from ovs.dal.lists.albabackendlist import AlbaBackendList
 
-local_boxid_prefix = str(uuid4())
+local_nodeid_prefix = str(uuid4())
 alba_bin = '/usr/bin/alba'
 
 
@@ -20,12 +34,12 @@ def dump_to_cfg_as_json(cfg_path, obj):
     cfg_file.close()
 
 
-def _config_asd(asd_id, port, path, box_id, slow):
-    global local_boxid_prefix
+def _config_asd(asd_id, port, path, node_id, slow):
+    global local_nodeid_prefix
     cfg_path = path + "/asd.json"
     dump_to_cfg_as_json(cfg_path, {'asd_id': asd_id,
                                    'port' : port,
-                                   'box_id' : box_id,
+                                   'node_id' : node_id,
                                    'home' : "%s/data" % path,
                                    'log_level' : 'debug'})
     cmd = [alba_bin, 'asd-start', "--config", cfg_path]
@@ -34,11 +48,11 @@ def _config_asd(asd_id, port, path, box_id, slow):
     return cmd
 
 
-def asd_start(asd_id, port, path, box_id, slow):
+def asd_start(asd_id, port, path, node_id, slow):
     # Configure ASD
     os.popen("mkdir -p %s" % path)
     os.popen("mkdir %s/data" % path)
-    asd_start_cmd = _config_asd(asd_id, port, path, box_id, slow and port == 8000)
+    asd_start_cmd = _config_asd(asd_id, port, path, node_id, slow and port == 8000)
     cmd_line = _detach(asd_start_cmd, out="%s/output" % path)
 
     # Start the ASD

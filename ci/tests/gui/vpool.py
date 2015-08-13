@@ -1,10 +1,10 @@
-# Copyright 2014 CloudFounders NV
+# Copyright 2014 Open vStorage NV
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,7 +25,6 @@ import time
 import urlparse
 
 from browser_ovs import BrowserOvs
-from ci import autotests
 from ci.tests.general import general, general_hypervisor
 from nose.plugins.skip import SkipTest
 from splinter.driver.webdriver import NoSuchElementException
@@ -58,24 +57,22 @@ class Vpool(BrowserOvs):
 
         self.bt = BrowserOvs.__init__(self, browser_choice=browser_choice)
 
-        cfg = autotests.getConfigIni()
-
-        self.vpool_name = vpool_name or cfg.get("vpool", "vpool_name")
-        self.vpool_type_name = vpool_type_name or cfg.get("vpool", "vpool_type_name")
-        self.vpool_host = vpool_host or cfg.get("vpool", "vpool_host")
-        self.vpool_port = vpool_port or cfg.get("vpool", "vpool_port")
-        self.vpool_access_key = vpool_access_key or cfg.get("vpool", "vpool_access_key")
-        self.vpool_secret_key = vpool_secret_key or cfg.get("vpool", "vpool_secret_key")
-        self.vpool_temp_mp = vpool_temp_mp or cfg.get("vpool", "vpool_temp_mp")
-        self.vpool_md_mp = vpool_md_mp or cfg.get("vpool", "vpool_md_mp")
-        self.vpool_readcaches_mp = vpool_readcaches_mp or cfg.get("vpool", "vpool_readcaches_mp")
-        self.vpool_writecaches_mp = vpool_writecaches_mp or cfg.get("vpool", "vpool_writecaches_mp")
-        self.vpool_foc_mp = vpool_foc_mp or cfg.get("vpool", "vpool_foc_mp")
+        self.vpool_name = vpool_name or general.test_config.get("vpool", "vpool_name")
+        self.vpool_type_name = vpool_type_name or general.test_config.get("vpool", "vpool_type_name")
+        self.vpool_host = vpool_host or general.test_config.get("vpool", "vpool_host")
+        self.vpool_port = vpool_port or general.test_config.get("vpool", "vpool_port")
+        self.vpool_access_key = vpool_access_key or general.test_config.get("vpool", "vpool_access_key")
+        self.vpool_secret_key = vpool_secret_key or general.test_config.get("vpool", "vpool_secret_key")
+        self.vpool_temp_mp = vpool_temp_mp or general.test_config.get("vpool", "vpool_temp_mp")
+        self.vpool_md_mp = vpool_md_mp or general.test_config.get("vpool", "vpool_md_mp")
+        self.vpool_readcaches_mp = vpool_readcaches_mp or general.test_config.get("vpool", "vpool_readcaches_mp")
+        self.vpool_writecaches_mp = vpool_writecaches_mp or general.test_config.get("vpool", "vpool_writecaches_mp")
+        self.vpool_foc_mp = vpool_foc_mp or general.test_config.get("vpool", "vpool_foc_mp")
         self.vpool_bfs_mp = vpool_bfs_mp
         if self.vpool_type_name in ["Local FS"]:
-            self.vpool_bfs_mp = vpool_bfs_mp or cfg.get("vpool", "vpool_bfs_mp")
-        self.vpool_vrouter_port = vpool_vrouter_port or cfg.get("vpool", "vpool_vrouter_port")
-        self.vpool_storage_ip = vpool_storage_ip or cfg.get("vpool", "vpool_storage_ip")
+            self.vpool_bfs_mp = vpool_bfs_mp or general.test_config.get("vpool", "vpool_bfs_mp")
+        self.vpool_vrouter_port = vpool_vrouter_port or general.test_config.get("vpool", "vpool_vrouter_port")
+        self.vpool_storage_ip = vpool_storage_ip or general.test_config.get("vpool", "vpool_storage_ip")
 
         for e in ["vpool_name", "vpool_type_name", "vpool_temp_mp", "vpool_md_mp",
                   "vpool_readcaches_mp", "vpool_writecaches_mp", "vpool_foc_mp"]:
@@ -261,7 +258,6 @@ class Vpool(BrowserOvs):
         assert self.wait_for_visible_element_by_id('form.gather.vpool', 5), 'Add vPool wizard not present (yet)'
         self.choose('Local FS', self.vpool_type_name)
         self.fill_out('inputVpoolName', self.vpool_name)
-        # time.sleep(3)
 
         # for grid select current node as initial storage router
         current_node_hostname = general.get_this_hostname()
@@ -283,7 +279,7 @@ class Vpool(BrowserOvs):
 
         # add check for alba with remote nodes
 
-        self.click_on('Next', retries=150)
+        self.click_on('Next', retries=50)
         time.sleep(2)
 
         # wait for page to load
@@ -291,7 +287,18 @@ class Vpool(BrowserOvs):
             'vPool wizard with mountpoint details not present (yet)'
         self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
         self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
-        # @todo: accept defaults for read/write caches
+        # deselect defaults
+        self.click_on_dropdown_item('dropdown-button-mtpt-readcaches')
+        self.click_on_dropdown_item('dropdown-button-mtpt-readcaches-mntcache2')
+        self.click_on_dropdown_item('dropdown-button-mtpt-writecaches')
+        self.click_on_dropdown_item('dropdown-button-mtpt-writecaches-mntcache1')
+
+        for custom_rc in self.vpool_readcaches_mp.split(','):
+            self.fill_out('inputCustomRC', custom_rc)
+            self.click_on('AddCustomRC')
+        for custom_wc in self.vpool_writecaches_mp.split(','):
+            self.fill_out('inputCustomWC', custom_wc)
+            self.click_on('AddCustomWC')
         self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
         if self.vpool_type_name in LOCAL_VPOOL_TYPES:
             self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
@@ -374,13 +381,11 @@ class Vpool(BrowserOvs):
         assert management
         management = management[0]
 
-        save_changes_id = "VpoolSaveChanges"
-        self.browser.is_element_present_by_id(save_changes_id, wait_time=10)
-        self.uncheck_checkboxes(management)
-        self.click_on(save_changes_id)
+        for button in management.find_by_tag('button'):
+            if 'button_remove_' in button.outer_html:
+                button.click()
+                self.wait_for_text('Finish', timeout=30)
+                self.click_on('Finish')
 
-        self.wait_for_text('Finish', timeout=30)
-        self.click_on('Finish')
-
-        self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success',
-                                        retries=300)
+                self.wait_for_wait_notification('The vPool was added/removed to the selected Storage Routers with success',
+                                                retries=300)

@@ -1,3 +1,18 @@
+# Copyright 2014 Open vStorage NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import logging
 import os
 import pwd
 import time
@@ -9,14 +24,20 @@ from ci.tests.general import general
 from ci.tests.general import general_openstack
 from ci.tests.general import general_alba
 
+from nose.tools import timed
+
 from ovs.dal.lists.vpoollist import VPoolList
-from ovs.lib.albacontroller  import AlbaController
+from ovs.lib.albacontroller import AlbaController
 from ovs.dal.lists.albanodelist import AlbaNodeList
+
+from selenium.webdriver.remote.remote_connection import LOGGER
+
+LOGGER.setLevel(logging.WARNING)
 
 tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
 machinename = "AT_" + __name__.split(".")[-1]
-cinder_type = autotests.getConfigIni().get("openstack", "cinder_type")
-vpool_name = autotests.getConfigIni().get("vpool", "vpool_name")
+vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = 'openstack-' + vpool_name
 
 
 def setup():
@@ -28,12 +49,14 @@ def setup():
     autotests.setOs('ubuntu_server14_kvm')
 
     # make sure we start with clean env
-    # general.cleanup()
+    if general_openstack.is_openstack_present():
+        general_openstack.cleanup()
+    general.cleanup()
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
-        general.api_add_vpool(apply_to_all_nodes = True, config_cinder = True)
-        vpool = VPoolList.get_vpool_by_name(vpool_name)
+        general.api_add_vpool(vpool_name=vpool_name, apply_to_all_nodes=True, config_cinder=True)
+        _ = VPoolList.get_vpool_by_name(vpool_name)
 
 
 def teardown():
@@ -41,7 +64,7 @@ def teardown():
         return
 
     autotests.setOs(prev_os)
-    if autotests.getConfigIni().get("main", "cleanup") == "True":
+    if general.test_config.get("main", "cleanup") == "True":
         general_openstack.cleanup()
 
     # Check the amount of open log files at the end at the test suite
@@ -58,10 +81,12 @@ def create_empty_volume_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
 
     name = "{0}_{1}_empty_vol".format(machinename, int(time.time()))
 
-    vol_id = general_openstack.create_volume(image_id="", cinder_type=cinder_type, volume_name=name, volume_size=1)
+    vol_id = general_openstack.create_volume(image_id="", cinder_type=vpool_name, volume_name=name, volume_size=1)
 
     general_openstack.delete_volume(vol_id)
 
@@ -76,6 +101,10 @@ def create_volume_from_image_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
+
+    _ = general.get_or_setup_vpool(vpool_name)
 
     volume_name = machinename + str(time.time()) + "_vol_from_img"
 
@@ -89,7 +118,7 @@ def create_volume_from_image_test():
         if glance_image_size > volume_size:
             volume_size = glance_image_size
 
-    vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=cinder_type, volume_name=volume_name,
+    vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name, volume_name=volume_name,
                                              volume_size=volume_size)
     general_openstack.delete_volume(vol_id)
 
@@ -106,6 +135,10 @@ def boot_nova_instance_from_volume_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
+
+    _ = general.get_or_setup_vpool(vpool_name)
 
     instance_name = "{0}_{1}_boot_from_vol".format(machinename, int(time.time()))
     volume_name = "{0}_disk".format(instance_name)
@@ -120,7 +153,7 @@ def boot_nova_instance_from_volume_test():
         if glance_image_size > volume_size:
             volume_size = glance_image_size
 
-    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=cinder_type,
+    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                 volume_name=volume_name, volume_size=volume_size)
 
     main_host = general.get_this_hostname()
@@ -149,10 +182,14 @@ def boot_nova_instance_from_snapshot_test():
 
     # Skip this test due to an issue in voldrv
     # Bug reference : OVS-2022
-    raise SkipTest()
+    # raise SkipTest()
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
+
+    _ = general.get_or_setup_vpool(vpool_name)
 
     instance_name = "{0}_{1}_boot_from_snap".format(machinename, int(time.time()))
     volume_name = "{0}_disk".format(instance_name)
@@ -167,7 +204,7 @@ def boot_nova_instance_from_snapshot_test():
         if glance_image_size > volume_size:
             volume_size = glance_image_size
 
-    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=cinder_type,
+    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                 volume_name=volume_name, volume_size=volume_size)
     snapshot_id = general_openstack.create_snapshot(volume_id=volume_id)
 
@@ -181,9 +218,13 @@ def boot_nova_instance_from_snapshot_test():
     # hpv = general_hypervisor.Hypervisor.get(vpool_name)
     # hpv.wait_for_vm_pingable(vm_name, vm_ip = vm_ip)
 
-    general_openstack.delete_instance(instance_id)
+    logging.log(1, "Deleting instance with id: {0}".format(instance_id))
+    general_openstack.delete_instance(instance_id, delete_volumes=True)
+    logging.log(1, "Deleting snapshot with id: {0}".format(snapshot_id))
     general_openstack.delete_snapshot(snapshot_id)
+    logging.log(1, "Deleting volume with id:: {0}".format(volume_id))
     general_openstack.delete_volume(volume_id)
+    logging.log(1, "Cleanup complete".format())
 
 
 def permissions_check_test():
@@ -195,13 +236,17 @@ def permissions_check_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
 
     expected_owner = "ovs"
     expected_group = "ovs"
-    expected_dir_perms = "775"
+    expected_dir_perms = "755"
     expected_file_perms = "775"
 
-    vpool = VPoolList.get_vpool_by_name(vpool_name)
+    vpool = general.get_or_setup_vpool(vpool_name)
+
+    assert vpool.storagedrivers, "At least one storagedriver should be configured for vpool: {0}".format(vpool.name)
     mount_point = vpool.storagedrivers[0].mountpoint
 
     st = os.stat(mount_point)
@@ -214,7 +259,7 @@ def permissions_check_test():
         format(mount_point, expected_group, group)
 
     volume_name = "{0}_empty_vol".format(machinename, int(time.time()))
-    volume_id = general_openstack.create_volume(image_id="", cinder_type=cinder_type, volume_name=volume_name,
+    volume_id = general_openstack.create_volume(image_id="", cinder_type=vpool_name, volume_name=volume_name,
                                                 volume_size=1)
 
     raw_file_name = os.path.join(mount_point, volume_name + ".raw")
@@ -224,7 +269,7 @@ def permissions_check_test():
     assert file_perms[-3:] == expected_file_perms, "File permissions wrong, expected {0} got {1}".\
         format(expected_file_perms, file_perms)
 
-    dir_perms = general.get_file_perms("/mnt/{0}/instances".format(vpool_name))
+    dir_perms = general.get_file_perms("/opt/stack/data/nova/instances")
     assert dir_perms[-3:] == expected_dir_perms, "Dir permissions wrong, expected {0} got {1}".\
         format(expected_dir_perms, dir_perms)
 
@@ -241,6 +286,8 @@ def live_migration_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
 
     hosts = set([s['Host'] for s in general_openstack.get_formated_cmd_output("nova service-list")])
     if len(hosts) < 2:
@@ -251,15 +298,21 @@ def live_migration_test():
     volume_name = instance_name + "_disk"
 
     glance_image_id = general_openstack.create_glance_image()
+    logging.log(1, "image created: {0}".format(glance_image_id))
 
-    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=cinder_type,
+    volume_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                 volume_name=volume_name, volume_size=5)
+    logging.log(1, "volume created: {0}".format(volume_id))
 
     main_host = general.get_this_hostname()
+    logging.log(1, "main host: {0}".format(main_host))
 
     instance_id = general_openstack.create_instance(volume_id=volume_id, instance_name=instance_name, host=main_host)
+    logging.log(1, "instance id: {0}".format(instance_id))
 
     new_host = [h for h in hosts if h != main_host][random.randint(0, len(hosts) - 2)]
+    logging.log(1, "target host: {0}".format(new_host))
+
     general_openstack.live_migration(instance_id, new_host)
 
     general_openstack.delete_instance(instance_id)
@@ -275,6 +328,8 @@ def delete_multiple_volumes_test():
 
     if not general_openstack.is_openstack_present():
         raise SkipTest()
+    else:
+        general_openstack.cleanup()
 
     volume_name = "{0}_{1}_del_multi".format(machinename, int(time.time()))
 
@@ -291,23 +346,26 @@ def delete_multiple_volumes_test():
         if glance_image_size > volume_size:
             volume_size = glance_image_size
 
-    disks_to_create = 10
+    disks_to_create = 5
     vol_ids = {}
     for idx in range(disks_to_create):
         time.sleep(5)
         vol_name = "{0}_{1}".format(volume_name, idx)
-        vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=cinder_type,
+        logging.log(1, "Creating volume: {0}".format(vol_name))
+        vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                  volume_name=vol_name, volume_size=volume_size)
         vol_ids[vol_id] = vol_name
 
     for vol_id in vol_ids:
+        logging.log(1, "Deleting volume: {0}".format(vol_name))
         general_openstack.delete_volume(vol_id, wait=False)
 
     for vol_id, vol_name in vol_ids.iteritems():
+        logging.log(1, "Waiting for volume: {0} to dissappear on openstack level".format(vol_name))
         general_openstack.wait_for_volume_to_disappear(vol_id, vol_name, retries=900)
 
-
-def alba_license_volumes_limitation_test():
+# disabled as licensing will become obsolete
+def alba_license_volumes_limitation():
     """
     Get the active license of the OpenvStorage-Backend and
     test its boundaries
@@ -319,7 +377,7 @@ def alba_license_volumes_limitation_test():
         raise SkipTest()
 
     # Get alba license
-    alba_license = general.get_alba_license()
+    alba_license = general.get_alba_license('alba')
     if not alba_license:
         raise SkipTest()
 
@@ -327,7 +385,7 @@ def alba_license_volumes_limitation_test():
     if alba_license.data['namespaces'] is None:
         quotas = general_openstack.get_formated_cmd_output("cinder quota-show $(keystone tenant-get admin | awk '/id/ {print $4}')")
         volumes_limit = int(general.get_elem_with_val(quotas, "Property", "volumes_{0}".
-                                                      format(cinder_type))[0]['Value'])
+                                                      format(vpool_name))[0]['Value'])
     else:
         volumes_limit = alba_license.data['namespaces']
 
@@ -354,14 +412,16 @@ def alba_license_volumes_limitation_test():
     existing_volumes = general_openstack.get_formated_cmd_output("cinder list")
     vols_to_create = volumes_limit - len(existing_volumes) - 1
 
+    logging.log(1, "Nr of volumes to create to reach license limitation: {0}".format(vols_to_create))
+
     vol_ids = {}
     vol_limit_exceeded = False
     idx = 0
     for idx in range(vols_to_create):
-        time.sleep(5)
+        time.sleep(2)
         vol_name = "{0}_{1}".format(volume_name, idx)
         vol_id = general_openstack.create_volume(image_id=glance_image_id,
-                                                 cinder_type=cinder_type,
+                                                 cinder_type=vpool_name,
                                                  volume_name=vol_name,
                                                  volume_size=volume_size)
         vol_ids[vol_id] = vol_name
@@ -369,7 +429,7 @@ def alba_license_volumes_limitation_test():
     # Try to create one more volume (should fail)
     try:
         vol_name = "{0}_{1}".format(volume_name, idx + 1)
-        vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=cinder_type,
+        vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
                                                  volume_name=vol_name, volume_size=volume_size)
         if vol_id:
             vol_limit_exceeded = True
@@ -383,7 +443,9 @@ def alba_license_volumes_limitation_test():
     assert not vol_limit_exceeded, 'Exceeding license namespaces limitation was allowed'
 
 
-def alba_license_osds_limitation_test():
+# disabled as licensing will become obsolete
+@timed(3600)
+def alba_license_osds_limitation():
     """
     Get the active license of the OpenvStorage-Backend and
     test its boundaries
@@ -395,7 +457,7 @@ def alba_license_osds_limitation_test():
         raise SkipTest()
 
     # Get alba license
-    alba_license = general.get_alba_license()
+    alba_license = general.get_alba_license('alba')
     if not alba_license:
         raise SkipTest()
 
@@ -407,10 +469,12 @@ def alba_license_osds_limitation_test():
     if alba_license.data['osds']:
         alba_be = general_alba.get_alba_backend()
         alba_node = AlbaNodeList.get_albanodes()[0]
-        box_id = alba_node.box_id
+        node_id = alba_node.node_id
 
         nr_asds_to_create = alba_license.data['osds'] - len(alba_be.asds_guids)
         if nr_asds_to_create > 0:
+            asd_id = None
+            idx = 0
             asd_id = None
             try:
                 for idx in range(nr_asds_to_create):
@@ -418,7 +482,7 @@ def alba_license_osds_limitation_test():
                     asd_id = 'AT_asd_{0}'.format(idx)
                     port = 8630 + idx
                     path = '/mnt/alba-asd/{0}'.format(asd_id)
-                    general_alba.asd_start(asd_id, port, path, box_id, False)
+                    general_alba.asd_start(asd_id, port, path, node_id, False)
 
                     # Add ASD in the OVS lib
                     AlbaController.add_units(alba_be.guid, {asd_id: alba_node.guid})
@@ -437,7 +501,7 @@ def alba_license_osds_limitation_test():
                     asd_id = 'AT_asd_{0}'.format(idx)
                     port = 8630 + idx
                     path = '/mnt/alba-asd/{0}'.format(asd_id)
-                    general_alba.asd_start(asd_id, port, path, box_id, False)
+                    general_alba.asd_start(asd_id, port, path, node_id, False)
 
                     # Add ASD in the OVS lib
                     AlbaController.add_units(alba_be.guid, {asd_id: alba_node.guid})

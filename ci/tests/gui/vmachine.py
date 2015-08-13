@@ -1,12 +1,24 @@
+# Copyright 2014 Open vStorage NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 import time
 import datetime
 
 from browser_ovs import BrowserOvs
 from ovs.dal.lists.vmachinelist import VMachineList
-from ovs.dal.lists import vpoollist
 from ci.tests.general import general_hypervisor
-from ci.tests.gui.vpool import Vpool
 from ci.tests.general import general
 
 
@@ -19,34 +31,46 @@ class Vmachine(BrowserOvs):
         self.bt = BrowserOvs.__init__(self, browser_choice=browser_choice)
 
     def check_machine_is_present(self, machinename, retries=30):
+        logging.log(1, "Checking if vm: {0} is present".format(machinename))
         vmachines_url = self.get_url() + '#full/vmachines'
+        self.take_screenshot("before_check_machine_is_not_present")
         if self.browser.url != vmachines_url:
             self.browse_to(vmachines_url, 'vmachines')
-
+        self.take_screenshot("before1_check_machine_is_not_present")
         self.wait_for_text(machinename, retries)
         self.click_on_tbl_item(machinename)
+        time.sleep(2)
+        self.take_screenshot("after_check_machine_is_not_present")
         self.wait_for_text(machinename, retries)
         time.sleep(2)
+        self.take_screenshot("after1_check_machine_is_not_present")
 
     def check_machine_is_not_present(self, machinename, retries=30):
+        self.take_screenshot("before_check_machine_is_not_present")
         self.browse_to(self.get_url() + '#full/vmachines', 'vmachines')
-
+        self.take_screenshot("before1_check_machine_is_not_present")
         self.wait_for_text_to_vanish(machinename, retries)
+        self.take_screenshot("after_check_machine_is_not_present")
 
     def check_machine_disk_is_present(self, name=''):
         """
         assume currently on machine page
         """
-        self.log(self.browser.url)
+        vdisks_url = self.get_url() + '#full/vdisks'
+        if self.browser.url != vdisks_url:
+            self.browse_to(vdisks_url, 'vdisks')
+
+        logging.log(1, self.browser.url)
 
         check_ok = False
         retries = 60
         disk_links_all = ''
 
+        self.take_screenshot("before_check_machine_disk_is_present")
         while retries:
             disk_links_all = self.browser.find_link_by_partial_href("#full/vdisk/")
+            logging.log(1, 'disk links: {0}'.format(disk_links_all))
 
-            self.log(str(disk_links_all))
             disk_links = [l for l in disk_links_all if name in l.text]
             if disk_links:
                 try:
@@ -58,15 +82,15 @@ class Vmachine(BrowserOvs):
 
             retries -= 1
             time.sleep(1)
-
+        self.take_screenshot("after_check_machine_disk_is_present")
         assert check_ok, "Failed to check machine disks {0} with name: {1}".format(disk_links_all, name)
 
-    def set_as_template(self, name, should_not_allow=False):
+    def set_as_template(self, name, allowed=True):
         self.check_machine_is_present(name)
 
         setastemplate_button = self.get_single_item_by_id("buttonVmachineSetAsTemplate")
 
-        if not should_not_allow:
+        if allowed:
             retries = 30
             while retries:
                 try:
@@ -100,9 +124,11 @@ class Vmachine(BrowserOvs):
         assert vm_obj, "Vm with name {} not found"
         vm_obj = vm_obj[0]
 
+        self.take_screenshot("before_check_vm_stats_overview_update")
         vm_tr = self.browser.find_by_id("vmachine_{}".format(vm_obj.guid))
-        assert vm_tr, "Didnt find table row for {} vm in the vmachines overview".format(vm_name)
+        assert vm_tr, "Didn't find table row for {} vm in the vmachines overview".format(vm_name)
         vm_tr = vm_tr[0]
+        self.take_screenshot("after_check_vm_stats_overview_update")
 
         tds = vm_tr.find_by_tag("td")
         stats_line = ""
@@ -124,12 +150,14 @@ class Vmachine(BrowserOvs):
         assert vm_obj, "Vm with name {} not found"
         vm_obj = vm_obj[0]
 
-        if vm_obj.guid not in self.browser.url:
-            self.check_machine_is_present(vm_name)
+        self.check_machine_is_present(vm_name)
 
+        self.take_screenshot("before_check_vm_stats_detail_update")
         # only handling first disk currently
         vm_tr = self.browser.find_by_id("vdisk_{}".format(vm_obj.vdisks[0].guid))
-        assert vm_tr, "Didn't find table row for {} disk in the vmachines overview".format(vm_obj.vdisks[0].name)
+        logging.log(1, 'disk guid to look for: {0}'.format(vm_obj.vdisks[0].guid))
+        self.take_screenshot("after_check_vm_stats_detail_update")
+        assert vm_tr, "Didn't find table row for {0} disk in the vmachine detail overview".format(vm_obj.vdisks[0].name)
         vm_tr = vm_tr[0]
 
         tds = vm_tr.find_by_tag("td")
@@ -184,18 +212,22 @@ class Vmachine(BrowserOvs):
 
     def delete_template(self, template_name, should_fail=False):
 
-        tmpl = VMachineList.get_vmachine_by_name(template_name)
-        assert tmpl, "Couldnt find template {}".format(template_name)
-        tmpl = tmpl[0]
-        assert tmpl.is_vtemplate, "Vm name is not a template {}".format(template_name)
+        templates = VMachineList.get_vmachine_by_name(template_name)
+        names = [vm.name for vm in templates]
+        assert len(templates) == 1, "There should be only one template: {0}".format(','.join(names))
+
+        template = templates[0]
+        assert template.is_vtemplate, "Vm name is not a template {}".format(template_name)
 
         self.browse_to(self.get_url() + '#full/vtemplates', 'vtemplates')
-
+        self.take_screenshot("before_delete_template")
         self.wait_for_text(template_name, 15)
+        self.take_screenshot("after_1_delete_template")
 
-        delete_button_id = "vtemplateDelete_{0}".format(tmpl.guid)
+        delete_button_id = "vtemplateDelete_{0}".format(template.guid)
         delete_button = self.browser.find_by_id(delete_button_id)
         delete_button.click()
+        self.take_screenshot("after_2_delete_template")
 
         if not should_fail:
             _ = self.wait_for_modal()
@@ -203,6 +235,7 @@ class Vmachine(BrowserOvs):
 
             self.wait_for_wait_notification("Machine {} deleted".format(template_name))
             self.wait_for_text_to_vanish(template_name, 25)
+            self.take_screenshot("after_3_delete_template")
 
             assert not VMachineList.get_vmachine_by_name(template_name),\
                 "Deleting template did not remove it from the model"
@@ -237,7 +270,7 @@ class Vmachine(BrowserOvs):
         self.click_on_tbl_header('snapshots')
         self.wait_for_text(snapshot_name)
 
-    def rollback(self, vm_name, ss_name, should_not_allow=False):
+    def rollback(self, vm_name, ss_name, allowed=True):
         vm = VMachineList.get_vmachine_by_name(vm_name)
         assert vm, "Vm with name {} not found".format(vm_name)
         vm = vm[0]
@@ -251,12 +284,8 @@ class Vmachine(BrowserOvs):
         assert snapshot_button
         snapshot_button = snapshot_button[0]
 
-        if should_not_allow:
-            try:
-                snapshot_button.click()
-            except Exception as ex:
-                if "Element is not clickable" not in str(ex):
-                    raise
+        if not allowed:
+            snapshot_button.click()
             self.wait_for_modal(should_exist=False)
         else:
             snapshot_button.click()
@@ -277,36 +306,30 @@ class Vmachine(BrowserOvs):
             "Newly created snapshot not found in model"
 
     @staticmethod
-    def get_template(machinename, vpool_name):
+    def get_template(template_name, vpool_name):
         browser_object = None
         try:
-            vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
-            if not vpool:
-                browser_object = vpt = Vpool()
-                vpt.login()
-                general.add_vpool(vpt)
-                vpool = vpoollist.VPoolList.get_vpool_by_name(vpool_name)
-                vpt.teardown()
+            vpool = general.get_or_setup_vpool(vpool_name)
+            assert vpool, "Vpool with name: {0} not found!".format(vpool_name)
 
-            assert vpool, "Count not find usable vpool"
-
-            templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid]
-
+            templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and
+                         t.vdisks[0].vpool.guid == vpool.guid and t.name == template_name]
+            logging.log(1, "Detected templates: {0}".format(templates))
             if not templates:
-                tmpl_name = machinename + "tmpl"
                 hpv = general_hypervisor.Hypervisor.get(vpool.name)
-                hpv.create_vm(tmpl_name)
+                hpv.create_vm(template_name)
                 time.sleep(10)
-                hpv.shutdown(tmpl_name)
+                hpv.poweroff(template_name)
 
                 browser_object = bt = Vmachine()
                 bt.login()
-                bt.set_as_template(tmpl_name)
+                bt.set_as_template(template_name)
                 templates = [t for t in VMachineList.get_vtemplates()
-                             if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid]
+                             if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid and t.name == template_name]
+                logging.log(1, "Detected templates after creation: {0}".format(templates))
                 bt.teardown()
 
-            assert templates, "Failed to get template"
+            assert len(templates) == 1, "Failed to get template"
             return templates[0]
         except:
             raise

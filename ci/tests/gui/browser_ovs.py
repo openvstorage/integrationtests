@@ -1,10 +1,10 @@
-# Copyright 2014 CloudFounders NV
+# Copyright 2014 Open vStorage NV
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-# http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
+import datetime
+import json
 import os
 import re
 import time
 import urllib2
-import base64
-import json
 
 from splinter.browser import Browser
 from splinter.driver import webdriver
@@ -28,7 +29,7 @@ from ci.tests.general import general
 from ci import autotests
 
 
-class BrowserOvs():
+class BrowserOvs:
     BUTTON_TAG = 'button'
     INPUT_TAG = 'input'
 
@@ -94,16 +95,12 @@ class BrowserOvs():
 
     debug = property('', set_debug)
 
+    def take_screenshot(self, name):
+        timestamp = str(datetime.datetime.fromtimestamp(time.time())).replace(" ","_")
+        self.browser.screenshot(os.path.join(self.screens_location, timestamp + "_" + name + "_"))
+
     def setup(self):
-        # @todo: add authentication
         pass
-        # password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        # password_mgr.add_password(None, self.url, self.username, self.password)
-        #
-        # handler = urllib2.HTTPBasicAuthHandler(password_mgr)
-        # opener = urllib2.build_opener(handler)
-        # opener.open(self.url + '/api/customer')
-        # urllib2.install_opener(opener)
 
     def teardown(self):
         self.log('Entering BrowserOvs teardown')
@@ -113,8 +110,8 @@ class BrowserOvs():
             return
 
         if self.debug:
-            scr_name = getattr(self, "scr_name", "") + str(time.time())
-            self.browser.screenshot(os.path.join(self.screens_location, scr_name))
+            scr_name = getattr(self, "scr_name", "")
+            self.take_screenshot(scr_name)
 
         self.browser.quit()
         self.teardown_done = True
@@ -228,7 +225,7 @@ class BrowserOvs():
         button.click()
         return button
 
-    def browse_to(self, url, wait_for_title='', retries=100):
+    def browse_to(self, url, wait_for_title='', retries=20):
         self.browser.visit(url)
         if wait_for_title:
             while (wait_for_title not in self.browser.title.lower()) and retries:
@@ -268,7 +265,7 @@ class BrowserOvs():
             time.sleep(0.1)
 
             if self.debug:
-                self.browser.screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time())))
+                self.take_screenshot(str(identifier).lower())
 
             button = None
             try:
@@ -294,9 +291,47 @@ class BrowserOvs():
                 self.log(str(ex))
 
         if self.debug:
-            self.browser.screenshot(os.path.join(self.screens_location, str(identifier) + str(time.time())))
+            self.take_screenshot(str(identifier).lower())
 
         raise Exception("Could not find {}".format(identifier))
+
+    def click_on_dropdown_item(self, identifier, retries=5):
+
+        while retries:
+            retries -= 1
+            time.sleep(0.1)
+
+            if self.debug:
+                self.take_screenshot(str(identifier).lower())
+
+            button = None
+            try:
+                button = self.browser.find_by_id(identifier)[0]
+            except ElementDoesNotExist:
+                identifier_low = identifier.lower()
+                buttons = self.browser.find_by_tag(self.BUTTON_TAG)
+
+                self.log(str([(b.value, b.text) for b in buttons]))
+
+                for b in buttons:
+                    if identifier_low in b.text.lower() or identifier_low in b.value.lower():
+                        button = b
+                        break
+
+            if not (button and button.visible):
+                continue
+
+            try:
+                button.click()
+                return button
+            except Exception as ex:
+                self.log(str(ex))
+
+        if self.debug:
+            self.take_screenshot(str(identifier).lower())
+
+        raise Exception("Could not find {}".format(identifier))
+
 
     def click_on_tbl_item(self, identifier):
         for item in self.browser.find_by_xpath('//table/tbody/tr/td/a'):
@@ -306,7 +341,7 @@ class BrowserOvs():
                 self.log("click_on_tbl_item " + str(ex))
                 item_text = ""
             if item_text.lower() == identifier.lower():
-                self.log('Click on tbl header: {0}'.format(item_text))
+                self.log('Clicking on tbl header: {0}'.format(item_text))
                 item.click()
 
     def click_on_tbl_header(self, identifier, retries=10):
@@ -389,7 +424,7 @@ class BrowserOvs():
         self.click_on('Login')
         if wait:
             self.browser.is_element_present_by_id('dashboard.panels.storagerouter', wait_time=10)
-        self.browser.screenshot(os.path.join(self.screens_location, "after_login"))
+        self.take_screenshot("after_login")
 
     def check_invalid_credentials_alert(self):
         alerts = self.browser.find_by_css(".alert-danger")
