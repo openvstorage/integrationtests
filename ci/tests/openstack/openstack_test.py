@@ -68,7 +68,8 @@ def teardown():
         general_openstack.cleanup()
 
     # Check the amount of open log files at the end at the test suite
-    general.validate_logstash_open_files_amount()
+    # OVS-2638 - logstash is no longer installed by default
+    # general.validate_logstash_open_files_amount()
 
 
 def create_empty_volume_test():
