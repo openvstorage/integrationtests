@@ -781,6 +781,7 @@ def check_mountpoints(storagedrivers, is_present=True):
 
 
 def validate_logstash_open_files_amount():
+    # OVS-2638 - obsolete as logstash is no longer installed by default
     ls_proc_pid = None
     file_counters = {'libs': {'description': 'Lib Components', 'amount': 0, 'regex': '^.+\.jar$'},
                      'devs': {'description': 'Device Handles', 'amount': 0, 'regex': '^/dev/.+$'},
