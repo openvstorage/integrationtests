@@ -94,6 +94,7 @@ class Vmachine(BrowserOvs):
             retries = 30
             while retries:
                 try:
+                    self.take_screenshot('before_set_as_template_button_click')
                     setastemplate_button.click()
                     self.wait_for_modal()
                 except Exception as ex:
@@ -323,7 +324,9 @@ class Vmachine(BrowserOvs):
 
                 browser_object = bt = Vmachine()
                 bt.login()
+                bt.take_screenshot('before_set_as_template')
                 bt.set_as_template(template_name)
+                bt.take_screenshot('after_set_as_template')
                 templates = [t for t in VMachineList.get_vtemplates()
                              if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid and t.name == template_name]
                 logging.log(1, "Detected templates after creation: {0}".format(templates))
