@@ -449,6 +449,7 @@ def api_add_vpool(vpool_name=None,
                   vpool_bfs_mp=None,
                   vpool_storage_ip=None,
                   apply_to_all_nodes=True,
+                  integratemgmt=True,
                   config_cinder=False,
                   backend_name=None):
 
@@ -483,6 +484,7 @@ def api_add_vpool(vpool_name=None,
                   'cinder_user': "admin",
                   'cinder_tenant': "admin",
                   'cinder_controller': local_vsa_ip,
+                  'integratemgmt': integratemgmt,
                   'backend_name': backend_name
                   }
 
