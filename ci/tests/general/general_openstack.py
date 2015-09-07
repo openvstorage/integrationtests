@@ -90,8 +90,8 @@ def get_formated_cmd_output(cmd, retries=1):
         retries -= 1
         try:
             out, err = general.execute_command(cmd)
-            logging.log(1, out)
-            logging.log(1, err)
+            # logging.log(1, out)
+            # logging.log(1, err)
             assert not err, err
         except Exception as ex:
             logging.log(1, str(ex))
@@ -351,7 +351,7 @@ def get_image(image_id):
 
 def wait_for_volume_to_disappear(volume_id, vol_name, retries=180):
     vol = get_vol(volume_id)
-    vd_ovs = ''
+    vd_ovs = list()
     while retries:
         vol = get_vol(volume_id)
         vd_ovs = [vd for vd in VDiskList.get_vdisks() if vd.name == vol_name]
@@ -361,8 +361,8 @@ def wait_for_volume_to_disappear(volume_id, vol_name, retries=180):
         time.sleep(1)
         retries -= 1
 
-    assert not vd_ovs, "Volume {0} with name {1} still exists on OVS after deleting it from cinder".format(vd_ovs.volume_id,
-                                                                                                           vol_name)
+    assert not vd_ovs, "Volume {0} with name {1} still exists on OVS after deleting it from cinder".format(
+        vd_ovs[0].volume_id, vol_name)
     if vol:
         logging.log(1, get_formated_cmd_output("cinder list"))
     assert not vol, "Volume {0} with name {1} is still present after deleting it from cinder".format(vol, vol_name)
