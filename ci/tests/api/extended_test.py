@@ -29,8 +29,8 @@ def setup():
 
 def post_reboot_checks_test():
     """
-    %s
-    """ % general.get_function_name()
+    {0}
+    """.format(general.get_function_name())
 
     general.check_prereqs(testcase_number=1,
                           tests_to_run=testsToRun)

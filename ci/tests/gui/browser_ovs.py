@@ -89,15 +89,26 @@ class BrowserOvs:
 
     url = property(get_url, set_url)
 
+    def get_debug(self):
+        return self.debug
+
     def set_debug(self, on=True):
         assert isinstance(on, bool), 'Debug must be a boolean'
         self.debug = on
 
-    debug = property('', set_debug)
+    debug = property(get_debug, set_debug)
 
     def take_screenshot(self, name):
-        timestamp = str(datetime.datetime.fromtimestamp(time.time())).replace(" ","_")
-        self.browser.screenshot(os.path.join(self.screens_location, timestamp + "_" + name + "_"))
+        location = self.screens_location
+        timestamp = str(datetime.datetime.fromtimestamp(time.time())).replace(" ", "_")
+        if general.screenshot_dir is not None:
+            if general.current_test is not None:
+                location = os.path.join(self.screens_location, general.screenshot_dir, general.current_test)
+            else:
+                location = os.path.join(self.screens_location, general.screenshot_dir)
+        screenshot_name = '{0}_{1}_'.format(timestamp, name)
+        general.execute_command('mkdir -p {0}'.format(location))
+        self.browser.screenshot(os.path.join(location, screenshot_name))
 
     def setup(self):
         pass
@@ -331,7 +342,6 @@ class BrowserOvs:
             self.take_screenshot(str(identifier).lower())
 
         raise Exception("Could not find {}".format(identifier))
-
 
     def click_on_tbl_item(self, identifier):
         for item in self.browser.find_by_xpath('//table/tbody/tr/td/a'):
