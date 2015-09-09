@@ -18,12 +18,13 @@ import sys
 import json
 import stat
 import time
+import debug
 import shutil
 import logging
 import inspect
+import datetime
 import paramiko
 import subprocess
-import general
 import general_hypervisor
 
 from ci import autotests
@@ -42,9 +43,7 @@ from ovs.lib.setup import SetupController
 from ovs.extensions.generic.sshclient import SSHClient, UnableToConnectException
 from ovs.extensions.generic.system import System
 
-ScriptsDir = os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts")
-sys.path.append(ScriptsDir)
-import debug
+sys.path.append(os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts"))
 
 if not hasattr(sys, "debugEnabled"):
     sys.debugEnabled = True
@@ -52,8 +51,9 @@ if not hasattr(sys, "debugEnabled"):
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
-global test_config
 test_config = autotests.getConfigIni()
+current_test = None    # Used by each individual test to indicate which test is running and is used by 'take_screenshot'
+screenshot_dir = None  # Used by each testsuite to indicate which testsuite is running and is used by 'take_screenshot'
 
 
 def execute_command(command, wait=True, shell=True):
@@ -128,7 +128,7 @@ def get_tests_to_run(test_level):
                     numbers[1] = swap_number
 
                 tests_to_run.append(int(numbers[0]))
-                for k in range(int(numbers[0])+1, int(numbers[1])+1):
+                for k in range(int(numbers[0]) + 1, int(numbers[1]) + 1):
                     tests_to_run.append(k)
 
     return sorted(list(set(tests_to_run)))
@@ -150,7 +150,7 @@ def get_ip_for(hostname):
     for ip in ips:
         if ip == '127.0.0.1':
             continue
-    return ip
+        return ip
 
 
 def get_virbr_ip():
@@ -326,7 +326,7 @@ def remove_vpool(browser):
             print stdout.readlines()
             print stderr.readlines()
     remove_alba_namespaces()
-    general.validate_vpool_cleanup(vpool_name)
+    validate_vpool_cleanup(vpool_name)
 
 
 def get_this_hostname():
@@ -430,7 +430,7 @@ def human2bytes(s):
             raise ValueError("can't interpret %r" % init)
     prefix = {units[0]: 1}
     for i, s in enumerate(units[1:]):
-        prefix[s] = 1 << (i+1)*10
+        prefix[s] = 1 << (i + 1) * 10
     return int(num * prefix[letter])
 
 
@@ -473,8 +473,7 @@ def api_add_vpool(vpool_name=None,
                   'mountpoint_readcaches': vpool_readcaches_mp or [mp.strip() for mp in
                                                                    test_config.get(vpool_config, "vpool_readcaches_mp").split(',')],
                   'mountpoint_writecaches': vpool_writecaches_mp or [mp.strip() for mp in
-                                                                     test_config.get(vpool_config,
-                                                                             "vpool_writecaches_mp").split(',')],
+                                                                     test_config.get(vpool_config, "vpool_writecaches_mp").split(',')],
                   'mountpoint_md': vpool_md_mp or test_config.get(vpool_config, "vpool_md_mp"),
                   'mountpoint_foc': vpool_foc_mp or test_config.get(vpool_config, "vpool_foc_mp"),
                   'mountpoint_bfs': vpool_bfs_mp or test_config.get(vpool_config, "vpool_bfs_mp"),
@@ -605,7 +604,7 @@ def clean_disk_layout(disk_layout):
     print "df after clean \n", execute_command("df")[0]
 
 
-def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_space={}):
+def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_space):
     """
 
     @param vpool_name:                  Name of vpool
@@ -614,7 +613,7 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
     @param disk_layout:                 Disk layout dict
     @type disk_layout:                  Dict
 
-    @param initial_part_used_space:     Dict with used space for each partition at the beggining of test
+    @param initial_part_used_space:     Dict with used space for each partition at the beginning of test
     @type initial_part_used_space:      Dict
 
     @return:             None
@@ -900,3 +899,9 @@ def validate_vpool_cleanup(vpool_name):
 
         assert len(detected_issues) == 0,\
             "Vpool cleanup for {0} was incomplete:\n{1}".format(vpool_name, detected_issues)
+
+
+def create_testsuite_screenshot_dir(testsuite):
+    dir_name = '/var/tmp/{0}_{1}'.format(testsuite, str(datetime.datetime.fromtimestamp(time.time())).replace(" ", "_"))
+    execute_command(command='mkdir {0}'.format(dir_name))
+    return dir_name

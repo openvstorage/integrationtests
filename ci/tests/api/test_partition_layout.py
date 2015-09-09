@@ -148,6 +148,7 @@ def all_mountpoints_root_partition_one_readcache_test():
         logging.log(1, disk_layout[mp])
         logging.log(1, result[mp])
 
+
 # @todo: enable when OVS-2393 is fixed
 def dir_and_partition_layout():
 
@@ -322,6 +323,7 @@ def three_disks_layout_test():
         for mp in [vpool_readcaches_mp[0], vpool_readcaches_mp[1], vpool_writecaches_mp[0], vpool_foc_mp]:
             logging.log(1, disk_layout[mp])
             logging.log(1, result[mp])
+
 
 # todo: disabled until OVS-2372 is fixed
 def readcache_and_writecache_same_dir():

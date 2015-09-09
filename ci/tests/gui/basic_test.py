@@ -50,6 +50,8 @@ def setup():
 
     # make sure we start with clean env
     general.cleanup()
+    general.current_test = None
+    general.screenshot_dir = general.create_testsuite_screenshot_dir(testsuite=os.path.dirname(__file__).split('/')[-1])
 
     # setup dhcp for vms
     virbr_ip = ipcalc.IP(general.get_virbr_ip())
@@ -73,6 +75,8 @@ def teardown():
     except:
         pass
 
+    general.current_test = None
+    general.screenshot_dir = None
     if screen_cap_pid is not None:
         try:
             os.kill(screen_cap_pid, signal.SIGKILL)
@@ -87,13 +91,18 @@ def close_browser():
     if browser_object:
         browser_object.teardown()
 
+    general.current_test = None
 
-@with_setup(None, close_browser)
+
+@with_setup(teardown=close_browser)
 def ovs_login_test():
+    function_name = general.get_function_name()
     """
-    """
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=1, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
 
@@ -103,12 +112,15 @@ def ovs_login_test():
     bt.take_screenshot("end_ovs_login_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def ovs_wrong_password_test():
+    function_name = general.get_function_name()
     """
-    """
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=2, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
 
@@ -122,12 +134,15 @@ def ovs_wrong_password_test():
     assert "dashboard" not in bt.browser.title, "Failed login should not go to dashboard"
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def ovs_wrong_username_test():
+    function_name = general.get_function_name()
     """
-    """
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=3, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
 
@@ -141,13 +156,15 @@ def ovs_wrong_username_test():
     assert "dashboard" not in bt.browser.title, "Failed login should not go to dashboard"
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def vpool_add_test():
+    function_name = general.get_function_name()
     """
-    %s
-    """ % general.get_function_name()
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=4, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
 
@@ -166,13 +183,15 @@ def vpool_add_test():
     bt.take_screenshot("end_vpool_add_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def vpool_remove_test():
+    function_name = general.get_function_name()
     """
-    %s
-    """ % general.get_function_name()
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=5, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
 
@@ -194,13 +213,15 @@ def vpool_remove_test():
     bt.take_screenshot("end_vpool_remove_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def validate_vpool_cleanup_test():
+    function_name = general.get_function_name()
     """
-    %s
-    """ % general.get_function_name()
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=6, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
     browser_object = bt = Vpool(vpool_name=vpool_name)
@@ -240,14 +261,16 @@ def validate_vpool_cleanup_test():
     bt.take_screenshot("end_validate_vpool_cleanup_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def set_as_template_test():
+    function_name = general.get_function_name()
     """
-    %s
+    {0}
     Create a vm and check if it gets registered
-    """ % general.get_function_name()
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=7, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
     browser_object = bt = Vmachine()
@@ -281,14 +304,16 @@ def set_as_template_test():
     bt.take_screenshot("end_set_as_template_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def create_from_template_test():
+    function_name = general.get_function_name()
     """
-    %s
+    {0}
     * create vm from template
-    """ % general.get_function_name()
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=8, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
     browser_object = bt = Vmachine()
@@ -318,13 +343,15 @@ def create_from_template_test():
     bt.take_screenshot("end_create_from_template_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def start_stop_vm_test():
+    function_name = general.get_function_name()
     """
-    %s
-    """ % general.get_function_name()
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=9, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     name = machine_name + "_start" + str(random.randrange(0, 9999999))
     template_name = machine_name + '_template'
@@ -343,6 +370,7 @@ def start_stop_vm_test():
 
     hpv.start(name)
 
+    vm_ip = None
     if general_hypervisor.get_hypervisor_type() == "KVM":
         vm_ip = hpv.wait_for_vm_pingable(name)
 
@@ -369,13 +397,15 @@ def start_stop_vm_test():
     bt.take_screenshot("end_start_stop_vm_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def delete_clone_test():
+    function_name = general.get_function_name()
     """
-    %s
-    """ % general.get_function_name()
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=10, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
     browser_object = bt = Vmachine()
@@ -402,13 +432,15 @@ def delete_clone_test():
     bt.take_screenshot("end_delete_clone_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def machine_snapshot_rollback_test():
+    function_name = general.get_function_name()
     """
-    %s
-    """ % general.get_function_name()
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=11, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
     browser_object = bt = Vmachine()
@@ -474,13 +506,15 @@ def machine_snapshot_rollback_test():
     bt.take_screenshot("end_machine_snapshot_rollback_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def try_to_delete_template_with_clones_test():
+    function_name = general.get_function_name()
     """
-    %s
-    """ % general.get_function_name()
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=12, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
     browser_object = bt = Vmachine()
@@ -517,17 +551,19 @@ def try_to_delete_template_with_clones_test():
     bt.take_screenshot("end_try_to_delete_template_with_clones_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def delete_template_test():
+    function_name = general.get_function_name()
     """
-    %s
-    """ % general.get_function_name()
+    {0}
+    """.format(function_name)
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if vpool:
         general.cleanup()
 
     general.check_prereqs(testcase_number=13, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
     browser_object = bt = Vmachine()
@@ -544,13 +580,15 @@ def delete_template_test():
     bt.take_screenshot("end_delete_template_test")
 
 
-@with_setup(None, close_browser)
+@with_setup(teardown=close_browser)
 def multiple_vpools_test():
+    function_name = general.get_function_name()
     """
-    %s
-    """ % general.get_function_name()
+    {0}
+    """.format(function_name)
 
     general.check_prereqs(testcase_number=14, tests_to_run=tests_to_run)
+    general.current_test = function_name
 
     global browser_object
 
