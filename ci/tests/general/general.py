@@ -451,9 +451,12 @@ def api_add_vpool(vpool_name=None,
                   apply_to_all_nodes=True,
                   integratemgmt=True,
                   config_cinder=False,
-                  backend_name=None):
+                  backend_name=None,
+                  vpool_config_params=None):
 
     local_vsa_ip = get_local_vsa().ip
+    if vpool_config_params is None:
+        vpool_config_params = {}
 
     if not vpool_name:
         vpool_name = test_config.get(vpool_config, 'vpool_name')
@@ -483,7 +486,8 @@ def api_add_vpool(vpool_name=None,
                   'cinder_tenant': "admin",
                   'cinder_controller': local_vsa_ip,
                   'integratemgmt': integratemgmt,
-                  'backend_name': backend_name
+                  'backend_name': backend_name,
+                  'config_params': vpool_config_params or json.loads(test_config.get(vpool_config, "vpool_config_params"))
                   }
 
     if parameters['type'] == 'alba':

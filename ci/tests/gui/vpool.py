@@ -50,10 +50,14 @@ class Vpool(BrowserOvs):
                  vpool_bfs_mp='',
                  vpool_storage_ip='',
                  vpool_vrouter_port='',
-                 browser_choice='chrome'):
+                 browser_choice='chrome',
+                 vpool_config_params=None):
 
         if not getattr(self, "scr_name", ""):
             self.scr_name = general.get_function_name(1)
+
+        if vpool_config_params is None:
+            vpool_config_params = {}
 
         self.bt = BrowserOvs.__init__(self, browser_choice=browser_choice)
 
@@ -73,9 +77,10 @@ class Vpool(BrowserOvs):
             self.vpool_bfs_mp = vpool_bfs_mp or general.test_config.get("vpool", "vpool_bfs_mp")
         self.vpool_vrouter_port = vpool_vrouter_port or general.test_config.get("vpool", "vpool_vrouter_port")
         self.vpool_storage_ip = vpool_storage_ip or general.test_config.get("vpool", "vpool_storage_ip")
+        self.vpool_config_params = vpool_config_params or general.test_config.get("vpool", "vpool_config_params")
 
         for e in ["vpool_name", "vpool_type_name", "vpool_temp_mp", "vpool_md_mp",
-                  "vpool_readcaches_mp", "vpool_writecaches_mp", "vpool_foc_mp"]:
+                  "vpool_readcaches_mp", "vpool_writecaches_mp", "vpool_foc_mp", "vpool_config_params"]:
             if not getattr(self, e):
                 raise SkipTest(e)
 
@@ -209,6 +214,15 @@ class Vpool(BrowserOvs):
         self.vpool_storage_ip = vpool_storage_ip
 
     vpool_storage_ip = property(get_vpool_storage_ip, set_vpool_storage_ip)
+
+    def get_vpool_config_params(self):
+        return self.vpool_config_params
+
+    def set_vpool_config_params(self, vpool_config_params):
+        assert isinstance(vpool_config_params, dict), 'Vpool configuration parameters must be a dictionary'
+        self.vpool_config_params = vpool_config_params
+
+    vpool_config_params = property(get_vpool_config_params, set_vpool_config_params)
 
     def get_vpool_url(self):
         return urlparse.urljoin(self.get_url(), '/#full/vpools')
