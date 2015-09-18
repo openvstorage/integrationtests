@@ -100,7 +100,7 @@ class BrowserOvs:
 
     def take_screenshot(self, name):
         location = self.screens_location
-        timestamp = str(datetime.datetime.fromtimestamp(time.time())).replace(" ", "_")
+        timestamp = str(datetime.datetime.fromtimestamp(time.time())).replace(" ", "_").replace(":", "_").replace(".", "_")
         if general.screenshot_dir is not None:
             if general.current_test is not None:
                 location = os.path.join(self.screens_location, general.screenshot_dir, general.current_test)
