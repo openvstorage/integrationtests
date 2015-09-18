@@ -324,9 +324,9 @@ class Vpool(BrowserOvs):
             self.fill_out('inputcinderPassword', "rooter")
             self.fill_out('inputcinderCtrlIP', general.get_local_vsa().ip)
 
-        self.click_on('Next', retries=100)
-
-        self.click_on('Finish', retries=100)
+        self.click_on('Next', retries=100)    # Volumedriver configuration
+        self.click_on('Next', retries=100)    # Management center
+        self.click_on('Finish', retries=100)  # Confirmation page
 
         self.wait_for_wait_notification('Creation of vPool {} finished.'.format(self.vpool_name), retries=300)
 
