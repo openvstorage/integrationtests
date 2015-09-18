@@ -905,6 +905,6 @@ def validate_vpool_cleanup(vpool_name):
 
 
 def create_testsuite_screenshot_dir(testsuite):
-    dir_name = '/var/tmp/{0}_{1}'.format(testsuite, str(datetime.datetime.fromtimestamp(time.time())).replace(" ", "_"))
+    dir_name = '/var/tmp/{0}_{1}'.format(testsuite, str(datetime.datetime.fromtimestamp(time.time())).replace(" ", "_").replace(":", "_").replace(".", "_"))
     execute_command(command='mkdir {0}'.format(dir_name))
     return dir_name
