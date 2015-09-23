@@ -50,6 +50,8 @@ class BrowserOvs:
             self.browser.driver = phdriver
             self.browser.wait_time = 20
 
+        time.sleep(3)
+
         self.browser.driver.set_window_size(1280, 1024)
         self.username = username or autotests.getUserName()
         self.password = password or autotests.getPassword()
@@ -117,6 +119,7 @@ class BrowserOvs:
         self.teardown_done = True
 
         self.log('Browser shutdown complete ...')
+        time.sleep(3)
 
     def log(self, text):
         if self.debug:
