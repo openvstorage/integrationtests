@@ -356,7 +356,9 @@ def start_stop_vm_test():
     name = machine_name + "_start" + str(random.randrange(0, 9999999))
     template_name = machine_name + '_template'
 
-    bt = Vmachine()
+    global browser_object
+
+    browser_object = bt = Vmachine()
     bt.login()
     bt.take_screenshot("start_start_stop_vm_test")
 
