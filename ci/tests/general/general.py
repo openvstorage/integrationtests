@@ -449,6 +449,7 @@ def api_add_vpool(vpool_name=None,
                   vpool_bfs_mp=None,
                   vpool_storage_ip=None,
                   apply_to_all_nodes=True,
+                  integratemgmt=True,
                   config_cinder=False,
                   backend_name=None):
 
@@ -483,6 +484,7 @@ def api_add_vpool(vpool_name=None,
                   'cinder_user': "admin",
                   'cinder_tenant': "admin",
                   'cinder_controller': local_vsa_ip,
+                  'integratemgmt': integratemgmt,
                   'backend_name': backend_name
                   }
 
@@ -781,6 +783,7 @@ def check_mountpoints(storagedrivers, is_present=True):
 
 
 def validate_logstash_open_files_amount():
+    # OVS-2638 - obsolete as logstash is no longer installed by default
     ls_proc_pid = None
     file_counters = {'libs': {'description': 'Lib Components', 'amount': 0, 'regex': '^.+\.jar$'},
                      'devs': {'description': 'Device Handles', 'amount': 0, 'regex': '^/dev/.+$'},

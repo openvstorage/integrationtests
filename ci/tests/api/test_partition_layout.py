@@ -27,6 +27,7 @@ log = logging.getLogger('test_partition_layout')
 vpool_name = general.test_config.get("vpool", "vpool_name")
 vpool_name = 'api-' + vpool_name
 
+
 def setup():
     global client
     global sc
@@ -62,7 +63,8 @@ def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writec
                                              vpool_writecaches_mp=vpool_writecaches_mp,
                                              vpool_foc_mp=vpool_foc_mp,
                                              apply_to_all_nodes=True,
-                                             config_cinder=True)
+                                             config_cinder=True,
+                                             integratemgmt=True)
         return general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
     finally:
         if vpool_params:
@@ -70,6 +72,7 @@ def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writec
             general.validate_vpool_cleanup(vpool_params['vpool_name'])
         general.clean_disk_layout(disk_layout)
         verify_no_namespaces_remain_after_testsuite()
+
 
 def each_mountpoint_own_partition_test():
     unused_disks = general.get_unused_disks()
