@@ -46,7 +46,7 @@ class Vpool(BrowserOvs):
                  vpool_md_mp='',
                  vpool_readcaches_mp='',
                  vpool_writecaches_mp='',
-                 vpool_foc_mp='',
+                 vpool_dtl_mp='',
                  vpool_bfs_mp='',
                  vpool_storage_ip='',
                  vpool_vrouter_port='',
@@ -71,7 +71,7 @@ class Vpool(BrowserOvs):
         self.vpool_md_mp = vpool_md_mp or general.test_config.get("vpool", "vpool_md_mp")
         self.vpool_readcaches_mp = vpool_readcaches_mp or general.test_config.get("vpool", "vpool_readcaches_mp")
         self.vpool_writecaches_mp = vpool_writecaches_mp or general.test_config.get("vpool", "vpool_writecaches_mp")
-        self.vpool_foc_mp = vpool_foc_mp or general.test_config.get("vpool", "vpool_foc_mp")
+        self.vpool_dtl_mp = vpool_dtl_mp or general.test_config.get("vpool", "vpool_dtl_mp")
         self.vpool_bfs_mp = vpool_bfs_mp
         if self.vpool_type_name in ["Local FS"]:
             self.vpool_bfs_mp = vpool_bfs_mp or general.test_config.get("vpool", "vpool_bfs_mp")
@@ -80,7 +80,7 @@ class Vpool(BrowserOvs):
         self.vpool_config_params = vpool_config_params or general.test_config.get("vpool", "vpool_config_params")
 
         for e in ["vpool_name", "vpool_type_name", "vpool_temp_mp", "vpool_md_mp",
-                  "vpool_readcaches_mp", "vpool_writecaches_mp", "vpool_foc_mp", "vpool_config_params"]:
+                  "vpool_readcaches_mp", "vpool_writecaches_mp", "vpool_dtl_mp", "vpool_config_params"]:
             if not getattr(self, e):
                 raise SkipTest(e)
 
@@ -188,14 +188,14 @@ class Vpool(BrowserOvs):
 
     vpool_writecaches_mp = property(get_vpool_writecaches_mp, set_vpool_writecaches_mp)
 
-    def get_vpool_foc_mp(self):
-        return self.vpool_foc_mp
+    def get_vpool_dtl_mp(self):
+        return self.vpool_dtl_mp
 
-    def set_vpool_foc_mp(self, vpool_foc_mp):
-        assert isinstance(vpool_foc_mp, str), 'Vpool foc mountpoint must be a string'
-        self.vpool_foc_mp = vpool_foc_mp
+    def set_vpool_dtl_mp(self, vpool_dtl_mp):
+        assert isinstance(vpool_dtl_mp, str), 'Vpool DTL mountpoint must be a string'
+        self.vpool_dtl_mp = vpool_dtl_mp
 
-    vpool_foc_mp = property(get_vpool_foc_mp, set_vpool_foc_mp)
+    vpool_dtl_mp = property(get_vpool_dtl_mp, set_vpool_dtl_mp)
 
     def get_vpool_vrouter_port(self):
         return self.vpool_vrouter_port
@@ -313,7 +313,7 @@ class Vpool(BrowserOvs):
         for custom_wc in self.vpool_writecaches_mp.split(','):
             self.fill_out('inputCustomWC', custom_wc)
             self.click_on('AddCustomWC')
-        self.fill_out_custom_field('dropdown-button-mtpt-foc', self.vpool_foc_mp)
+        self.fill_out_custom_field('dropdown-button-mtpt-dtl', self.vpool_dtl_mp)
         if self.vpool_type_name in LOCAL_VPOOL_TYPES:
             self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
         if general_hypervisor.get_hypervisor_type().lower() != "kvm":
@@ -328,7 +328,7 @@ class Vpool(BrowserOvs):
         self.click_on('Next', retries=100)    # Management center
         self.click_on('Finish', retries=100)  # Confirmation page
 
-        self.wait_for_wait_notification('Creation of vPool {} finished.'.format(self.vpool_name), retries=300)
+        self.wait_for_wait_notification('Creation of vPool {0} finished.'.format(self.vpool_name), retries=300)
 
         # check vpool is present after adding it
         retries = 100
@@ -344,7 +344,7 @@ class Vpool(BrowserOvs):
             time.sleep(0.5)
             retries -= 1
 
-        assert retries, "Could not find vpool {} after adding it.".format(self.vpool_name)
+        assert retries, "Could not find vpool {0} after adding it.".format(self.vpool_name)
         if link:
             link.click()
 

@@ -19,6 +19,7 @@ vpt = VpoolTest('chrome')
 conn = Connection('10.100.131.71', 'admin', 'admin')
 conn.authenticate()
 
+
 def setup():
     vpt.set_username('admin')
     vpt.set_password('admin')
@@ -36,12 +37,14 @@ def setup():
     vpt.set_vpool_md_mp('/mnt/md/{0}'.format(vpt.get_vpool_name()))
     vpt.set_vpool_readcache_mp('/mnt/cache1/{0}/read'.format(vpt.get_vpool_name()))
     vpt.set_vpool_writecache_mp('/mnt/cache1/{0}/write'.format(vpt.get_vpool_name()))
-    vpt.set_vpool_foc_mp('/mnt/cache1/{0}/foc'.format(vpt.get_vpool_name()))
+    vpt.set_vpool_dtl_mp('/mnt/cache1/{0}/dtl'.format(vpt.get_vpool_name()))
     vpt.set_vpool_vrouter_port(12323)
     vpt.set_vpool_storage_ip('172.22.131.10')
 
+
 def teardown():
     vpt.teardown()
+
 
 def wait_for_tasks_to_complete():
     count = 10
@@ -49,6 +52,7 @@ def wait_for_tasks_to_complete():
         if not conn.get_active_tasks():
             break
         print "Waiting for tasks to complete ..."
+
 
 def ceph_add_extend_remove_test():
     setup()

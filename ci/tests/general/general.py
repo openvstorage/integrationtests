@@ -110,8 +110,7 @@ def get_tests_to_run(test_level):
     """
     Retrieves the tests to be executed in the testsuite (from autotest config file)
 
-    @return:     List of numbers of tests to be executed
-    @returntype: List of integers
+    @return: List of numbers of tests to be executed
     """
 
     tests = test_level
@@ -173,7 +172,6 @@ def get_function_name(level=0):
     @type level:  Integer
 
     @return:      Name of the test
-    @returntype:  String
     """
     return sys._getframe(level + 1).f_code.co_name
 
@@ -239,17 +237,17 @@ def cleanup():
                         if d.startswith(machine_name):
                             p = os.path.join(mountpoint, d)
                             if os.path.isdir(p):
-                                logging.log(1, "removing tree: {}".format(p))
+                                logging.log(1, "removing tree: {0}".format(p))
                                 shutil.rmtree(p)
                             else:
-                                logging.log(1, "removing file: {}".format(p))
+                                logging.log(1, "removing file: {0}".format(p))
                                 if os.path.isfile(p):
                                     os.remove(p)
                     for mac in env_macs:
                         mac_path = os.path.join(mountpoint, mac)
                         if os.path.exists(mac_path):
                             for f in os.listdir(mac_path):
-                                logging.log(1, "removing file: {}".format(f))
+                                logging.log(1, "removing file: {0}".format(f))
                                 os.remove(os.path.join(mac_path, f))
 
             # remove existing disks
@@ -283,11 +281,6 @@ def get_vpools():
 
 def add_vpool(browser):
     browser.add_vpool()
-
-    # storage_routers = StorageRouterList.get_storagerouters()
-    # @ todo: OVS-2398
-    # if len(storage_routers) > 1 and browser.vpool_type_name != 'Local FS':
-    #     browser.add_gsrs_to_vpool(browser.vpool_name)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
         hypervisor_info = autotests.getHypervisorInfo()
@@ -427,7 +420,7 @@ def human2bytes(s):
             units = symbols['customary']
             letter = letter.upper()
         else:
-            raise ValueError("can't interpret %r" % init)
+            raise ValueError("can't interpret {0}".format(init))
     prefix = {units[0]: 1}
     for i, s in enumerate(units[1:]):
         prefix[s] = 1 << (i + 1) * 10
@@ -445,7 +438,7 @@ def api_add_vpool(vpool_name=None,
                   vpool_md_mp=None,
                   vpool_readcaches_mp=None,
                   vpool_writecaches_mp=None,
-                  vpool_foc_mp=None,
+                  vpool_dtl_mp=None,
                   vpool_bfs_mp=None,
                   vpool_storage_ip=None,
                   apply_to_all_nodes=True,
@@ -477,7 +470,7 @@ def api_add_vpool(vpool_name=None,
                   'mountpoint_writecaches': vpool_writecaches_mp or [mp.strip() for mp in
                                                                      test_config.get(vpool_config, "vpool_writecaches_mp").split(',')],
                   'mountpoint_md': vpool_md_mp or test_config.get(vpool_config, "vpool_md_mp"),
-                  'mountpoint_foc': vpool_foc_mp or test_config.get(vpool_config, "vpool_foc_mp"),
+                  'mountpoint_dtl': vpool_dtl_mp or test_config.get(vpool_config, "vpool_dtl_mp"),
                   'mountpoint_bfs': vpool_bfs_mp or test_config.get(vpool_config, "vpool_bfs_mp"),
                   'storage_ip': vpool_storage_ip or test_config.get(vpool_config, "vpool_storage_ip"),
                   'config_cinder': config_cinder,
@@ -523,8 +516,8 @@ def api_remove_vpool(vpool_name):
         storagerouter = sd.storagerouter
         storagerouter_machineid = storagerouter.machine_id
         local_machineid = System.get_my_machine_id()
-        logging.log(1, "local_machineid: {0}".format(local_machineid))
-        logging.log(1, "storagerouter_machineid: {0}".format(storagerouter_machineid))
+        logging.log(1, "local_machine_id: {0}".format(local_machineid))
+        logging.log(1, "storagerouter_machine_id: {0}".format(storagerouter_machineid))
 
         if local_machineid == storagerouter_machineid:
             # Inline execution, since it's on the same node (preventing deadlocks)
@@ -628,7 +621,7 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
     mount_points = vpool_json['content_addressed_cache']['clustercache_mount_points'] +\
         vpool_json['scocache']['scocache_mount_points']
     _temp_ = dict()
-    _temp_['path'] = vpool_json['failovercache']['failovercache_path']
+    _temp_['path'] = vpool_json['dtl']['dtl_path']
     _temp_['size'] = '0KiB'
     mount_points.append(_temp_)
     print "mount_points: {0}".format(mount_points)
@@ -673,7 +666,7 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
         mp['mount_size'] = mount_size
         mp['real_mountpoint'] = mp_path
 
-    if find_mount_point(vpool_json['failovercache']['failovercache_path']) == "/":
+    if find_mount_point(vpool_json['dtl']['dtl_path']) == "/":
         root_mps = [mp['expected_reserved_percent'] for mp in mount_points if mp['real_mountpoint'] == "/"]
         if root_mps:
             reserved_on_root += min(root_mps)
@@ -695,8 +688,6 @@ def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_s
         reserved_percent = int(round(reserved_size * 100 / float(mp['mount_size'])))
 
         expected_reserved_percent = int(mp['expected_reserved_percent'])
-        # assert reserved_percent == expected_reserved_percent, "Expected {0} reserved percent but got {1}\nfor {2}".\
-        #     format(expected_reserved_percent, reserved_percent, str(mp))
         result[mp['real_mountpoint']] = {'expected': expected_reserved_percent,
                                          'actual': reserved_percent,
                                          'path': mp['path']}
@@ -743,7 +734,7 @@ print bool([vd for vd in VDiskList.get_vdisks() if vd.name == "{0}"])'""".format
 
 
 def check_voldrv_services(vpool_name, storagedrivers, running=True):
-    voldrv_services = (pr + vpool_name for pr in ("ovs-volumedriver_", "ovs-failovercache_"))
+    voldrv_services = (pr + vpool_name for pr in ("ovs-volumedriver_", "ovs-dtl_"))
     for sd in storagedrivers:
         node = sd.storagerouter.ip
         for voldrv_service in voldrv_services:
@@ -893,11 +884,11 @@ def validate_vpool_cleanup(vpool_name):
             logging.log(1, '\n\n{0} - volumedriver log file contains errors\n'.format(pm.ip))
             logging.log(1, output)
 
-        # look for fatals in storagedriver log file
+        # look for fatal errors in storagedriver log file
         cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' fatal '; echo true > /dev/null".format(vpool_name)
         out = execute_command_on_node(pm.ip, cmd)
         if out:
-            detected_issues += '\n\n{0} - volumedriver log file contains fatals\n'.format(pm.ip)
+            detected_issues += '\n\n{0} - volumedriver log file contains fatal errors\n'.format(pm.ip)
             detected_issues += out
 
         assert len(detected_issues) == 0,\
