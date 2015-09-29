@@ -48,7 +48,7 @@
 # storagerouters.py-65-    def filter(self, request, pk=None, format=None, hints=None):
 # storagerouters.py-80-    def move_away(self, request, obj):
 # storagerouters.py-91-    def get_available_actions(self, request, obj):
-# storagerouters.py-107-    def get_physical_metadata(self, request, obj):
+# storagerouters.py-107-    def get_metadata(self, request, obj):
 # storagerouters.py-123-    def get_version_info(self, request, obj):
 # storagerouters.py-137-    def check_s3(self, request, obj):
 # storagerouters.py-157-    def check_mtpt(self, request, obj):
