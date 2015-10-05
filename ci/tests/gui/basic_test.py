@@ -600,9 +600,8 @@ def multiple_vpools_test():
 
     required_backends = ["alba", "local"]
 
-    vpool_params = ['vpool_name', 'vpool_type_name', 'vpool_host', 'vpool_port', 'vpool_access_key', 'vpool_secret_key',
-                    'vpool_temp_mp', 'vpool_md_mp', 'vpool_readcaches_mp', 'vpool_writecaches_mp', 'vpool_dtl_mp',
-                    'vpool_bfs_mp', 'vpool_vrouter_port', 'vpool_storage_ip', 'vpool_config_params']
+    vpool_params = ['vpool_name', 'vpool_type_name', 'vpool_host', 'vpool_port', 'vpool_access_key',
+                    'vpool_secret_key', 'vpool_vrouter_port', 'vpool_storage_ip', 'vpool_config_params']
 
     vpool_configs = {}
 
