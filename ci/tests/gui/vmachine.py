@@ -91,15 +91,13 @@ class Vmachine(BrowserOvs):
         setastemplate_button = self.get_single_item_by_id("buttonVmachineSetAsTemplate")
 
         if allowed:
-            retries = 30
-            while retries:
-                try:
-                    setastemplate_button.click()
-                    self.wait_for_modal()
-                except Exception as ex:
-                    print str(ex)
-                retries -= 1
-                time.sleep(0.5)
+            try:
+                setastemplate_button.click()
+                self.wait_for_modal()
+            except Exception as ex:
+                print str(ex)
+
+            time.sleep(0.5)
 
             self.click_modal_button('Set as Template')
 
@@ -309,7 +307,7 @@ class Vmachine(BrowserOvs):
     def get_template(template_name, vpool_name):
         browser_object = None
         try:
-            vpool = general.get_or_setup_vpool(vpool_name)
+            vpool = general.get_vpool(vpool_name)
             assert vpool, "Vpool with name: {0} not found!".format(vpool_name)
 
             templates = [t for t in VMachineList.get_vtemplates() if t.vdisks and
@@ -324,6 +322,7 @@ class Vmachine(BrowserOvs):
                 browser_object = bt = Vmachine()
                 bt.login()
                 bt.set_as_template(template_name)
+
                 templates = [t for t in VMachineList.get_vtemplates()
                              if t.vdisks and t.vdisks[0].vpool.guid == vpool.guid and t.name == template_name]
                 logging.log(1, "Detected templates after creation: {0}".format(templates))
