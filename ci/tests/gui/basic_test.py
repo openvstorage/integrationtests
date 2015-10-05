@@ -310,19 +310,15 @@ def create_from_template_test():
     hpv.poweroff(machine_name)
     bt.set_as_template(machine_name, allowed=True)
 
-    time.sleep(60)
+    template = Vmachine.get_template(machine_name, vpool_name)
 
-    try:
-        template = Vmachine.get_template(machine_name, vpool_name)
+    browser_object = bt = Vmachine()
+    bt.login()
 
-        browser_object = bt = Vmachine()
-        bt.login()
+    bt.create_from_template(template.name, name)
+    bt.check_machine_is_present(name)
+    hpv.delete(name)
 
-        bt.create_from_template(template.name, name)
-        bt.check_machine_is_present(name)
-        hpv.delete(name)
-    except Exception as ex:
-        print str(ex)
     bt.take_screenshot("end_create_from_template_test")
 
 
