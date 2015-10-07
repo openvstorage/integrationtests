@@ -172,5 +172,3 @@ export BUILD_TIMEOUT=600
 
 cp devstack-gate/devstack-vm-gate-wrap.sh ./safe-devstack-vm-gate-wrap.sh
 ./safe-devstack-vm-gate-wrap.sh
-
-bash cleanup.sh

@@ -50,19 +50,22 @@
 PYTHONPATH=:${WORKSPACE}
 cd ${WORKSPACE}
 if [ ! -d integrationtests ]; then
-   git clone https://github.com/openvstorage/integrationtests.git;
+   git clone https://github.com/openvstorage/integrationtests.git
+   cd integrationtests
+   git checkout ovs-3051-cinderci-repo
 else
    cd integrationtests
+   git checkout ovs-3051-cinderci-repo
    git pull
 fi
-
 # MAIN SCRIPT HERE
-cd cinderci
-bash script.sh
+cd ${WORKSPACE}
+bash integrationtests/cinderci/dsvm-tempest-full/script.sh
 # END MAIN SCRIPT
 
 #CLEANUP
-bash cleanup.sh
+cd ${WORKSPACE}
+bash integrationtests/cinderci/dsvm-tempest-full/cleanup.sh
       </command>
     </hudson.tasks.Shell>
   </builders>
@@ -72,8 +75,8 @@ bash cleanup.sh
         <hudson.tasks.Shell>
           <command>#!/bin/bash -xe
 # CLEANUP
-cd ${WORKSPACE}/cinderci
-bash cleanup.sh
+cd ${WORKSPACE}
+bash integrationtests/cinderci/dsvm-tempest-full/cleanup.sh
 </command>
         </hudson.tasks.Shell>
       </buildSteps>
