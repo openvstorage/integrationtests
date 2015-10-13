@@ -168,7 +168,7 @@ osm.configure_host('$IP')
 for sr in StorageRouterList.get_storagerouters():
      partition = sr.disks[0].partitions[0]
      for role in [DiskPartition.ROLES.DB, DiskPartition.ROLES.SCRUB, DiskPartition.ROLES.READ, DiskPartition.ROLES.READ]:
-         partition.roles.append(roles)
+         partition.roles.append(role)
      partition.save()
 StorageRouterController.add_vpool.apply_async(kwargs={'parameters': {'storagerouter_ip':'$IP', 'vpool_name': 'local', 'type':'local', 'readcache_size': 1, 'writecache_size': 1, 'mountpoint_bfs':'/mnt/bfs', 'mountpoint_temp':'/mnt/tmp', 'mountpoint_md':'/mnt/md', 'mountpoint_readcaches':['/mnt/cache1'], 'mountpoint_writecaches':['/mnt/cache2'], 'mountpoint_foc':'/mnt/cache1', 'storage_ip':'127.0.0.1', 'vrouter_port':12326, 'integratemgmt':True, 'connection_backend': {}, 'connection_password':'', 'connection_username':'', 'connection_host':'', 'connection_port':12326, 'config_params': {'dtl_mode': 'sync', 'sco_size': 4, 'dedupe_mode': 'dedupe', 'dtl_enabled': False, 'dtl_location': '/mnt/cache1', 'write_buffer': 128, 'cache_strategy': 'on_read'}}}).get(timeout=300)
 EOF
