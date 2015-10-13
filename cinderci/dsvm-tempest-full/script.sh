@@ -132,7 +132,7 @@ pmachine.mgmtcenter = mgmt_center
 pmachine.save()
 osm = OpenStackManagement(None)
 osm.configure_host('$IP')
-StorageRouterController.add_vpool.apply_async(kwargs={'parameters': {'storagerouter_ip':'$IP', 'vpool_name': 'local', 'type':'local', 'mountpoint_bfs':'/mnt/bfs', 'mountpoint_temp':'/mnt/tmp', 'mountpoint_md':'/mnt/md', 'mountpoint_readcaches':['/mnt/cache1'], 'mountpoint_writecaches':['/mnt/cache2'], 'mountpoint_foc':'/mnt/cache1', 'storage_ip':'127.0.0.1', 'vrouter_port':12326, 'integratemgmt':True, 'connection_backend': {}, 'connection_password':'', 'connection_username':'', 'connection_host':'', 'connection_port':12326, 'config_params': {'dtl_mode': 'sync', 'sco_size': 4, 'dedupe_mode': 'dedupe', 'dtl_enabled': False, 'dtl_location': None, 'write_buffer': 1, 'cache_strategy': 'onread'}}}).get(timeout=300)
+StorageRouterController.add_vpool.apply_async(kwargs={'parameters': {'storagerouter_ip':'$IP', 'vpool_name': 'local', 'type':'local', 'readcache_size': 1, 'writecache_size': 1, 'mountpoint_bfs':'/mnt/bfs', 'mountpoint_temp':'/mnt/tmp', 'mountpoint_md':'/mnt/md', 'mountpoint_readcaches':['/mnt/cache1'], 'mountpoint_writecaches':['/mnt/cache2'], 'mountpoint_foc':'/mnt/cache1', 'storage_ip':'127.0.0.1', 'vrouter_port':12326, 'integratemgmt':True, 'connection_backend': {}, 'connection_password':'', 'connection_username':'', 'connection_host':'', 'connection_port':12326, 'config_params': {'dtl_mode': 'sync', 'sco_size': 4, 'dedupe_mode': 'dedupe', 'dtl_enabled': False, 'dtl_location': None, 'write_buffer': 1, 'cache_strategy': 'onread'}}}).get(timeout=300)
 EOF
     
     sudo cp /home/jenkins/add_vpool.py /opt/OpenvStorage/add_vpool.py  
