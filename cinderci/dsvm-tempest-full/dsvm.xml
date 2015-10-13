@@ -52,10 +52,8 @@ cd ${WORKSPACE}
 if [ ! -d integrationtests ]; then
    git clone https://github.com/openvstorage/integrationtests.git
    cd integrationtests
-   git checkout ovs-3051-cinderci-repo
 else
    cd integrationtests
-   git checkout ovs-3051-cinderci-repo
    git pull
 fi
 # MAIN SCRIPT HERE
