@@ -143,7 +143,8 @@ index 24149bc..c519ee2 100644
                      if path is None:
                          path = device_path
                      sectors = int(client.run('cat /sys/block/{0}/size'.format(device_name)))
-" sudo tee /opt/OpenvStorage/patch_disk.diff
+" | sudo tee /opt/OpenvStorage/patch_disk.diff
+    sudo cat /opt/OpenvStorage/patch_disk.diff
     sudo patch /opt/OpenvStorage/ovs/lib/disk.py /opt/OpenvStorage/patch_disk.diff
     sudo timeout -s 9 10m ovs setup 2>&1 | sudo tee /var/log/ovs_setup.log
  
