@@ -105,7 +105,7 @@ def create_volume_from_image_test():
     else:
         general_openstack.cleanup()
 
-    _ = general.get_or_setup_vpool(vpool_name)
+    _ = general.setup_vpool(vpool_name)
 
     volume_name = machinename + str(time.time()) + "_vol_from_img"
 
@@ -139,7 +139,7 @@ def boot_nova_instance_from_volume_test():
     else:
         general_openstack.cleanup()
 
-    _ = general.get_or_setup_vpool(vpool_name)
+    _ = general.setup_vpool(vpool_name)
 
     instance_name = "{0}_{1}_boot_from_vol".format(machinename, int(time.time()))
     volume_name = "{0}_disk".format(instance_name)
@@ -190,7 +190,7 @@ def boot_nova_instance_from_snapshot_test():
     else:
         general_openstack.cleanup()
 
-    _ = general.get_or_setup_vpool(vpool_name)
+    _ = general.setup_vpool(vpool_name)
 
     instance_name = "{0}_{1}_boot_from_snap".format(machinename, int(time.time()))
     volume_name = "{0}_disk".format(instance_name)
@@ -245,7 +245,7 @@ def permissions_check_test():
     expected_dir_perms = "755"
     expected_file_perms = "775"
 
-    vpool = general.get_or_setup_vpool(vpool_name)
+    vpool = general.setup_vpool(vpool_name)
 
     assert vpool.storagedrivers, "At least one storagedriver should be configured for vpool: {0}".format(vpool.name)
     mount_point = vpool.storagedrivers[0].mountpoint

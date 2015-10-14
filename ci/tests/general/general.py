@@ -837,12 +837,17 @@ def validate_logstash_open_files_amount():
             'Reached more than 90% of Logstash maximum allowed open files : {0}'.format(max_allowed_of)
 
 
-def get_or_setup_vpool(vpool_name, vpool_config='vpool'):
+def setup_vpool(vpool_name, vpool_config='vpool'):
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
         api_add_vpool(vpool_name=vpool_name, vpool_config=vpool_config, config_cinder=True)
         vpool = VPoolList.get_vpool_by_name(vpool_name)
 
+    return vpool
+
+
+def get_vpool(vpool_name):
+    vpool = VPoolList.get_vpool_by_name(vpool_name)
     return vpool
 
 
