@@ -748,107 +748,8 @@ echo 1"""
     con.process.execute("pip install vnc2flv")
 
 
-def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=False, test_plan='', reboot_test=False,
-                  vpool_name='alba', backend_name='alba', vpool_type='alba', test_project='Open vStorage Engineering', qualitylevel = 'unstable'):
-    """
-    vmware_info = "10.100.131.221,root,R00t3r123"
-    """
-    con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
-
-    vpool_storage_ip = con.process.execute("ip a | awk '/inet/ && /privbr/ {print $2}'")[0]
-    vpool_storage_ip = ipcalc.IP(vpool_storage_ip).dq
-
-    os_name = "ubuntu_desktop14_kvm" if not vmware_info else "small_linux_esx"
-
-    template_server = "http://sso-qpackages-loch.cloudfounders.com"
-    if dc == 'bel-jen-axs.cloudfounders.com':
-        template_server = "http://sso-qpackages-brussels.cloudfounders.com"
-
-    if not test_plan:
-        test_run = "autotests.runAll('TESTRAIL', '/var/tmp')"
-    else:
-        test_run = "autotests.run('{0}', 'TESTRAIL', '/var/tmp')".format(test_plan)
-
-    cache_strategy = 'on_read'
-    # check for ceph vm
-    cmd = 'source /etc/profile.d/ovs.sh;python -c "from ovs.dal.lists.storagerouterlist import StorageRouterList; print  [sr.ip  for sr in StorageRouterList.get_storagerouters()]"'
-    nodes = eval(con.process.execute(cmd)[1])
-    ceph_vm_name = "ceph"
-    ceph_vpool_info = ""
-
-    for node in nodes:
-        con2 = q.remote.system.connect(node, "root", UBUNTU_PASSWORD)
-        out = con2.process.execute("virsh list --all | grep {0} || true".format(ceph_vm_name))[1]
-        if ceph_vm_name not in out:
-            con2.close()
-            continue
-        cmd = '''mac=$(virsh dumpxml %s | grep "bridge='pubbr'" -B 1 | grep -o -P "(?<=address=').*(?=')")
-apt-get install nmap -y >/dev/null 2>&1
-nmap -sP %s/24 | grep $mac -i -B 2 | grep -oP "([0-9]+\.){3}([0-9]+)" ''' % (ceph_vm_name, node)
-        ceph_node_ip = con2.process.execute(cmd, dieOnNonZeroExitCode=False)[1].strip()
-        con2.close()
-        if not ceph_node_ip:
-            continue
-        con2 = q.remote.system.connect(ceph_node_ip, "root", UBUNTU_PASSWORD)
-        user_info = json.loads(con2.process.execute("/usr/bin/radosgw-admin user info --uid=johndoe")[1])
-        ceph_vpool_info = """[vpool3]
-vpool_name = {vpool_name}
-vpool_type = {vpool_type}
-vpool_type_name     = Ceph S3
-vpool_host          = {ceph_node_ip}
-vpool_port          = 80
-vpool_access_key    = {access_key}
-vpool_secret_key    = {secret_key}
-vpool_dtl_mp    = /mnt/cache1/ceph/foc
-vpool_vrouter_port  = 12345
-vpool_storage_ip    = {vpool_storage_ip}
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
-""".format(ceph_node_ip=ceph_node_ip,
-           access_key=user_info['keys'][0]['access_key'],
-           secret_key=user_info['keys'][0]['secret_key'],
-           vpool_storage_ip=vpool_storage_ip,
-           vpool_name=vpool_name,
-           vpool_type=vpool_type)
-        break
-
-    if vpool_type == "swift_s3":
-        vpool_config = """
-[vpool]
-vpool_name = {vpool_name}
-vpool_type = {vpool_type}
-vpool_type_name     = Swift S3
-vpool_host          = {vpool_host_ip}
-vpool_port          = 8080
-vpool_access_key    = test:tester
-vpool_secret_key    = testing
-vpool_dtl_mp    = /mnt/cache1/saio/foc
-vpool_vrouter_port  = 12345
-vpool_storage_ip    = {vpool_storage_ip}
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
-""".format(vpool_host_ip=vpool_host_ip,
-           vpool_storage_ip=vpool_storage_ip,
-           vpool_name=vpool_name,
-           vpool_type=vpool_type)
-        cinder_type = vpool_name
-
-    elif vpool_type == "alba":
-        vpool_config = """
-[vpool]
-vpool_name = {vpool_name}
-vpool_type = {vpool_type}
-vpool_type_name = Open vStorage Backend
-vpool_host =
-vpool_port = 80
-vpool_access_key =
-vpool_secret_key =
-vpool_dtl_mp = /mnt/cache1/alba/foc
-vpool_vrouter_port  = 12345
-vpool_storage_ip = 0.0.0.0
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
-""".format(vpool_name=vpool_name,
-           vpool_type=vpool_type)
-        cinder_type = vpool_name
-
+def create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, test_run, vpool_config, vpool_name,
+                        backend_name, ceph_vpool_info, cinder_type, grid_ip, test_project):
     cmd = '''source /etc/profile.d/ovs.sh
 pkill Xvfb
 pkill x11vnc
@@ -893,18 +794,143 @@ ipython 2>&1 -c "from ci import autotests
 '''.format(os_name=os_name,
            vmware_info=vmware_info,
            template_server=template_server,
-           screen_capture=str(capture_screen),
+           screen_capture=screen_capture,
            test_run=test_run,
            vpool_config=vpool_config,
            vpool_name=vpool_name,
            backend_name=backend_name,
            ceph_vpool_info=ceph_vpool_info,
            cinder_type=cinder_type,
-           grid_ip=node_ip,
+           grid_ip=grid_ip,
            test_project=test_project)
 
-    out = q.tools.installerci._run_command(cmd, node_ip, "root", UBUNTU_PASSWORD, buffered=True)
-    out = out[0] + out[1]
+    out = q.tools.installerci._run_command(cmd, grid_ip, "root", UBUNTU_PASSWORD, buffered=True)
+    return out[0] + out[1]
+
+
+def get_swift_vpool_config(vpool_host_ip, vpool_storage_ip, vpool_name, vpool_type):
+    return """
+[vpool]
+vpool_name = {vpool_name}
+vpool_type = {vpool_type}
+vpool_type_name     = Swift S3
+vpool_host          = {vpool_host_ip}
+vpool_port          = 8080
+vpool_access_key    = test:tester
+vpool_secret_key    = testing
+vpool_dtl_mp    = /mnt/cache1/saio/foc
+vpool_vrouter_port  = 12345
+vpool_storage_ip    = {vpool_storage_ip}
+vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
+""".format(vpool_host_ip=vpool_host_ip,
+           vpool_storage_ip=vpool_storage_ip,
+           vpool_name=vpool_name,
+           vpool_type=vpool_type)
+
+
+def get_alba_vpool_config(vpool_name, vpool_type):
+    return """
+[vpool]
+vpool_name = {vpool_name}
+vpool_type = {vpool_type}
+vpool_type_name = Open vStorage Backend
+vpool_host =
+vpool_port = 80
+vpool_access_key =
+vpool_secret_key =
+vpool_dtl_mp = /mnt/cache1/alba/foc
+vpool_vrouter_port  = 12345
+vpool_storage_ip = 0.0.0.0
+vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
+""".format(vpool_name=vpool_name,
+           vpool_type=vpool_type)
+
+
+def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=False, test_plan='', reboot_test=False,
+                  vpool_name='alba', backend_name='alba', vpool_type='alba', test_project='Open vStorage Engineering'):
+    """
+    vmware_info = "10.100.131.221,root,R00t3r123"
+    """
+    con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
+
+    vpool_storage_ip = con.process.execute("ip a | awk '/inet/ && /privbr/ {print $2}'")[0]
+    vpool_storage_ip = ipcalc.IP(vpool_storage_ip).dq
+
+    os_name = "ubuntu_desktop14_kvm" if not vmware_info else "small_linux_esx"
+
+    template_server = "http://sso-qpackages-loch.cloudfounders.com"
+    if dc == 'bel-jen-axs.cloudfounders.com':
+        template_server = "http://sso-qpackages-brussels.cloudfounders.com"
+
+    if not test_plan:
+        test_run = "autotests.runAll('TESTRAIL', '/var/tmp')"
+    else:
+        test_run = "autotests.run('{0}', 'TESTRAIL', '/var/tmp')".format(test_plan)
+
+    # check for ceph vm
+    cmd = 'source /etc/profile.d/ovs.sh;python -c "from ovs.dal.lists.storagerouterlist import StorageRouterList; print  [sr.ip  for sr in StorageRouterList.get_storagerouters()]"'
+    nodes = eval(con.process.execute(cmd)[1])
+    ceph_vm_name = "ceph"
+    ceph_vpool_info = ""
+
+    for node in nodes:
+        con2 = q.remote.system.connect(node, "root", UBUNTU_PASSWORD)
+        out = con2.process.execute("virsh list --all | grep {0} || true".format(ceph_vm_name))[1]
+        if ceph_vm_name not in out:
+            con2.close()
+            continue
+        cmd = '''mac=$(virsh dumpxml %s | grep "bridge='pubbr'" -B 1 | grep -o -P "(?<=address=').*(?=')")
+apt-get install nmap -y >/dev/null 2>&1
+nmap -sP %s/24 | grep $mac -i -B 2 | grep -oP "([0-9]+\.){3}([0-9]+)" ''' % (ceph_vm_name, node)
+        ceph_node_ip = con2.process.execute(cmd, dieOnNonZeroExitCode=False)[1].strip()
+        con2.close()
+        if not ceph_node_ip:
+            continue
+        con2 = q.remote.system.connect(ceph_node_ip, "root", UBUNTU_PASSWORD)
+        user_info = json.loads(con2.process.execute("/usr/bin/radosgw-admin user info --uid=johndoe")[1])
+        ceph_vpool_info = """[vpool3]
+vpool_name = {vpool_name}
+vpool_type = {vpool_type}
+vpool_type_name     = Ceph S3
+vpool_host          = {ceph_node_ip}
+vpool_port          = 80
+vpool_access_key    = {access_key}
+vpool_secret_key    = {secret_key}
+vpool_dtl_mp    = /mnt/cache1/ceph/foc
+vpool_vrouter_port  = 12345
+vpool_storage_ip    = {vpool_storage_ip}
+vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
+""".format(ceph_node_ip=ceph_node_ip,
+           access_key=user_info['keys'][0]['access_key'],
+           secret_key=user_info['keys'][0]['secret_key'],
+           vpool_storage_ip=vpool_storage_ip,
+           vpool_name=vpool_name,
+           vpool_type=vpool_type)
+        break
+
+    if vpool_type == "swift_s3":
+        vpool_config = get_swift_vpool_config(vpool_host_ip=vpool_host_ip,
+                                              vpool_storage_ip=vpool_storage_ip,
+                                              vpool_name=vpool_name,
+                                              vpool_type=vpool_type)
+    elif vpool_type == "alba":
+        vpool_config = get_alba_vpool_config(vpool_name=vpool_name,
+                                             vpool_type=vpool_type)
+
+    cinder_type = vpool_name
+
+    out = create_autotest_cfg(os_name=os_name,
+                              vmware_info=vmware_info,
+                              template_server=template_server,
+                              screen_capture=str(capture_screen),
+                              test_run=test_run,
+                              vpool_config=vpool_config,
+                              vpool_name=vpool_name,
+                              backend_name=backend_name,
+                              ceph_vpool_info=ceph_vpool_info,
+                              cinder_type=cinder_type,
+                              grid_ip=node_ip,
+                              test_project=test_project)
 
     if reboot_test:
         print "Started reboot test"
