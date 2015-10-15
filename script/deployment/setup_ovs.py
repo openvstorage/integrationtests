@@ -724,176 +724,6 @@ EOF
     print con.process.execute(cmd)
 
 
-def deploy_vpool(public_ip, vpool_name, vpool_type, vpool_host, vpool_port, vpool_router_port,
-                 vpool_storage_ip='127.0.0.1', add_mgmt_center='true', qualitylevel="unstable", backend_name='alba'):
-    q.clients.ssh.waitForConnection(public_ip, "root", UBUNTU_PASSWORD, times=120)
-    con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-
-    screen_pid = con.process.execute("ps ax | awk '/SCREEN/ && /stack/ && !/awk/ {print $1}'")[1].strip()
-    output = con.process.execute("lsof -p {0} | awk '/FIFO/ && !awk'".format(screen_pid))[1].strip()
-    if 'deleted' in output:
-        print "### screen socket in state deleted ###"
-        con.process.execute("kill -SIGCHLD {0}".format(screen_pid))
-        output = con.process.execute("lsof -p {0} | awk '/FIFO/ && !awk'".format(screen_pid))[1].strip()
-        time.sleep(2)
-        if 'deleted' in output:
-            print "### screen socket still in state deleted ###"
-
-    vpool_type = vpool_type.lower()
-
-    vpool_mount = '/mnt/dfs/{vpool_name}'.format(vpool_name=vpool_name)
-    python_cmd = """from ovs.lib.storagerouter import StorageRouterController
-from ovs.dal.lists.backendlist import BackendList
-vpool_type = '{vpool_type}'
-parameters = {{}}
-# management center is required to configure cinder on openstack
-# match jenkins choice values: false/true
-if '{add_mgmt_center}'.lower() in ['true']:
-    from ovs.dal.lists.pmachinelist import PMachineList
-    from ovs.dal.lists.mgmtcenterlist import MgmtCenterList
-    from ovs.dal.hybrids.mgmtcenter import MgmtCenter
-    mcs = MgmtCenterList.get_mgmtcenters()
-    if len(mcs) >= 1:
-        mc = mcs[0]
-    else:
-        mc = MgmtCenter()
-        mc.name = 'hmc'
-        mc.username = 'admin'
-        mc.password = 'rooter'
-        mc.ip = '{public_ip}'
-        mc.type = 'OPENSTACK'
-        mc.port=443
-    if hasattr(mc, 'metadata'):
-        mc.metadata = dict()
-        mc.metadata['integratemgmt']=True
-    mc.save()
-    for pm in PMachineList.get_pmachines():
-        pm.mgmtcenter = mc
-        pm.save()
-if vpool_type.lower() == 'alba':
-    alba_backend_guid = [b for b in BackendList.get_backends() if b.name == '{backend_name}'][0].alba_backend_guid
-    data = {{'backend': alba_backend_guid,
-             'metadata': 'default'}}
-    parameters['connection_backend'] = data
-parameters['vpool_name']             = '{vpool_name}'
-parameters['storage_ip']             = '{storage_ip}'
-parameters['storagerouter_ip']       = '{public_ip}'
-parameters['readcache_size']         = 50
-parameters['writecache_size']        = 50
-parameters['type']                   = vpool_type
-parameters['connection_host']        = ''
-parameters['connection_port']        = {connection_port}
-parameters['connection_username']    = '{connection_username}'
-parameters['connection_password']    = '{connection_password}'
-parameters['config_cinder']          = True
-parameters['integratemgmt']          = True
-parameters['cinder_controller']      = '{public_ip}'
-parameters['cinder_user']            = 'admin'
-parameters['cinder_pass']            = 'rooter'
-parameters['cinder_tenant']          = 'admin'
-StorageRouterController.add_vpool(parameters)
-""".format(public_ip=public_ip,
-           vpool_name=vpool_name,
-           vpool_type=vpool_type,
-           connection_host=vpool_host,
-           connection_port=vpool_port,
-           connection_username="test:tester",
-           connection_password="testing",
-           vpool_mount=vpool_mount,
-           vrouter_port=vpool_router_port,
-           storage_ip=vpool_storage_ip,
-           add_mgmt_center=add_mgmt_center,
-           qualitylevel=qualitylevel,
-           backend_name=backend_name)
-
-    cmd = """cat <<EOF > /tmp/deploy_vpool.py
-{0}
-EOF
-""".format(python_cmd)
-    con.process.execute(cmd, dieOnNonZeroExitCode=False)
-    cmd = """
-    export PYTHONPATH=:/opt/OpenvStorage:/opt/OpenvStorage/webapps
-    python /tmp/deploy_vpool.py"""
-
-    print con.process.execute(cmd)
-
-
-def install_archipel(node_ip, install_agent=True, vpool_mount=None):
-    q.clients.ssh.waitForConnection(node_ip, "root", UBUNTU_PASSWORD, times=120)
-    con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
-
-    # 1 installing agent - refer to manual section on:
-    cmd = "apt-get install -y --force-yes gfortran python-dev python-setuptools python-libvirt python-magic"
-    con.process.execute(cmd)
-
-    # as of doc:
-    #this seems to fail the first time but succeeds when ran again - perhaps we can simply ignore the first error
-    cmd = "easy_install archipel-agent && archipel-initinstall"
-    con.process.execute(cmd, dieOnNonZeroExitCode=False)
-    con.process.execute(cmd)
-
-    #2 install xmpp server
-    cmd = """apt-get install -y --force-yes ejabberd"""
-    con.process.execute(cmd)
-
-    cmd = 'sed -i "s/^{access, register, \[{deny, all}\]}/{access, register, [{allow, all}]}/"  /etc/ejabberd/ejabberd.cfg'
-    con.process.execute(cmd)
-    cmd = 'sed -i  "s/.*{registration_timeout,.*/{registration_timeout, infinity}./"  /etc/ejabberd/ejabberd.cfg'
-    con.process.execute(cmd)
-    cmd = "sed -i '/mod_pubsub/a                   {max_items_node, 1000},' /etc/ejabberd/ejabberd.cfg"
-    con.process.execute(cmd)
-    cmd = "sed -i '/{mod_vcard/a  {mod_http_bind, []},' /etc/ejabberd/ejabberd.cfg"
-    con.process.execute(cmd)
-    cmd = r'''sed -i "s/{hosts,.*/{hosts, [\"localhost\", \"$(hostname)\"]}./" /etc/ejabberd/ejabberd.cfg'''
-    con.process.execute(cmd)
-
-    restart_ejabberd_cmd = "service ejabberd restart"
-    con.process.execute(restart_ejabberd_cmd)
-
-    time.sleep(40)
-    cmd = "ejabberdctl register admin localhost rooter"
-    con.process.execute(cmd)
-    con.process.execute(restart_ejabberd_cmd)
-
-    time.sleep(40)
-    cmd = "ejabberdctl register admin $(hostname) rooter"
-    con.process.execute(cmd)
-    con.process.execute(restart_ejabberd_cmd)
-
-    time.sleep(30)
-
-    cmd = """archipel-tagnode --jid=admin@localhost --password=rooter --create
-archipel-rolesnode --jid=admin@localhost --password=rooter --create
-archipel-adminaccounts --jid=admin@localhost --password=rooter --create
-archipel-tagnode --jid=admin@$(hostname) --password=rooter --create
-archipel-rolesnode --jid=admin@$(hostname) --password=rooter --create
-archipel-adminaccounts --jid=admin@$(hostname) --password=rooter --create"""
-    con.process.execute(cmd)
-
-    cmd = 'sed -i "s/hypervisor_xmpp_password.*/hypervisor_xmpp_password = rooter/" /etc/archipel/archipel.conf'
-    con.process.execute(cmd)
-
-    if vpool_mount:
-        cmd = 'sed -i "s/^archipel_folder_data\s*=.*/archipel_folder_data = {0}/" /etc/archipel/archipel.conf '.format(vpool_mount.replace("/", "\/"))
-        con.process.execute(cmd)
-        cmd = 'sed -i "s/vm_base_path.*/vm_base_path = %(archipel_folder_data)s/" /etc/archipel/archipel.conf '
-        con.process.execute(cmd)
-
-    cmd = '/etc/init.d/archipel restart'
-    con.process.execute(cmd)
-
-    if install_agent:
-        #3 the webserver part can be be easily installed below the ovs directory structure:
-        # install web server part
-        cmd = "apt-get -y install nginx unzip"
-        con.process.execute(cmd)
-
-        cmd = '''wget http://updates.archipelproject.org/archipel-gui-beta6.zip
-unzip archipel-gui-beta6.zip
-mv archipel-gui-beta6  /opt/OpenvStorage/webapps/frontend/archipel'''
-        con.process.execute(cmd)
-
-
 def install_autotests(node_ip):
     con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     con.process.execute("apt-get update")
@@ -1248,127 +1078,7 @@ restart mysql
     print exitcode
     print output
 
-def install_cinder_plugin(node_ip, vpool_name, master_ip=None):
-    con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
 
-    def kill_service_in_screen(name):
-        # just send the ctrl+c key in window name of screen
-        print "killing ", name
-        con.process.execute(r"""su -c 'screen -x stack -p {0} -X stuff "^C"' stack""".format(name))
-
-    def restart_service_in_screen(name):
-        # just send the up key + enter in window name of screen
-        print "restarting ", name
-        con.process.execute(r"""su -c 'screen -x stack -p {0} -X stuff "^[[A^[[A^[[A\n"' stack""".format(name))
-    def restart_services(services):
-        for service_name in services:
-            time.sleep(1)
-            kill_service_in_screen(service_name)
-            time.sleep(1)
-            restart_service_in_screen(service_name)
-    cinder_type_name = vpool_name
-    max_volumes = 100
-    max_snapshots = 500
-    max_gigabytes = 5000
-    # libvirtd config
-    ####################################################################################################################
-    con.process.execute("sed -i 's/#listen_tls.*/listen_tls=0/g' /etc/libvirt/libvirtd.conf")
-    con.process.execute("sed -i 's/#listen_tcp.*/listen_tcp=1/g' /etc/libvirt/libvirtd.conf")
-    con.process.execute('''sed -i 's/.*auth_tcp.*/auth_tcp="none"/g' /etc/libvirt/libvirtd.conf''')
-    con.process.execute("sed -i 's/#dynamic_ownership.*/dynamic_ownership = 0/g' /etc/libvirt/qemu.conf")
-    con.process.execute('''sed -i 's/.*libvirtd_opts.*/libvirtd_opts="-d -l"/g' /etc/default/libvirt-bin''')
-    con.process.execute('''sed -i 's/libvirtd_opts="-d"/libvirtd_opts="-d -l"/g' /etc/init/libvirt-bin.conf''')
-    # generate unique uuid for libvirt
-    con.process.execute("""sed -i 's/.*host_uuid.*/host_uuid = "'`uuidgen`'"/' /etc/libvirt/libvirtd.conf""")
-    con.process.execute("initctl stop libvirt-bin; initctl start libvirt-bin")
-    iface_name = con.process.execute("""ip a | awk '/^[0-9]*:/ {{b=$2;gsub(":","",b)}} /{0}/ {{print b;exit}}'""".format(node_ip))[1].strip()
-    # nova config
-    ####################################################################################################################
-    con.process.execute("sed -i 's/br100/pubbr/g'  /etc/nova/nova.conf")
-    if iface_name == "pubbr":
-        pubbr_iface_port = con.process.execute("awk '/pubbr/{b=1} /bridge_ports/{if(b){print $2; exit}}' /etc/network/interfaces")[1].strip()
-    else:
-        pubbr_iface_port = iface_name
-    print pubbr_iface_port
-    con.process.execute("sed -i 's/flat_interface.*/flat_interface = {0}/g' /etc/nova/nova.conf".format(pubbr_iface_port))
-    con.process.execute("sed -i 's/vlan_interface.*/vlan_interface = {0}/g' /etc/nova/nova.conf".format(pubbr_iface_port))
-    con.process.execute("sed -i 's/^instances_path.*//g' /etc/nova/nova.conf")
-    con.process.execute("sed -i 's/vncserver_listen.*/vncserver_listen = 0.0.0.0/g' /etc/nova/nova.conf")
-    con.process.execute("""sed -i 's/instance_name_template.*/instance_name_template = "%(hostname)s"/g' /etc/nova/nova.conf""")
-    con.process.execute("sed -i 's/force_config_drive.*/force_config_drive = False/g' /etc/nova/nova.conf")
-    con.process.execute("sed -i '/public_interface/a live_migration_flag = VIR_MIGRATE_UNDEFINE_SOURCE,VIR_MIGRATE_PEER2PEER,VIR_MIGRATE_LIVE' /etc/nova/nova.conf")
-    con.process.execute(r"sed -i 's/\[DEFAULT\]/[DEFAULT]\nuse_cow_images = False/' /etc/nova/nova.conf")
-    con.process.execute("""cat <<EOF >> /etc/nova/nova.conf
-[serial_console]
-base_url = http://127.0.0.1:6083/
-enabled = True
-listen = 127.0.0.1
-port_range = 10000:20000
-proxyclient_address = 127.0.0.1
-EOF
-echo 1""")
-    cmd = """
-export OS_USERNAME=admin
-export OS_PASSWORD=rooter
-export OS_TENANT_NAME=admin
-export OS_AUTH_URL=http://{node_ip}:35357/v2.0
-# configure cinder (on controller node only)
-# cinder type-create {cinder_type_name}
-# cinder type-key {cinder_type_name} set volume_backend_name={vpool_name}
-tenant_id=$(keystone tenant-get admin | awk '/id/ {{print $4}}')
-cinder quota-update --volumes {max_volumes} --snapshots {max_snapshots} --gigabytes {max_gigabytes} $tenant_id
-cinder quota-update --volumes {max_volumes} --snapshots {max_snapshots} --gigabytes {max_gigabytes} --volume-type {cinder_type_name} $tenant_id
-nova keypair-add --pub-key ~/.ssh/id_rsa.pub mykey
-echo 1""".format(vpool_name=vpool_name,
-                 node_ip=node_ip,
-                 cinder_type_name=cinder_type_name,
-                 max_volumes=max_volumes,
-                 max_snapshots=max_snapshots,
-                 max_gigabytes=max_gigabytes)
-    if master_ip is None:
-        con.process.execute(cmd)
-    # restart services
-    ####################################################################################################################
-    # fix for screen socket detaching
-    try:
-        kill_service_in_screen("c-vol")
-    except:
-        screen_pid = con.process.execute("ps ax | awk '/SCREEN/ && /stack/ && !/awk/ {print $1}'")[1].strip()
-        # sending SIGCHLD to screen process will make it recreate the socket if its missing
-        con.process.execute("kill -SIGCHLD {0}".format(screen_pid))
-        kill_service_in_screen("c-vol")
-    time.sleep(1)
-    con.process.execute("""su -c 'screen -x stack -p c-vol -X stuff "source /etc/profile.d/ovs.sh\n"' stack""")
-    time.sleep(1)
-    restart_service_in_screen("c-vol")
-    services = ["c-api", "c-sch", "n-api", "n-cpu", "n-cond", "n-crt", "n-net", "n-sch", "n-novnc"]
-    if master_ip:
-        services = ["n-cpu", "n-net", "n-api", "c-sch", "c-api"]
-    # restart_services(services)
-    if master_ip:
-        con.close()
-        con = q.remote.system.connect(master_ip, "root", UBUNTU_PASSWORD)
-    restart_services(services)
-    python_cmd = """
-try:
-    from ovs.extensions.hypervisor.mgmtcenters.openstack import OpenStackManagement
-    from cinderclient.v2 import client as cinder_client
-except ImportError:
-    print "OpenStackManagement modules not found - not executing"
-    exit(0)
-osm = OpenStackManagement(cinder_client)
-osm._restart_devstack_screen()
-"""
-    cmd = """cat <<EOF > /tmp/restart_devstack_services.py
-{0}
-EOF
-""".format(python_cmd)
-    con.process.execute(cmd, dieOnNonZeroExitCode=False)
-    cmd = """
-export PYTHONPATH=:/opt/OpenvStorage:/opt/OpenvStorage/webapps
-python /tmp/restart_devstack_services.py
-echo 1 > /dev/null"""
-    print con.process.execute(cmd)
 def copy_stack_user_ssh_keys(master_ip):
     """
     call if stable/icehouse and all nodes have been installed
@@ -1397,6 +1107,8 @@ echo 1""".format(password=UBUNTU_PASSWORD)
             cmd = 'su -c "echo {password} | sshpass ssh-copy-id stack@{other_node_ip} -o StrictHostKeyChecking=no" stack'.format(password=UBUNTU_PASSWORD, other_node_ip=other_node_ip)
             con2.process.execute(cmd)
         con2.close()
+
+
 def install_additional_node(hypervisor_type, hypervisor_ip, hypervisor_password, first_node_ip, new_node_ip,
                             qualitylevel, cluster_name, dns, public_network, public_netmask, gateway, hostname,
                             storage_ip_last_octet=None, with_devstack=False, fixed_range=None, fixed_range_size=None,
@@ -1432,43 +1144,8 @@ def install_additional_node(hypervisor_type, hypervisor_ip, hypervisor_password,
                      hypervisor_password=hypervisor_password,
                      hostname=hostname)
     setup_mgmt_center(public_ip=new_node_ip)
-    con = q.remote.system.connect(first_node_ip, "root", UBUNTU_PASSWORD)
-    _, out = con.process.execute('source /etc/profile.d/ovs.sh;python -c "from ovs.dal.lists.storagerouterlist import StorageRouterList;print [sr.ip for sr in StorageRouterList.get_storagerouters()]"')
-    nodes = eval(out)
-    for node in nodes:
-        if node != new_node_ip:
-            con = q.remote.system.connect(node, "root", UBUNTU_PASSWORD)
-            con.process.execute("initctl restart ovs-workers")
-def apply_vpool_to_all_nodes(master_ip, vpool_name="saio"):
-    q.clients.ssh.waitForConnection(master_ip, "root", UBUNTU_PASSWORD, times=60)
-    con = q.remote.system.connect(master_ip, "root", UBUNTU_PASSWORD)
-    cmd = '''source /etc/profile.d/ovs.sh
-python -c "
-from ovs.lib.storagerouter           import StorageRouterController
-from ovs.dal.lists.storagerouterlist import StorageRouterList
-from ovs.dal.lists.storagedriverlist import StorageDriverList
-from ovs.dal.lists.vpoollist         import VPoolList
-vpool_name = '{vpool_name}'
-master_ip  = '{master_ip}'
-vpool = VPoolList.get_vpool_by_name(vpool_name)
-assert vpool, 'Vpool with name ' + vpool_name + 'not found'
-storagedriver = vpool.storagedrivers[0]
-parameters = {{'vpool_name': vpool.name,
-              'type': vpool.backend_type.code,
-              'connection_host': None if vpool.connection is None else vpool.connection.split(':')[0],
-              'connection_port': None if vpool.connection is None else int(vpool.connection.split(':')[1]),
-              'connection_username': vpool.login,
-              'connection_password': vpool.password,
-              'integratemgmt': True,
-              'storage_ip': storagedriver.storage_ip,
-              'readcache_size': 50,
-              'writecache_size': 50}}
-existing_storagerouters = [storagedriver.storagerouter.ip for storagedriver in vpool.storagedrivers]
-storagerouters = [(sr.ip, sr.machine_id) for sr in StorageRouterList.get_storagerouters() if sr.ip not in existing_storagerouters]
-StorageRouterController.update_storagedrivers([], storagerouters, parameters)" '''.format(vpool_name=vpool_name,
-                                                                                          master_ip=master_ip)
-    print cmd
-    print con.process.execute(cmd)
+
+
 def deploy_ovsvsa_vmware(public_ip,
                          hypervisor_ip,
                          hypervisor_password,
@@ -1519,6 +1196,8 @@ def deploy_ovsvsa_vmware(public_ip,
         command += " -E {extra_packages}".format(extra_packages=extra_packages)
     q.system.process.execute(command)
     q.clients.ssh.waitForConnection(public_ip, "root", UBUNTU_PASSWORD, times=60)
+
+
 def handle_ovs_setup(public_ip,
                      qualitylevel,
                      cluster_name,
@@ -1696,44 +1375,3 @@ if __name__ == '__main__':
                      hypervisor_ip=hypervisor_ip,
                      hypervisor_password=hypervisor_password,
                      hostname=hostname)
-    q.clients.ssh.waitForConnection(public_ip, "root", UBUNTU_PASSWORD, times=120)
-    con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-    vpool_mount = None
-    if vpool_type != "none":
-        out = con.process.execute("ip a | awk '/inet/ && /privbr/ {print $2}'")[1]
-        net = ipcalc.Network(out)
-        storage_ip = ipcalc.IP(out).dq
-        excluded_ips = [net.network().dq, net.broadcast().dq, storage_ip]
-        print storage_ip
-        for ip in net:
-            if ip.dq in excluded_ips:
-                continue
-            if q.system.net.pingMachine(ip.dq):
-                continue
-            break
-        print ip.dq
-        if vpool_type == "local":
-            vpool_name = "vpool1"
-        elif vpool_type == "swift_s3":
-            vpool_name = "saio"
-            connection_port = "8080"
-            connection_password = "testing"
-            connection_username = "test:tester"
-        elif vpool_type == "alba":
-            vpool_name = "alba"
-        vpool_mount = '/mnt/dfs/{vpool_name}'.format(vpool_name=vpool_name)
-        deploy_vpool(public_ip=public_ip,
-                     vpool_name=vpool_name,
-                     vpool_type=vpool_type,
-                     vpool_host=connection_host,
-                     vpool_port=connection_port,
-                     vpool_router_port=12323,
-                     vpool_storage_ip=storage_ip,
-                     qualitylevel=qualitylevel)
-        if "VMWARE" in hypervisor_type:
-            cli = q.hypervisors.cmdtools.esx.cli.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
-            print cli.runShellCommand("esxcfg-vmknic --add --ip={0} --netmask={1} {2}".format(ip.dq, net.netmask().dq, STORAGE_NET_NAME), "/")
-            time.sleep(30)
-            cmd = "esxcli storage nfs add -H {0} -s /mnt/{1} -v {1}".format(storage_ip, vpool_name)
-            print cmd
-            print cli.runShellCommand(cmd, "/")
