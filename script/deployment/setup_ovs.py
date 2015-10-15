@@ -528,7 +528,7 @@ echo -e '[filter:swift3]\nuse = egg:swift3#swift3' >>/etc/swift/proxy-server.con
     con.process.execute("swift-init all restart")
 
 
-def deploy_alba(hypervisor_type, hypervisor_ip, public_ip, public_network, gateway, public_netmask, dns, qualitylevel, alba_deploy_type):
+def deploy_storage_node(hypervisor_type, hypervisor_ip, public_ip, public_network, gateway, public_netmask, dns, qualitylevel, alba_deploy_type):
     hostname = "alba"
     if alba_deploy_type in ['standalone']:
         if hypervisor_type == "VMWARE":
