@@ -301,8 +301,11 @@ def deploy_saio(hypervisor_type, hypervisor_ip, public_ip, public_network, gatew
     assert retries, "Saio node cant ping 8.8.8.8"
 
     print con.process.execute("apt-get update")
-    con.process.execute("apt-get install curl gcc memcached rsync sqlite3 xfsprogs git-core libffi-dev python-setuptools unzip -y")
-    con.process.execute("apt-get install python-coverage python-dev python-nose python-simplejson python-xattr python-eventlet python-greenlet python-pastedeploy python-netifaces python-pip python-dnspython python-mock -y")
+    con.process.execute("apt-get install curl gcc memcached rsync sqlite3 xfsprogs git-core libffi-dev -y")
+    con.process.execute("apt-get install python-setuptools lsscsi unzip -y")
+    con.process.execute("apt-get install python-coverage python-dev python-nose python-simplejson python-xattr -y")
+    con.process.execute("apt-get install python-eventlet python-greenlet python-pastedeploy python-netifaces -y ")
+    con.process.execute("apt-get install python-pip python-dnspython python-mock liberasurecode-dev libjerasure-dev -y")
 
     disk = con.process.execute('for d in /sys/class/scsi_disk/*; do dev=$(ls $d/device/block);mount | grep $dev > /dev/null || echo $dev;done')[1]
     disk = disk.splitlines()[0].strip()
@@ -310,7 +313,7 @@ def deploy_saio(hypervisor_type, hypervisor_ip, public_ip, public_network, gatew
     con.process.execute('''parted /dev/{0} mklabel gpt
 parted /dev/{0} mkpart 1 xfs 0 100%
 parted /dev/{0} name 1 swift
-mkfs.xfs /dev/{0}1'''.format(disk))
+mkfs.xfs -f /dev/{0}1'''.format(disk))
     con.process.execute('echo /dev/{0}1 /mnt/{0}1 xfs noatime,nodiratime,nobarrier,logbufs=8 0 0 >> /etc/fstab'.format(disk))
 
     # create the mount point and subdirectories
