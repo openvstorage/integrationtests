@@ -977,12 +977,6 @@ def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=
     else:
         test_run = "autotests.run('{0}', 'TESTRAIL', '/var/tmp')".format(test_plan)
 
-    if qualitylevel in ['unstable']:
-        vpool_foc_name = 'vpool_dtl_mp'
-        cache_strategy = 'on_read'
-    else:
-        vpool_foc_name = 'vpool_foc_mp'
-        cache_strategy = 'onread'
     # check for ceph vm
     cmd = 'source /etc/profile.d/ovs.sh;python -c "from ovs.dal.lists.storagerouterlist import StorageRouterList; print  [sr.ip  for sr in StorageRouterList.get_storagerouters()]"'
     nodes = eval(con.process.execute(cmd)[1])
@@ -1012,18 +1006,16 @@ vpool_host          = {ceph_node_ip}
 vpool_port          = 80
 vpool_access_key    = {access_key}
 vpool_secret_key    = {secret_key}
-{vpool_foc_name}    = /mnt/cache1/ceph/foc
+vpool_foc_mp        = /mnt/cache1/ceph/foc
 vpool_vrouter_port  = 12345
 vpool_storage_ip    = {vpool_storage_ip}
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "{cache_strategy}", "write_buffer": 128}}
+vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "onread", "write_buffer": 128}}
 """.format(ceph_node_ip=ceph_node_ip,
            access_key=user_info['keys'][0]['access_key'],
            secret_key=user_info['keys'][0]['secret_key'],
            vpool_storage_ip=vpool_storage_ip,
            vpool_name=vpool_name,
-           vpool_type=vpool_type,
-           vpool_foc_name=vpool_foc_name,
-           cache_strategy=cache_strategy)
+           vpool_type=vpool_type)
         break
 
     if vpool_type == "swift_s3":
@@ -1036,16 +1028,14 @@ vpool_host          = {vpool_host_ip}
 vpool_port          = 8080
 vpool_access_key    = test:tester
 vpool_secret_key    = testing
-{vpool_foc_name}    = /mnt/cache1/saio/foc
+vpool_foc_mp        = /mnt/cache1/saio/foc
 vpool_vrouter_port  = 12345
 vpool_storage_ip    = {vpool_storage_ip}
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "{cache_strategy}", "write_buffer": 128}}
+vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "onread", "write_buffer": 128}}
 """.format(vpool_host_ip=vpool_host_ip,
            vpool_storage_ip=vpool_storage_ip,
            vpool_name=vpool_name,
-           vpool_type=vpool_type,
-           vpool_foc_name=vpool_foc_name,
-           cache_strategy=cache_strategy)
+           vpool_type=vpool_type)
         cinder_type = vpool_name
 
     elif vpool_type == "alba":
@@ -1058,14 +1048,12 @@ vpool_host =
 vpool_port = 80
 vpool_access_key =
 vpool_secret_key =
-{vpool_foc_name} = /mnt/cache1/alba/foc
+vpool_foc_mp     = /mnt/cache1/alba/foc
 vpool_vrouter_port  = 12345
 vpool_storage_ip = 0.0.0.0
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "{cache_strategy}", "write_buffer": 128}}
+vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "onread", "write_buffer": 128}}
 """.format(vpool_name=vpool_name,
-           vpool_type=vpool_type,
-           vpool_foc_name=vpool_foc_name,
-           cache_strategy=cache_strategy)
+           vpool_type=vpool_type)
         cinder_type = vpool_name
 
     cmd = '''source /etc/profile.d/ovs.sh
@@ -1102,10 +1090,10 @@ vpool_host =
 vpool_port =
 vpool_access_key =
 vpool_secret_key =
-{vpool_foc_name} = /mnt/cache3/localvp/foc
+vpool_foc_mp     = /mnt/cache3/localvp/foc
 vpool_vrouter_port  = 12345
 vpool_storage_ip = 127.0.0.1
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "{cache_strategy}", "write_buffer": 128}}
+vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "onread", "write_buffer": 128}}
 
 {ceph_vpool_info}
 
@@ -1128,9 +1116,7 @@ ipython 2>&1 -c "from ci import autotests
            ceph_vpool_info=ceph_vpool_info,
            cinder_type=cinder_type,
            grid_ip=node_ip,
-           test_project=test_project,
-           vpool_foc_name=vpool_foc_name,
-           cache_strategy=cache_strategy)
+           test_project=test_project)
 
     out = q.tools.installerci._run_command(cmd, node_ip, "root", UBUNTU_PASSWORD, buffered=True)
     out = out[0] + out[1]
@@ -1678,22 +1664,7 @@ def handle_ovs_setup(public_ip,
     child.expect(':~#')
 
     child.sendline('ovs setup')
-    # if qualitylevel in ['beta']:
-    #    child.expect('Password:')
-    #    child.sendline(UBUNTU_PASSWORD)
 
-    #    idx = child.expect(['Following Open vStorage clusters are found.', 'No existing Open vStorage clusters are found.'])
-    #    if idx == 0:
-    #        joined_cluster = pick_option(child, cluster_name, fail_if_not_found=False)
-    #        if not joined_cluster:
-    #            pick_option(child, "Don't join any of these clusters.", use_select=False)
-    #            child.expect('Please enter the cluster name')
-    #            child.sendline(cluster_name)
-    #    else:
-    #        child.expect('Please enter the cluster name')
-    #        child.sendline(cluster_name)
-
-    # else:
     joined_cluster = pick_option(child, cluster_name, fail_if_not_found=False)
     if not joined_cluster:
         pick_option(child, "Create a new cluster", use_select=False)
@@ -1705,23 +1676,6 @@ def handle_ovs_setup(public_ip,
         child.sendline(UBUNTU_PASSWORD)
         child.expect('Select the public ip address of')
     pick_option(child, public_ip)
-
-    if qualitylevel in ['beta']:
-        idx = 0
-        while idx == 0:
-            child.timeout = 30
-            idx = child.expect(['Password:', 'Enter number or name; return for next page',
-                                'Select Nr:'])
-            if idx == 0:
-                child.sendline(UBUNTU_PASSWORD)
-            elif idx == 1:
-                child.expect('\?')
-                child.sendline('4')
-            elif idx == 2:
-                child.sendline('5')
-
-        child.expect('ALL DATA WILL BE ERASED ON THE DISKS ABOVE!')
-        child.sendline('yes')
 
     # 5 minutes to partition disks
     child.timeout = 300
@@ -1741,9 +1695,6 @@ def handle_ovs_setup(public_ip,
             child.sendline("R00t3r123")
         except:
             pass
-    if qualitylevel in ['beta']:
-        child.expect("Select arakoon database mountpoint. Make a selection please:")
-        child.sendline("")
 
     exit_script_mark = "~#"
 
