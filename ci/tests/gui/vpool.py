@@ -42,12 +42,6 @@ class Vpool(BrowserOvs):
                  vpool_port='',
                  vpool_access_key='',
                  vpool_secret_key='',
-                 vpool_temp_mp='',
-                 vpool_md_mp='',
-                 vpool_readcaches_mp='',
-                 vpool_writecaches_mp='',
-                 vpool_dtl_mp='',
-                 vpool_bfs_mp='',
                  vpool_storage_ip='',
                  vpool_vrouter_port='',
                  browser_choice='chrome',
@@ -67,20 +61,11 @@ class Vpool(BrowserOvs):
         self.vpool_port = vpool_port or general.test_config.get("vpool", "vpool_port")
         self.vpool_access_key = vpool_access_key or general.test_config.get("vpool", "vpool_access_key")
         self.vpool_secret_key = vpool_secret_key or general.test_config.get("vpool", "vpool_secret_key")
-        self.vpool_temp_mp = vpool_temp_mp or general.test_config.get("vpool", "vpool_temp_mp")
-        self.vpool_md_mp = vpool_md_mp or general.test_config.get("vpool", "vpool_md_mp")
-        self.vpool_readcaches_mp = vpool_readcaches_mp or general.test_config.get("vpool", "vpool_readcaches_mp")
-        self.vpool_writecaches_mp = vpool_writecaches_mp or general.test_config.get("vpool", "vpool_writecaches_mp")
-        self.vpool_dtl_mp = vpool_dtl_mp or general.test_config.get("vpool", "vpool_dtl_mp")
-        self.vpool_bfs_mp = vpool_bfs_mp
-        if self.vpool_type_name in ["Local FS"]:
-            self.vpool_bfs_mp = vpool_bfs_mp or general.test_config.get("vpool", "vpool_bfs_mp")
         self.vpool_vrouter_port = vpool_vrouter_port or general.test_config.get("vpool", "vpool_vrouter_port")
         self.vpool_storage_ip = vpool_storage_ip or general.test_config.get("vpool", "vpool_storage_ip")
         self.vpool_config_params = vpool_config_params or general.test_config.get("vpool", "vpool_config_params")
 
-        for e in ["vpool_name", "vpool_type_name", "vpool_temp_mp", "vpool_md_mp",
-                  "vpool_readcaches_mp", "vpool_writecaches_mp", "vpool_dtl_mp", "vpool_config_params"]:
+        for e in ["vpool_name", "vpool_type_name", "vpool_config_params"]:
             if not getattr(self, e):
                 raise SkipTest(e)
 
@@ -142,60 +127,6 @@ class Vpool(BrowserOvs):
         self.vpool_secret_key = vpool_secret_key
 
     vpool_secret_key = property(get_vpool_secret_key, set_vpool_secret_key)
-
-    def get_vpool_temp_mp(self):
-        return self.vpool_temp_mp
-
-    def set_vpool_temp_mp(self, vpool_temp_mp):
-        assert isinstance(vpool_temp_mp, str), 'Vpool temp mountpoint must be a string'
-        self.vpool_temp_mp = vpool_temp_mp
-
-    vpool_temp_mp = property(get_vpool_temp_mp, set_vpool_temp_mp)
-
-    def get_vpool_md_mp(self):
-        return self.vpool_md_mp
-
-    def set_vpool_md_mp(self, vpool_md_mp):
-        assert isinstance(vpool_md_mp, str), 'Vpool metadata mountpoint must be a string'
-        self.vpool_md_mp = vpool_md_mp
-
-    vpool_md_mp = property(get_vpool_md_mp, set_vpool_md_mp)
-
-    def get_vpool_bfs_mp(self):
-        return self.vpool_bfs_mp
-
-    def set_vpool_bfs_mp(self, vpool_bfs_mp):
-        assert isinstance(vpool_bfs_mp, str), 'Vpool metadata mountpoint must be a string'
-        self.vpool_bfs_mp = vpool_bfs_mp
-
-    vpool_bfs_mp = property(get_vpool_bfs_mp, set_vpool_bfs_mp)
-
-    def get_vpool_readcaches_mp(self):
-        return self.vpool_readcaches_mp
-
-    def set_vpool_readcaches_mp(self, vpool_readcaches_mp):
-        assert isinstance(vpool_readcaches_mp, list), 'Vpool readcaches mountpoint must be a list'
-        self.vpool_readcaches_mp = vpool_readcaches_mp
-
-    vpool_readcaches_mp = property(get_vpool_readcaches_mp, set_vpool_readcaches_mp)
-
-    def get_vpool_writecaches_mp(self):
-        return self.vpool_writecaches_mp
-
-    def set_vpool_writecaches_mp(self, vpool_writecaches_mp):
-        assert isinstance(vpool_writecaches_mp, list), 'Vpool writecaches mountpoint must be a list'
-        self.vpool_writecaches_mp = vpool_writecaches_mp
-
-    vpool_writecaches_mp = property(get_vpool_writecaches_mp, set_vpool_writecaches_mp)
-
-    def get_vpool_dtl_mp(self):
-        return self.vpool_dtl_mp
-
-    def set_vpool_dtl_mp(self, vpool_dtl_mp):
-        assert isinstance(vpool_dtl_mp, str), 'Vpool DTL mountpoint must be a string'
-        self.vpool_dtl_mp = vpool_dtl_mp
-
-    vpool_dtl_mp = property(get_vpool_dtl_mp, set_vpool_dtl_mp)
 
     def get_vpool_vrouter_port(self):
         return self.vpool_vrouter_port
@@ -297,25 +228,9 @@ class Vpool(BrowserOvs):
         time.sleep(2)
 
         # wait for page to load
-        assert self.wait_for_visible_element_by_id('dropdown-button-mtpt-temp', 5), \
+        assert self.wait_for_visible_element_by_id('readCacheSize', 5), \
             'vPool wizard with mountpoint details not present (yet)'
-        self.fill_out_custom_field('dropdown-button-mtpt-temp', self.vpool_temp_mp)
-        self.fill_out_custom_field('dropdown-button-mtpt-md', self.vpool_md_mp)
-        # deselect defaults
-        self.click_on_dropdown_item('dropdown-button-mtpt-readcaches')
-        self.click_on_dropdown_item('dropdown-button-mtpt-readcaches-mntcache2')
-        self.click_on_dropdown_item('dropdown-button-mtpt-writecaches')
-        self.click_on_dropdown_item('dropdown-button-mtpt-writecaches-mntcache1')
 
-        for custom_rc in self.vpool_readcaches_mp.split(','):
-            self.fill_out('inputCustomRC', custom_rc)
-            self.click_on('AddCustomRC')
-        for custom_wc in self.vpool_writecaches_mp.split(','):
-            self.fill_out('inputCustomWC', custom_wc)
-            self.click_on('AddCustomWC')
-        self.fill_out_custom_field('dropdown-button-mtpt-dtl', self.vpool_dtl_mp)
-        if self.vpool_type_name in LOCAL_VPOOL_TYPES:
-            self.fill_out_custom_field('dropdown-button-mtpt-bfs', self.vpool_bfs_mp)
         if general_hypervisor.get_hypervisor_type().lower() != "kvm":
             self.choose('dropdown-button-storageip', self.vpool_storage_ip)
         self.click_on('Next', retries=100)
