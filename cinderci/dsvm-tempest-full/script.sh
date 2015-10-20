@@ -59,7 +59,7 @@ function post_devstack_hook {
     ARAKOON_MNTP=/mnt/db
     sudo sed -i 's/nameserver .*/nameserver 172.19.0.1/g' /etc/resolv.conf
     echo 212.88.230.99 packages.cloudfounders.com | sudo tee -a /etc/hosts
-    echo "deb http://testapt.openvstorage.com chicago-community main" > /etc/apt/sources.list.d/ovsaptrepo.list
+    echo "deb http://testapt.openvstorage.com chicago-community main" | sudo tee /etc/apt/sources.list.d/ovsaptrepo.list
     sudo apt-get update
     sudo apt-get install openvstorage -y --force-yes
     
