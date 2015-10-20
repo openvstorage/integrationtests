@@ -3,6 +3,7 @@ pip install --upgrade pip
 pip install pysnmp==4.2.5
 pip install splinter
 pip install ipcalc>=1.1.0
+pip install nose>=1.3.1
 
 chown -R ovs:ovs /opt/OpenvStorage/ci
 
