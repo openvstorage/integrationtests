@@ -92,7 +92,7 @@ class Vmachine(BrowserOvs):
 
         if allowed:
             try:
-                    self.take_screenshot('before_set_as_template_button_click')
+                self.take_screenshot('before_set_as_template_button_click')
                 setastemplate_button.click()
                 self.wait_for_modal()
             except Exception as ex:

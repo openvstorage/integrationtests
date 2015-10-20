@@ -1,3 +1,17 @@
+# Copyright 2014 Open vStorage NV
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from pylabs.InitBaseCore import q
 import re
 import sys
@@ -537,7 +551,7 @@ echo -e '[filter:swift3]\nuse = egg:swift3#swift3' >>/etc/swift/proxy-server.con
     con.process.execute("swift-init all restart")
 
 
-def deploy_alba(hypervisor_type, hypervisor_ip, public_ip, public_network, gateway, public_netmask, dns, qualitylevel, alba_deploy_type):
+def deploy_storage_node(hypervisor_type, hypervisor_ip, public_ip, public_network, gateway, public_netmask, dns, qualitylevel, alba_deploy_type):
     hostname = "alba"
     if alba_deploy_type in ['standalone']:
         if hypervisor_type == "VMWARE":
