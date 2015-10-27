@@ -347,24 +347,6 @@ def install_autotests(node_ip):
     con.process.execute("apt-get update")
     con.process.execute("apt-get install unzip openvstorage-test -y --force-yes")
 
-    con.process.execute("wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -")
-    con.process.execute('echo "deb http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list')
-    con.process.execute("apt-get update", dieOnNonZeroExitCode=False)
-    con.process.execute("apt-get install google-chrome-beta x11vnc  libav-tools -y --force-yes")
-    # con.process.execute("[ -f '/usr/bin/virsh' ] && apt-get install -y virt-viewer")
-    con.process.execute("""wget http://chromedriver.storage.googleapis.com/2.19/chromedriver_linux64.zip;unzip chromedriver_linux64.zip;mv chromedriver /usr/bin/""")
-
-    con.process.execute("if [ ! -f /usr/lib/libudev.so.0 ]; then ln -s /lib/x86_64-linux-gnu/libudev.so.1.3.5 /usr/lib/libudev.so.0; fi")
-
-    cmd = """cat <<EOF >>/usr/lib/python2.7/sitecustomize.py
-import sys
-sys.setdefaultencoding('utf8')
-EOF
-echo 1"""
-    con.process.execute(cmd)
-
-    con.process.execute("pip install vnc2flv")
-
 
 def create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, test_run, vpool_config, vpool_name,
                         backend_name, ceph_vpool_info, cinder_type, grid_ip, test_project):
