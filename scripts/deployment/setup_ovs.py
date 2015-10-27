@@ -348,16 +348,9 @@ def install_autotests(node_ip):
     con.process.execute("apt-get install unzip openvstorage-test -y --force-yes")
 
 
-def create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, test_run, vpool_config, vpool_name,
-                        backend_name, ceph_vpool_info, cinder_type, grid_ip, test_project):
-    cmd = '''source /etc/profile.d/ovs.sh
-pkill Xvfb
-pkill x11vnc
-sleep 3
-Xvfb :1 -screen 0 1280x1024x16 &
-export DISPLAY=:1.0
-x11vnc -display :1 -bg -nopw -noipv6 -no6 -listen localhost -xkb  -autoport 5950 -forever
-cat << EOF > /opt/OpenvStorage/ci/config/autotest.cfg
+def create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, vpool_config, vpool_name,
+                        backend_name, ceph_vpool_info, cinder_type, grid_ip, test_project, connection):
+    cmd = '''cat << EOF > /opt/OpenvStorage/ci/config/autotest.cfg
 [main]
 testlevel = 0
 hypervisorinfo = {vmware_info}
@@ -388,14 +381,10 @@ vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedup
 [openstack]
 cinder_type = {cinder_type}
 EOF
-ipython 2>&1 -c "from ci import autotests
-{test_run}
-"
 '''.format(os_name=os_name,
            vmware_info=vmware_info,
            template_server=template_server,
            screen_capture=screen_capture,
-           test_run=test_run,
            vpool_config=vpool_config,
            vpool_name=vpool_name,
            backend_name=backend_name,
@@ -404,8 +393,7 @@ ipython 2>&1 -c "from ci import autotests
            grid_ip=grid_ip,
            test_project=test_project)
 
-    out = q.tools.installerci._run_command(cmd, grid_ip, "root", UBUNTU_PASSWORD, buffered=True)
-    return out[0] + out[1]
+    connection.process.execute(cmd)
 
 
 def get_swift_vpool_config(vpool_host_ip, vpool_storage_ip, vpool_name, vpool_type):
@@ -519,18 +507,31 @@ vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedup
 
     cinder_type = vpool_name
 
-    out = create_autotest_cfg(os_name=os_name,
-                              vmware_info=vmware_info,
-                              template_server=template_server,
-                              screen_capture=str(capture_screen),
-                              test_run=test_run,
-                              vpool_config=vpool_config,
-                              vpool_name=vpool_name,
-                              backend_name=backend_name,
-                              ceph_vpool_info=ceph_vpool_info,
-                              cinder_type=cinder_type,
-                              grid_ip=node_ip,
-                              test_project=test_project)
+    create_autotest_cfg(os_name=os_name,
+                        vmware_info=vmware_info,
+                        template_server=template_server,
+                        screen_capture=str(capture_screen),
+                        vpool_config=vpool_config,
+                        vpool_name=vpool_name,
+                        backend_name=backend_name,
+                        ceph_vpool_info=ceph_vpool_info,
+                        cinder_type=cinder_type,
+                        grid_ip=node_ip,
+                        test_project=test_project,
+                        connection=con)
+
+    cmd = '''source /etc/profile.d/ovs.sh
+pkill Xvfb
+pkill x11vnc
+sleep 3
+Xvfb :1 -screen 0 1280x1024x16 &
+export DISPLAY=:1.0
+x11vnc -display :1 -bg -nopw -noipv6 -no6 -listen localhost -xkb  -autoport 5950 -forever
+ipython 2>&1 -c "from ci import autotests
+{test_run}'''.format(test_run=test_run)
+
+    out = q.tools.installerci._run_command(cmd, node_ip, "root", UBUNTU_PASSWORD, buffered=True)
+    out = out[0] + out[1]
 
     if reboot_test:
         print "Started reboot test"
