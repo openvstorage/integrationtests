@@ -79,7 +79,7 @@ def test_fdl_0001():
     data = api.list('disks')
     for guid in data:
         disk = api.fetch('disks', guid)
-        if not modelled_disks.has_key(disk['storagerouter_guid']):
+        if not disk['storagerouter_guid'] in modelled_disks:
             modelled_disks[disk['storagerouter_guid']] = dict()
         modelled_disks[disk['storagerouter_guid']][disk['name']] = {'is_ssd': disk['is_ssd']}
 
@@ -123,6 +123,9 @@ def test_fdl_0002():
     my_sr = System.get_my_storagerouter()
 
     unused_disks = general.get_unused_disks()
+    if not unused_disks:
+        raise SkipTest("At least one unused disk should be available for partition testing")
+
     api = Connection(my_sr.ip, general.test_config.get('main', 'username'),
                      general.test_config.get('main', 'password'))
     api.authenticate()
@@ -140,19 +143,18 @@ def test_fdl_0002():
 
     all_disks = dict(ssds)
     all_disks.update(hdds)
-    print all_disks
 
     # check no partitions are modelled for unused disks
     partitions = api.list('diskpartitions')
-    no_partitions = True
+    partitions_detected = False
+    disk_guid = ''
     for path in unused_disks:
         disk_guid = all_disks[path]
         for partition_guid in partitions:
             partition = api.fetch('diskpartitions', partition_guid)
             if partition['disk_guid'] == disk_guid:
-                print partition['mountpoint'], partition['folder']
-                no_partitions = False
-    assert no_partitions is True, 'Existing partitions detected on unused disks!'
+                partitions_detected = True
+    assert partitions_detected is False, 'Existing partitions detected on unused disks!'
 
     # try partition a disk using it's full reported size
     disk = all_disks[unused_disks[0]]
@@ -163,42 +165,38 @@ def test_fdl_0002():
     StorageRouterController.configure_disk(my_sr.guid, disk['guid'], partition, offset, size, roles)
 
     # lookup partition in model
-    print disk
-    print disk_guid
     mountpoint = None
     partitions = api.list('diskpartitions')
     for partition_guid in partitions:
         partition = api.fetch('diskpartitions', partition_guid)
-        print partition_guid, partition['roles'], partition['disk_guid']
         if partition['disk_guid'] == disk['guid'] and 'DB' in str(partition['roles']):
             mountpoint = partition['mountpoint']
-            print partition
             break
 
     assert mountpoint, 'New partition was not detected in model'
 
     # cleanup disk partition
     cmd = 'umount {0}; rmdir {0}'.format(mountpoint)
-    general.execute_command_on_node('10.100.131.61', cmd)
+    general.execute_command_on_node(my_sr.ip, cmd)
 
     cmd = 'parted -s {0} rm 1'.format(disk['path'])
-    general.execute_command_on_node('10.100.131.61', cmd)
+    general.execute_command_on_node(my_sr.ip, cmd)
 
     # wipe partition table to be able to reuse this disk in another test
     cmd = 'dd if=/dev/zero of={0} bs=1M count=64'.format(disk['path'])
-    general.execute_command_on_node('10.100.131.61', cmd)
+    general.execute_command_on_node(my_sr.ip, cmd)
 
     DiskController.sync_with_reality()
 
     # verify partition no longer exists in ovs model
-    new_partition_detected = False
+    is_partition_removed = True
     partition = dict()
     partitions = api.list('diskpartitions')
     for partition_guid in partitions:
         partition = api.fetch('diskpartitions', partition_guid)
         if partition['disk_guid'] == disk_guid and 'DB' in partition['roles']:
-            new_partition_detected = True
+            is_partition_removed = False
             break
 
-    assert not new_partition_detected,\
+    assert is_partition_removed,\
         'New partition was not deleted successfully from system/model!\n{0}'.format(partition)
