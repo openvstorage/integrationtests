@@ -176,7 +176,9 @@ def get_function_name(level=0):
     return sys._getframe(level + 1).f_code.co_name
 
 
-def get_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
+def get_alba_namespaces(backend_name):
+    if not backend_name:
+        backend_name = test_config.get('main', 'backend_name')
     cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(backend_name)
     out = execute_command(cmd_list)[0].replace('true', 'True')
     out = out.replace('false', 'False')
@@ -190,7 +192,9 @@ def get_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
         logging.log(1, "Error while retrieving namespaces: {0}".format(out['error']))
 
 
-def remove_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
+def remove_alba_namespaces(backend_name):
+    if not backend_name:
+        backend_name = test_config.get('main', 'backend_name')
     cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg ".format(backend_name)
     nss = get_alba_namespaces(backend_name)
     logging.log(1, "Namespaces present: {0}".format(str(nss)))
@@ -887,3 +891,22 @@ def create_testsuite_screenshot_dir(testsuite):
     dir_name = '/var/tmp/{0}_{1}'.format(testsuite, str(datetime.datetime.fromtimestamp(time.time())).replace(" ", "_").replace(":", "_").replace(".", "_"))
     execute_command(command='mkdir {0}'.format(dir_name))
     return dir_name
+
+
+def get_physical_disks(ip):
+
+    cmd = "lsblk -n -o name,type,size,rota"
+    result = execute_command_on_node(ip, cmd)
+    hdds = dict()
+    ssds = dict()
+    for entry in result.splitlines():
+        disk = entry.split()
+        disk_id = disk[0]
+        if len(disk_id) > 2 and disk_id[0:2] in ['fd', 'sr', 'lo']:
+            continue
+        if disk[1] in 'disk':
+            if disk[3] == '0':
+                ssds[disk[0]] = {'size': disk[2], 'is_ssd': True}
+            else:
+                hdds[disk[0]] = {'size': disk[2], 'is_ssd': False}
+    return hdds, ssds
