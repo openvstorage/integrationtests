@@ -794,8 +794,97 @@ echo 1"""
     con.process.execute("pip install vnc2flv")
 
 
+def create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, vpool_config, vpool_name,
+                        backend_name, ceph_vpool_info, cinder_type, grid_ip, test_project, connection):
+    cmd = '''cat << EOF > /opt/OpenvStorage/ci/config/autotest.cfg
+[main]
+testlevel = 0
+hypervisorinfo = {vmware_info}
+os = {os_name}
+template_server = {template_server}
+username = admin
+password = admin
+screen_capture = {screen_capture}
+cleanup = True
+grid_ip = {grid_ip}
+vpool_name = {vpool_name}
+backend_name = {backend_name}
+test_project = {test_project}
+{vpool_config}
+[vpool2]
+vpool_name = localvp
+vpool_type = local
+vpool_type_name = Local FS
+vpool_host =
+vpool_port =
+vpool_access_key =
+vpool_secret_key =
+vpool_dtl_mp = /mnt/cache3/localvp/foc
+vpool_vrouter_port  = 12345
+vpool_storage_ip = 127.0.0.1
+vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
+{ceph_vpool_info}
+[openstack]
+cinder_type = {cinder_type}
+EOF
+ipython 2>&1 -c "from ci import autotests
+{test_run}
+"
+'''.format(os_name=os_name,
+           vmware_info=vmware_info,
+           template_server=template_server,
+           screen_capture=screen_capture,
+           vpool_config=vpool_config,
+           vpool_name=vpool_name,
+           backend_name=backend_name,
+           ceph_vpool_info=ceph_vpool_info,
+           cinder_type=cinder_type,
+           grid_ip=grid_ip,
+           test_project=test_project)
+
+    connection.process.execute(cmd)
+
+
+def get_swift_vpool_config(vpool_host_ip, vpool_storage_ip, vpool_name, vpool_type):
+    return """
+[vpool]
+vpool_name = {vpool_name}
+vpool_type = {vpool_type}
+vpool_type_name     = Swift S3
+vpool_host          = {vpool_host_ip}
+vpool_port          = 8080
+vpool_access_key    = test:tester
+vpool_secret_key    = testing
+vpool_dtl_mp    = /mnt/cache1/saio/foc
+vpool_vrouter_port  = 12345
+vpool_storage_ip    = {vpool_storage_ip}
+vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
+""".format(vpool_host_ip=vpool_host_ip,
+           vpool_storage_ip=vpool_storage_ip,
+           vpool_name=vpool_name,
+           vpool_type=vpool_type)
+
+
+def get_alba_vpool_config(vpool_name, vpool_type):
+    return """
+[vpool]
+vpool_name = {vpool_name}
+vpool_type = {vpool_type}
+vpool_type_name = Open vStorage Backend
+vpool_host =
+vpool_port = 80
+vpool_access_key =
+vpool_secret_key =
+vpool_dtl_mp = /mnt/cache1/alba/foc
+vpool_vrouter_port  = 12345
+vpool_storage_ip = 0.0.0.0
+vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
+""".format(vpool_name=vpool_name,
+           vpool_type=vpool_type)
+
+
 def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=False, test_plan='', reboot_test=False,
-                  vpool_name='alba', backend_name='alba', vpool_type='alba', test_project='Open vStorage Engineering', qualitylevel = 'unstable'):
+                  vpool_name='alba', backend_name='alba', vpool_type='alba', test_project='Open vStorage Engineering'):
     """
     vmware_info = "10.100.131.221,root,R00t3r123"
 
@@ -858,42 +947,28 @@ vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedup
         break
 
     if vpool_type == "swift_s3":
-        vpool_config = """
-[vpool]
-vpool_name = {vpool_name}
-vpool_type = {vpool_type}
-vpool_type_name     = Swift S3
-vpool_host          = {vpool_host_ip}
-vpool_port          = 8080
-vpool_access_key    = test:tester
-vpool_secret_key    = testing
-vpool_foc_mp        = /mnt/cache1/saio/foc
-vpool_vrouter_port  = 12345
-vpool_storage_ip    = {vpool_storage_ip}
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "onread", "write_buffer": 128}}
-""".format(vpool_host_ip=vpool_host_ip,
-           vpool_storage_ip=vpool_storage_ip,
-           vpool_name=vpool_name,
-           vpool_type=vpool_type)
-        cinder_type = vpool_name
-
+        vpool_config = get_swift_vpool_config(vpool_host_ip=vpool_host_ip,
+                                              vpool_storage_ip=vpool_storage_ip,
+                                              vpool_name=vpool_name,
+                                              vpool_type=vpool_type)
     elif vpool_type == "alba":
-        vpool_config = """
-[vpool]
-vpool_name = {vpool_name}
-vpool_type = {vpool_type}
-vpool_type_name = Open vStorage Backend
-vpool_host =
-vpool_port = 80
-vpool_access_key =
-vpool_secret_key =
-vpool_foc_mp     = /mnt/cache1/alba/foc
-vpool_vrouter_port  = 12345
-vpool_storage_ip = 0.0.0.0
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "onread", "write_buffer": 128}}
-""".format(vpool_name=vpool_name,
-           vpool_type=vpool_type)
-        cinder_type = vpool_name
+        vpool_config = get_alba_vpool_config(vpool_name=vpool_name,
+                                             vpool_type=vpool_type)
+
+    cinder_type = vpool_name
+
+    create_autotest_cfg(os_name=os_name,
+                        vmware_info=vmware_info,
+                        template_server=template_server,
+                        screen_capture=str(capture_screen),
+                        vpool_config=vpool_config,
+                        vpool_name=vpool_name,
+                        backend_name=backend_name,
+                        ceph_vpool_info=ceph_vpool_info,
+                        cinder_type=cinder_type,
+                        grid_ip=node_ip,
+                        test_project=test_project,
+                        connection = con)
 
     cmd = '''source /etc/profile.d/ovs.sh
 pkill Xvfb
@@ -902,60 +977,8 @@ sleep 3
 Xvfb :1 -screen 0 1280x1024x16 &
 export DISPLAY=:1.0
 x11vnc -display :1 -bg -nopw -noipv6 -no6 -listen localhost -xkb  -autoport 5950 -forever
-
-cat << EOF > /opt/OpenvStorage/ci/config/autotest.cfg
-[main]
-testlevel = 0
-hypervisorinfo = {vmware_info}
-os = {os_name}
-template_server = {template_server}
-username = admin
-password = admin
-screen_capture = {screen_capture}
-cleanup = True
-grid_ip = {grid_ip}
-vpool_name = {vpool_name}
-backend_name = {backend_name}
-test_project = {test_project}
-
-
-{vpool_config}
-
-[vpool2]
-vpool_name = localvp
-vpool_type = local
-vpool_type_name = Local FS
-vpool_host =
-vpool_port =
-vpool_access_key =
-vpool_secret_key =
-vpool_foc_mp     = /mnt/cache3/localvp/foc
-vpool_vrouter_port  = 12345
-vpool_storage_ip = 127.0.0.1
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "onread", "write_buffer": 128}}
-
-{ceph_vpool_info}
-
-[openstack]
-cinder_type = {cinder_type}
-
-EOF
-
 ipython 2>&1 -c "from ci import autotests
-{test_run}
-"
-'''.format(os_name=os_name,
-           vmware_info=vmware_info,
-           template_server=template_server,
-           screen_capture=str(capture_screen),
-           test_run=test_run,
-           vpool_config=vpool_config,
-           vpool_name=vpool_name,
-           backend_name=backend_name,
-           ceph_vpool_info=ceph_vpool_info,
-           cinder_type=cinder_type,
-           grid_ip=node_ip,
-           test_project=test_project)
+{test_run}'''.format(test_run=test_run)
 
     out = q.tools.installerci._run_command(cmd, node_ip, "root", UBUNTU_PASSWORD, buffered=True)
     out = out[0] + out[1]
