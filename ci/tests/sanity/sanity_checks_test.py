@@ -16,6 +16,15 @@ from ci.tests.general import general
 from ci import autotests
 
 testsToRun = general.get_tests_to_run(autotests.getTestLevel())
+services_to_commands = {
+    "nginx": "ps aux |grep [/]usr/sbin/nginx",
+    "rabbitmq-server": "ps aux |grep [r]abbitmq-server",
+    "memcached": "ps aux |grep [m]emcached",
+    "ovs-arakoon-ovsdb": "ps aux |grep [o]vsdb| grep -v config",
+    "ovs-snmp": "ps aux | grep [o]vssnmp",
+    "ovs-support-agent": "ps aux | grep [s]upport/agent",
+    "ovs-volumerouter-consumer": "ps aux | grep [v]olumerouter"
+}
 
 
 def setup():
@@ -26,12 +35,21 @@ def teardown():
     pass
 
 
-def services_check_test():
+def ssh_check_test():
     """
     {0}
     """.format(general.get_function_name())
 
     general.check_prereqs(testcase_number=1,
+                          tests_to_run=testsToRun)
+
+
+def services_check_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=2,
                           tests_to_run=testsToRun)
 
     # get env ips
@@ -44,34 +62,35 @@ def services_check_test():
         statuses = out.splitlines()
 
         non_running_services_on_node.extend([s for s in statuses if 'start/running' not in s])
-        non_running_services.append([env_ip, non_running_services_on_node])
+        if len(non_running_services_on_node):
+            non_running_services.append([env_ip, non_running_services_on_node])
 
-    for node_services in non_running_services:
-        assert len(node_services[1]) == 0, "Found non running services on node {0}\n{1}".format(node_services[0], node_services[1])
+    assert len(non_running_services) == 0, "Found non running services on {0}".format(non_running_services)
 
 
-def non_visible_services_check_test():
+def system_services_check_test():
     """
     {0}
     """.format(general.get_function_name())
 
-    general.check_prereqs(testcase_number=2,
+    general.check_prereqs(testcase_number=3,
                           tests_to_run=testsToRun)
 
-    # check nginx
-    out, err = general.execute_command("ps aux |grep [/]usr/sbin/nginx")
-    assert len(err) == 0, "Error executing command to get nginx info:{0}".format(err)
-    assert 'nginx' in out, "Couldn't find any nginx running process:{0}".format(out)
+    errors = ''
+    services_checked = 'Following services found running:\n'
 
-    # check rabbitmq-server
-    out, err = general.execute_command("ps aux |grep [r]abbitmq-server")
-    assert len(err) == 0, "Error executing command to get rabbitmq-server info:{0}".format(err)
-    assert 'rabbitmq-server' in out, "Couldn't find any rabbitmq-server running process:{0}".format(out)
+    for service_to_check in services_to_commands.iterkeys():
+        out, err = general.execute_command(services_to_commands[service_to_check])
+        if len(err):
+            errors+= "Error executing command to get {0} info:{1}\n".format(service_to_check, err)
+        else:
+            if len(out) == 0:
+                errors+= "Couldn't find any {0} running process:{1}".format(service_to_check, out)
+            else:
+                services_checked+= "{0}\n".format(service_to_check)
 
-    # check memcached
-    out, err = general.execute_command("ps aux |grep [m]emcached")
-    assert len(err) == 0, "Error executing command to get memcached info:{0}".format(err)
-    assert 'memcache' in out, "Couldn't find any memcache running process:{0}".format(out)
+    assert len(errors) == 0, "Found the following errors while checking for the system services:{0}\n".format(errors)
+    print services_checked
 
 
 def config_files_check_test():
@@ -79,7 +98,7 @@ def config_files_check_test():
     {0}
     """.format(general.get_function_name())
 
-    general.check_prereqs(testcase_number=3,
+    general.check_prereqs(testcase_number=4,
                           tests_to_run=testsToRun)
 
     # check memcacheclient.cfg
