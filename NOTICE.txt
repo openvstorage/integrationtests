@@ -1,8 +1,8 @@
                      Open vStorage
-          Copyright 2013-2014 Open vStorage NV
+            Copyright 2013-2015 iNuron NV
 
         This product includes software developed at
-      Open vStorage NV (https://www.openvstorage.com/).
+         iNuron NV (https://www.openvstorage.com/).
 
 
 This product includes and/or uses software developed by third parties. This
@@ -14,7 +14,7 @@ INCLUDED AND/OR USED SOFTWARE
     Software                    License             Remarks
 
     Nose                        LGPL                https://pypi.python.org/pypi/nose/1.3.7
-    OpenvStorage                Apache License
+    OpenvStorage                Open vStorage Non-Commercial License 1.0
     Splinter                    BSD3                https://github.com/cobrateam/splinter/blob/master/LICENSE
     pysnmp                      BSD3                http://pysnmp.sourceforge.net/license.html
     selenium webdriver          Apache 2.0 License  http://www.seleniumhq.org/about/license.jsp
