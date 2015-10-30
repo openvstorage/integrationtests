@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nose.plugins.skip import SkipTest
+
 from ci.tests.general import general
 from ci import autotests
 
@@ -23,7 +25,8 @@ services_to_commands = {
     "ovs-arakoon-ovsdb": "ps aux |grep [o]vsdb| grep -v config",
     "ovs-snmp": "ps aux | grep [o]vssnmp",
     "ovs-support-agent": "ps aux | grep [s]upport/agent",
-    "ovs-volumerouter-consumer": "ps aux | grep [v]olumerouter"
+    "ovs-volumerouter-consumer": "ps aux | grep [v]olumerouter",
+    "ovs-watcher-framework": "ps aux | grep [w]atcher | grep framework"
 }
 
 
@@ -42,6 +45,16 @@ def ssh_check_test():
 
     general.check_prereqs(testcase_number=1,
                           tests_to_run=testsToRun)
+
+    env_ips = autotests._get_ips()
+    if len(env_ips) == 1:
+        raise SkipTest()
+
+    for env_ip_connecting_from in env_ips:
+        out, err = general.execute_command_on_node(env_ip_connecting_from, "cat .ssh/known_hosts")
+        for env_ip_connecting_to in env_ips:
+            if env_ip_connecting_from != env_ip_connecting_to:
+                assert env_ip_connecting_to in out, "Host key verification not found between {0} and {1}".format(env_ip_connecting_from, env_ip_connecting_to)
 
 
 def services_check_test():
@@ -82,12 +95,12 @@ def system_services_check_test():
     for service_to_check in services_to_commands.iterkeys():
         out, err = general.execute_command(services_to_commands[service_to_check])
         if len(err):
-            errors+= "Error executing command to get {0} info:{1}\n".format(service_to_check, err)
+            errors += "Error executing command to get {0} info:{1}\n".format(service_to_check, err)
         else:
-            if len(out) == 0:
-                errors+= "Couldn't find any {0} running process:{1}".format(service_to_check, out)
+            if len(out):
+                errors += "Couldn't find any {0} running process:{1}".format(service_to_check, out)
             else:
-                services_checked+= "{0}\n".format(service_to_check)
+                services_checked += "{0}\n".format(service_to_check)
 
     assert len(errors) == 0, "Found the following errors while checking for the system services:{0}\n".format(errors)
     print services_checked
@@ -101,20 +114,34 @@ def config_files_check_test():
     general.check_prereqs(testcase_number=4,
                           tests_to_run=testsToRun)
 
-    # check memcacheclient.cfg
-    location = "/opt/OpenvStorage/config/memcacheclient.cfg"
-    out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(location))
-    assert len(err) == 0, "Error executing command to get memcacheclient.cfg info:{0}".format(err)
-    assert 'not' not in out, "Couldn't find memcacheclient.cfg"
+    config_files = {
+        "memcacheclient.cfg": "/opt/OpenvStorage/config/memcacheclient.cfg",
+        "rabbitmqclient.cfg": "/opt/OpenvStorage/config/rabbitmqclient.cfg",
+        "ovsdb.cfg": "/opt/OpenvStorage/config/arakoon/ovsdb/ovsdb.cfg"
+    }
 
-    # check rabbitmqclient.cfg
-    location = "/opt/OpenvStorage/config/rabbitmqclient.cfg"
-    out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(location))
-    assert len(err) == 0, "Error executing command to get rabbitmqclient.cfg info:{0}".format(err)
-    assert 'not' not in out, "Couldn't find rabbitmqclient.cfg"
+    for config_file_to_check in config_files.iterkeys():
+        out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(config_files[config_file_to_check]))
+        assert len(err) == 0, "Error executing command to get {0} info:{1}".format(config_file_to_check, err)
+        assert 'not' not in out, "Couldn't find {0}".format(config_file_to_check)
 
-    # check ovsdb.cfg
-    location = "/opt/OpenvStorage/config/arakoon/ovsdb/ovsdb.cfg"
-    out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(location))
-    assert len(err) == 0, "Error executing command to get ovsdb.cfg info:{0}".format(err)
-    assert 'not' not in out, "Couldn't find ovsdb.cfg"
+
+def json_files_check_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=5,
+                          tests_to_run=testsToRun)
+
+    out, err = general.execute_command("cat /opt/OpenvStorage/config/ovs.json")
+    assert len(err) == 0, "Error found when trying to read ovs.json file:\n{0}".format(err)
+    lines = out.splitlines()
+    setup_completed_found = False
+
+    for line in lines:
+        if "setupcompleted" in line:
+            setup_completed_found = True
+            assert "true" in line, "OVS setup complete flag has the wrong value:\n{0}".format(line)
+
+    assert setup_completed_found, "OVS setup complete flag was never found in ovs.json file"
