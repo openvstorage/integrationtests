@@ -14,6 +14,8 @@
 
 from nose.plugins.skip import SkipTest
 
+from ovs.dal.lists.backendlist import BackendList
+
 from ci.tests.general import general
 from ci import autotests
 
@@ -145,3 +147,98 @@ def json_files_check_test():
             assert "true" in line, "OVS setup complete flag has the wrong value:\n{0}".format(line)
 
     assert setup_completed_found, "OVS setup complete flag was never found in ovs.json file"
+
+
+# backend setup validation
+def check_model_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=6,
+                          tests_to_run=testsToRun)
+
+    backends_present_on_env = BackendList.get_backends()
+    if len(backends_present_on_env) == 0:
+        raise SkipTest()
+
+    for be in backends_present_on_env:
+        if be.backend_type.code == 'alba':
+            assert be.name == general.test_config.get("backend", "backend_name")
+            assert be.status == 'RUNNING'
+
+
+def check_backend_services_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=7,
+                          tests_to_run=testsToRun)
+
+    backends_present_on_env = BackendList.get_backends()
+    if len(backends_present_on_env) == 0:
+        raise SkipTest()
+
+    # TODO: more than 1 back ends present
+    # TODO: different backends not just alba
+
+    my_backend_name = backends_present_on_env[0].name
+    backend_services = ["ovs-alba-rebalancer_{0}".format(my_backend_name),
+                        "ovs-alba-maintenance_{0}".format(my_backend_name),
+                        "ovs-arakoon-{0}-abm".format(my_backend_name),
+                        "ovs-arakoon-{0}-nsm_0".format(my_backend_name)]
+
+    out = general.execute_command("initctl list | grep ovs-*")
+    statuses = out.splitlines()
+
+    for status_line in statuses:
+        for service_to_check in backend_services:
+            if service_to_check in status_line:
+                assert "running" in status_line, "Backend service {0} not running.Has following status:{1}\n ".format(service_to_check, status_line)
+
+
+def check_backend_files_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=8,
+                          tests_to_run=testsToRun)
+
+    backends_present_on_env = BackendList.get_backends()
+    if len(backends_present_on_env) == 0:
+        raise SkipTest()
+
+    my_backend_name = backends_present_on_env[0].name
+    files_to_check = ["/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg".format(my_backend_name),
+                      "/opt/OpenvStorage/config/arakoon/{0}-nsm_0/{0}-nsm_0.cfg".format(my_backend_name),
+                      "/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-rebalancer.json".format(my_backend_name),
+                      "/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-maintenance.json".format(my_backend_name)]
+
+    # check single or multinode setup
+    env_ips = autotests._get_ips()
+    if len(env_ips) == 1:
+        # check files
+        for file_to_check in files_to_check:
+            out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(file_to_check))
+            assert len(err) == 0, "Error executing command to get {0} info:{1}".format(file_to_check, err)
+            assert 'not' not in out, "Couldn't find {0}".format(file_to_check)
+        # check cluster arakoon master
+        out_abm, err = general.execute_command("/usr/bin/arakoon --who-master {0}".format(files_to_check[0]))
+        out_nsm, err = general.execute_command("/usr/bin/arakoon --who-master -config {0}".format(files_to_check[1]))
+        assert len(out_abm) and len(out_nsm), "No arakoon master found in config files"
+    else:
+        nsm_config_file_found = False
+        for node_ip in env_ips:
+            out, err = general.execute_command_on_node(node_ip, '[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(files_to_check[0]))
+            assert len(err) == 0, "Error executing command to get {0} info:{1}".format(files_to_check[0], err)
+            assert 'not' not in out, "Couldn't find {0} on node {1}".format(files_to_check[0], node_ip)
+            out, err = general.execute_command_on_node(node_ip, '[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(files_to_check[1]))
+            if 'not' not in out:
+                nsm_config_file_found = True
+                out_nsm, err = general.execute_command("/usr/bin/arakoon --who-master -config {0}".format(files_to_check[1]))
+                assert len(out_nsm), "No arakoon master found in the namespace manager config file found on node {0}".format(node_ip)
+            out_abm, err = general.execute_command("/usr/bin/arakoon --who-master {0}".format(files_to_check[0]))
+            assert len(out_abm), "No arakoon master found in the alba manager config file on {0}".format(node_ip)
+        assert nsm_config_file_found, "No namespace manager config file found on any of the nodes"
