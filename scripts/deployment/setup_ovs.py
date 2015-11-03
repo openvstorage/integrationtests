@@ -191,85 +191,10 @@ def configure_alba(hypervisor_ip, public_ip, alba_deploy_type, license, backend_
     con = q.remote.system.connect(alba_host_ip, "root", UBUNTU_PASSWORD)
 
     python_cmd = """
-from ovs.extensions.api.client import OVSClient
-from ovs.dal.hybrids.backend import Backend
-from ovs.dal.lists.clientlist import ClientList
-from ovs.dal.lists.backendlist import BackendList
-from ovs.dal.lists.backendtypelist import BackendTypeList
-from ovs.lib.albacontroller import AlbaController
-from ovs.lib.albanodecontroller import AlbaNodeController
-from ovs.dal.lists.albanodelist import AlbaNodeList
-import time
-alba_backend_name = '%(backend_name)s'
-backend_guid = ''
-type_guid = BackendTypeList.get_backend_type_by_code('alba').guid
-oauth_client = ClientList.get_by_types('INTERNAL', 'CLIENT_CREDENTIALS')[0]
-client = OVSClient('%(public_ip)s', 443, (oauth_client.client_id, oauth_client.client_secret))
-existing_backends = BackendList().get_backends()
-for backend in existing_backends:
-    if backend.name in [alba_backend_name]:
-        backend_guid = backend.guid
-if not backend_guid:
-    # create backend
-    print 'creating backend'
-    create_result = client.post('/backends/', data={'name': alba_backend_name, 'backend_type_guid': type_guid})
-    if not create_result:
-        raise Exception('Exception occurred during backend creation: {0}'.format(result))
-    backend_guid = create_result['guid']
-    # initialize backend
-    if create_result['status'] in ['NEW']:
-        # @todo: remove try except clause when OVS-2049 is fixed
-        try:
-            alba_init_result = client.post('/alba/backends/', data={'backend_guid': create_result['guid']})
-        except RuntimeError:
-            pass
-# wait for backend to complete initialization
-backend_status = client.get('/backends/{0}/'.format(backend_guid))['status']
-count = 100
-while backend_status not in ['RUNNING']:
-    print 'Backend is in status: {0}'.format(backend_status)
-    time.sleep(5)
-    count -= 1
-    backend_status = client.get('/backends/{0}/'.format(backend_guid))['status']
-if backend_status not in ['RUNNING'] or count <= 0:
-    raise Exception('Backend initialization failed or timed-out')
-# Initialize max 3 disks
-backend = client.get('/backends/{0}/'.format(backend_guid))
-print backend
-print backend['alba_backend_guid']
-alba_node = AlbaNodeList.get_albanode_by_ip('%(public_ip)s')
-node_guid = alba_node.guid
-# claim up to 3 disks
-nr_of_claimed_disks = 0
-for disk in Backend(backend['guid']).alba_backend.all_disks:
-    if 'asd_id' in disk and disk['status'] in 'claimed' and disk['node_id'] == alba_node.node_id:
-        nr_of_claimed_disks += 1
-if nr_of_claimed_disks < 3:
-    disks_to_init = [d['name'] for d in alba_node.all_disks if d['available'] is True][:3 - nr_of_claimed_disks]
-    print 'Disks to init:{0} '.format(disks_to_init)
-    failures = AlbaNodeController.initialize_disks(node_guid, disks_to_init)
-    if failures:
-        raise RuntimeException('Alba disk initialization failed for (some) disks: {0}'.format(failures))
 # add license
 from ovs.lib.license import LicenseController
 LicenseController.apply('%(license)s')
-# get disks ready to claim from model
-claimable_ids = list()
-for disk in Backend(backend['guid']).alba_backend.all_disks:
-    if 'asd_id' in disk and disk['status'] in 'available':
-        claimable_ids.append(disk['asd_id'])
-print claimable_ids
-# claim disks
-osds = dict()
-disks_to_claim = [d['name'] for d in alba_node.all_disks if d['available'] is False]
-print 'Disks to claim: {0}'.format(disks_to_claim)
-for name in disks_to_claim:
-    for disk in alba_node.all_disks:
-        if name == disk['name'] and disk['asd_id'] in claimable_ids:
-            osds[disk['asd_id']] = node_guid
-print osds
-AlbaController.add_units(backend['alba_backend_guid'], osds)
-""" % {'public_ip': alba_host_ip, 'license': license, 'backend_name': backend_name}
+""" % {'license': license}
 
     cmd = """cat <<EOF > /tmp/configure_alba.py
 {0}
@@ -286,71 +211,15 @@ python /tmp/configure_alba.py
     print con.process.execute(cmd, dieOnNonZeroExitCode=False)
 
 
-def configure_mgmt_center(public_ip, qualitylevel=''):
-    q.clients.ssh.waitForConnection(public_ip, "root", UBUNTU_PASSWORD, times=120)
-    con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-
-    python_cmd = """
-# management center is required to configure cinder on openstack
-# match jenkins choice values: false/true
-from ovs.dal.lists.pmachinelist import PMachineList
-from ovs.dal.lists.mgmtcenterlist import MgmtCenterList
-from ovs.dal.hybrids.mgmtcenter import MgmtCenter
-from ovs.lib.mgmtcenter import MgmtCenterController
-mcs = MgmtCenterList.get_mgmtcenters()
-if len(mcs) >= 1:
-    mc = mcs[0]
-else:
-    mc = MgmtCenter()
-    mc.name = 'hmc'
-    mc.username = 'admin'
-    mc.password = 'rooter'
-    mc.ip = '{public_ip}'
-    mc.type = 'OPENSTACK'
-    mc.port=443
-if hasattr(mc, 'metadata'):
-    mc.metadata = dict()
-    mc.metadata['integratemgmt']=True
-mc.save()
-for pm in PMachineList.get_pmachines():
-    pm.mgmtcenter = mc
-    pm.save()
-    from ovs.extensions.hypervisor.factory import Factory
-    mgmt_center = Factory.get_mgmtcenter(pm)
-    if mgmt_center:
-        outcome = ''
-        result = MgmtCenterController.configure_host.s(pm.guid, pm.mgmtcenter.guid, True).apply_async(routing_key='sr.%s' % pm.storagerouters[0].machine_id)
-        import time
-        time.sleep(30)
-        if not result.status == 'SUCCESS':
-            if result.result:
-                if len(result.result):
-                    outcome = result.result[1]
-            else:
-                outcome = 'Status in %s' % result.status
-            raise Exception('Following errors found during management center configuration: %s' % outcome)
-""".format(public_ip=public_ip)
-
-    cmd = """cat <<EOF > /tmp/configure_mgmt_center.py
-{0}
-EOF
-""".format(python_cmd)
-    con.process.execute(cmd, dieOnNonZeroExitCode=False)
-    cmd = """
-    export PYTHONPATH=:/opt/OpenvStorage:/opt/OpenvStorage/webapps
-    python /tmp/configure_mgmt_center.py"""
-
-    print con.process.execute(cmd)
-
-
 def install_autotests(node_ip):
     con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     con.process.execute("apt-get update")
     con.process.execute("apt-get install unzip openvstorage-test -y --force-yes")
 
 
-def create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, vpool_config, vpool_name,
-                        backend_name, ceph_vpool_info, cinder_type, grid_ip, test_project, connection):
+def create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, vpool_config, vpool_name, backend_name,
+                        cinder_type, grid_ip, test_project, testrail_server, testrail_key, output_folder, qualitylevel):
+
     cmd = '''cat << EOF > /opt/OpenvStorage/ci/config/autotest.cfg
 [main]
 testlevel = 0
@@ -364,7 +233,8 @@ cleanup = True
 grid_ip = {grid_ip}
 vpool_name = {vpool_name}
 backend_name = {backend_name}
-test_project = {test_project}
+output_folder = {output_folder}
+qualitylevel = {qualitylevel}
 {vpool_config}
 [vpool2]
 vpool_name = localvp
@@ -378,9 +248,12 @@ vpool_dtl_mp = /mnt/cache3/localvp/foc
 vpool_vrouter_port  = 12345
 vpool_storage_ip = 127.0.0.1
 vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
-{ceph_vpool_info}
 [openstack]
 cinder_type = {cinder_type}
+[testrail]
+key = {testrail_key}
+server = {testrail_server}
+test_project = {test_project}
 EOF
 '''.format(os_name=os_name,
            vmware_info=vmware_info,
@@ -389,12 +262,15 @@ EOF
            vpool_config=vpool_config,
            vpool_name=vpool_name,
            backend_name=backend_name,
-           ceph_vpool_info=ceph_vpool_info,
            cinder_type=cinder_type,
            grid_ip=grid_ip,
-           test_project=test_project)
+           test_project=test_project,
+           testrail_server=testrail_server,
+           testrail_key=testrail_key,
+           qualitylevel=qualitylevel,
+           output_folder=output_folder)
 
-    connection.process.execute(cmd)
+    return cmd
 
 
 def get_swift_vpool_config(vpool_host_ip, vpool_storage_ip, vpool_name, vpool_type):
@@ -436,10 +312,20 @@ vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedup
 
 
 def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=False, test_plan='', reboot_test=False,
-                  vpool_name='alba', backend_name='alba', vpool_type='alba', test_project='Open vStorage Engineering'):
+                  vpool_name='alba', backend_name='alba', vpool_type='alba', test_project='Open vStorage Engineering',
+                  testrail_server='', testrail_key='', output_folder='/var/tmp', qualitylevel=''):
     """
     vmware_info = "10.100.131.221,root,R00t3r123"
     """
+
+    if test_project in ['Open vStorage']:
+        print
+        print "------------------------------------------------------------------"
+        print "Automated tests temporarily disabled for Open vStorage project ..."
+        print "------------------------------------------------------------------"
+        print
+        return True
+
     con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
 
     vpool_storage_ip = con.process.execute("ip a | awk '/inet/ && /privbr/ {print $2}'")[0]
@@ -452,50 +338,13 @@ def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=
         template_server = "http://sso-qpackages-brussels.cloudfounders.com"
 
     if not test_plan:
-        test_run = "autotests.runAll('TESTRAIL', '/var/tmp')"
+        print 'Running all tests ...'
+        test_run = "autotests.run_all('{0}', '{1}', '{2}', 'TESTRAIL')".format(test_project, qualitylevel,
+                                                                               output_folder)
     else:
-        test_run = "autotests.run('{0}', 'TESTRAIL', '/var/tmp')".format(test_plan)
-
-    # check for ceph vm
-    cmd = 'source /etc/profile.d/ovs.sh;python -c "from ovs.dal.lists.storagerouterlist import StorageRouterList; print  [sr.ip  for sr in StorageRouterList.get_storagerouters()]"'
-    nodes = eval(con.process.execute(cmd)[1])
-    ceph_vm_name = "ceph"
-    ceph_vpool_info = ""
-
-    for node in nodes:
-        con2 = q.remote.system.connect(node, "root", UBUNTU_PASSWORD)
-        out = con2.process.execute("virsh list --all | grep {0} || true".format(ceph_vm_name))[1]
-        if ceph_vm_name not in out:
-            con2.close()
-            continue
-        cmd = '''mac=$(virsh dumpxml %s | grep "bridge='pubbr'" -B 1 | grep -o -P "(?<=address=').*(?=')")
-apt-get install nmap -y >/dev/null 2>&1
-nmap -sP %s/24 | grep $mac -i -B 2 | grep -oP "([0-9]+\.){3}([0-9]+)" ''' % (ceph_vm_name, node)
-        ceph_node_ip = con2.process.execute(cmd, dieOnNonZeroExitCode=False)[1].strip()
-        con2.close()
-        if not ceph_node_ip:
-            continue
-        con2 = q.remote.system.connect(ceph_node_ip, "root", UBUNTU_PASSWORD)
-        user_info = json.loads(con2.process.execute("/usr/bin/radosgw-admin user info --uid=johndoe")[1])
-        ceph_vpool_info = """[vpool3]
-vpool_name = {vpool_name}
-vpool_type = {vpool_type}
-vpool_type_name     = Ceph S3
-vpool_host          = {ceph_node_ip}
-vpool_port          = 80
-vpool_access_key    = {access_key}
-vpool_secret_key    = {secret_key}
-vpool_dtl_mp    = /mnt/cache1/ceph/foc
-vpool_vrouter_port  = 12345
-vpool_storage_ip    = {vpool_storage_ip}
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
-""".format(ceph_node_ip=ceph_node_ip,
-           access_key=user_info['keys'][0]['access_key'],
-           secret_key=user_info['keys'][0]['secret_key'],
-           vpool_storage_ip=vpool_storage_ip,
-           vpool_name=vpool_name,
-           vpool_type=vpool_type)
-        break
+        print 'Running specific tests {0}'.format(test_plan)
+        test_run = "autotests.run('{0}', '{1}', '{2}', '{3}', 'TESTRAIL')".format(test_plan, test_project, qualitylevel,
+                                                                                  output_folder)
 
     if vpool_type == "swift_s3":
         vpool_config = get_swift_vpool_config(vpool_host_ip=vpool_host_ip,
@@ -508,18 +357,22 @@ vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedup
 
     cinder_type = vpool_name
 
-    create_autotest_cfg(os_name=os_name,
-                        vmware_info=vmware_info,
-                        template_server=template_server,
-                        screen_capture=str(capture_screen),
-                        vpool_config=vpool_config,
-                        vpool_name=vpool_name,
-                        backend_name=backend_name,
-                        ceph_vpool_info=ceph_vpool_info,
-                        cinder_type=cinder_type,
-                        grid_ip=node_ip,
-                        test_project=test_project,
-                        connection=con)
+    cmd = create_autotest_cfg(os_name=os_name,
+                              vmware_info=vmware_info,
+                              template_server=template_server,
+                              screen_capture=str(capture_screen),
+                              vpool_config=vpool_config,
+                              vpool_name=vpool_name,
+                              backend_name=backend_name,
+                              cinder_type=cinder_type,
+                              grid_ip=node_ip,
+                              test_project=test_project,
+                              testrail_server=testrail_server,
+                              testrail_key=testrail_key,
+                              output_folder=output_folder,
+                              qualitylevel=qualitylevel)
+
+    _ = q.tools.installerci._run_command(cmd, node_ip, "root", UBUNTU_PASSWORD, buffered=True)
 
     cmd = '''source /etc/profile.d/ovs.sh
 pkill Xvfb
@@ -529,10 +382,12 @@ Xvfb :1 -screen 0 1280x1024x16 &
 export DISPLAY=:1.0
 x11vnc -display :1 -bg -nopw -noipv6 -no6 -listen localhost -xkb  -autoport 5950 -forever
 ipython 2>&1 -c "from ci import autotests
-{test_run}'''.format(test_run=test_run)
+{test_run}"'''.format(test_run=test_run)
 
+    print cmd
     out = q.tools.installerci._run_command(cmd, node_ip, "root", UBUNTU_PASSWORD, buffered=True)
     out = out[0] + out[1]
+    print out
 
     if reboot_test:
         print "Started reboot test"
@@ -821,7 +676,11 @@ def handle_ovs_setup(public_ip,
                      hypervisor_password,
                      hostname):
     con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-    con.process.execute('echo "deb http://packages.cloudfounders.com/apt/ {0}/" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
+    if '-' in qualitylevel:
+        con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
+    else:
+        con.process.execute('echo "deb http://packages.cloudfounders.com/apt/ {0}/" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
+
     con.process.execute('apt-get update')
     con.process.execute('apt-get install -y ntp')
     con.process.execute('apt-get install -y --force-yes openvstorage-hc')

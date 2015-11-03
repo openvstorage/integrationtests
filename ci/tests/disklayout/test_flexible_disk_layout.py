@@ -44,14 +44,14 @@ def teardown():
     pass
 
 
-def test_fdl_0000():
+def fdl_0000_disklayout_prerequisites_test():
     """
     FDL-0000 - prerequisite tests for complete test suite
     """
     __continue_testing.state = True
 
 
-def test_fdl_0001():
+def fdl_0001_match_model_with_reality_test():
     """
     FDL-0001 - disks in ovs model should match actual physical disk configuration
     """
@@ -107,7 +107,7 @@ def test_fdl_0001():
                                                                                                  pdisks[key])
 
 
-def test_fdl_0002():
+def fdl_0002_add_remove_partition_with_role_and_crosscheck_model_test():
     """
     FDL-0002 - create/remove disk partition using full disk and verify ovs model
     - look for an unused disk
@@ -143,6 +143,7 @@ def test_fdl_0002():
 
     all_disks = dict(ssds)
     all_disks.update(hdds)
+    print all_disks
 
     # check no partitions are modelled for unused disks
     partitions = api.list('diskpartitions')

@@ -53,8 +53,8 @@ class BrowserOvs:
         time.sleep(3)
 
         self.browser.driver.set_window_size(1280, 1024)
-        self.username = username or autotests.getUserName()
-        self.password = password or autotests.getPassword()
+        self.username = username or autotests.get_username()
+        self.password = password or autotests.get_password()
         self.url = url or 'https://{0}/'.format(general.get_local_vsa().ip)
 
         self.debug = True
