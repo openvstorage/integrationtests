@@ -51,7 +51,7 @@ if not hasattr(sys, "debugEnabled"):
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
-test_config = autotests.getConfigIni()
+test_config = autotests.get_config()
 current_test = None    # Used by each individual test to indicate which test is running and is used by 'take_screenshot'
 screenshot_dir = None  # Used by each testsuite to indicate which testsuite is running and is used by 'take_screenshot'
 
@@ -176,13 +176,25 @@ def get_function_name(level=0):
     return sys._getframe(level + 1).f_code.co_name
 
 
-def get_alba_namespaces(backend_name):
+def is_backend_present(backend_name):
     if not backend_name:
         backend_name = test_config.get('main', 'backend_name')
+
+    return True if BackendList.get_by_name(backend_name) else False
+
+
+def get_alba_namespaces(backend_name):
+    if not is_backend_present(backend_name):
+        return
+
     cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(backend_name)
     out = execute_command(cmd_list)[0].replace('true', 'True')
     out = out.replace('false', 'False')
     logging.log(1, "output: {0}".format(out))
+    if not out:
+        logging.log(1, "No backend present with name: {0}:\n".format(backend_name))
+        return
+
     out = eval(out)
     if out['success']:
         nss = out['result']
@@ -192,9 +204,10 @@ def get_alba_namespaces(backend_name):
         logging.log(1, "Error while retrieving namespaces: {0}".format(out['error']))
 
 
-def remove_alba_namespaces(backend_name):
-    if not backend_name:
-        backend_name = test_config.get('main', 'backend_name')
+def remove_alba_namespaces(backend_name=""):
+    if not is_backend_present(backend_name):
+        return
+
     cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg ".format(backend_name)
     nss = get_alba_namespaces(backend_name)
     logging.log(1, "Namespaces present: {0}".format(str(nss)))
@@ -267,7 +280,7 @@ def cleanup():
             api_remove_vpool(vpool.name)
 
             if general_hypervisor.get_hypervisor_type() == "VMWARE":
-                hypervisor_info = autotests.getHypervisorInfo()
+                hypervisor_info = autotests.get_hypervisor_info()
                 ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
                 cmd = "esxcli storage nfs remove -v {0}".format(vpool.name)
                 ssh_con.exec_command(cmd)
@@ -287,7 +300,7 @@ def add_vpool(browser):
     browser.add_vpool()
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
-        hypervisor_info = autotests.getHypervisorInfo()
+        hypervisor_info = autotests.get_hypervisor_info()
 
         vpool_name = browser.vpool_name
         vpool = VPoolList.get_vpool_by_name(vpool_name)
@@ -311,7 +324,7 @@ def remove_vpool(browser):
     browser.remove_vpool(vpool_name)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
-        hypervisor_info = autotests.getHypervisorInfo()
+        hypervisor_info = autotests.get_hypervisor_info()
         ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
 
         _, stdout, _ = ssh_con.exec_command("esxcli storage nfs list")

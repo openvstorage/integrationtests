@@ -20,7 +20,7 @@ from nose.plugins.skip import SkipTest
 from ci.tests.general import general
 from ci import autotests
 
-testsToRun = general.get_tests_to_run(autotests.getTestLevel())
+testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
 
 def setup():
