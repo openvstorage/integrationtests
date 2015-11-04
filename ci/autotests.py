@@ -134,7 +134,6 @@ def _validate_run_parameters(tests=None, output_format=TestRunnerOutputFormat.CO
             tests_to_run = _convert_test_spec(tests)
         arguments.append(tests_to_run)
 
-    print arguments
     return arguments
 
 
@@ -143,7 +142,14 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
         interactive=True):
 
     """
-    Run only one test suite
+    Run single, multiple or all testcases:
+        - single: - string: 'gui'
+        - multiple - list: ['gui', 'sanity']
+        - all - None value or empty list
+
+        output format:
+        - TESTRAIL requires credentials to testrail
+        - CONSOLE|XML can be used to run tests locally
     """
 
     print "tests: {0}".format(tests)
