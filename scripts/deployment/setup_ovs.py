@@ -318,11 +318,11 @@ def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=
     vmware_info = "10.100.131.221,root,R00t3r123"
     """
 
-    if test_project in ['Open vStorage']:
+    if test_project in ['Open vStorage'] and qualitylevel in ['alpha', 'stable', ]:
         print
-        print "------------------------------------------------------------------"
-        print "Automated tests temporarily disabled for Open vStorage project ..."
-        print "------------------------------------------------------------------"
+        print "-----------------------------------------------------------------------------"
+        print "Automated tests temporarily disabled for Open vStorage project - alpha/stable"
+        print "-----------------------------------------------------------------------------"
         print
         return True
 
@@ -339,12 +339,12 @@ def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=
 
     if not test_plan:
         print 'Running all tests ...'
-        test_run = "autotests.run_all('{0}', '{1}', '{2}', 'TESTRAIL')".format(test_project, qualitylevel,
-                                                                               output_folder)
     else:
         print 'Running specific tests {0}'.format(test_plan)
-        test_run = "autotests.run('{0}', '{1}', '{2}', '{3}', 'TESTRAIL')".format(test_plan, test_project, qualitylevel,
-                                                                                  output_folder)
+
+    test_run = "autotests.run(tests='{0}', output_format='TESTRAIL', output_folder='{1}', project_name='{2}'," \
+               "always_die={3}, qualitylevel='{4}', interactive={5})".format(test_plan, output_folder, test_project,
+                                                                             False, qualitylevel, False)
 
     if vpool_type == "swift_s3":
         vpool_config = get_swift_vpool_config(vpool_host_ip=vpool_host_ip,
