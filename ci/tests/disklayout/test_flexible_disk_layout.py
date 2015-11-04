@@ -49,6 +49,7 @@ def fdl_0000_disklayout_prerequisites_test():
     FDL-0000 - prerequisite tests for complete test suite
     """
     __continue_testing.state = True
+    pass
 
 
 def fdl_0001_match_model_with_reality_test():
@@ -137,13 +138,14 @@ def fdl_0002_add_remove_partition_with_role_and_crosscheck_model_test():
         disk = api.fetch('disks', guid)
         if disk['storagerouter_guid'] == my_sr.guid:
             if disk['is_ssd']:
-                ssds[disk['path']] = disk
+                ssds['/dev/' + disk['name']] = disk
             else:
-                hdds[disk['path']] = disk
+                hdds['/dev/' + disk['name']] = disk
 
     all_disks = dict(ssds)
     all_disks.update(hdds)
     print all_disks
+    print all_disks.keys()
 
     # check no partitions are modelled for unused disks
     partitions = api.list('diskpartitions')
