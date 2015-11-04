@@ -82,107 +82,78 @@ TESTRAIL_QUALITYLEVEL = get_config().get(section="main", option="qualitylevel")
 TESTRAIL_SERVER = get_config().get(section="testrail", option="server")
 
 
-def run(project_name, qualitylevel, output_folder, output_format=TestRunnerOutputFormat.CONSOLE, test_spec=None,
-        always_die=False, existing_plan_id=""):
+def _validate_run_parameters(tests=None, output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/var/tmp',
+                             project_name='', qualitylevel='', always_die=False, existing_plan_id=None,
+                             interactive=False):
+
+    if output_format not in ['CONSOLE', 'XML', 'TESTRAIL']:
+        if interactive:
+            output_format = check_input(predicate=lambda x: getattr(TestRunnerOutputFormat, x, False),
+                                        msg='Enter output format - [CONSOLE / XML / TESTRAIL]')
+        else:
+            raise RuntimeError('output_format should be: CONSOLE | XML | TESTRAIL')
+        output_format = getattr(TestRunnerOutputFormat, str(output_format))
+
+    if type(always_die) != bool:
+        if interactive:
+            always_die = eval(check_input(predicate=lambda x: type(eval(x)) == bool,
+                                          msg="Only boolean values allowed for always_die param\n" +
+                                              "Do you want the tests to stop after error/failure?[True/False]"))
+        else:
+            raise RuntimeError('always_die parameter should be a boolean: True|False')
+
+    if interactive:
+        if not tests:
+            tests = check_input(predicate=lambda x: x, msg='Enter test suite: ')
+
+    if interactive:
+        if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and not output_folder:
+            output_folder = check_input(predicate=lambda x: os.path.exists(x) and os.path.isdir(x),
+                                        msg='Incorrect output_folder: {0}'.format(output_folder))
+    elif not output_folder or not(os.path.exists(output_folder) and os.path.isdir(output_folder)):
+        raise RuntimeError("Output folder incorrect: {0}".format(output_folder))
+
+    version = _get_ovs_version()
+
+    if output_format in TestRunnerOutputFormat.TESTRAIL:
+
+        arguments = _parse_args(suite_name='test_results', output_format=output_format, output_folder=output_folder,
+                                always_die=always_die, testrail_url=TESTRAIL_SERVER, testrail_key=TESTRAIL_KEY,
+                                project_name=project_name, quality_level=qualitylevel, version=version,
+                                existing_plan_id=existing_plan_id)
+    else:
+        arguments = _parse_args(suite_name='test_results', output_format=output_format, output_folder=output_folder,
+                                always_die=always_die, project_name=project_name, quality_level=qualitylevel,
+                                version=version, existing_plan_id=existing_plan_id)
+
+    if tests:
+        if type(tests) == list:
+            tests_to_run = ','.join(map(_convert_test_spec, tests))
+            arguments.append('--tests')
+        else:
+            tests_to_run = _convert_test_spec(tests)
+        arguments.append(tests_to_run)
+
+    print arguments
+    return arguments
+
+
+def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/var/tmp',
+        project_name='Open vStorage Engineering', always_die=False, qualitylevel='', existing_plan_id="",
+        interactive=True):
+
     """
     Run only one test suite
     """
-    if type(always_die) != bool:
-        always_die = eval(check_input(predicate=lambda x: type(eval(x)) == bool,
-                                      msg="Only boolean values allowed for always_die param\n" +
-                                          "Do you want the tests to stop after error/failure?[True/False]"))
 
-    if not output_format:
-        output_format = check_input(predicate=lambda x: getattr(TestRunnerOutputFormat, x, False),
-                                    msg='Enter output format - [CONSOLE / XML / TESTRAIL]')
-        output_format = getattr(TestRunnerOutputFormat, output_format)
-    else:
-        output_format = getattr(TestRunnerOutputFormat, str(output_format))
-    if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and not output_folder:
-        output_folder = check_input(predicate=lambda x: os.path.exists(x) and os.path.isdir(x),
-                                    msg='Incorrect output_folder: {0}:'.format(output_folder))
-
-    if output_format == TestRunnerOutputFormat.TESTRAIL:
-        version = _get_ovs_version()
-
-    if not test_spec:
-        test_spec = check_input(predicate=lambda x: x,
-                                msg='Enter test suite: ')
-
-    arguments = _parse_args(suite_name='test_results', output_format=output_format, output_folder=output_folder,
-                            always_die=always_die, testrail_url=TESTRAIL_SERVER, project_name=project_name,
-                            quality_level=qualitylevel, version=version, existing_plan_id=existing_plan_id)
-
-    tests = _convert_test_spec(test_spec)
-    arguments.append(tests)
+    print "tests: {0}".format(tests)
+    arguments = _validate_run_parameters(tests, output_format, output_folder, project_name, qualitylevel,
+                                         always_die, existing_plan_id, interactive)
 
     _run_tests(arguments)
 
 
-def run_multiple(project_name, qualitylevel, output_folder, list_of_tests,
-                 output_format=TestRunnerOutputFormat.CONSOLE, always_die=False):
-    """
-    Run a selection of multiple test suites
-    """
-    if type(always_die) != bool:
-        always_die = eval(check_input(predicate=lambda x: type(eval(x)) == bool,
-                                      msg="Only boolean values allowed for always_die param\n" +
-                                          "Do you want the tests to stop after error/failure?[True/False]"))
-
-    if not output_format:
-        output_format = check_input(predicate=lambda x: getattr(TestRunnerOutputFormat, x, False),
-                                    msg='Enter output format - [CONSOLE / XML / TESTRAIL]')
-        output_format = getattr(TestRunnerOutputFormat, output_format)
-    else:
-        output_format = getattr(TestRunnerOutputFormat, str(output_format))
-
-    if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and output_folder:
-        output_folder = check_input(predicate=lambda x: os.path.exists(x) and os.path.isdir(x),
-                                    msg='Incorrect output_folder: {0}'.format(output_folder))
-
-    if output_format == TestRunnerOutputFormat.TESTRAIL:
-        version = _get_ovs_version()
-
-    arguments = _parse_args(suite_name='test_results', output_format=output_format, output_folder=output_folder,
-                            always_die=always_die, testrail_url=TESTRAIL_SERVER, project_name=project_name,
-                            quality_level=qualitylevel, version=version, list_of_tests=list_of_tests)
-    _run_tests(arguments)
-
-
-def run_all(project_name, qualitylevel, output_folder, output_format=TestRunnerOutputFormat.CONSOLE, always_die=False,
-            existing_plan_id=""):
-    """
-    Run all test suites
-    """
-
-    if type(always_die) != bool:
-        always_die = eval(check_input(predicate=lambda x: type(eval(x)) == bool,
-                                      msg="Only boolean values allowed for always_die param\n" +
-                                          "Do you want the tests to stop after error/failure?[True/False]"))
-
-    if not output_format:
-        output_format = check_input(predicate=lambda x: getattr(TestRunnerOutputFormat, x, False),
-                                    msg='Enter output format - [CONSOLE / XML / TESTRAIL]')
-        output_format = getattr(TestRunnerOutputFormat, output_format)
-    else:
-        output_format = getattr(TestRunnerOutputFormat, str(output_format))
-
-    if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and not output_folder:
-        output_folder = check_input(predicate=lambda x: os.path.exists(x) and os.path.isdir(x),
-                                    msg='Incorrect output_folder: {0}'.format(output_folder))
-
-    if output_format == TestRunnerOutputFormat.TESTRAIL:
-        version = _get_ovs_version()
-
-    arguments = _parse_args(suite_name='test_results', output_format=output_format, output_folder=output_folder,
-                            always_die=always_die, testrail_url=TESTRAIL_SERVER, testrail_key=TESTRAIL_KEY,
-                            project_name=project_name, quality_level=qualitylevel, version=version, list_of_tests=None,
-                            existing_plan_id=existing_plan_id)
-
-    _run_tests(arguments)
-
-
-def pushToTestrail(project_name, qualitylevel, output_folder, version=None, filename="", milestone="", comment=""):
+def pushToTestrail(project_name, _, output_folder, version=None, filename="", milestone="", comment=""):
     """
     Push xml file with test results to Testrail
     """
@@ -211,15 +182,31 @@ def pushToTestrail(project_name, qualitylevel, output_folder, version=None, file
     if not version:
         version = _get_ovs_version()
 
-    url = _push_to_testrail(filename=filename, milestone=milestone, project_name=project_name,
-                            version=version, plan_comment=comment)
+    url = _push_to_testrail(filename=filename, milestone=milestone, project_name=project_name, version=version,
+                            plan_comment=comment)
     if url:
         print "\n" + url
 
     return url
 
 
-def _parse_args(suite_name, output_format, output_folder, always_die, list_of_tests=None, testrail_url=None,
+def _convert_test_spec(test_spec):
+    """
+    When the test_spec is of the format top level_package.sub_package, then the test_spec needs to
+    be converted to top level_package/sub_package or no tests are picked up.
+    """
+    test_spec_parts = test_spec.split('.')
+    print "test_spec_parts: {0}".format(test_spec_parts)
+    test_spec_path = os.path.join(TESTS_DIR, *test_spec_parts)
+    print "test_spec_path: {0}".format(test_spec_path)
+
+    if os.path.isdir(test_spec_path):
+        return test_spec.replace('.', '/')
+    else:
+        return test_spec
+
+
+def _parse_args(suite_name, output_format, output_folder, always_die, testrail_url=None,
                 testrail_key=None, project_name=None, quality_level=None, version=None, existing_plan_id=""):
     """
     Parse arguments in the format expected by nose
@@ -285,27 +272,9 @@ def _parse_args(suite_name, output_format, output_folder, always_die, list_of_te
         arguments.append('--plan-id')
         arguments.append(existing_plan_id)
     else:
-        raise AttributeError("Invalid output format! Specify one of ")
-
-    if list_of_tests:
-        tests = ','.join(map(_convert_test_spec, list_of_tests))
-        arguments.append('--tests')
-        arguments.append(tests)
+        raise AttributeError("Invalid output format! Specify one of CONSOLE|XML|TESTRAIL ")
 
     return arguments
-
-
-def _convert_test_spec(test_spec):
-    """
-    When the test_spec is of the format top level_package.sub_package, then the test_spec needs to
-    be converted to top level_package/sub_package or no tests are picked up.
-    """
-    test_spec_parts = test_spec.split('.')
-    test_spec_path = os.path.join(TESTS_DIR, *test_spec_parts)
-    if os.path.isdir(test_spec_path):
-        return test_spec.replace('.', '/')
-    else:
-        return test_spec
 
 
 def _run_tests(arguments):

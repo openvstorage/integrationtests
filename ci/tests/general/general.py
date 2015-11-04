@@ -103,7 +103,7 @@ def check_prereqs(testcase_number, tests_to_run):
     @return:                  None
     """
     if 0 not in tests_to_run and testcase_number not in tests_to_run:
-        raise SkipTest
+        raise SkipTest()
 
 
 def get_tests_to_run(test_level):

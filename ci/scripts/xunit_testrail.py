@@ -252,7 +252,7 @@ class xunit_testrail(Plugin):
                           action="store",
                           dest="testrailIp",
                           metavar="FILE",
-                          default="testrail.openvstorage.com",
+                          default="",
                           help="Url of testrail server")
 
         parser.add_option('--testrail-key',

@@ -104,8 +104,8 @@ def system_services_check_test():
             else:
                 services_checked += "{0}\n".format(service_to_check)
 
-    assert len(errors) == 0, "Found the following errors while checking for the system services:{0}\n".format(errors)
     print services_checked
+    assert len(errors) == 0, "Found the following errors while checking for the system services:{0}\n".format(errors)
 
 
 def config_files_check_test():
