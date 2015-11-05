@@ -206,7 +206,6 @@ class xunit_testrail(Plugin):
                       'failures': 0,
                       'passes': 0,
                       'skipped': 0}
-        self.suite_name = ''
         self.test_id = ''
         self.testrailIp = ''
         self.testrailApi = ''
@@ -322,7 +321,7 @@ class xunit_testrail(Plugin):
             self.project_id = self.project['id']
 
             self.existingPlan = bool(options.planId)
-            if options.planId:
+            if self.plan:
                 plan = self.testrailApi.get_plan(options.planId)
                 os.write(1, "\nContinuing with plan {0}\n".format(plan['url']))
             else:
@@ -332,7 +331,6 @@ class xunit_testrail(Plugin):
                 plan = self.testrailApi.add_plan(self.project_id, name, description, milestone_id or None)
                 os.write(1, "\nNew test plan: " + plan['url'] + "\n")
             self.plan = plan
-            self.suite_name = ""
             self.testsCaseIdsToSelect = list()
 
     def report(self, stream):
@@ -340,8 +338,8 @@ class xunit_testrail(Plugin):
         The file includes a report of test errors and failures.
         """
         self.stats['encoding'] = self.encoding
-        self.stats['total'] = (self.stats['errors'] + self.stats['failures']
-                               + self.stats['passes'] + self.stats['skipped'])
+        self.stats['total'] = (self.stats['errors'] + self.stats['failures'] + self.stats['passes'] +
+                               self.stats['skipped'])
         self.error_report_file.write(
             '<?xml version="1.0" encoding="%(encoding)s"?>'
             '<testsuite name="nosetests" tests="%(total)d" '
@@ -407,8 +405,9 @@ class xunit_testrail(Plugin):
 
     def startTest(self, test):
         """Initializes a timer before starting a test."""
-        test_id = test.id()
-        log.log(2, str(test))
+        if test:
+            test_id = test.id()
+            log.log(2, str(test))
         if self.testrailIp:
             try:
                 test_name = test_id.split('.')[-1]
@@ -416,56 +415,51 @@ class xunit_testrail(Plugin):
                 suite_name = self.projectIni.get(self.projectName, suite_dir).split(';')[0]
                 section_names = self.projectIni.get(self.projectName, suite_dir).split(';')[1].split(',')
                 section_name = section_names[-1]
+                case_name = name_to_testrail_format(test_name)
 
-                fullsuite_name = suite_name + ",".join(section_names)
                 suite = self.testrailApi.get_suite_by_name(self.project_id, suite_name)
                 suite_id = suite['id']
                 section = self.testrailApi.get_section_by_name(self.project_id, suite_id, section_name)
                 section_id = section['id']
 
                 all_cases = self.testrailApi.get_cases(self.project_id, suite_id)
-                all_case_names = [c['title'] for c in all_cases]
 
-                is_new_run_to_be_created = False
-                if fullsuite_name != self.fullsuite_name:
-                    is_new_run_to_be_created = True
+                is_new_entry_to_be_created = False
+                if self.fullsuite_name != suite_name:
+                    is_new_entry_to_be_created = True
 
-                    all_tests = [t for c in TestLoader().loadTestsFromDir(os.path.dirname(test.context.__file__)) for t in c._tests]
-                    all_testnames = [name_to_testrail_format(t.id().split('.')[-1]) for t in all_tests]
-                    os.write(1, str(all_testnames) + "\n")
+                all_tests = [t for c in TestLoader().loadTestsFromDir(os.path.dirname(test.context.__file__)) for t in c._tests]
+                all_testnames = [name_to_testrail_format(t.id().split('.')[-1]) for t in all_tests]
+                os.write(1, str(all_testnames) + "\n")
 
-                    self.fullsuite_name = fullsuite_name
-                    for test_name in all_testnames:
-                        for case in all_cases:
-                            found = False
-                            if case['section_id'] == section_id and case['title'] == test_name:
-                                found = True
-                                break
-                        if not found:
-                            self.testrailApi.add_case(section_id=section_id, title=test_name)
-                        all_cases = self.testrailApi.get_cases(self.project_id, suite_id)
+                self.fullsuite_name = suite_name
+                reload_cases = False
+                for test_entry_name in all_testnames:
+                    for case in all_cases:
+                        found = False
+                        if case['section_id'] == section_id and case['title'] == test_entry_name:
+                            found = True
+                            break
+                    if not found:
+                        self.testrailApi.add_case(section_id=section_id, title=test_entry_name)
+                        reload_cases = True
+                if reload_cases:
+                    all_cases = self.testrailApi.get_cases(self.project_id, suite_id)
 
-                case_name = name_to_testrail_format(test_name)
+                if is_new_entry_to_be_created:
+                    self.testsCaseIdsToSelect = [c['id'] for c in all_cases if c['type_id'] == self.testrailApi.AT_QUICK_ID]
+                    entry = self.testrailApi.add_plan_entry(self.plan['id'], suite_id, suite_name,
+                                                            include_all=False, case_ids=self.testsCaseIdsToSelect)
+                    self.run_id = entry['runs'][0]['id']
+
+                self.plan = self.testrailApi.get_plan(self.plan['id'])
                 case_item = [caseObj for caseObj in all_cases if
                              caseObj['section_id'] == section_id and caseObj['title'] == case_name]
                 if not case_item:
                     raise Exception("Could not find case name %s on testrail" % case_name)
+
                 self.case_item = case_item[0]
-
-                run_id = self.run_id
-                if is_new_run_to_be_created:
-                    if self.existingPlan:
-                        run = [r for e in self.plan['entries'] for r in e['runs'] if r['suite_id'] == suite_id]
-                        if run:
-                            run_id = run[0]['id']
-                    if run_id is None:
-                        self.testsCaseIdsToSelect = [c['id'] for c in all_cases if c['title'] in all_case_names]
-                        entry = self.testrailApi.add_plan_entry(self.plan['id'], suite_id, suite_name,
-                                                                include_all=False, case_ids=self.testsCaseIdsToSelect)
-                        run_id = entry['runs'][0]['id']
-                    self.run_id = run_id
-
-                all_tests_for_run = self.testrailApi.get_tests(run_id)
+                all_tests_for_run = self.testrailApi.get_tests(self.run_id)
                 test = [t for t in all_tests_for_run if t['case_id'] == self.case_item['id']][0]
                 self.test_id = test['id']
                 self.durations = self.case_item.get("custom_at_avg_duration", "")
@@ -478,16 +472,20 @@ class xunit_testrail(Plugin):
                 os.write(1, now + "|" + format_durations(self.durations) + "-->")
 
             except:
+                if not section_names:
+                    section_names = list()
+                if not all_cases:
+                    all_cases = list()
                 etype, value, tb = sys.exc_info()
                 exception_text = str(traceback.format_exception(etype, value, tb))
                 with open(CRASH_FILE_LOG, "a") as f:
                     f.write(exception_text + "\n" +
-                            "\ntestname: " + test_name +
-                            "\nsuite_name: " + suite_name +
+                            "\ntestname: " + test_name if test_name else 'UNKNOWN' +
+                            "\nsuite_name: " + suite_name if suite_name else 'UNKNOWN' +
                             "\nsection_names: {0}".format(', '.join(section_names)) +
-                            "\nsection_name: " + section_name +
+                            "\nsection_name: " + section_name if section_name else 'UNKNOWN' +
                             "\nall_cases: {0}".format(', '.join(case['title'] for case in all_cases)) +
-                            "\ntest_id: " + test_id +
+                            "\ntest_id: " + test_id if test_id else 'UNKNOWN' +
                             "\n\n")
 
     def addError(self, test, err, capt=None):

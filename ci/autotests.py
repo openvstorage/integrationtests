@@ -103,10 +103,6 @@ def _validate_run_parameters(tests=None, output_format=TestRunnerOutputFormat.CO
             raise RuntimeError('always_die parameter should be a boolean: True|False')
 
     if interactive:
-        if not tests:
-            tests = check_input(predicate=lambda x: x, msg='Enter test suite: ')
-
-    if interactive:
         if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and not output_folder:
             output_folder = check_input(predicate=lambda x: os.path.exists(x) and os.path.isdir(x),
                                         msg='Incorrect output_folder: {0}'.format(output_folder))
@@ -152,7 +148,6 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
         - CONSOLE|XML can be used to run tests locally
     """
 
-    print "tests: {0}".format(tests)
     arguments = _validate_run_parameters(tests, output_format, output_folder, project_name, qualitylevel,
                                          always_die, existing_plan_id, interactive)
 
@@ -202,9 +197,7 @@ def _convert_test_spec(test_spec):
     be converted to top level_package/sub_package or no tests are picked up.
     """
     test_spec_parts = test_spec.split('.')
-    print "test_spec_parts: {0}".format(test_spec_parts)
     test_spec_path = os.path.join(TESTS_DIR, *test_spec_parts)
-    print "test_spec_path: {0}".format(test_spec_path)
 
     if os.path.isdir(test_spec_path):
         return test_spec.replace('.', '/')
