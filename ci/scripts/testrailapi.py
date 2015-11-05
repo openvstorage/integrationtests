@@ -115,9 +115,9 @@ class TestrailApi:
         if refs:
             extra_params['refs'] = refs
         if custom_fields:
-            for k, v in custom_fields.iteritems():
-                assert "custom_" in k, "Custom fields need to start with 'custom_'"
-                extra_params[k] = v
+            for key, value in custom_fields.iteritems():
+                assert "custom_" in key, "Custom fields need to start with 'custom_'"
+                extra_params[key] = value
         return self._add_to_testrail('add_case', section_id, extra_params)
 
     def update_case(self, case_id, title=None, type_id=None, priority_id=None, estimate=None, milestone_id=None,
@@ -136,9 +136,9 @@ class TestrailApi:
         if refs:
             extra_params['refs'] = refs
         if custom_fields:
-            for k, v in custom_fields.iteritems():
-                assert "custom_" in k, "Custom fields need to start with 'custom_'"
-                extra_params[k] = v
+            for key, value in custom_fields.iteritems():
+                assert "custom_" in key, "Custom fields need to start with 'custom_'"
+                extra_params[key] = value
         return self._add_to_testrail('update_case', case_id, extra_params)
 
     def delete_case(self, case_id):
@@ -151,7 +151,7 @@ class TestrailApi:
         return self._get_from_testrail("get_case_types")
 
     def get_case_type_by_name(self, name):
-        case_types = [c for c in self.get_case_types() if c['name'] == name]
+        case_types = [case_type for case_type in self.get_case_types() if case_type['name'] == name]
         if not case_types or len(case_types) > 1:
             raise Exception("No or multiple case types found with name: {0} ".format(name))
         return case_types[0]
@@ -163,7 +163,7 @@ class TestrailApi:
         return self._get_from_testrail("get_sections", project_id, {'suite_id': suite_id})
 
     def get_section_by_name(self, project_id, suite_id, name):
-        sections = [s for s in self.get_sections(project_id, suite_id) if s['name'] == name]
+        sections = [section for section in self.get_sections(project_id, suite_id) if section['name'] == name]
         if not sections or len(sections) > 1:
             raise Exception("No or multiple suites found with name: {0} ".format(name))
         return sections[0]
@@ -175,7 +175,7 @@ class TestrailApi:
         return self._get_from_testrail('get_suites', project_id)
 
     def get_suite_by_name(self, project_id, name):
-        suites = [s for s in self.get_suites(project_id) if s['name'] == name]
+        suites = [suite for suite in self.get_suites(project_id) if suite['name'] == name]
         if not suites or len(suites) > 1:
             raise Exception("No or multiple suites found with name: {0} ".format(name))
         return suites[0]
@@ -238,7 +238,7 @@ class TestrailApi:
         return self._get_from_testrail("get_projects")
 
     def get_project_by_name(self, name):
-        projects = [p for p in self.projects if p['name'] == name]
+        projects = [project for project in self.projects if project['name'] == name]
         if not projects or len(projects) > 1:
             raise Exception("No or multiple projects found with name: {0} ".format(name))
         return projects[0]
@@ -303,9 +303,9 @@ class TestrailApi:
         if assigned_to_id:
             extra_params['assignedto_id'] = assigned_to_id
         if custom_fields:
-            for k, v in custom_fields.iteritems():
-                assert "custom_" in k, "Custom fields need to start with 'custom_'"
-                extra_params[k] = v
+            for key, value in custom_fields.iteritems():
+                assert "custom_" in key, "Custom fields need to start with 'custom_'"
+                extra_params[key] = value
         return self._add_to_testrail('add_result', test_id, extra_params)
 
     def add_result_for_case(self, run_id, case_id, status_id, comment=None, version=None, elapsed=None, defects=None,
@@ -322,9 +322,9 @@ class TestrailApi:
         if assigned_to_id:
             extra_params['assignedto_id'] = assigned_to_id
         if custom_fields:
-            for k, v in custom_fields.iteritems():
-                assert "custom_" in k, "Custom fields need to start with 'custom_'"
-                extra_params[k] = v
+            for key, value in custom_fields.iteritems():
+                assert "custom_" in key, "Custom fields need to start with 'custom_'"
+                extra_params[key] = value
         return self._add_to_testrail('add_result_for_case', "%s/%s" % (run_id, case_id), extra_params)
 
     def get_statuses(self):
@@ -337,7 +337,7 @@ class TestrailApi:
         return self._get_from_testrail('get_milestones', project_id)
 
     def get_milestone_by_name(self, project_id, name):
-        milestones = [m for m in self.get_milestones(project_id) if m['name'] == name]
+        milestones = [milestone for milestone in self.get_milestones(project_id) if milestone['name'] == name]
         if not milestones or len(milestones) > 1:
             raise Exception("No or multiple suites found with name: {0} ".format(name))
         return milestones[0]
