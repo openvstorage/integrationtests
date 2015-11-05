@@ -169,8 +169,8 @@ class Tee(object):
             self.write(line)
 
     def flush(self):
-        for s in self._streams:
-            s.flush()
+        for stream in self._streams:
+            stream.flush()
 
     def isatty(self):
         return False
@@ -302,11 +302,11 @@ class xunit_testrail(Plugin):
             self.testrailApi = testrailapi.TestrailApi(self.testrailIp, key=options.testrailKey)
 
             all_statuses = self.testrailApi.get_statuses()
-            self.ongoingStatus = [s for s in all_statuses if s['name'].lower() == 'ongoing'][0]
-            self.passedStatus = [s for s in all_statuses if s['name'].lower() == 'passed'][0]
-            self.failedStatus = [s for s in all_statuses if s['name'].lower() == 'failed'][0]
-            self.skippedStatus = [s for s in all_statuses if s['name'].lower() == 'skipped'][0]
-            self.blockedStatus = [s for s in all_statuses if s['name'].lower() == 'blocked'][0]
+            self.ongoingStatus = [status for status in all_statuses if status['name'].lower() == 'ongoing'][0]
+            self.passedStatus = [status for status in all_statuses if status['name'].lower() == 'passed'][0]
+            self.failedStatus = [status for status in all_statuses if status['name'].lower() == 'failed'][0]
+            self.skippedStatus = [status for status in all_statuses if status['name'].lower() == 'skipped'][0]
+            self.blockedStatus = [status for status in all_statuses if status['name'].lower() == 'blocked'][0]
 
             name_splits = options.pushName.split("_")
             name = name_splits[0]
@@ -366,7 +366,7 @@ class xunit_testrail(Plugin):
     def stopContext(self, context):
         pass
 
-    def beforeTest(self, test):
+    def beforeTest(self, _):
         log.info('beforeTest...')
         """Initializes a timer before starting a test."""
         self._timer = time()
@@ -379,13 +379,13 @@ class xunit_testrail(Plugin):
             pprint.pprint(self._capture_stack)
             sys.stdout, sys.stderr = self._capture_stack.pop()
 
-    def afterTest(self, test):
+    def afterTest(self, _):
         log.info('afterTest...')
         self._end_capture()
         self._currentStdout = None
         self._currentStderr = None
 
-    def finalize(self, test):
+    def finalize(self, _):
         while self._capture_stack:
             self._end_capture()
 
@@ -405,9 +405,10 @@ class xunit_testrail(Plugin):
 
     def startTest(self, test):
         """Initializes a timer before starting a test."""
-        if test:
-            test_id = test.id()
-            log.log(2, str(test))
+        assert test, "Test should be defined before trying to start a testrun ..."
+
+        test_id = test.id()
+        log.log(2, str(test))
         if self.testrailIp:
             try:
                 test_name = test_id.split('.')[-1]
@@ -428,8 +429,9 @@ class xunit_testrail(Plugin):
                 if self.fullsuite_name != suite_name:
                     is_new_entry_to_be_created = True
 
-                all_tests = [t for c in TestLoader().loadTestsFromDir(os.path.dirname(test.context.__file__)) for t in c._tests]
-                all_testnames = [name_to_testrail_format(t.id().split('.')[-1]) for t in all_tests]
+                all_tests = [test_case for case in TestLoader().loadTestsFromDir(os.path.dirname(test.context.__file__))
+                             for test_case in case._tests]
+                all_testnames = [name_to_testrail_format(test_case.id().split('.')[-1]) for test_case in all_tests]
                 os.write(1, str(all_testnames) + "\n")
 
                 self.fullsuite_name = suite_name
@@ -447,20 +449,21 @@ class xunit_testrail(Plugin):
                     all_cases = self.testrailApi.get_cases(self.project_id, suite_id)
 
                 if is_new_entry_to_be_created:
-                    self.testsCaseIdsToSelect = [c['id'] for c in all_cases if c['type_id'] == self.testrailApi.AT_QUICK_ID]
+                    self.testsCaseIdsToSelect = [case['id'] for case in all_cases if case['type_id'] ==
+                                                 self.testrailApi.AT_QUICK_ID]
                     entry = self.testrailApi.add_plan_entry(self.plan['id'], suite_id, suite_name,
                                                             include_all=False, case_ids=self.testsCaseIdsToSelect)
                     self.run_id = entry['runs'][0]['id']
 
                 self.plan = self.testrailApi.get_plan(self.plan['id'])
-                case_item = [caseObj for caseObj in all_cases if
-                             caseObj['section_id'] == section_id and caseObj['title'] == case_name]
+                case_item = [case for case in all_cases if
+                             case['section_id'] == section_id and case['title'] == case_name]
                 if not case_item:
                     raise Exception("Could not find case name %s on testrail" % case_name)
 
                 self.case_item = case_item[0]
                 all_tests_for_run = self.testrailApi.get_tests(self.run_id)
-                test = [t for t in all_tests_for_run if t['case_id'] == self.case_item['id']][0]
+                test = [test_case for test_case in all_tests_for_run if test_case['case_id'] == self.case_item['id']][0]
                 self.test_id = test['id']
                 self.durations = self.case_item.get("custom_at_avg_duration", "")
 
@@ -596,7 +599,7 @@ class xunit_testrail(Plugin):
 
             try:
                 results = self.testrailApi.get_results(self.test_id)
-                if any([r['status_id'] == self.failedStatus['id'] for r in results]):
+                if any([test_result['status_id'] == self.failedStatus['id'] for test_result in results]):
                     return
 
                 self.testrailApi.add_result(test_id=self.test_id,

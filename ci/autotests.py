@@ -360,7 +360,7 @@ def _get_testresult_files(folder):
     """
     List all xml results files in folder
     """
-    xml_files = [f for f in os.listdir(folder) if ".xml" in f]
+    xml_files = [folder for folder in os.listdir(folder) if ".xml" in folder]
     xml_files.sort(reverse=True)
 
     return xml_files
@@ -514,8 +514,8 @@ def _get_cases(xml_file, testrail_api, project_ini, project_name, project_id):
             section_name_to_id[suite_id][section_name] = section_id
         else:
             section_name_to_id[suite_id] = {section_name: section_id}
-        case_id = [caseObj for caseObj in all_cases[suite_name] if
-                   caseObj['section_id'] == section_id and caseObj['title'] == case]
+        case_id = [case for case in all_cases[suite_name] if
+                   case['section_id'] == section_id and case['title'] == case]
         if not case_id:
             new_case = testrail_api.add_case(section_id, case)
             all_cases[suite_name].append(new_case)
@@ -611,7 +611,8 @@ def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
             if suite_name not in suite_name_to_id:
                 continue
             added_suites.append(suite_name)
-            testcase_ids_to_select = [c['id'] for c in all_cases[suite_name] if c['title'] in ran_cases[suite_name]]
+            testcase_ids_to_select = [case['id'] for case in all_cases[suite_name] if case['title'] in
+                                      ran_cases[suite_name]]
 
         case_name = child.getAttribute('name')
 
@@ -633,8 +634,8 @@ def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
         run_id = suite_to_run[suite_name]
         if case_name not in case_name_to_test_id:
             all_tests_for_run = testrail_api.get_tests(run_id=run_id)
-            for t in all_tests_for_run:
-                case_name_to_test_id[t['title'] + str(run_id)] = t['id']
+            for test in all_tests_for_run:
+                case_name_to_test_id[test['title'] + str(run_id)] = test['id']
 
         test_id = case_name_to_test_id[case_name + str(run_id)]
 
