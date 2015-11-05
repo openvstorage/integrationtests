@@ -33,6 +33,7 @@ class TestrailApi:
         self.base64_authentication = key or base64.encodestring('%s:%s' % (user, password)).replace('\n', '')
         self.URL = "http://%s/index.php?/api/v2/%s"
         self.projects = self.get_projects()
+        self.AT_QUICK_ID = self.get_case_type_by_name('AT_Quick')['id']
 
     def _get_from_testrail(self, testrail_item, main_id=None, url_params=None):
         if main_id:
@@ -60,11 +61,14 @@ class TestrailApi:
         result = json.loads(content)
         return result
 
-    def _add_to_testrail(self, testrail_item, main_id=None, values=None):
+    def _add_to_testrail(self, testrail_item, main_id=None, values=None, sub_id=None):
 
         if main_id:
             main_id = str(main_id)
-            url = self.URL % (self.server, '%s/%s' % (testrail_item, main_id))
+            if sub_id:
+                url = self.URL % (self.server, '%s/%s/%s' % (testrail_item, main_id, sub_id))
+            else:
+                url = self.URL % (self.server, '%s/%s' % (testrail_item, main_id))
         else:
             url = self.URL % (self.server, '%s' % testrail_item)
         data = json.dumps(values)
@@ -99,8 +103,9 @@ class TestrailApi:
     def add_case(self, section_id, title, type_id=None, priority_id=None, estimate=None, milestone_id=None, refs=None,
                  custom_fields=None):
         extra_params = {'title': title}
-        if type_id:
-            extra_params['type_id'] = type_id
+        if not type_id:
+            type_id = self.AT_QUICK_ID
+        extra_params['type_id'] = type_id
         if priority_id:
             extra_params['priority_id'] = priority_id
         if estimate:
@@ -144,6 +149,12 @@ class TestrailApi:
 
     def get_case_types(self):
         return self._get_from_testrail("get_case_types")
+
+    def get_case_type_by_name(self, name):
+        case_types = [c for c in self.get_case_types() if c['name'] == name]
+        if not case_types or len(case_types) > 1:
+            raise Exception("No or multiple case types found with name: {0} ".format(name))
+        return case_types[0]
 
     def get_section(self, section_id):
         return self._get_from_testrail("get_section", section_id)
@@ -202,6 +213,14 @@ class TestrailApi:
         if milestone_id:
             extra_params['milestone_id'] = milestone_id
         return self._add_to_testrail('update_plan', plan_id, extra_params)
+
+    def update_plan_entry(self, plan_id, entry_id, include_all=True, case_ids=None):
+        extra_params = dict()
+        if not include_all and case_ids:
+            extra_params['include_all'] = False
+            extra_params['case_ids'] = case_ids
+
+        return self._add_to_testrail('update_plan_entry', plan_id, extra_params, entry_id)
 
     def close_plan(self, plan_id):
         return self._add_to_testrail('close_plan', plan_id)
