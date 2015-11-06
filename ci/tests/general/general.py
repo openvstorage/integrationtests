@@ -51,7 +51,7 @@ if not hasattr(sys, "debugEnabled"):
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
-test_config = autotests.getConfigIni()
+test_config = autotests.get_config()
 current_test = None    # Used by each individual test to indicate which test is running and is used by 'take_screenshot'
 screenshot_dir = None  # Used by each testsuite to indicate which testsuite is running and is used by 'take_screenshot'
 
@@ -103,7 +103,7 @@ def check_prereqs(testcase_number, tests_to_run):
     @return:                  None
     """
     if 0 not in tests_to_run and testcase_number not in tests_to_run:
-        raise SkipTest
+        raise SkipTest()
 
 
 def get_tests_to_run(test_level):
@@ -176,11 +176,25 @@ def get_function_name(level=0):
     return sys._getframe(level + 1).f_code.co_name
 
 
-def get_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
+def is_backend_present(backend_name):
+    if not backend_name:
+        backend_name = test_config.get('main', 'backend_name')
+
+    return True if BackendList.get_by_name(backend_name) else False
+
+
+def get_alba_namespaces(backend_name):
+    if not is_backend_present(backend_name):
+        return
+
     cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(backend_name)
     out = execute_command(cmd_list)[0].replace('true', 'True')
     out = out.replace('false', 'False')
     logging.log(1, "output: {0}".format(out))
+    if not out:
+        logging.log(1, "No backend present with name: {0}:\n".format(backend_name))
+        return
+
     out = eval(out)
     if out['success']:
         nss = out['result']
@@ -190,7 +204,10 @@ def get_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
         logging.log(1, "Error while retrieving namespaces: {0}".format(out['error']))
 
 
-def remove_alba_namespaces(backend_name=test_config.get('main', 'backend_name')):
+def remove_alba_namespaces(backend_name=""):
+    if not is_backend_present(backend_name):
+        return
+
     cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg ".format(backend_name)
     nss = get_alba_namespaces(backend_name)
     logging.log(1, "Namespaces present: {0}".format(str(nss)))
@@ -263,7 +280,7 @@ def cleanup():
             api_remove_vpool(vpool.name)
 
             if general_hypervisor.get_hypervisor_type() == "VMWARE":
-                hypervisor_info = autotests.getHypervisorInfo()
+                hypervisor_info = autotests.get_hypervisor_info()
                 ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
                 cmd = "esxcli storage nfs remove -v {0}".format(vpool.name)
                 ssh_con.exec_command(cmd)
@@ -283,7 +300,7 @@ def add_vpool(browser):
     browser.add_vpool()
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
-        hypervisor_info = autotests.getHypervisorInfo()
+        hypervisor_info = autotests.get_hypervisor_info()
 
         vpool_name = browser.vpool_name
         vpool = VPoolList.get_vpool_by_name(vpool_name)
@@ -307,7 +324,7 @@ def remove_vpool(browser):
     browser.remove_vpool(vpool_name)
 
     if general_hypervisor.get_hypervisor_type() == "VMWARE":
-        hypervisor_info = autotests.getHypervisorInfo()
+        hypervisor_info = autotests.get_hypervisor_info()
         ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
 
         _, stdout, _ = ssh_con.exec_command("esxcli storage nfs list")
@@ -434,12 +451,6 @@ def api_add_vpool(vpool_name=None,
                   vpool_port=None,
                   vpool_access_key=None,
                   vpool_secret_key=None,
-                  vpool_temp_mp=None,
-                  vpool_md_mp=None,
-                  vpool_readcaches_mp=None,
-                  vpool_writecaches_mp=None,
-                  vpool_dtl_mp=None,
-                  vpool_bfs_mp=None,
                   vpool_storage_ip=None,
                   apply_to_all_nodes=True,
                   integratemgmt=True,
@@ -464,14 +475,8 @@ def api_add_vpool(vpool_name=None,
                   'connection_port': vpool_port or int(test_config.get(vpool_config, "vpool_port")),
                   'connection_username': vpool_access_key or test_config.get(vpool_config, "vpool_access_key"),
                   'connection_password': vpool_secret_key or test_config.get(vpool_config, "vpool_secret_key"),
-                  'mountpoint_temp': vpool_temp_mp or test_config.get(vpool_config, "vpool_temp_mp"),
-                  'mountpoint_readcaches': vpool_readcaches_mp or [mp.strip() for mp in
-                                                                   test_config.get(vpool_config, "vpool_readcaches_mp").split(',')],
-                  'mountpoint_writecaches': vpool_writecaches_mp or [mp.strip() for mp in
-                                                                     test_config.get(vpool_config, "vpool_writecaches_mp").split(',')],
-                  'mountpoint_md': vpool_md_mp or test_config.get(vpool_config, "vpool_md_mp"),
-                  'mountpoint_dtl': vpool_dtl_mp or test_config.get(vpool_config, "vpool_dtl_mp"),
-                  'mountpoint_bfs': vpool_bfs_mp or test_config.get(vpool_config, "vpool_bfs_mp"),
+                  'readcache_size': 50,
+                  'writecache_size': 50,
                   'storage_ip': vpool_storage_ip or test_config.get(vpool_config, "vpool_storage_ip"),
                   'config_cinder': config_cinder,
                   'cinder_pass': "rooter",
@@ -904,3 +909,22 @@ def create_testsuite_screenshot_dir(testsuite):
     dir_name = '/var/tmp/{0}_{1}'.format(testsuite, str(datetime.datetime.fromtimestamp(time.time())).replace(" ", "_").replace(":", "_").replace(".", "_"))
     execute_command(command='mkdir {0}'.format(dir_name))
     return dir_name
+
+
+def get_physical_disks(ip):
+
+    cmd = "lsblk -n -o name,type,size,rota"
+    result = execute_command_on_node(ip, cmd)
+    hdds = dict()
+    ssds = dict()
+    for entry in result.splitlines():
+        disk = entry.split()
+        disk_id = disk[0]
+        if len(disk_id) > 2 and disk_id[0:2] in ['fd', 'sr', 'lo']:
+            continue
+        if disk[1] in 'disk':
+            if disk[3] == '0':
+                ssds[disk[0]] = {'size': disk[2], 'is_ssd': True}
+            else:
+                hdds[disk[0]] = {'size': disk[2], 'is_ssd': False}
+    return hdds, ssds

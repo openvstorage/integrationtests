@@ -216,8 +216,8 @@ class Vmware(HypervisorBase):
         HypervisorBase.__init__(self)
         self.vpool = vpool
         self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
-        hypervisorInfo = autotests.getHypervisorInfo()
-        assert hypervisorInfo, "No hypervisor info specified use autotests.setHypervisorInfo"
+        hypervisorInfo = autotests.get_hypervisor_info()
+        assert hypervisorInfo, "No hypervisor info specified use autotests.set_hypervisor_info"
         self.sdk = Vmware_sdk(*hypervisorInfo)
 
     def create_vm(self, name, cpus=1, ram=1024):
@@ -228,8 +228,8 @@ class Vmware(HypervisorBase):
         assert datastore, "Did not found datastore"
         datastore = self.sdk._get_object(datastore[0])
 
-        os_name = autotests.getOs()
-        os_info = autotests.getOsInfo(os_name)
+        os_name = autotests.get_os()
+        os_info = autotests.get_os_info(os_name)
         bootdisk_path_remote = os_info['bootdisk_location']
 
         os.mkdir(os.path.join(self.mountpoint, name))
@@ -239,7 +239,7 @@ class Vmware(HypervisorBase):
         bootdisk_path = os.path.join(self.mountpoint, name, disk_name)
         bootdisk_flat_path = os.path.join(self.mountpoint, name, disk_name_flat)
 
-        template_server = autotests.getTemplateServer()
+        template_server = autotests.get_template_server()
         bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote + disk_name)
         bootdisk_flat_url = urlparse.urljoin(template_server, bootdisk_path_remote + disk_name_flat)
 
@@ -424,8 +424,8 @@ class Kvm(HypervisorBase):
     def create_vm(self, name, ram=1024, small=False):
         import general_openstack
 
-        os_name = autotests.getOs()
-        bootdisk_path_remote = autotests.getOsInfo(os_name + '_small' if small else os_name)['bootdisk_location']
+        os_name = autotests.get_os()
+        bootdisk_path_remote = autotests.get_os_info(os_name + '_small' if small else os_name)['bootdisk_location']
 
         vm_path = os.path.join(self.mountpoint, name)
         if not os.path.exists(vm_path):
@@ -436,7 +436,7 @@ class Kvm(HypervisorBase):
         else:
             bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
         if not os.path.exists(bootdisk_path):
-            template_server = autotests.getTemplateServer()
+            template_server = autotests.get_template_server()
             bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
             logging.log(1, 'Template url: {0}'.format(bootdisk_url))
             logging.log(1, 'Bootdisk path: {0}'.format(bootdisk_path))

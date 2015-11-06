@@ -36,7 +36,7 @@ from selenium.webdriver.remote.remote_connection import LOGGER
 
 LOGGER.setLevel(logging.WARNING)
 
-tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
+tests_to_run = general.get_tests_to_run(autotests.get_test_level())
 machine_name = "AT_" + __name__.split(".")[-1]
 vpool_name = general.test_config.get("vpool", "vpool_name")
 vpool_name = 'gui-' + vpool_name
@@ -99,7 +99,7 @@ def close_browser():
 
 
 @with_setup(teardown=close_browser)
-def ovs_login_test():
+def ovs_login_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -117,7 +117,7 @@ def ovs_login_test():
 
 
 @with_setup(teardown=close_browser)
-def ovs_wrong_password_test():
+def ovs_wrong_password_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -139,7 +139,7 @@ def ovs_wrong_password_test():
 
 
 @with_setup(teardown=close_browser)
-def ovs_wrong_username_test():
+def ovs_wrong_username_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -161,7 +161,7 @@ def ovs_wrong_username_test():
 
 
 @with_setup(teardown=close_browser)
-def vpool_add_test():
+def vpool_add_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -188,7 +188,7 @@ def vpool_add_test():
 
 
 @with_setup(teardown=close_browser)
-def vpool_remove_test():
+def vpool_remove_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -218,7 +218,7 @@ def vpool_remove_test():
 
 
 @with_setup(teardown=close_browser)
-def validate_vpool_cleanup_test():
+def validate_vpool_cleanup_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -266,7 +266,7 @@ def validate_vpool_cleanup_test():
 
 
 @with_setup(teardown=close_browser)
-def set_as_template_test():
+def set_as_template_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -309,7 +309,7 @@ def set_as_template_test():
 
 
 @with_setup(teardown=close_browser)
-def create_from_template_test():
+def create_from_template_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -348,7 +348,7 @@ def create_from_template_test():
 
 
 @with_setup(teardown=close_browser)
-def start_stop_vm_test():
+def start_stop_vm_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -404,7 +404,7 @@ def start_stop_vm_test():
 
 
 @with_setup(teardown=close_browser)
-def delete_clone_test():
+def delete_clone_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -440,7 +440,7 @@ def delete_clone_test():
 
 
 @with_setup(teardown=close_browser)
-def machine_snapshot_rollback_test():
+def machine_snapshot_rollback_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -514,7 +514,7 @@ def machine_snapshot_rollback_test():
 
 
 @with_setup(teardown=close_browser)
-def try_to_delete_template_with_clones_test():
+def try_to_delete_template_with_clones_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -559,7 +559,7 @@ def try_to_delete_template_with_clones_test():
 
 
 @with_setup(teardown=close_browser)
-def delete_template_test():
+def delete_template_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -589,7 +589,7 @@ def delete_template_test():
 
 
 @with_setup(teardown=close_browser)
-def multiple_vpools_test():
+def multiple_vpools_tst():
     function_name = general.get_function_name()
     """
     {0}
@@ -606,9 +606,8 @@ def multiple_vpools_test():
 
     required_backends = ["alba", "local"]
 
-    vpool_params = ['vpool_name', 'vpool_type_name', 'vpool_host', 'vpool_port', 'vpool_access_key', 'vpool_secret_key',
-                    'vpool_temp_mp', 'vpool_md_mp', 'vpool_readcaches_mp', 'vpool_writecaches_mp', 'vpool_dtl_mp',
-                    'vpool_bfs_mp', 'vpool_vrouter_port', 'vpool_storage_ip', 'vpool_config_params']
+    vpool_params = ['vpool_name', 'vpool_type_name', 'vpool_host', 'vpool_port', 'vpool_access_key',
+                    'vpool_secret_key', 'vpool_vrouter_port', 'vpool_storage_ip', 'vpool_config_params']
 
     vpool_configs = {}
 
