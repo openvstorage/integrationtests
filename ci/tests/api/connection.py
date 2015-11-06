@@ -53,7 +53,7 @@ class Connection:
     ip = property(get_ip, set_ip)
 
     def authenticate(self):
-        if self.headers in 'Authorization':
+        if 'Authorization' in self.headers.keys():
             self.headers.pop('Authorization')
 
         auth_url = 'https://{0}/api/oauth2/token/'.format(self.get_ip())
@@ -69,7 +69,7 @@ class Connection:
         self.headers['Authorization'] = 'Bearer {0}'.format(self.token)
 
     def get_active_tasks(self):
-        base_url = 'https://{0}/api/customer/{{0}}'.format(self.get_ip())
+        base_url = 'https://{0}/api/{{0}}'.format(self.get_ip())
         request = urllib2.Request(base_url.format('tasks/'), None, headers=self.headers)
         response = urllib2.urlopen(request).read()
 
@@ -80,3 +80,19 @@ class Connection:
         tasks.extend(x for x in all_tasks['reserved'].values() if x)
 
         return tasks
+
+    def list(self, module):
+        base_url = 'https://{0}/api/{{0}}'.format(self.get_ip())
+        request = urllib2.Request(base_url.format(module + '/'), None, headers=self.headers)
+        response = urllib2.urlopen(request).read()
+        data = json.loads(response)
+
+        return data['data']
+
+    def fetch(self, module, guid):
+        base_url = 'https://{0}/api/{{0}}'.format(self.get_ip())
+        request = urllib2.Request(base_url.format(module + '/' + guid), None, headers=self.headers)
+        response = urllib2.urlopen(request).read()
+        data = json.loads(response)
+
+        return data

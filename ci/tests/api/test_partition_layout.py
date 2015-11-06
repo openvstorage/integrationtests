@@ -71,10 +71,10 @@ def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writec
             general.api_remove_vpool(vpool_params['vpool_name'])
             general.validate_vpool_cleanup(vpool_params['vpool_name'])
         general.clean_disk_layout(disk_layout)
-        verify_no_namespaces_remain_after_testsuite()
+        verify_no_namespaces_remain_after_tstsuite()
 
 
-def each_mountpoint_own_partition_test():
+def each_mountpoint_own_partition_tst():
     unused_disks = general.get_unused_disks()
     if not unused_disks:
         raise SkipTest("Need at least one unused disk: {0}".format(unused_disks))
@@ -104,7 +104,7 @@ def each_mountpoint_own_partition_test():
         logging.log(1, result[mp])
 
 
-def all_mountpoints_root_partition_test():
+def all_mountpoints_root_partition_tst():
 
     vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
     vpool_writecaches_mp = ["/mnt/test_write_cache"]
@@ -128,7 +128,7 @@ def all_mountpoints_root_partition_test():
         logging.log(1, result[mp])
 
 
-def all_mountpoints_root_partition_one_readcache_test():
+def all_mountpoints_root_partition_one_readcache_tst():
 
     vpool_readcaches_mp = ["/mnt/test_cache1"]
     vpool_writecaches_mp = ["/mnt/test_write_cache"]
@@ -149,7 +149,7 @@ def all_mountpoints_root_partition_one_readcache_test():
         logging.log(1, result[mp])
 
 
-def dir_and_partition_layout_test():
+def dir_and_partition_layout_tst():
     unused_disks = general.get_unused_disks()
 
     if not unused_disks:
@@ -181,7 +181,7 @@ def dir_and_partition_layout_test():
             logging.log(1, result[mp])
 
 
-def two_disks_layout_test():
+def two_disks_layout_tst():
 
     unused_disks = general.get_unused_disks()
 
@@ -212,7 +212,7 @@ def two_disks_layout_test():
             logging.log(1, result[mp])
 
 
-def same_disk_different_percentages_layout_test():
+def same_disk_different_percentages_layout_tst():
 
     unused_disks = general.get_unused_disks()
 
@@ -256,7 +256,7 @@ def same_disk_different_percentages_layout_test():
         logging.log(1, result[mp])
 
 
-def root_partition_already_at_60_percent_test():
+def root_partition_already_at_60_percent_tst():
 
     fss = general.get_filesystem_size("/")
     fs_size = fss[1]
@@ -291,7 +291,7 @@ def root_partition_already_at_60_percent_test():
     os.remove(big_file)
 
 
-def three_disks_layout_test():
+def three_disks_layout_tst():
 
     unused_disks = general.get_unused_disks()
 
@@ -323,7 +323,7 @@ def three_disks_layout_test():
             logging.log(1, result[mp])
 
 
-def readcache_and_writecache_same_dir_test():
+def readcache_and_writecache_same_dir_tst():
     vpool_readcaches_mp = ["/mnt/test_cache1", "/mnt/test_cache2"]
     vpool_writecaches_mp = ["/mnt/test_cache1"]
     vpool_dtl_mp = "/mnt/test_dtl"
@@ -342,7 +342,7 @@ def readcache_and_writecache_same_dir_test():
                   vpool_dtl_mp, initial_part_used_space)
 
 
-def verify_no_namespaces_remain_after_testsuite():
+def verify_no_namespaces_remain_after_tstsuite():
     alba_namespaces = general.get_alba_namespaces()
     assert len(alba_namespaces) == 0,\
         "No alba namespaces should be present at the end of api test suite: {0}".format(alba_namespaces)
