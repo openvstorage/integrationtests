@@ -19,6 +19,7 @@ from nose.plugins.skip import SkipTest
 
 from ovs.dal.lists.backendlist import BackendList
 from ovs.dal.lists.vpoollist import VPoolList
+from ovs.dal.lists.pmachinelist import PMachineList
 
 from ci.tests.general import general
 from ci import autotests
@@ -321,8 +322,11 @@ def check_vpool_sanity_test(vpool_name = ''):
     # create volume
     local_vsa = general.get_local_vsa()
     sd = [sd for sd in vpool.storagedrivers if sd.storagerouter.ip == local_vsa.ip][0]
-    # TODO: add .flat-vmdk in case of VMWARE
-    file_name = os.path.join(sd.mountpoint, "validate_vpool" + str(time.time()).replace(".", "") + ".raw")
+    pmachine_type = PMachineList.get_pmachines()[0].hvtype
+    if pmachine_type == 'VMWARE':
+        file_name = os.path.join(sd.mountpoint, "validate_vpool" + str(time.time()).replace(".", "") + ".flat-vmdk")
+    else:
+        file_name = os.path.join(sd.mountpoint, "validate_vpool" + str(time.time()).replace(".", "") + ".raw")
 
     cmd = "truncate {0} --size 10000000".format(file_name)
     out, error = general.execute_command(cmd)
