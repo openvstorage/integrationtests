@@ -11,22 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""
-script to update files in the codebase:
-- starting from root folder (argument after all options : /folder/ovs/)
-- all .py files
--- option to specify other files (option --extensions="cfg,txt")
--- extensions without dot and comma separated, no spaces
--- "cfg,txt" OK
--- ".cfg, .txt" NOK
-- check if it doesn't exist
-- add to all files (but check first if it exists) (option --fix)
--- text: "license see http://www.openvstorage.com/licenses/opensource/"
-    (second argument after folder : "license see... ")
-only works for text files (no binary files)
-call: script.py [--extensions="cfg,txt"] [--fix] /folder/ovs "license text"
-help: script.py --help
-"""
 
 from ci.tests.general import general
 import os
@@ -181,4 +165,3 @@ def check_license_headers_test():
                         break
     # os.write(1, 'Done processing...')
     assert files_with_diff_licenses == '', 'Following files were found with different licenses:\n {0}'.format(files_with_diff_licenses)
-
