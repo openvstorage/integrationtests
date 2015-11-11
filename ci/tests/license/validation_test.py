@@ -15,6 +15,7 @@
 from ci.tests.general import general
 import os
 
+alternative_first_line = "Copyright 2015 iNuron NV"
 license_to_check = """Copyright 2014 iNuron NV
 
 Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
@@ -156,12 +157,28 @@ def check_license_headers_test():
                 offset = 0
                 before, after = get_comment_style(file.split('.')[-1])
                 if after:
-                    offset = 1
-
-                for line_index in range(0, len(license_splitlines)):
-                    if license_splitlines[line_index] not in lines_to_check[line_index + offset]:
-                        # os.write(1, 'File {0} has a different license\n{1}\n{2}\n'.format(file, lines_to_check[line_index], license_splitlines[line_index]))
-                        files_with_diff_licenses += file + '\n'
+                    offset += 1
+                comment_section_found = False
+                for line_index in range(0, len(lines_to_check) - 1):
+                    if lines_to_check[line_index].startswith(before):
+                        # found the first commented piece of code
+                        offset += line_index
+                        comment_section_found = True
                         break
+                if comment_section_found:
+                    # checking first line against 2014/2015 license
+                    if license_splitlines[0] not in lines_to_check[0 + offset] and alternative_first_line not in lines_to_check[0 + offset]:
+                        files_with_diff_licenses += file + '\n'
+                    else:
+                        # checking the rest of the lines
+                        if offset + len(license_splitlines) > len(lines_to_check):
+                            # found comment section but it's too small for license to fit
+                            files_with_diff_licenses += file + '\n'
+                        else:
+                            for line_index in range(1, len(license_splitlines) - 1):
+                                if license_splitlines[line_index] not in lines_to_check[line_index + offset]:
+                                    os.write(1, 'File {0} has a different license\n{1}\n{2}\n'.format(file, lines_to_check[line_index], license_splitlines[line_index]))
+                                    files_with_diff_licenses += file + '\n'
+                                    break
     # os.write(1, 'Done processing...')
     assert files_with_diff_licenses == '', 'Following files were found with different licenses:\n {0}'.format(files_with_diff_licenses)
