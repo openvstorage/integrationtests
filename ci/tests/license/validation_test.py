@@ -126,13 +126,11 @@ def check_license_headers_test():
     files_with_diff_licenses = ''
     for root_folder in folders_to_check:
         files_to_process = get_all_files(root_folder, extensions)
-        # os.write(1, 'Total files to process (based on extensions {0}): {1}'.format(str(extensions), len(files_to_process)))
 
         for file in files_to_process:
             skip = False
             for skip_file in skip_files:
                 if file.endswith(skip_file):
-                    # os.write(1, 'skipping file {0}'.format(file))
                     skip = True
                     break
             for skip_dir in skip_dirs:
@@ -145,7 +143,6 @@ def check_license_headers_test():
                             break
                 if dirskip:
                     skip = True
-                    # os.write(1, 'skipped file {0}'.format(file))
                     break
             for except_skip_file in except_skip_files:
                 if except_skip_file in file:
@@ -177,8 +174,6 @@ def check_license_headers_test():
                         else:
                             for line_index in range(1, len(license_splitlines) - 1):
                                 if license_splitlines[line_index] not in lines_to_check[line_index + offset]:
-                                    os.write(1, 'File {0} has a different license\n{1}\n{2}\n'.format(file, lines_to_check[line_index], license_splitlines[line_index]))
                                     files_with_diff_licenses += file + '\n'
                                     break
-    # os.write(1, 'Done processing...')
     assert files_with_diff_licenses == '', 'Following files were found with different licenses:\n {0}'.format(files_with_diff_licenses)
