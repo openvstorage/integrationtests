@@ -164,7 +164,7 @@ def check_model_test():
 
     for be in backends_present_on_env:
         if be.backend_type.code == 'alba':
-            assert be.name == general.test_config.get("backend", "backend_name")
+            assert be.name == general.test_config.get("backend", "name")
             assert be.status == 'RUNNING'
 
 

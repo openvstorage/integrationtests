@@ -13,15 +13,15 @@
 # limitations under the License.
 
 import logging
-from ci.tests.general import general
-from ci.tests.api.connection import Connection
 
 from nose.plugins.skip import SkipTest
-
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.system import System
 from ovs.lib.disk import DiskController
 from ovs.lib.storagerouter import StorageRouterController
+
+from ci.tests.general import general
+from ci.tests.general.connection import Connection
 
 log = logging.getLogger('test_flexible_disk_layout')
 vpool_name = general.test_config.get("vpool", "vpool_name")
@@ -37,10 +37,12 @@ __continue_testing.state = True
 
 
 def setup():
+
     pass
 
 
 def teardown():
+
     pass
 
 

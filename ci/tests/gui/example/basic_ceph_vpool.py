@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from ci.tests.general.connection import Connection
 from ci.tests.gui.example.vpool_helper import VpoolTest
-from ci.tests.api.connection import Connection
 
 vpt = VpoolTest('chrome')
 conn = Connection('10.100.131.71', 'admin', 'admin')

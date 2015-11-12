@@ -407,6 +407,8 @@ class xunit_testrail(Plugin):
         """Initializes a timer before starting a test."""
         assert test, "Test should be defined before trying to start a testrun ..."
 
+        section_names = ''
+        all_cases = list()
         test_id = test.id()
         log.log(2, str(test))
         if self.testrailIp:
@@ -419,8 +421,10 @@ class xunit_testrail(Plugin):
                 case_name = name_to_testrail_format(test_name)
 
                 suite = self.testrailApi.get_suite_by_name(self.project_id, suite_name)
+                assert suite, "Please create suite: {0} on testrail".format(suite_name)
                 suite_id = suite['id']
                 section = self.testrailApi.get_section_by_name(self.project_id, suite_id, section_name)
+                assert section, "Please create section: {0} on testrail".format(section_name)
                 section_id = section['id']
 
                 all_cases = self.testrailApi.get_cases(self.project_id, suite_id)
