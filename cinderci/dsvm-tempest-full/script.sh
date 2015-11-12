@@ -110,6 +110,9 @@ function post_devstack_hook {
     #************************************
    
     # APPLY PATCHES
+    if [ $ZUUL_BRANCH = "master" ]; then
+       sudo sed -i "s/('7.0')/('8.0')/g" /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
+    fi
     sudo bash ${WORKSPACE}/integrationtests/cinderci/dsvm-tempest-full/patches.sh
 
     # OVS SETUP
