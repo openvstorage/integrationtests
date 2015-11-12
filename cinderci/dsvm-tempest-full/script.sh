@@ -62,7 +62,7 @@ function post_devstack_hook {
     echo "deb http://testapt.openvstorage.com chicago-community main" | sudo tee /etc/apt/sources.list.d/ovsaptrepo.list
     sudo apt-get update
     sudo apt-get install openvstorage -y --force-yes
-    
+
     sudo touch /tmp/openvstorage_preconfig.cfg
     echo "[setup]" | sudo tee /tmp/openvstorage_preconfig.cfg
     echo "target_ip = $IP" | sudo tee -a /tmp/openvstorage_preconfig.cfg
@@ -82,7 +82,7 @@ function post_devstack_hook {
     echo "disk_layout = {'/mnt/bfs': {'device': 'DIR_ONLY', 'percentage':100, 'label':'', 'type':'storage', 'ssd': False},'/mnt/cache1': {'device': 'DIR_ONLY', 'percentage':100, 'label':'', 'type':'readcache', 'ssd': False},'/mnt/cache2': {'device': 'DIR_ONLY', 'percentage':100, 'label':'', 'type':'writecache', 'ssd': False},'/mnt/db': {'device': 'DIR_ONLY', 'percentage':100, 'label':'', 'type':'storage', 'ssd': False},'/mnt/md': {'device': 'DIR_ONLY', 'percentage':100, 'label':'', 'type':'storage', 'ssd': False},'/var/tmp': {'device': 'DIR_ONLY', 'percentage':100, 'label':'', 'type':'storage', 'ssd': False}}" | sudo tee -a /tmp/openvstorage_preconfig.cfg
     echo "configure_memcached = True" | sudo tee -a /tmp/openvstorage_preconfig.cfg
     echo "configure_rabbitmq = True" | sudo tee -a /tmp/openvstorage_preconfig.cfg
-    
+
     #************************************
     sudo cat /root/.ssh/id_rsa.pub | sudo tee -a /opt/OpenvStorage/.ssh/authorized_keys
 	sudo cat /home/jenkins/.ssh/id_rsa.pub | sudo tee -a /opt/OpenvStorage/.ssh/authorized_keys
@@ -108,7 +108,7 @@ function post_devstack_hook {
 	sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
 	sudo service ssh restart
     #************************************
-   
+
     #ISSUES WITH ADDING VPOOL
     sudo sed -i 's|/opt/stack/cinder/cinder/|/opt/stack/new/cinder/cinder/|g' /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
     sudo sed -i 's|/opt/stack/new/nova/nova/virt/libvirt/volume.py|/opt/stack/new/nova/nova/virt/libvirt/volume/volume.py|g' /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
@@ -146,10 +146,10 @@ index 24149bc..c519ee2 100644
 " | sudo tee /opt/OpenvStorage/patch_disk.diff
     sudo patch /opt/OpenvStorage/ovs/lib/disk.py /opt/OpenvStorage/patch_disk.diff
     sudo timeout -s 9 10m ovs setup 2>&1 | sudo tee /var/log/ovs_setup.log
- 
+
 	export PYTHONPATH="${PYTHONPATH}:/opt/OpenvStorage:/opt/OpenvStorage/webapps"
 	export OS_TEST_TIMEOUT=0
-    
+
     cat << EOF > /home/jenkins/add_vpool.py
 from ovs.extensions.generic.system import System
 from ovs.dal.hybrids.mgmtcenter import MgmtCenter
@@ -174,13 +174,13 @@ for sr in StorageRouterList.get_storagerouters():
                 partition.roles.append(role)
             partition.save()
             print(" >>> ", partition.roles)
-StorageRouterController.add_vpool.apply_async(kwargs={'parameters': {'storagerouter_ip':'$IP', 'vpool_name': 'local', 'type':'local', 'readcache_size': 10, 'writecache_size': 10, 'mountpoint_bfs':'/mnt/bfs', 'mountpoint_temp':'/mnt/tmp', 'mountpoint_md':'/mnt/md', 'mountpoint_readcaches':['/mnt/cache1'], 'mountpoint_writecaches':['/mnt/cache2'], 'mountpoint_foc':'/mnt/cache1', 'storage_ip':'127.0.0.1', 'vrouter_port':12326, 'integratemgmt':True, 'connection_backend': {}, 'connection_password':'', 'connection_username':'', 'connection_host':'', 'connection_port':12326, 'config_params': {'dtl_mode': 'sync', 'sco_size': 4, 'dedupe_mode': 'dedupe', 'dtl_enabled': False, 'dtl_location': '/mnt/cache1', 'write_buffer': 128, 'cache_strategy': 'on_read'}}}).get(timeout=300)
+StorageRouterController.add_vpool.apply_async(kwargs={'parameters': {'storagerouter_ip':'$IP', 'vpool_name': 'local', 'type':'local', 'readcache_size': 10, 'writecache_size': 10, 'mountpoint_bfs':'/mnt/bfs', 'mountpoint_temp':'/mnt/tmp', 'mountpoint_md':'/mnt/md', 'mountpoint_readcaches':['/mnt/cache1'], 'mountpoint_writecaches':['/mnt/cache2'], 'mountpoint_foc':'/mnt/cache1', 'storage_ip':'127.0.0.1', 'vrouter_port':12326, 'integratemgmt':True, 'connection_backend': {}, 'connection_password':'', 'connection_username':'', 'connection_host':'', 'connection_port':12326, 'config_params': {'dtl_mode': 'a_sync', 'sco_size': 4, 'dedupe_mode': 'dedupe', 'write_buffer': 128, 'cache_strategy': 'on_read'}}}).get(timeout=300)
 EOF
-    
-    sudo cp /home/jenkins/add_vpool.py /opt/OpenvStorage/add_vpool.py  
+
+    sudo cp /home/jenkins/add_vpool.py /opt/OpenvStorage/add_vpool.py
     sudo python /opt/OpenvStorage/add_vpool.py 2>&1 | sudo tee -a /var/log/ovs_setup.log
-   
-   
+
+
     sudo sed -i 's/#build_timeout = 300/build_timeout = 600/g' /opt/stack/new/tempest/etc/tempest.conf
     sudo sed -i 's/build_timeout = 196/build_timeout = 600/g' /opt/stack/new/tempest/etc/tempest.conf
 	sudo sed -i '/\[volume\]/a storage_protocol=OVS' /opt/stack/new/tempest/etc/tempest.conf
@@ -189,10 +189,10 @@ EOF
     sudo sed -i '/\[volume\]/a backend2_name=local' /opt/stack/new/tempest/etc/tempest.conf
     sudo sed -i '/\[volume-feature-enabled\]/a multi_backend=True' /opt/stack/new/tempest/etc/tempest.conf
     sudo sed -i '/\[volume\]/a volume_size=4' /opt/stack/new/tempest/etc/tempest.conf
-    
+
     ps aux | grep volumedriver
     sudo cat /etc/cinder/cinder.conf
-   
+
    	sudo vgdisplay
     sudo rm -f /opt/stack/new/tempest/tempest/api/object_storage/test_container_sync_middleware.py
     sudo rm -f /opt/stack/new/tempest/tempest/scenario/test_swift_telemetry_middleware.py
