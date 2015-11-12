@@ -50,7 +50,7 @@ function pre_test_hook {
 export -f pre_test_hook
 
 function post_devstack_hook {
-    OVSRELEASE=chicago-community
+    OVSRELEASE=denver-community
     IP=`ip a l dev eth0 | grep "inet " | awk '{split($0,a," "); split(a[2],b,"/"); print(b[1])}'`
     PASSWORD=rooter
     CLUSTER_NAME=dsvmcitesting
