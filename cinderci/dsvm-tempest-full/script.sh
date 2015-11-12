@@ -50,6 +50,7 @@ function pre_test_hook {
 export -f pre_test_hook
 
 function post_devstack_hook {
+    OVSRELEASE=chicago-community
     IP=`ip a l dev eth0 | grep "inet " | awk '{split($0,a," "); split(a[2],b,"/"); print(b[1])}'`
     PASSWORD=rooter
     CLUSTER_NAME=dsvmcitesting
@@ -58,8 +59,7 @@ function post_devstack_hook {
     HYPERVISOR_NAME=`hostname`
     ARAKOON_MNTP=/mnt/db
     sudo sed -i 's/nameserver .*/nameserver 172.19.0.1/g' /etc/resolv.conf
-    echo 212.88.230.99 packages.cloudfounders.com | sudo tee -a /etc/hosts
-    echo "deb http://testapt.openvstorage.com chicago-community main" | sudo tee /etc/apt/sources.list.d/ovsaptrepo.list
+    echo "deb http://testapt.openvstorage.com $OVSRELEASE main" | sudo tee /etc/apt/sources.list.d/ovsaptrepo.list
     sudo apt-get update
     sudo apt-get install openvstorage -y --force-yes
     
@@ -109,78 +109,18 @@ function post_devstack_hook {
 	sudo service ssh restart
     #************************************
    
-    #ISSUES WITH ADDING VPOOL
-    sudo sed -i 's|/opt/stack/cinder/cinder/|/opt/stack/new/cinder/cinder/|g' /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
-    sudo sed -i 's|/opt/stack/new/nova/nova/virt/libvirt/volume.py|/opt/stack/new/nova/nova/virt/libvirt/volume/volume.py|g' /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
-	if [ $ZUUL_BRANCH = "master" ]; then
-       sudo sed -i "s/('7.0')/('8.0')/g" /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
-    fi
-    echo "diff --git a/ovs/lib/disk.py b/ovs/lib/disk.py
-index 24149bc..c519ee2 100644
---- a/ovs/lib/disk.py
-+++ b/ovs/lib/disk.py
-@@ -67,7 +67,8 @@ class DiskController(object):
-             with Remote(storagerouter.ip, [Context, os]) as remote:
-                 context = remote.Context()
-                 devices = [device for device in context.list_devices(subsystem='block')
--                           if 'ID_TYPE' in device and device['ID_TYPE'] == 'disk']
-+                           if 'ID_TYPE' in device and device['ID_TYPE'] == 'disk'
-+                           or (device['DEVTYPE'] in ('disk', 'partition') and device['DEVNAME'].startswith('/dev/vda'))]
-                 for device in devices:
-                     is_partition = device['DEVTYPE'] == 'partition'
-                     device_path = device['DEVNAME']
-@@ -97,9 +98,10 @@ class DiskController(object):
-                     for path_type in ['by-id', 'by-uuid']:
-                         if path is not None:
-                             break
--                        for item in device['DEVLINKS'].split(' '):
--                            if path_type in item:
--                                path = item
-+                        if 'DEVLINKS' in device:
-+                            for item in device['DEVLINKS'].split(' '):
-+                                if path_type in item:
-+                                    path = item
-                     if path is None:
-                         path = device_path
-                     sectors = int(client.run('cat /sys/block/{0}/size'.format(device_name)))
-" | sudo tee /opt/OpenvStorage/patch_disk.diff
-    sudo patch /opt/OpenvStorage/ovs/lib/disk.py /opt/OpenvStorage/patch_disk.diff
+    # APPLY PATCHES
+    sudo bash ${WORKSPACE}/integrationtests/cinderci/dsvm-tempest-full/patches.sh
+
+    # OVS SETUP
     sudo timeout -s 9 10m ovs setup 2>&1 | sudo tee /var/log/ovs_setup.log
- 
+
+    # ADD VPOOL
 	export PYTHONPATH="${PYTHONPATH}:/opt/OpenvStorage:/opt/OpenvStorage/webapps"
 	export OS_TEST_TIMEOUT=0
-    
-    cat << EOF > /home/jenkins/add_vpool.py
-from ovs.extensions.generic.system import System
-from ovs.dal.hybrids.mgmtcenter import MgmtCenter
-from ovs.dal.hybrids.diskpartition import DiskPartition
-from ovs.dal.lists.storagerouterlist import StorageRouterList
-from ovs.lib.storagerouter import StorageRouterController
-from ovs.extensions.hypervisor.mgmtcenters.management.openstack_mgmt import OpenStackManagement
-pmachine = System.get_my_storagerouter().pmachine
-mgmt_center = MgmtCenter(data={'name':'Openstack', 'description':'test', 'username':'admin', 'password':'rooter', 'ip':'127.0.0.1', 'port':80, 'type':'OPENSTACK', 'metadata':{'integratemgmt':True}})
-mgmt_center.save()
-pmachine.mgmtcenter = mgmt_center
-pmachine.save()
-osm = OpenStackManagement(None)
-osm.configure_host('$IP')
-for sr in StorageRouterList.get_storagerouters():
-     print(" > ", sr.name)
-     for disk in sr.disks:
-         print(disk.path, disk.size)
-         for partition in disk.partitions:
-            print(" >> ", partition.path, partition.size)
-            for role in [DiskPartition.ROLES.DB, DiskPartition.ROLES.SCRUB, DiskPartition.ROLES.READ, DiskPartition.ROLES.WRITE]:
-                partition.roles.append(role)
-            partition.save()
-            print(" >>> ", partition.roles)
-StorageRouterController.add_vpool.apply_async(kwargs={'parameters': {'storagerouter_ip':'$IP', 'vpool_name': 'local', 'type':'local', 'readcache_size': 10, 'writecache_size': 10, 'mountpoint_bfs':'/mnt/bfs', 'mountpoint_temp':'/mnt/tmp', 'mountpoint_md':'/mnt/md', 'mountpoint_readcaches':['/mnt/cache1'], 'mountpoint_writecaches':['/mnt/cache2'], 'mountpoint_foc':'/mnt/cache1', 'storage_ip':'127.0.0.1', 'vrouter_port':12326, 'integratemgmt':True, 'connection_backend': {}, 'connection_password':'', 'connection_username':'', 'connection_host':'', 'connection_port':12326, 'config_params': {'dtl_mode': 'sync', 'sco_size': 4, 'dedupe_mode': 'dedupe', 'dtl_enabled': False, 'dtl_location': '/mnt/cache1', 'write_buffer': 128, 'cache_strategy': 'on_read'}}}).get(timeout=300)
-EOF
-    
-    sudo cp /home/jenkins/add_vpool.py /opt/OpenvStorage/add_vpool.py  
-    sudo python /opt/OpenvStorage/add_vpool.py 2>&1 | sudo tee -a /var/log/ovs_setup.log
+    sudo python ${WORKSPACE}/integrationtests/cinderci/dsvm-tempest-full/add_vpool.py 2>&1 | sudo tee -a /var/log/ovs_setup.log
    
-   
+    # CONFIGURE TEMPEST
     sudo sed -i 's/#build_timeout = 300/build_timeout = 600/g' /opt/stack/new/tempest/etc/tempest.conf
     sudo sed -i 's/build_timeout = 196/build_timeout = 600/g' /opt/stack/new/tempest/etc/tempest.conf
 	sudo sed -i '/\[volume\]/a storage_protocol=OVS' /opt/stack/new/tempest/etc/tempest.conf
@@ -190,16 +130,18 @@ EOF
     sudo sed -i '/\[volume-feature-enabled\]/a multi_backend=True' /opt/stack/new/tempest/etc/tempest.conf
     sudo sed -i '/\[volume\]/a volume_size=4' /opt/stack/new/tempest/etc/tempest.conf
     
-    ps aux | grep volumedriver
-    sudo cat /etc/cinder/cinder.conf
-   
-   	sudo vgdisplay
+    sudo ps aux | grep volumedriver | sudo tee -a /var/log/ovs_setup.log
+    sudo cat /etc/cinder/cinder.conf | sudo tee -a /var/log/ovs_setup.log
+   	sudo vgdisplay | sudo tee -a /var/log/ovs_setup.log
+   	sudo cat /opt/stack/new/tempest/etc/tempest.conf | sudo tee -a /var/log/ovs_setup.log
+
+   	# DISABLE SOME TESTS
     sudo rm -f /opt/stack/new/tempest/tempest/api/object_storage/test_container_sync_middleware.py
     sudo rm -f /opt/stack/new/tempest/tempest/scenario/test_swift_telemetry_middleware.py
     sudo rm -f /opt/stack/new/tempest/tempest/api/telemetry/test_telemetry_notification_api.py
     sudo rm -f /opt/stack/new/tempest/tempest/api/telemetry/test_telemetry_alarming_api.py
     sudo rm -f /opt/stack/new/tempest/tempest/scenario/test_object_storage_telemetry_middleware.py
-    sudo cat /opt/stack/new/tempest/etc/tempest.conf
+
 }
 
 export -f post_devstack_hook
