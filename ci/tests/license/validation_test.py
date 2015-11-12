@@ -15,7 +15,7 @@
 from ci.tests.general import general
 import os
 
-alternative_first_line = "Copyright 2015 iNuron NV"
+alternative_first_lines = ["Copyright 2014 iNuron NV", "Copyright 2015 iNuron NV", "Copyright 2016 iNuron NV"]
 license_to_check = """Copyright 2014 iNuron NV
 
 Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
@@ -163,8 +163,12 @@ def check_license_headers_test():
                         comment_section_found = True
                         break
                 if comment_section_found:
-                    # checking first line against 2014/2015 license
-                    if license_splitlines[0] not in lines_to_check[0 + offset] and alternative_first_line not in lines_to_check[0 + offset]:
+                    # checking first line against 2014/2015/2016 license
+                    first_line_checked = False
+                    for alternative_first_line in alternative_first_lines:
+                        if alternative_first_line in lines_to_check[0 + offset]:
+                            first_line_checked = True
+                    if not first_line_checked:
                         files_with_diff_licenses += file + '\n'
                     else:
                         # checking the rest of the lines
