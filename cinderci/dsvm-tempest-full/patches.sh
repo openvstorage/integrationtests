@@ -1,9 +1,9 @@
-    sudo sed -i 's|/opt/stack/cinder/cinder/|/opt/stack/new/cinder/cinder/|g' /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
-    sudo sed -i 's|/opt/stack/new/nova/nova/virt/libvirt/volume.py|/opt/stack/new/nova/nova/virt/libvirt/volume/volume.py|g' /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
-	if [ $ZUUL_BRANCH = "master" ]; then
-       sudo sed -i "s/('7.0')/('8.0')/g" /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
-    fi
-    echo "diff --git a/ovs/lib/disk.py b/ovs/lib/disk.py
+sudo sed -i 's|/opt/stack/cinder/cinder/|/opt/stack/new/cinder/cinder/|g' /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
+sudo sed -i 's|/opt/stack/new/nova/nova/virt/libvirt/volume.py|/opt/stack/new/nova/nova/virt/libvirt/volume/volume.py|g' /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
+if [ $ZUUL_BRANCH = "master" ]; then
+   sudo sed -i "s/('7.0')/('8.0')/g" /opt/OpenvStorage/ovs/extensions/hypervisor/mgmtcenters/management/openstack_mgmt.py
+fi
+echo "diff --git a/ovs/lib/disk.py b/ovs/lib/disk.py
 index 24149bc..c519ee2 100644
 --- a/ovs/lib/disk.py
 +++ b/ovs/lib/disk.py
@@ -32,4 +32,4 @@ index 24149bc..c519ee2 100644
                          path = device_path
                      sectors = int(client.run('cat /sys/block/{0}/size'.format(device_name)))
 " | sudo tee /opt/OpenvStorage/patch_disk.diff
-    sudo patch /opt/OpenvStorage/ovs/lib/disk.py /opt/OpenvStorage/patch_disk.diff
+sudo patch /opt/OpenvStorage/ovs/lib/disk.py /opt/OpenvStorage/patch_disk.diff

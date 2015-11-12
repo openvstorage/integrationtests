@@ -1,5 +1,8 @@
-from subprocess import check_output
+import sys
+sys.path.append('/opt/OpenvStorage')
 
+
+from subprocess import check_output
 from ovs.extensions.generic.system import System
 from ovs.dal.hybrids.mgmtcenter import MgmtCenter
 from ovs.dal.hybrids.diskpartition import DiskPartition
