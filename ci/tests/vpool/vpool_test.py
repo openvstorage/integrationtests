@@ -16,6 +16,9 @@ from ci.tests.general import general
 from ci.tests.general.general import test_config
 from ci.tests.sanity import sanity_checks_test
 from ci.tests.backend import alba, generic, test_alba
+from ovs.dal.lists.backendlist import BackendList
+from ovs.dal.lists.albanodelist import AlbaNodeList
+from ovs.lib.albanodecontroller import AlbaNodeController
 
 VPOOL_NAME = test_config.get('vpool', 'vpool_name')
 VPOOL_NAME = 'vpool-' + VPOOL_NAME
@@ -26,7 +29,20 @@ BACKEND_TYPE = test_config.get('backend', 'type')
 def setup():
     if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
         alba.add_alba_backend(BACKEND_NAME)
-    # claim the disks
+    backend = BackendList.get_by_name(BACKEND_NAME)
+    alba_node = AlbaNodeList.get_albanode_by_ip('172.20.54.250')
+    node_guid = alba_node.guid
+    # claim up to 3 disks
+    nr_of_claimed_disks = 0
+    for disk in backend.alba_backend.all_disks:
+        if 'asd_id' in disk and disk['status'] in 'claimed' and disk['node_id'] == alba_node.node_id:
+            nr_of_claimed_disks += 1
+
+    if nr_of_claimed_disks < 3:
+        disks_to_init = [d['name'] for d in alba_node.all_disks if d['available'] is True][:3 - nr_of_claimed_disks]
+        failures = AlbaNodeController.initialize_disks(node_guid, disks_to_init)
+        if failures:
+            raise 'Alba disk initialization failed for (some) disks: {0}'.format(failures)
 
 
 def teardown():
@@ -40,7 +56,7 @@ def add_vpool_test():
                                          apply_to_all_nodes=True,
                                          config_cinder=True,
                                          integratemgmt=True)
-    assert vpool_params.name == VPOOL_NAME, "Adding the vpool was unsuccsesfull\n{0}".format(vpool_params)
+    assert vpool_params['vpool_name'] == VPOOL_NAME, "Adding the vpool was unsuccsesfull\n{0}".format(vpool_params)
     # sanity_checks_test.check_vpool_sanity_test()
     if vpool_params:
         general.api_remove_vpool(vpool_params['vpool_name'])

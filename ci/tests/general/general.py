@@ -411,7 +411,7 @@ def api_add_vpool(vpool_name=None,
         vpool_name = test_config.get(vpool_config, 'vpool_name')
 
     if not backend_name:
-        backend_name = test_config.get('main', 'backend_name')
+        backend_name = test_config.get('backend', 'name')
 
     parameters = {'storagerouter_ip': local_vsa_ip,
                   'vpool_name': vpool_name,
