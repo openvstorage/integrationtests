@@ -30,7 +30,6 @@ def setup():
 
 
 def teardown():
-    pass
     backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     if backend:
         alba.remove_alba_backend(backend['alba_backend_guid'])
