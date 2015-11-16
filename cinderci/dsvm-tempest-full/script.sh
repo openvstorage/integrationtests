@@ -134,8 +134,8 @@ function post_devstack_hook {
     sudo sed -i '/\[volume\]/a volume_size=4' /opt/stack/new/tempest/etc/tempest.conf
 
     # CONFIGURE CINDER
-    sudo sed -i 's/default_volume_type = lvmdriver-1/default_volume_type = local/g /etc/cinder/cinder.conf
-    sudo sed -i 's/enabled_backends = lvmdriver-1, local/enabled_backends = local/g /etc/cinder/cinder.conf
+    sudo sed -i 's/default_volume_type = lvmdriver-1/default_volume_type = local/g' /etc/cinder/cinder.conf
+    sudo sed -i 's/enabled_backends = lvmdriver-1, local/enabled_backends = local/g' /etc/cinder/cinder.conf
 
     sudo ps aux | grep volumedriver | sudo tee -a /var/log/ovs_setup.log
     sudo cat /etc/cinder/cinder.conf | sudo tee -a /var/log/ovs_setup.log
