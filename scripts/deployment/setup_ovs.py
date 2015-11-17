@@ -232,7 +232,6 @@ screen_capture = {screen_capture}
 cleanup = True
 grid_ip = {grid_ip}
 vpool_name = {vpool_name}
-backend_name = {backend_name}
 output_folder = {output_folder}
 qualitylevel = {qualitylevel}
 {vpool_config}
@@ -250,6 +249,9 @@ vpool_storage_ip = 127.0.0.1
 vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
 [openstack]
 cinder_type = {cinder_type}
+[backend]
+name = {backend_name}
+type = alba
 [testrail]
 key = {testrail_key}
 server = {testrail_server}
@@ -676,10 +678,7 @@ def handle_ovs_setup(public_ip,
                      hypervisor_password,
                      hostname):
     con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-    if '-' in qualitylevel:
-        con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
-    else:
-        con.process.execute('echo "deb http://packages.cloudfounders.com/apt/ {0}/" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
+    con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
 
     con.process.execute('apt-get update')
     con.process.execute('apt-get install -y ntp')
