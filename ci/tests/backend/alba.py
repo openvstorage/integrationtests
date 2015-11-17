@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import time
 
@@ -86,18 +87,17 @@ def get_alba_backend(guid):
 
 
 def get_alba_namespaces(name):
-    if not generic.is_backend_present(name):
+    if not generic.is_backend_present(name, 'alba'):
         return
 
     cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(name)
-    out = execute_command(cmd_list)[0].replace('true', 'True')
-    out = out.replace('false', 'False')
+    out = execute_command(cmd_list)[0]
+    out = json.loads(out)
     logging.log(1, "output: {0}".format(out))
     if not out:
         logging.log(1, "No backend present with name: {0}:\n".format(name))
         return
 
-    out = eval(out)
     if out['success']:
         nss = out['result']
         logging.log(1, "Namespaces present on backend: {0}:\n{1}".format(name, str(nss)))
