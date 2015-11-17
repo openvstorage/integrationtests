@@ -82,7 +82,6 @@ def remove_alba_backend(guid):
 
 def get_alba_backend(guid):
     api = Connection.get_connection()
-    print 'get albabackend with guid: {0}'.format(guid)
     return api.fetch('alba/backends', guid)
 
 

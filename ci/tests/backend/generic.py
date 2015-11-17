@@ -17,12 +17,18 @@ api = Connection.get_connection()
 
 
 def get_backendtype_by_name(name):
-
     return api.get_component_by_name('backendtypes', name)
 
 
-def get_backend(guid):
+def get_valid_backendtypes():
+    backendtypes = api.get_components('backendtypes')
+    return [be['code'] for be in backendtypes]
 
+
+VALID_BACKEND_TYPES = get_valid_backendtypes()
+
+
+def get_backend(guid):
     return api.fetch('backends', guid)
 
 
