@@ -38,3 +38,55 @@ def add_db_role():
                 StorageRouterController.configure_disk(my_sr.guid, partition['disk_guid'], partition['guid'],
                                                        partition['offset'], partition['size'], roles)
                 break
+
+
+def add_read_write_scrub_roles():
+    api = Connection.get_connection()
+    disks = api.get_components('disks')
+    ssds = list()
+    ssd_number = 0
+    for disk in disks:
+        if disk.is_ssd:
+            ssd_number += 1
+            ssds.append(disk)
+    my_sr = System.get_my_storagerouter()
+
+    if ssd_number == 2:
+        for partition in api.get_components('diskpartitions'):
+            if partition['disk_guid'] == ssds[0]['guid']:
+                roles = list() if not partition['roles'] else partition['roles']
+                roles.append('READ')
+                roles.append('SCRUB')
+                StorageRouterController.configure_disk(my_sr.guid, partition['disk_guid'], partition['guid'],
+                                                       partition['offset'], partition['size'], roles)
+            elif partition['disk_guid'] == ssds[1]['guid']:
+                roles = list() if not partition['roles'] else partition['roles']
+                roles.append('WRITE')
+                StorageRouterController.configure_disk(my_sr.guid, partition['disk_guid'], partition['guid'],
+                                                       partition['offset'], partition['size'], roles)
+    elif ssd_number == 1:
+        for partition in api.get_components('diskpartitions'):
+            if partition['disk_guid'] == ssds[0]['guid']:
+                roles = list() if not partition['roles'] else partition['roles']
+                roles.append('READ')
+                roles.append('SCRUB')
+                roles.append('WRITE')
+                StorageRouterController.configure_disk(my_sr.guid, partition['disk_guid'], partition['guid'],
+                                                       partition['offset'], partition['size'], roles)
+    elif ssd_number >= 3:
+        for partition in api.get_components('diskpartitions'):
+            if partition['disk_guid'] == ssds[0]['guid']:
+                roles = list() if not partition['roles'] else partition['roles']
+                roles.append('READ')
+                StorageRouterController.configure_disk(my_sr.guid, partition['disk_guid'], partition['guid'],
+                                                       partition['offset'], partition['size'], roles)
+            elif partition['disk_guid'] == ssds[1]['guid']:
+                roles = list() if not partition['roles'] else partition['roles']
+                roles.append('WRITE')
+                StorageRouterController.configure_disk(my_sr.guid, partition['disk_guid'], partition['guid'],
+                                                       partition['offset'], partition['size'], roles)
+            elif partition['disk_guid'] == ssds[2]['guid']:
+                roles = list() if not partition['roles'] else partition['roles']
+                roles.append('SCRUB')
+                StorageRouterController.configure_disk(my_sr.guid, partition['disk_guid'], partition['guid'],
+                                                       partition['offset'], partition['size'], roles)
