@@ -43,7 +43,7 @@ skip_dirs = ['/webapps/frontend/lib',
              '/webapps/api/static/rest_framework/js',
              '/.git',
              '/scripts/',
-             '/extensions/db/arakoon/',
+             '/extensions/db/arakoon/arakoon/',
              '/opt/OpenvStorage/config/templates/cinder-volume-driver/',
              '/opt/OpenvStorage/config/templates/cinder-unit-tests/']
 # define files and directories to except from skip
