@@ -18,7 +18,7 @@ from ci import autotests
 vpool_name = general.test_config.get("vpool", "vpool_name")
 vpool_name = 'system-' + vpool_name
 
-testsToRun = general.get_tests_to_run(autotests.getTestLevel())
+testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
 
 def setup():
@@ -86,4 +86,5 @@ def ovs_2468_verify_no_mds_files_left_after_remove_vpool_test():
         if mdsvpoolname.split('_')[1] not in vpool_names:
             mds_files_still_in_filesystem += mdsvpoolname + "\n"
 
-    assert len(mds_files_still_in_filesystem) == 0, "MDS files still present in filesystem after remove vpool test:\n %s" % mds_files_still_in_filesystem
+    assert len(mds_files_still_in_filesystem) == 0,\
+        "MDS files still present in filesystem after remove vpool test:\n %s" % mds_files_still_in_filesystem

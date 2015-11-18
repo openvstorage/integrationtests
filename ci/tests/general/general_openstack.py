@@ -51,9 +51,9 @@ def create_glance_image():
     if existing_images:
         return existing_images[0]['ID']
 
-    os_name = autotests.getOs()
-    bootdisk_path_remote = autotests.getOsInfo(os_name)['bootdisk_location']
-    template_server = autotests.getTemplateServer()
+    os_name = autotests.get_os()
+    bootdisk_path_remote = autotests.get_os_info(os_name)['bootdisk_location']
+    template_server = autotests.get_template_server()
 
     bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
     md5_url = urlparse.urljoin(template_server, "md5")

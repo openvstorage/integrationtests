@@ -34,7 +34,7 @@ from selenium.webdriver.remote.remote_connection import LOGGER
 
 LOGGER.setLevel(logging.WARNING)
 
-tests_to_run = general.get_tests_to_run(autotests.getTestLevel())
+tests_to_run = general.get_tests_to_run(autotests.get_test_level())
 machinename = "AT_" + __name__.split(".")[-1]
 vpool_name = general.test_config.get("vpool", "vpool_name")
 vpool_name = 'openstack-' + vpool_name
@@ -45,8 +45,8 @@ def setup():
 
     if not general_openstack.is_openstack_present():
         return
-    prev_os = autotests.getOs()
-    autotests.setOs('ubuntu_server14_kvm')
+    prev_os = autotests.get_os()
+    autotests.set_os('ubuntu_server14_kvm')
 
     # make sure we start with clean env
     if general_openstack.is_openstack_present():
@@ -63,7 +63,7 @@ def teardown():
     if not general_openstack.is_openstack_present():
         return
 
-    autotests.setOs(prev_os)
+    autotests.set_os(prev_os)
     if general.test_config.get("main", "cleanup") == "True":
         general_openstack.cleanup()
 
@@ -72,7 +72,7 @@ def teardown():
     # general.validate_logstash_open_files_amount()
 
 
-def create_empty_volume_test():
+def create_empty_volume_tst():
     """
     Create an empty volume using cinder
      - validate if the volume is created successfully
@@ -92,7 +92,7 @@ def create_empty_volume_test():
     general_openstack.delete_volume(vol_id)
 
 
-def create_volume_from_image_test():
+def create_volume_from_image_tst():
     """
     Create a new volume from an image (created with glance)
      - validate if the volume is created successfully
@@ -124,7 +124,7 @@ def create_volume_from_image_test():
     general_openstack.delete_volume(vol_id)
 
 
-def boot_nova_instance_from_volume_test():
+def boot_nova_instance_from_volume_tst():
     """
     Create and boot an instance using a volume (created from image)
      - validate if volume and instance are created successfully
@@ -170,7 +170,7 @@ def boot_nova_instance_from_volume_test():
     general_openstack.delete_volume(volume_id)
 
 
-def boot_nova_instance_from_snapshot_test():
+def boot_nova_instance_from_snapshot_tst():
     """
     Create a volume from image and snapshot it;
     Create and boot an instance using the snapshot of volume
@@ -228,7 +228,7 @@ def boot_nova_instance_from_snapshot_test():
     logging.log(1, "Cleanup complete".format())
 
 
-def permissions_check_test():
+def permissions_check_tst():
     """
     Check group and owner of the vpool
     Create an empty volume and check file/directory permissions
@@ -277,7 +277,7 @@ def permissions_check_test():
     general_openstack.delete_volume(volume_id)
 
 
-def live_migration_test():
+def live_migration_tst():
     """
     Create a volume from image.
     Create and boot an instance using the volume
@@ -319,7 +319,7 @@ def live_migration_test():
     general_openstack.delete_instance(instance_id)
 
 
-def delete_multiple_volumes_test():
+def delete_multiple_volumes_tst():
     """
     Create multiple volumes from image and delete them
      - Validate if volumes are deleted after waiting
@@ -362,173 +362,5 @@ def delete_multiple_volumes_test():
         general_openstack.delete_volume(vol_id, wait=False)
 
     for vol_id, vol_name in vol_ids.iteritems():
-        logging.log(1, "Waiting for volume: {0} to dissappear on openstack level".format(vol_name))
+        logging.log(1, "Waiting for volume: {0} to disappear on openstack level".format(vol_name))
         general_openstack.wait_for_volume_to_disappear(vol_id, vol_name, retries=900)
-
-# disabled as licensing will become obsolete
-def alba_license_volumes_limitation():
-    """
-    Get the active license of the OpenvStorage-Backend and
-    test its boundaries
-     - Create maximum allowed namespaces
-    """
-    general.check_prereqs(testcase_number=8, tests_to_run=tests_to_run)
-
-    if not general_openstack.is_openstack_present():
-        raise SkipTest()
-
-    # Get alba license
-    alba_license = general.get_alba_license('alba')
-    if not alba_license:
-        raise SkipTest()
-
-    # If an unlimited license is in use, check the quota vpool limit
-    if alba_license.data['namespaces'] is None:
-        quotas = general_openstack.get_formated_cmd_output("cinder quota-show $(keystone tenant-get admin | awk '/id/ {print $4}')")
-        volumes_limit = int(general.get_elem_with_val(quotas, "Property", "volumes_{0}".
-                                                      format(vpool_name))[0]['Value'])
-    else:
-        volumes_limit = alba_license.data['namespaces']
-
-    volume_name = "{0}_{1}_max_vols".format(machinename, int(time.time()))
-
-    images = [img for img in general_openstack.get_formated_cmd_output("glance image-list")
-              if img['ContainerFormat'] not in ["aki", "ari"]]
-    images = sorted(images, key=lambda x: int(x['Size']))
-    glance_image_id = images[0]['ID']
-    glance_image = general_openstack.get_image(glance_image_id)
-
-    # Adjust volume size according to the size of the image
-    volume_size = 1
-    if glance_image:
-        glance_image_size = int(glance_image[0]['Size']) / 1024 ** 3
-        if glance_image_size > volume_size:
-            volume_size = glance_image_size
-
-    # Max allowed volumes to create, for a license with 100 namespaces:
-    # - Every volume = 1 namespace
-    # - Every vpool = 1 namespace
-    # So we can create 99 volumes, because one namespace is reserved for the vpool
-    # Trying to create more than 99 volumes should fail
-    existing_volumes = general_openstack.get_formated_cmd_output("cinder list")
-    vols_to_create = volumes_limit - len(existing_volumes) - 1
-
-    logging.log(1, "Nr of volumes to create to reach license limitation: {0}".format(vols_to_create))
-
-    vol_ids = {}
-    vol_limit_exceeded = False
-    idx = 0
-    for idx in range(vols_to_create):
-        time.sleep(2)
-        vol_name = "{0}_{1}".format(volume_name, idx)
-        vol_id = general_openstack.create_volume(image_id=glance_image_id,
-                                                 cinder_type=vpool_name,
-                                                 volume_name=vol_name,
-                                                 volume_size=volume_size)
-        vol_ids[vol_id] = vol_name
-
-    # Try to create one more volume (should fail)
-    try:
-        vol_name = "{0}_{1}".format(volume_name, idx + 1)
-        vol_id = general_openstack.create_volume(image_id=glance_image_id, cinder_type=vpool_name,
-                                                 volume_name=vol_name, volume_size=volume_size)
-        if vol_id:
-            vol_limit_exceeded = True
-    except Exception as ex:
-        print 'Cannot exceed license namespaces limitation : {0}'.format(str(ex))
-
-    # Cleanup vols
-    for vol_id in vol_ids:
-        general_openstack.delete_volume(vol_id, wait=True)
-
-    assert not vol_limit_exceeded, 'Exceeding license namespaces limitation was allowed'
-
-
-# disabled as licensing will become obsolete
-@timed(3600)
-def alba_license_osds_limitation():
-    """
-    Get the active license of the OpenvStorage-Backend and
-    test its boundaries
-     - Create maximum allowed OSDs
-    """
-    general.check_prereqs(testcase_number=9, tests_to_run=tests_to_run)
-
-    if not general_openstack.is_openstack_present():
-        raise SkipTest()
-
-    # Get alba license
-    alba_license = general.get_alba_license('alba')
-    if not alba_license:
-        raise SkipTest()
-
-    # Validate maximum allowed OSDs
-    asds = {}
-    osd_limit_exceeded = False
-    asd_create_error = False
-    alba_be = None
-    if alba_license.data['osds']:
-        alba_be = general_alba.get_alba_backend()
-        alba_node = AlbaNodeList.get_albanodes()[0]
-        node_id = alba_node.node_id
-
-        nr_asds_to_create = alba_license.data['osds'] - len(alba_be.asds_guids)
-        if nr_asds_to_create > 0:
-            asd_id = None
-            idx = 0
-            asd_id = None
-            try:
-                for idx in range(nr_asds_to_create):
-                    # Create and start Dummy ASD
-                    asd_id = 'AT_asd_{0}'.format(idx)
-                    port = 8630 + idx
-                    path = '/mnt/alba-asd/{0}'.format(asd_id)
-                    general_alba.asd_start(asd_id, port, path, node_id, False)
-
-                    # Add ASD in the OVS lib
-                    AlbaController.add_units(alba_be.guid, {asd_id: alba_node.guid})
-
-                    # Update asds list
-                    asds[asd_id] = {'port': port, 'path': path}
-            except Exception as ex:
-                print 'ASD creation failed {0} with error: {1}'.format(asd_id, str(ex))
-                asd_create_error = True
-
-            if not asd_create_error:
-                # Try to exceed the OSDs license limit
-                idx = 0
-                try:
-                    idx += 1
-                    asd_id = 'AT_asd_{0}'.format(idx)
-                    port = 8630 + idx
-                    path = '/mnt/alba-asd/{0}'.format(asd_id)
-                    general_alba.asd_start(asd_id, port, path, node_id, False)
-
-                    # Add ASD in the OVS lib
-                    AlbaController.add_units(alba_be.guid, {asd_id: alba_node.guid})
-
-                    # Update ASDs list
-                    asds[asd_id] = {'port': port, 'path': path}
-                    osd_limit_exceeded = True
-                except Exception as ex:
-                    print 'Cannot exceed license OSDs limitation : {0}'.format(str(ex))
-
-    # Cleanup created ASDs
-    if asds:
-        for asd_id, asd_info in asds.iteritems():
-            AlbaController.remove_units(alba_be.guid, [asd_id])
-
-            # Stop the ASD
-            general_alba.asd_stop(asd_info['port'])
-
-            # Remove leftover files
-            os.popen('rm -r {0}'.format(asd_info['path']))
-
-        # Remove ASD from the model
-        alba_be = general_alba.get_alba_backend()
-        for asd in alba_be.asds:
-            if asd.asd_id in asds.keys():
-                asd.delete()
-
-    assert not asd_create_error, 'Failed to create ODSs'
-    assert not osd_limit_exceeded, 'Exceeding license OSDs limitation was allowed'

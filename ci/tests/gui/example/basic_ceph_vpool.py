@@ -33,11 +33,6 @@ def setup():
     vpt.set_vpool_access_key('0OMK2V3HQJ4JNDT766UF')
     vpt.set_vpool_secret_key('RCz00qAo+jgRlPLVdXoP1RUZfU5RzjOFRQJBJxyR')
 
-    vpt.set_vpool_temp_mp('/var/tmp/{0}'.format(vpt.get_vpool_name()))
-    vpt.set_vpool_md_mp('/mnt/md/{0}'.format(vpt.get_vpool_name()))
-    vpt.set_vpool_readcache_mp('/mnt/cache1/{0}/read'.format(vpt.get_vpool_name()))
-    vpt.set_vpool_writecache_mp('/mnt/cache1/{0}/write'.format(vpt.get_vpool_name()))
-    vpt.set_vpool_dtl_mp('/mnt/cache1/{0}/dtl'.format(vpt.get_vpool_name()))
     vpt.set_vpool_vrouter_port(12323)
     vpt.set_vpool_storage_ip('172.22.131.10')
 
