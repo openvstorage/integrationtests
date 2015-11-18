@@ -172,17 +172,16 @@ def check_license_headers_test():
                         if alternative_first_line in lines_to_check[0 + offset]:
                             first_line_checked = True
                     if not first_line_checked:
-                        files_with_diff_licenses += 'File {0} was found to have different first line\n{1}\n'.format(file, lines_to_check[0 + offset])
+                        files_with_diff_licenses += 'First line {1} differs for {0}\n'.format(file, lines_to_check[0 + offset])
                     else:
                         # checking the rest of the lines
                         if offset + len(license_splitlines) > len(lines_to_check):
                             # found comment section but it's too small for license to fit
-                            files_with_diff_licenses += 'File was found to be to small for license to fit\n{3}\n'.format(file)
+                            files_with_diff_licenses += 'File too small for license to fit: {1}\n'.format(file)
                         else:
                             for line_index in range(1, len(license_splitlines) - 1):
                                 if license_splitlines[line_index] not in lines_to_check[line_index + offset]:
-                                    files_with_diff_licenses += 'File {0} has a different license\n{1}\nwhen it should ' \
-                                                                'be:\n{2}\n'.format(file, lines_to_check[line_index + offset], license_splitlines[line_index])
+                                    files_with_diff_licenses += 'File {0} has a different license\n{1}\nExpected:\n{2}\n'.format(file, lines_to_check[line_index + offset], license_splitlines[line_index])
                                     break
                 else:
                     files_with_diff_licenses += 'No comments detected in {0}\n'.format(file)
