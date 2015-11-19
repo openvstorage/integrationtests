@@ -32,6 +32,7 @@ class Connection:
             if use_config:
                 if not ip:
                     ip = test_config.get('main', 'grid_ip')
+                    assert ip, "Please specify a valid ip in autotests.cfg for grid_ip"
                 if not username:
                     username = test_config.get('main', 'username')
                 if not password:
