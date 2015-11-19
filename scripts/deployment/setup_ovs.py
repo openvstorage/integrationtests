@@ -232,7 +232,6 @@ screen_capture = {screen_capture}
 cleanup = True
 grid_ip = {grid_ip}
 vpool_name = {vpool_name}
-backend_name = {backend_name}
 output_folder = {output_folder}
 qualitylevel = {qualitylevel}
 
@@ -666,10 +665,7 @@ def handle_ovs_setup(public_ip, qualitylevel, cluster_name, hypervisor_type, hyp
                      hostname):
 
     con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-    if '-' in qualitylevel:
-        con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
-    else:
-        con.process.execute('echo "deb http://packages.cloudfounders.com/apt/ {0}/" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
+    con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
 
     con.process.execute('apt-get update')
     con.process.execute('apt-get install -y ntp')
