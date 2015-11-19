@@ -235,7 +235,9 @@ vpool_name = {vpool_name}
 backend_name = {backend_name}
 output_folder = {output_folder}
 qualitylevel = {qualitylevel}
+
 {vpool_config}
+
 [vpool2]
 vpool_name = localvp
 vpool_type = local
@@ -248,8 +250,16 @@ vpool_dtl_mp = /mnt/cache3/localvp/foc
 vpool_vrouter_port  = 12345
 vpool_storage_ip = 127.0.0.1
 vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
+
+[backend]
+name = alba
+type = alba
+mode = converged
+use_local_disks = True
+
 [openstack]
 cinder_type = {cinder_type}
+
 [testrail]
 key = {testrail_key}
 server = {testrail_server}
@@ -317,14 +327,6 @@ def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=
     """
     vmware_info = "10.100.131.221,root,R00t3r123"
     """
-
-    if test_project in ['Open vStorage'] and qualitylevel in ['alpha', 'stable', ]:
-        print
-        print "-----------------------------------------------------------------------------"
-        print "Automated tests temporarily disabled for Open vStorage project - alpha/stable"
-        print "-----------------------------------------------------------------------------"
-        print
-        return True
 
     con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
 
@@ -616,17 +618,9 @@ def install_additional_node(hypervisor_type, hypervisor_ip, hypervisor_password,
     setup_mgmt_center(public_ip=new_node_ip)
 
 
-def deploy_ovsvsa_vmware(public_ip,
-                         hypervisor_ip,
-                         hypervisor_password,
-                         dns,
-                         public_network,
-                         gateway,
-                         public_netmask,
-                         hostname,
-                         extra_packages=None,
-                         storage_ip_last_octet=None
-                         ):
+def deploy_ovsvsa_vmware(public_ip, hypervisor_ip, hypervisor_password, dns, public_network, gateway, public_netmask,
+                         hostname, extra_packages=None, storage_ip_last_octet=None):
+
     assert storage_ip_last_octet, "storage_ip_last_octet needs to be suplied for vmware install"
     hypervisor_login = "root"
     cli = q.hypervisors.cmdtools.esx.cli.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
@@ -668,13 +662,9 @@ def deploy_ovsvsa_vmware(public_ip,
     q.clients.ssh.waitForConnection(public_ip, "root", UBUNTU_PASSWORD, times=60)
 
 
-def handle_ovs_setup(public_ip,
-                     qualitylevel,
-                     cluster_name,
-                     hypervisor_type,
-                     hypervisor_ip,
-                     hypervisor_password,
+def handle_ovs_setup(public_ip, qualitylevel, cluster_name, hypervisor_type, hypervisor_ip, hypervisor_password,
                      hostname):
+
     con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
     if '-' in qualitylevel:
         con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))

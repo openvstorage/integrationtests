@@ -14,6 +14,9 @@
 
 import json
 import logging
+import os
+import random
+import tempfile
 import time
 
 from ci.tests.backend import generic
@@ -23,6 +26,30 @@ from ci.tests.general.general import execute_command
 ALBA_BACKENDS = 'alba/backends'
 
 
+def get_config(backend_name):
+    return '--config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg'.format(backend_name)
+
+
+def run(backend_name, action, params, json_output=True):
+    config = get_config(backend_name)
+    cmd = ['alba', action, config]
+    if json_output:
+        cmd.append('--to-json')
+    cmd.extend(params)
+
+    try:
+        output = execute_command(' '.join(cmd))
+        if json_output:
+            output = json.loads(output[0])
+    except (ValueError, RuntimeError):
+        print "Command {0} failed:\nOutput: {1}".format(cmd, output)
+        assert False, "Command {0} failed".format(' '.join(cmd))
+    if json_output:
+        return output['result']
+    else:
+        return output
+
+
 def add_preset(alba_backend, name, policies=[[1, 1, 1, 2]], compression='none', encryption='none'):
     api = Connection.get_connection()
     data = {'name': name,
@@ -30,6 +57,15 @@ def add_preset(alba_backend, name, policies=[[1, 1, 1, 2]], compression='none', 
             'compression': compression,
             'encryption': encryption}
     task_id = api.execute_action(ALBA_BACKENDS, alba_backend['guid'], 'add_preset', data)
+    result = api.wait_for_task(task_id)
+
+    return result
+
+
+def update_preset(alba_backend, name, policies):
+    api = Connection.get_connection()
+    data = {'name': name, 'policies': policies}
+    task_id = api.execute_action(ALBA_BACKENDS, alba_backend['guid'], 'update_preset', data)
     result = api.wait_for_task(task_id)
 
     return result
@@ -83,15 +119,50 @@ def remove_alba_backend(guid):
 
 def get_alba_backend(guid):
     api = Connection.get_connection()
+
     return api.fetch('alba/backends', guid)
+
+
+def create_namespace(backend_name, namespace_name, preset_name):
+
+    return run(backend_name, 'create-namespace', [namespace_name, preset_name], False)
+
+
+def delete_namespace(backend_name, namespace_name):
+
+    return run(backend_name, 'delete-namespace', [namespace_name], False)
+
+
+def list_namespaces(backend_name):
+
+    return run(backend_name, 'list-namespaces', [])
+
+
+def show_namespace(backend_name, namespace_name):
+
+    return run(backend_name, 'show-namespace', [namespace_name])
+
+
+def upload_file(backend_name, namespace, filesize, cleanup=False):
+    contents = ''.join(random.choice(chr(random.randint(32, 126))) for _ in xrange(filesize))
+    temp_file_name = tempfile.mktemp()
+    with open(temp_file_name, 'wb') as temp_file:
+        temp_file.write(contents)
+        temp_file.flush()
+
+    result = run(backend_name, 'upload', [namespace, temp_file_name, temp_file_name], False)
+    if cleanup and os.path.exists(temp_file_name):
+        os.remove(temp_file_name)
+
+    return temp_file_name, result
 
 
 def get_alba_namespaces(name):
     if not generic.is_backend_present(name, 'alba'):
         return
 
-    cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(name)
-    out = execute_command(cmd_list)[0]
+    cmd = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(name)
+    out = execute_command(cmd)[0]
     out = json.loads(out)
     logging.log(1, "output: {0}".format(out))
     if not out:
@@ -126,3 +197,34 @@ def remove_alba_namespaces(name=""):
         logging.log(1, "WARNING: Deleting leftover vpool namespace: {0}".format(str(ns)))
         print execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')
     assert len(fd_namespaces) == 0, "Removing Alba namespaces should not be necessary!"
+
+
+def is_bucket_count_valid_with_policy(bucket_count, policies):
+    # policy (k, m, c, x)
+    # for both bucket_count and policy:
+    # - k = nr of data fragments, should equal for both
+    # - m = nr of parity fragments, should be equal for both
+
+    # policy
+    # - c = min nr of fragments to write
+    # - x = max nr of fragments per storage node
+
+    # bucket_count:
+    # - c = nr of effectively written fragments, should be >= policy.c
+    # - x = max nr of effectively written fragments on one specific node, should be<= policy.x
+
+    # policies should all be present in bucket_count, removed policy via update could still be present during
+    # maintenance rewrite cycle
+
+    safe = False
+    for policy in policies:
+        policy = tuple(policy)
+        for entry in bucket_count:
+            bc_policy = entry[0]
+            print policy
+            pol_k, pol_m, pol_c, pol_x = tuple(policy)
+            print bc_policy, tuple(bc_policy)
+            bc_k, bc_m, bc_c, bc_x = tuple(bc_policy)
+            safe = (pol_k == bc_k) and (pol_m == bc_m) and (bc_c >= pol_c) and (bc_x <= pol_c)
+
+    return safe

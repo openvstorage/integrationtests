@@ -16,6 +16,8 @@ from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general.general import test_config
 
+import time
+
 BACKEND_NAME = test_config.get('backend', 'name')
 BACKEND_TYPE = test_config.get('backend', 'type')
 
@@ -43,7 +45,6 @@ def verify_policies_for_preset(preset_name, policies, compression, encryption):
     valid = False
     for preset in presets:
         if preset['name'] == preset_name:
-            print preset
             assert preset['compression'] == compression,\
                 "Alba compression {0} does not match configured {1} type".format(preset['compression'],
                                                                                  compression)
@@ -52,7 +53,6 @@ def verify_policies_for_preset(preset_name, policies, compression, encryption):
                                                                                 encryption)
             for policy in policies:
                 valid = False
-                print 'Validating policy: {0}'.format(policy)
                 for alba_policy in preset['policies']:
                     print 'Matching: {0} with {1}'.format(tuple(policy), alba_policy)
                     if tuple(policy) == alba_policy:
@@ -71,6 +71,19 @@ def is_preset_present(name):
     return False
 
 
+def add_preset(name, compression, encryption, policies, remove_when_finished=True):
+    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+    status, message = alba.add_preset(alba_backend, name, policies, compression, encryption)
+    assert status, "Add preset failed with: {0}".format(message)
+    assert is_preset_present(name), "Preset with name {0} is not present".format(name)
+    verify_policies_for_preset(name, policies, compression, encryption)
+    if remove_when_finished:
+        status, message = alba.remove_preset(alba_backend, name, )
+        assert status, "Remove preset failed with: {0}".format(message)
+        assert not is_preset_present(name), "Preset with name {0} is not present".format(name)
+
+
 def be_0001_add_and_verify_backend_is_running_test():
     disklayout.add_db_role()
     if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
@@ -83,99 +96,112 @@ def be_0001_add_and_verify_backend_is_running_test():
 
 
 def be_0002_add_remove_preset_no_compression_no_encryption_test():
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
     compression = 'none'
     encryption = 'none'
     name = 'be_preset_02'
     policies = [[1, 1, 1, 2]]
-    status, message = alba.add_preset(alba_backend, name, policies, compression, encryption)
-    assert status, "Add preset failed with: {0}".format(message)
-    assert is_preset_present(name), "Preset with name {0} is not present".format(name)
-    verify_policies_for_preset(name, policies, compression, encryption)
-    status, message = alba.remove_preset(alba_backend, name, )
-    assert status, "Remove preset failed with: {0}".format(message)
-    assert not is_preset_present(name), "Preset with name {0} is not present".format(name)
+    add_preset(name, compression, encryption, policies)
 
 
 def be_0003_add_remove_preset_compression_no_encryption_test():
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
     name = 'be_preset_03'
     compression = 'bz2'
     encryption = 'none'
     policies = [[1, 1, 1, 2]]
-    status, message = alba.add_preset(alba_backend, name, policies, compression, encryption)
-    assert status, "Add preset failed with: {0}".format(message)
-    assert is_preset_present(name), "Preset with name {0} is not present".format(name)
-    verify_policies_for_preset(name, policies, compression, encryption)
-    status, message = alba.remove_preset(alba_backend, name)
-    assert status, "Remove preset failed with: {0}".format(message)
-    assert not is_preset_present(name), "Preset with name {0} is not present".format(name)
+    add_preset(name, compression, encryption, policies)
 
 
 def be_0004_validate_preset_with_replication_copies_test():
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
     compression = 'none'
     encryption = 'none'
-    name = 'be_preset_04'
+    name_prefix = 'be_preset_04'
     for nr in xrange(6):
-        name += str(nr)
+        name = name_prefix + str(nr)
         policies = [[1, nr, 1, 1 + nr]]
-        status, message = alba.add_preset(alba_backend, name, policies, compression, encryption)
-        assert status, "Add preset failed with: {0}".format(message)
-        assert is_preset_present(name), "Preset with name {0} is not present".format(name)
-        verify_policies_for_preset(name, policies, compression, encryption)
-        status, message = alba.remove_preset(alba_backend, name)
-        assert status, "Remove preset failed with: {0}".format(message)
-        assert not is_preset_present(name), "Preset with name {0} is not present".format(name)
-
+        add_preset(name, compression, encryption, policies)
 
 
 def be_0005_add_remove_preset_no_compression_encryption_test():
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
     name = 'be_preset_05'
     compression = 'none'
     encryption = 'aes-cbc-256'
     policies = [[1, 1, 1, 2]]
-    status, message = alba.add_preset(alba_backend, name, policies, compression, encryption)
-    assert status, "Add preset failed with: {0}".format(message)
-    verify_policies_for_preset(name, policies, compression, encryption)
-    status, message = alba.remove_preset(alba_backend, name)
-    assert status, "Remove preset failed with: {0}".format(message)
-    assert not is_preset_present(name), "Preset with name {0} is not present".format(name)
+    add_preset(name, compression, encryption, policies)
 
 
 def be_0006_add_remove_preset_compression_encryption_test():
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
     name = 'be_preset_06a'
     compression = 'bz2'
     encryption = 'aes-cbc-256'
     policies = [[1, 1, 1, 2]]
-    status, message = alba.add_preset(alba_backend, name, policies, compression, encryption)
-    assert status, "Add preset failed with: {0}".format(message)
-    verify_policies_for_preset(name, policies, compression, encryption)
-    status, message = alba.remove_preset(alba_backend, name)
-    assert status, "Remove preset failed with: {0}".format(message)
-    assert not is_preset_present(name), "Preset with name {0} is not present".format(name)
+    add_preset(name, compression, encryption, policies)
 
     name = 'be_preset_06b'
     compression = 'snappy'
-    status, message = alba.add_preset(alba_backend, name, policies, compression, encryption)
-    assert status, "Add preset failed with: {0}".format(message)
-    verify_policies_for_preset(name, policies, compression, encryption)
-    status, message = alba.remove_preset(alba_backend, name)
-    assert status, "Remove preset failed with: {0}".format(message)
-    assert not is_preset_present(name), "Preset with name {0} is not present".format(name)
+    add_preset(name, compression, encryption, policies)
+
+
+def be_0007_add_update_remove_preset_test():
+    """
+    Validation for OVS-3187 - edit policy of preset
+    """
+    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+
+    timeout = 120
+    preset_name = 'be_preset_0007'
+    namespace_name = 'be_0007_ns'
+    compression = 'none'
+    encryption = 'aes-cbc-256'
+    org_policy = [[1, 1, 1, 2]]
+    new_policy = [[2, 2, 3, 3]]
+
+    add_preset(preset_name, compression, encryption, org_policy, remove_when_finished=False)
+    result = alba.list_namespaces(BACKEND_NAME)
+
+    for namespace in result:
+        if namespace['name'] == namespace_name:
+            alba.delete_namespace(BACKEND_NAME, namespace_name)
+    alba.create_namespace(BACKEND_NAME, namespace_name, preset_name)
+
+    # @todo: remove next deliver messages command when http://jira.cloudfounders.com/browse/OVS-3580 is fixed
+    # command is necessary after namespace create to allow object upload to be distributed to all disks according
+    # to policy
+    alba.run(BACKEND_NAME, 'deliver-messages', [], False)
+
+    filename, result = alba.upload_file(BACKEND_NAME, namespace_name, 1024*1024)
+
+    result = alba.show_namespace(BACKEND_NAME, namespace_name)['bucket_count']
+
+    assert len(result) == 1, "Only one policy should be present, found: {0}".format(result)
+    alba.is_bucket_count_valid_with_policy(result, org_policy)
+
+    # update and verify policies for preset
+    alba.update_preset(alba_backend, preset_name, new_policy)
+
+    result = alba.show_namespace(BACKEND_NAME, namespace_name)['bucket_count']
+    assert len(result) == 1, "Expected 1 policy, but got: {0}".format(result)
+
+    object_has_new_policy = False
+    for _ in xrange(timeout):
+        if alba.is_bucket_count_valid_with_policy(result, new_policy):
+            object_has_new_policy = True
+            break
+        time.sleep(1)
+        result = alba.show_namespace(BACKEND_NAME, namespace_name)['bucket_count']
+
+    assert object_has_new_policy, "Object was not rewritten within {0} seconds: {1}".format(timeout, result)
+
+    # cleanup
+    alba.delete_namespace(BACKEND_NAME, namespace_name)
+    alba.remove_preset(alba_backend, preset_name)
 
 
 def ovs_3490_add_remove_preset_test():
     """
     adds and removes a preset with encryption to an existing alba backend
     """
+
     name = 'ovs-3490'
     backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
