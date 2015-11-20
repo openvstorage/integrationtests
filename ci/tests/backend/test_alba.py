@@ -27,12 +27,18 @@ assert BACKEND_TYPE in generic.VALID_BACKEND_TYPES, "Please fill out a valid bac
 
 def setup():
     disklayout.add_db_role()
+    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
-        alba.add_alba_backend(BACKEND_NAME)
+        backend_guid = alba.add_alba_backend(BACKEND_NAME)
+        backend = generic.get_backend(backend_guid)
+    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+    alba.claim_disks(alba_backend, 3, 'sata')
 
 
 def teardown():
     backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+    alba.unclaim_disks(alba_backend)
     if backend:
         alba.remove_alba_backend(backend['alba_backend_guid'])
 
@@ -199,7 +205,7 @@ def be_0007_add_update_remove_preset_test():
 
 def ovs_3490_add_remove_preset_test():
     """
-    adds and removes a preset with encryption to an existing alba backend
+    Adds and removes a preset with encryption to an existing alba backend
     """
 
     name = 'ovs-3490'

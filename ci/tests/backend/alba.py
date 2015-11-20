@@ -24,6 +24,7 @@ from ci.tests.general.connection import Connection
 from ci.tests.general.general import execute_command
 
 ALBA_BACKENDS = 'alba/backends'
+ALBA_NODES = 'alba/nodes'
 
 
 def get_config(backend_name):
@@ -121,6 +122,15 @@ def get_alba_backend(guid):
     api = Connection.get_connection()
 
     return api.fetch('alba/backends', guid)
+
+
+def get_node_by_id(node_id):
+    api = Connection.get_connection()
+    nodes = api.list(ALBA_NODES)
+    for node_guid in nodes:
+        node = api.fetch(ALBA_NODES, node_guid)
+        if node['node_id'] == node_id:
+            return node_guid
 
 
 def create_namespace(backend_name, namespace_name, preset_name):
@@ -228,3 +238,24 @@ def is_bucket_count_valid_with_policy(bucket_count, policies):
             safe = (pol_k == bc_k) and (pol_m == bc_m) and (bc_c >= pol_c) and (bc_x <= pol_c)
 
     return safe
+
+
+def claim_disks(alba_backend, nr_of_disks, disk_type='sata'):
+    pass
+
+
+def get_claimed_disks(alba_backend):
+    return alba_backend.all_disks
+
+
+def unclaim_disks(alba_backend):
+    api = Connection.get_connection()
+    all_disks = api.fetch('alba/backends', alba_backend['guid'])['all_disks']
+    for disk in all_disks:
+        if disk['status'] in ['available', 'claimed']:
+            node_guid = get_node_by_id(disk['node_id'])
+            data = {'alba_backend_guid': alba_backend['guid'],
+                    'disk': disk['name'],
+                    'safety': {'good': 0, 'critical': 0, 'lost': 0}}
+            task_id = api.execute_action(ALBA_NODES, node_guid, 'remove_disk', data)
+            api.wait_for_task(task_id)[0]

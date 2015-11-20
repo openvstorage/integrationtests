@@ -15,6 +15,7 @@
 import urllib2
 import urllib
 import json
+import os
 import time
 
 from ci.tests.general.general import test_config
@@ -22,6 +23,7 @@ from ci.tests.general.general import test_config
 
 class Connection:
     connection = None
+    TOKEN_CACHE_FILENAME = '/tmp/at_token_cache'
 
     @staticmethod
     def get_connection(ip='', username='', password='', use_config=True):
@@ -47,8 +49,14 @@ class Connection:
         self.ip = ip
         self.username = username
         self.password = password
-        self.token = ''
         self.headers = {'Accept': 'application/json; version=*'}
+        if os.path.exists(self.TOKEN_CACHE_FILENAME):
+            with open(self.TOKEN_CACHE_FILENAME, 'r') as token_cache_file:
+                self.token = token_cache_file.read()
+                self.headers['Authorization'] = 'Bearer {0}'.format(self.token)
+        else:
+            self.token = ''
+            self.authenticate()
 
     def get_username(self):
         return self.username
@@ -95,6 +103,8 @@ class Connection:
 
         self.token = json.loads(response)['access_token']
         self.headers['Authorization'] = 'Bearer {0}'.format(self.token)
+        with open(self.TOKEN_CACHE_FILENAME, 'w') as token_cache_file:
+            token_cache_file.write(self.token)
 
     def get_active_tasks(self):
         base_url = 'https://{0}/api/{{0}}'.format(self.get_ip())
@@ -146,6 +156,7 @@ class Connection:
 
     def execute_action(self, component, guid, action, data):
         base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.get_ip(), component, guid, action)
+        print 'url: {0}'.format(base_url)
         print 'data: {0}'.format(data)
         request = urllib2.Request(base_url, json.dumps(data), headers=self.headers)
         request.add_header('Content-Type', 'application/json')
