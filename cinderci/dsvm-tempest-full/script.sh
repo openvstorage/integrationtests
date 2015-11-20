@@ -50,7 +50,7 @@ function pre_test_hook {
 export -f pre_test_hook
 
 function post_devstack_hook {
-    OVSRELEASE=denver-community
+    OVSRELEASE=denver
     IP=`ip a l dev eth0 | grep "inet " | awk '{split($0,a," "); split(a[2],b,"/"); print(b[1])}'`
     PASSWORD=rooter
     CLUSTER_NAME=dsvmcitesting
@@ -59,7 +59,7 @@ function post_devstack_hook {
     HYPERVISOR_NAME=`hostname`
     ARAKOON_MNTP=/mnt/db
     sudo sed -i 's/nameserver .*/nameserver 172.19.0.1/g' /etc/resolv.conf
-    echo "deb http://testapt.openvstorage.com $OVSRELEASE main" | sudo tee /etc/apt/sources.list.d/ovsaptrepo.list
+    echo "deb http://apt.openvstorage.org $OVSRELEASE main" | sudo tee /etc/apt/sources.list.d/ovsaptrepo.list
     sudo apt-get update
     sudo apt-get install openvstorage -y --force-yes
     
@@ -85,28 +85,28 @@ function post_devstack_hook {
     
     #************************************
     sudo cat /root/.ssh/id_rsa.pub | sudo tee -a /opt/OpenvStorage/.ssh/authorized_keys
-	sudo cat /home/jenkins/.ssh/id_rsa.pub | sudo tee -a /opt/OpenvStorage/.ssh/authorized_keys
-	sudo chmod 755 /opt/OpenvStorage/.ssh
-	sudo cp /home/ubuntu/.ssh/authorized_keys /root/.ssh/
-	sudo cat /root/.ssh/id_rsa.pub | sudo tee -a /root/.ssh/authorized_keys
+    sudo cat /home/jenkins/.ssh/id_rsa.pub | sudo tee -a /opt/OpenvStorage/.ssh/authorized_keys
+    sudo chmod 755 /opt/OpenvStorage/.ssh
+    sudo cp /home/ubuntu/.ssh/authorized_keys /root/.ssh/
+    sudo cat /root/.ssh/id_rsa.pub | sudo tee -a /root/.ssh/authorized_keys
     touch /home/jenkins/.ssh/known_hosts
     touch /home/jenkins/.ssh/authorized_keys
-	sudo ssh-keygen -f /home/jenkins/.ssh/known_hosts -R localhost
-	sudo ssh-keygen -f /home/jenkins/.ssh/known_hosts -R 127.0.0.1
-	ssh-keyscan -H localhost | sudo tee -a /home/jenkins/.ssh/known_hosts
-	ssh-keyscan -H 127.0.0.1 | sudo tee -a /home/jenkins/.ssh/known_hosts
-	ssh-keyscan -H $IP | sudo tee -a /home/jenkins/.ssh/known_hosts
-	ssh-keyscan -H localhost | sudo tee -a /root/.ssh/known_hosts
-	ssh-keyscan -H 127.0.0.1 | sudo tee -a /root/.ssh/known_hosts
-	ssh-keyscan -H $IP | sudo tee -a /root/.ssh/known_hosts
-	cat /home/jenkins/.ssh/id_rsa.pub | sudo tee -a /root/.ssh/authorized_keys
-	sudo cat /root/.ssh/id_rsa.pub | sudo tee -a /root/.ssh/authorized_keys
-	sudo cat /home/jenkins/.ssh/id_rsa.pub | sudo tee -a /root/.ssh/authorized_keys
-	echo "127.0.0.1 `hostname`" | sudo tee -a /etc/hosts
-	echo "    NoHostAuthenticationForLocalhost yes" | sudo tee -a /etc/ssh/ssh_config
+    sudo ssh-keygen -f /home/jenkins/.ssh/known_hosts -R localhost
+    sudo ssh-keygen -f /home/jenkins/.ssh/known_hosts -R 127.0.0.1
+    ssh-keyscan -H localhost | sudo tee -a /home/jenkins/.ssh/known_hosts
+    ssh-keyscan -H 127.0.0.1 | sudo tee -a /home/jenkins/.ssh/known_hosts
+    ssh-keyscan -H $IP | sudo tee -a /home/jenkins/.ssh/known_hosts
+    ssh-keyscan -H localhost | sudo tee -a /root/.ssh/known_hosts
+    ssh-keyscan -H 127.0.0.1 | sudo tee -a /root/.ssh/known_hosts
+    ssh-keyscan -H $IP | sudo tee -a /root/.ssh/known_hosts
+    cat /home/jenkins/.ssh/id_rsa.pub | sudo tee -a /root/.ssh/authorized_keys
+    sudo cat /root/.ssh/id_rsa.pub | sudo tee -a /root/.ssh/authorized_keys
+    sudo cat /home/jenkins/.ssh/id_rsa.pub | sudo tee -a /root/.ssh/authorized_keys
+    echo "127.0.0.1 `hostname`" | sudo tee -a /etc/hosts
+    echo "    NoHostAuthenticationForLocalhost yes" | sudo tee -a /etc/ssh/ssh_config
     sudo sed -i 's/PermitRootLogin no/PermitRootLogin yes/g' /etc/ssh/sshd_config
-	sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
-	sudo service ssh restart
+    sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
+    sudo service ssh restart
     #************************************
    
     # APPLY PATCHES
@@ -119,14 +119,14 @@ function post_devstack_hook {
     sudo timeout -s 9 10m ovs setup 2>&1 | sudo tee /var/log/ovs_setup.log
 
     # ADD VPOOL
-	export PYTHONPATH="${PYTHONPATH}:/opt/OpenvStorage:/opt/OpenvStorage/webapps"
-	export OS_TEST_TIMEOUT=0
+    export PYTHONPATH="${PYTHONPATH}:/opt/OpenvStorage:/opt/OpenvStorage/webapps"
+    export OS_TEST_TIMEOUT=0
     sudo python ${WORKSPACE}/integrationtests/cinderci/dsvm-tempest-full/add_vpool.py 2>&1 | sudo tee -a /var/log/ovs_setup.log
    
     # CONFIGURE TEMPEST
     sudo sed -i 's/#build_timeout = 300/build_timeout = 600/g' /opt/stack/new/tempest/etc/tempest.conf
     sudo sed -i 's/build_timeout = 196/build_timeout = 600/g' /opt/stack/new/tempest/etc/tempest.conf
-	sudo sed -i '/\[volume\]/a storage_protocol=OVS' /opt/stack/new/tempest/etc/tempest.conf
+    sudo sed -i '/\[volume\]/a storage_protocol=OVS' /opt/stack/new/tempest/etc/tempest.conf
     sudo sed -i '/\[volume\]/a vendor_name="Open vStorage"' /opt/stack/new/tempest/etc/tempest.conf
     sudo sed -i '/\[volume\]/a backend1_name=lvmdriver-1' /opt/stack/new/tempest/etc/tempest.conf
     sudo sed -i '/\[volume\]/a backend2_name=local' /opt/stack/new/tempest/etc/tempest.conf
@@ -139,10 +139,10 @@ function post_devstack_hook {
 
     sudo ps aux | grep volumedriver | sudo tee -a /var/log/ovs_setup.log
     sudo cat /etc/cinder/cinder.conf | sudo tee -a /var/log/ovs_setup.log
-   	sudo vgdisplay | sudo tee -a /var/log/ovs_setup.log
-   	sudo cat /opt/stack/new/tempest/etc/tempest.conf | sudo tee -a /var/log/ovs_setup.log
+    sudo vgdisplay | sudo tee -a /var/log/ovs_setup.log
+    sudo cat /opt/stack/new/tempest/etc/tempest.conf | sudo tee -a /var/log/ovs_setup.log
 
-   	# DISABLE SOME TESTS
+    # DISABLE SOME TESTS
     sudo rm -f /opt/stack/new/tempest/tempest/api/object_storage/test_container_sync_middleware.py
     sudo rm -f /opt/stack/new/tempest/tempest/scenario/test_swift_telemetry_middleware.py
     sudo rm -f /opt/stack/new/tempest/tempest/api/telemetry/test_telemetry_notification_api.py
