@@ -22,9 +22,14 @@ import time
 from ci.tests.backend import generic
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import execute_command
+from ci.tests.general.general import test_config
+from ovs.lib.albanodecontroller import AlbaNodeController
+from ovs.lib.albacontroller import AlbaController
+from ovs.dal.lists.albanodelist import AlbaNodeList
 
 ALBA_BACKENDS = 'alba/backends'
 ALBA_NODES = 'alba/nodes'
+GRID_IP = test_config.get('main', 'grid_ip')
 
 
 def get_config(backend_name):
@@ -240,8 +245,31 @@ def is_bucket_count_valid_with_policy(bucket_count, policies):
     return safe
 
 
+def initialise_disks(alba_node):
+    disks_to_init = [d['name'] for d in alba_node.all_disks if d['available'] is True]
+    failures = AlbaNodeController.initialize_disks(alba_node.guid, disks_to_init)
+    if failures:
+        raise 'Alba disk initialization failed for (some) disks: {0}'.format(failures)
+
+
 def claim_disks(alba_backend, nr_of_disks, disk_type='sata'):
-    pass
+    api = Connection.get_connection()
+    alba_node = AlbaNodeList.get_albanode_by_ip(GRID_IP)
+    initialise_disks()
+    all_disks = api.fetch('alba/backends', alba_backend['guid'])['all_disks']
+    claimable_ids = list()
+    for disk in all_disks:
+        if 'asd_id' in disk and disk['status'] in 'available':
+            claimable_ids.append(disk['asd_id'])
+    osds = dict()
+
+    disks_to_claim = [d['name'] for d in alba_node.all_disks if d['available'] is False]
+    for name in disks_to_claim:
+        for disk in alba_node.all_disks:
+            if name == disk['name'] and disk['asd_id'] in claimable_ids:
+                osds[disk['asd_id']] = alba_node.guid
+    AlbaController.add_units(alba_backend.alba_backend_guid, osds)
+    assert len(disks_to_claim) >= nr_of_disks, "Unable to claim {0} disks, only claimed {1}\n".format(nr_of_disks, len(disks_to_claim))
 
 
 def get_claimed_disks(alba_backend):
