@@ -35,8 +35,8 @@ def setup():
         alba.add_alba_backend(BACKEND_NAME)
     backend = BackendList.get_by_name(BACKEND_NAME)
     alba_node = AlbaNodeList.get_albanode_by_ip(GRID_IP)
-    alba.initialise_disks(alba_node)
-    alba.claim_disks(backend, len(alba_node.all_disks), 'SATA')
+    alba.initialise_disks(alba_node, 'SATA')
+    alba.claim_disks(backend, 3, 'SATA')
 
 
 def teardown():

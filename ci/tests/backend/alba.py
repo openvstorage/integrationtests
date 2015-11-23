@@ -22,6 +22,7 @@ import time
 from ci.tests.backend import generic
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import execute_command
+from ci.tests.general.general import get_physical_disks
 from ci.tests.general.general import test_config
 from ovs.lib.albanodecontroller import AlbaNodeController
 from ovs.lib.albacontroller import AlbaController
@@ -247,6 +248,16 @@ def is_bucket_count_valid_with_policy(bucket_count, policies):
 
 def initialise_disks(alba_node, disk_type=''):
     disks_to_init = [d['name'] for d in alba_node.all_disks if d['available'] is True]
+    if disk_type == 'SATA':
+        hdds, sdds = get_physical_disks(GRID_IP)
+        for disk in sdds.itervalues():
+            if disk['name'] in disks_to_init:
+                disks_to_init.remove(disk['name'])
+    elif disk_type == 'SSD':
+        hdds, sdds = get_physical_disks(GRID_IP)
+        for disk in hdds.itervalues():
+            if disk['name'] in disks_to_init:
+                disks_to_init.remove(disk['name'])
     failures = AlbaNodeController.initialize_disks(alba_node.guid, disks_to_init)
     assert not failures, 'Alba disk initialization failed for (some) disks: {0}'.format(failures)
 
@@ -260,6 +271,16 @@ def claim_disks(alba_backend, nr_of_disks, disk_type=''):
     osds = dict()
 
     disks_to_claim = [d['name'] for d in alba_node.all_disks if d['available'] is False]
+    if disk_type == 'SATA':
+        hdds, sdds = get_physical_disks(GRID_IP)
+        for disk in sdds.itervalues():
+            if disk['name'] in disks_to_claim:
+                disks_to_claim.remove(disk['name'])
+    elif disk_type == 'SSD':
+        hdds, sdds = get_physical_disks(GRID_IP)
+        for disk in hdds.itervalues():
+            if disk['name'] in disks_to_claim:
+                disks_to_claim.remove(disk['name'])
     for name in disks_to_claim:
         for disk in alba_node.all_disks:
             if name == disk['name'] and disk['asd_id'] in claimable_ids:
