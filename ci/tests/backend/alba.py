@@ -245,17 +245,17 @@ def is_bucket_count_valid_with_policy(bucket_count, policies):
     return safe
 
 
-def initialise_disks(alba_node):
+def initialise_disks(alba_node, disk_type=''):
     disks_to_init = [d['name'] for d in alba_node.all_disks if d['available'] is True]
     failures = AlbaNodeController.initialize_disks(alba_node.guid, disks_to_init)
     assert not failures, 'Alba disk initialization failed for (some) disks: {0}'.format(failures)
 
 
-def claim_disks(alba_backend, nr_of_disks, disk_type='sata'):
+def claim_disks(alba_backend, nr_of_disks, disk_type=''):
     api = Connection.get_connection()
     alba_node = AlbaNodeList.get_albanode_by_ip(GRID_IP)
-    initialise_disks(alba_node)
-    all_disks = api.fetch('alba/backends', alba_backend['guid'])['all_disks']
+    initialise_disks(alba_node, disk_type)
+    all_disks = api.fetch('alba/backends', alba_backend.alba_backend_guid)['all_disks']
     claimable_ids = [disk['asd_id'] for disk in all_disks if 'asd_id' in disk and disk['status'] in 'available']
     osds = dict()
 
