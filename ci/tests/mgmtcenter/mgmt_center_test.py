@@ -37,13 +37,17 @@ def setup():
         mgmtcenter.type = 'OPENSTACK'
         mgmtcenter.port = 443
     mgmtcenter.save()
-    for pm in PMachineList.get_pmachines():
-        pm.mgmtcenter = mgmtcenter
-        pm.save()
+    for physical_machine in PMachineList.get_pmachines():
+        MgmtCenterController.configure_host(physical_machine.guid, mgmtcenter.guid, True)
 
 
 def teardown():
-    pass
+    management_centers = MgmtCenterList.get_mgmtcenters()
+
+    for mgmtcenter in management_centers:
+        for physical_machine in mgmtcenter.pmachines:
+            if MgmtCenterController.is_host_configured(physical_machine.guid) == False:
+                MgmtCenterController.configure_host(physical_machine.guid, mgmtcenter.guid, True)
 
 
 def check_reachability_test(management_centers=[]):
@@ -98,3 +102,32 @@ def check_configured_management_center_test(management_centers=[]):
         for physical_machine in mgmtcenter.pmachines:
             assert MgmtCenterController.is_host_configured(physical_machine.guid) == True, \
                 "Machine {0} is not configured in {1} management center".format(physical_machine.name, mgmtcenter.name)
+
+
+def check_unconfigured_management_center_test(management_centers=[]):
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=4,
+                          tests_to_run=testsToRun)
+
+    if not len(management_centers):
+        management_centers = MgmtCenterList.get_mgmtcenters()
+
+    for mgmtcenter in management_centers:
+        if mgmtcenter.type not in ['OPENSTACK']:
+            raise SkipTest()
+
+    for mgmtcenter in management_centers:
+        for physical_machine in PMachineList.get_pmachines():
+            MgmtCenterController.unconfigure_host(physical_machine.guid, mgmtcenter.guid, True)
+
+    for mgmtcenter in management_centers:
+        for physical_machine in mgmtcenter.pmachines:
+            assert MgmtCenterController.is_host_configured(physical_machine.guid) == False, \
+                "Machine {0} is still configured in {1} management center".format(physical_machine.name, mgmtcenter.name)
+
+    for mgmtcenter in management_centers:
+        for physical_machine in PMachineList.get_pmachines():
+            MgmtCenterController.configure_host(physical_machine.guid, mgmtcenter.guid, True)
