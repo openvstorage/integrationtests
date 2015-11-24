@@ -324,7 +324,7 @@ def check_vpool_sanity_test(vpool_name = ''):
     sd = [sd for sd in vpool.storagedrivers if sd.storagerouter.ip == local_vsa.ip][0]
     pmachine_type = PMachineList.get_pmachines()[0].hvtype
     if pmachine_type == 'VMWARE':
-        file_name = os.path.join(sd.mountpoint, "validate_vpool" + str(time.time()).replace(".", "") + ".flat-vmdk")
+        file_name = os.path.join(sd.mountpoint, "validate_vpool" + str(time.time()).replace(".", "") + "-flat.vmdk")
     else:
         file_name = os.path.join(sd.mountpoint, "validate_vpool" + str(time.time()).replace(".", "") + ".raw")
 
