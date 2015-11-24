@@ -249,7 +249,7 @@ def check_backend_files_test():
         assert nsm_config_file_found, "No namespace manager config file found on any of the nodes"
 
 
-def check_vpool_sanity_test(vpool_name = ''):
+def check_vpool_sanity_test(vpool_name=''):
     """
     {0}
     """.format(general.get_function_name())
@@ -260,6 +260,7 @@ def check_vpool_sanity_test(vpool_name = ''):
     if not vpool_name:
         vpool_name = general.test_config.get("vpool", "vpool_name")
 
+    issues_found = ""
     vpool_services = ["ovs-arakoon-voldrv",
                       "ovs-watcher-volumedriver",
                       "ovs-albaproxy_{0}".format(vpool_name),
@@ -296,11 +297,14 @@ def check_vpool_sanity_test(vpool_name = ''):
     for node_ip in env_ips:
         for vpool_service in vpool_services:
             out = general.execute_command_on_node(node_ip, "initctl list | grep {0}".format(vpool_service))
-            assert "running" in out, "Vpool service {0} not running.Has following status:{1}\n ".format(vpool_service, out)
+            if "running" not in out:
+                issues_found += "Vpool service {0} not running.Has following status:{1}\n ".format(vpool_service, out)
         for config_file_to_check in vpool_config_files:
             out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(config_file_to_check))
-            assert len(err) == 0, "Error executing command to get {0} info:{1}".format(config_file_to_check, err)
-            assert 'not' not in out, "Couldn't find {0} on node {1}".format(config_file_to_check, node_ip)
+            if len(err):
+                issues_found += "Error executing command to get {0} info:{1}".format(config_file_to_check, err)
+            if 'not' in out:
+                issues_found += "Couldn't find {0} on node {1}".format(config_file_to_check, node_ip)
 
     # WRITE/FCACHE only for alba
     backend_name = general.test_config.get("backend", "name")
@@ -312,12 +316,15 @@ def check_vpool_sanity_test(vpool_name = ''):
             storagedriver_partitions[str(part.role)][str(part.sub_role)] = True
     for role in storagedriver_partitions.iterkeys():
         for sub_role in storagedriver_partitions[role].iterkeys():
-            assert storagedriver_partitions[role][sub_role], "Couldn't find {0} partition role with {1} subrole".format(role, sub_role)
+            if not storagedriver_partitions[role][sub_role]:
+                issues_found += "Couldn't find {0} partition role with {1} subrole".format(role, sub_role)
 
     for directory in directories_to_check:
         out, err = general.execute_command('[ -d {0} ] && echo "Dir exists" || echo "Dir does not exists"'.format(directory))
-        assert len(err) == 0, "Error executing command to get {0} info:{1}".format(directory, err)
-        assert 'not' not in out, "Couldn't find {0}".format(directory)
+        if len(err):
+            issues_found += "Error executing command to get {0} info:{1}".format(directory, err)
+        if 'not' in out:
+            issues_found += "Couldn't find {0}".format(directory)
 
     # checking if we can truncate and dd
     # create volume
@@ -331,13 +338,16 @@ def check_vpool_sanity_test(vpool_name = ''):
 
     cmd = "truncate {0} --size 10000000".format(file_name)
     out, error = general.execute_command(cmd)
-    assert error == '', "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
+    if error:
+        issues_found += "Exception occurred while running {0}:\n{1}\n{2}".format(cmd, out, error)
 
     time.sleep(10)
     general.execute_command("rm {0}".format(file_name))
 
+    assert len(issues_found) == 0, "Following issues found with vpool {0}\n{1}\n".format(vpool_name, issues_found)
 
-def check_vpool_remove_sanity_test(vpool_name = ''):
+
+def check_vpool_remove_sanity_test(vpool_name=''):
     """
     {0}
     """.format(general.get_function_name())
@@ -348,6 +358,8 @@ def check_vpool_remove_sanity_test(vpool_name = ''):
     if not vpool_name:
         vpool_name = general.test_config.get("vpool", "vpool_name")
 
+    issues_found = ""
+
     vpool_services = ["ovs-albaproxy_{0}".format(vpool_name),
                       "ovs-dtl_{0}".format(vpool_name),
                       "ovs-volumedriver_{0}".format(vpool_name)]
@@ -356,36 +368,51 @@ def check_vpool_remove_sanity_test(vpool_name = ''):
                           "/opt/OpenvStorage/config/storagedriver/storagedriver/{0}_alba.cfg".format(vpool_name),
                           "/opt/OpenvStorage/config/storagedriver/storagedriver/{0}_alba.json".format(vpool_name)]
 
-    storagedriver_partitions = {"WRITE": {"SCO": True,
-                                          "FD": True,
-                                          "DTL": True,
-                                          "FCACHE": True},
-                                "READ": {"None": True},
-                                "DB": {"TLOG": True,
-                                       "MD": True,
-                                       "MDS": True},
-                                "SCRUB": {"MDS": True}}
+    storagedriver_partitions = {"WRITE": {"SCO": False,
+                                          "FD": False,
+                                          "DTL": False,
+                                          "FCACHE": False},
+                                "READ": {"None": False},
+                                "DB": {"TLOG": False,
+                                       "MD": False,
+                                       "MDS": False},
+                                "SCRUB": {"MDS": False}}
 
     directories_to_check = ["/mnt/{0}/".format(vpool_name)]
     # TODO: extend the check to all folders created for vpool (/mnt/storage, /mnt/ssd)
 
     # check vpool is not modeled anymore
     vpool = VPoolList.get_vpool_by_name(vpool_name)
-    assert not vpool, "Vpool still found in model:\n{0}".format(vpool)
+    if vpool:
+        issues_found += "Vpool still found in model:\n{0}".format(vpool)
 
     env_ips = autotests._get_ips()
 
     for node_ip in env_ips:
         for vpool_service in vpool_services:
             out = general.execute_command_on_node(node_ip, "initctl list | grep {0}".format(vpool_service))
-            assert not out, "Vpool service {0} still running.Has following status:{1}\n ".format(vpool_service, out)
+            if out:
+                issues_found += "Vpool service {0} still running.Has following status:{1}\n ".format(vpool_service, out)
         for config_file_to_check in vpool_config_files:
             out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(config_file_to_check))
-            assert len(err) == 0, "Error executing command to get {0} info:{1}".format(config_file_to_check, err)
-            assert 'not' in out, "{0} file still present on node {1}".format(config_file_to_check, node_ip)
+            if len(err):
+                issues_found += "Error executing command to get {0} info:{1}".format(config_file_to_check, err)
+            if 'not' not in out:
+                issues_found += "{0} file still present on node {1}".format(config_file_to_check, node_ip)
 
     for directory in directories_to_check:
         out, err = general.execute_command('[ -d {0} ] && echo "Dir exists" || echo "Dir does not exists"'.format(directory))
-        assert len(err) == 0, "Error executing command to get {0} info:{1}".format(directory, err)
-        assert 'not' in out, "Directory {0} still present".format(directory)
-    # TODO: check services storagedriver partitions
+        if len(err):
+            issues_found += "Error executing command to get {0} info:{1}".format(directory, err)
+        if 'not' not in out:
+            issues_found += "Directory {0} still present".format(directory)
+
+    for sd in vpool.storagedrivers:
+        for part in sd.partitions:
+            storagedriver_partitions[str(part.role)][str(part.sub_role)] = True
+    for role in storagedriver_partitions.iterkeys():
+        for sub_role in storagedriver_partitions[role].iterkeys():
+            if storagedriver_partitions[role][sub_role]:
+                issues_found += "Still found {0} partition role with {1} subrole after vpool deletion".format(role, sub_role)
+
+    assert len(issues_found) == 0, "Following issues found with vpool {0}\n{1}\n".format(vpool_name, issues_found)
