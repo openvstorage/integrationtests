@@ -303,8 +303,9 @@ def check_vpool_sanity_test(vpool_name = ''):
             assert 'not' not in out, "Couldn't find {0} on node {1}".format(config_file_to_check, node_ip)
 
     # WRITE/FCACHE only for alba
-    be = BackendList.get_by_name('alba')
-    if not be:
+    backend_name = general.test_config.get("backend", "name")
+    be = BackendList.get_by_name(backend_name)
+    if not be.backend_type.name == 'ALBA':
         storagedriver_partitions["WRITE"]["FCACHE"] = True
     for sd in vpool.storagedrivers:
         for part in sd.partitions:
