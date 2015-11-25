@@ -1,4 +1,4 @@
-# Copyright 2014 iNuron NV
+# Copyright 2015 iNuron NV
 #
 # Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ def run(backend_name, action, params, json_output=True):
         cmd.append('--to-json')
     cmd.extend(params)
 
+    output = ''
     try:
         output = execute_command(' '.join(cmd))
         if json_output:

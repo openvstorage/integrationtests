@@ -17,11 +17,13 @@ from ci.tests.general.general import test_config
 from ci.tests.backend import alba, generic
 from ovs.dal.lists.backendlist import BackendList
 from ovs.dal.lists.albanodelist import AlbaNodeList
+from ovs.extensions.generic.system import System
 from ovs.lib.albacontroller import AlbaController
 from ovs.lib.albanodecontroller import AlbaNodeController
 from ovs.lib.storagerouter import StorageRouterController
 from ovs.dal.lists.vpoollist import VPoolList
 from ci.tests.disklayout import disklayout
+
 
 VPOOL_NAME = test_config.get('vpool', 'vpool_name')
 VPOOL_NAME = 'vpool-' + VPOOL_NAME
@@ -31,10 +33,11 @@ GRID_IP = test_config.get('main', 'grid_ip')
 
 
 def setup():
-    disklayout.add_db_role()
+    my_sr = System.get_my_storagerouter()
+    disklayout.add_db_role(my_sr.guid)
     disklayout.add_read_write_scrub_roles()
     if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
-        backend_guid = alba.add_alba_backend(BACKEND_NAME)
+        _ = alba.add_alba_backend(BACKEND_NAME)
     backend = BackendList.get_by_name(BACKEND_NAME)
     alba_node = AlbaNodeList.get_albanode_by_ip(GRID_IP)
     # claim disks up to max

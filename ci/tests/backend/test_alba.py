@@ -1,4 +1,4 @@
-# Copyright 2014 iNuron NV
+# Copyright 2015 iNuron NV
 #
 # Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@ from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general.general import test_config
 
+from ovs.extensions.generic.system import System
+
 import time
 
 BACKEND_NAME = test_config.get('backend', 'name')
@@ -26,7 +28,8 @@ assert BACKEND_TYPE in generic.VALID_BACKEND_TYPES, "Please fill out a valid bac
 
 
 def setup():
-    disklayout.add_db_role()
+    my_sr = System.get_my_storagerouter()
+    disklayout.add_db_role(my_sr.guid)
     backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
@@ -91,7 +94,6 @@ def add_preset(name, compression, encryption, policies, remove_when_finished=Tru
 
 
 def be_0001_add_and_verify_backend_is_running_test():
-    disklayout.add_db_role()
     if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
     else:
@@ -175,7 +177,7 @@ def be_0007_add_update_remove_preset_test():
     # to policy
     alba.run(BACKEND_NAME, 'deliver-messages', [], False)
 
-    filename, result = alba.upload_file(BACKEND_NAME, namespace_name, 1024*1024)
+    _, _ = alba.upload_file(BACKEND_NAME, namespace_name, 1024*1024)
 
     result = alba.show_namespace(BACKEND_NAME, namespace_name)['bucket_count']
 
