@@ -1,10 +1,10 @@
 # Copyright 2014 iNuron NV
 #
-# Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
+# Licensed under the Open vStorage Modified Apache License (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.openvstorage.org/OVS_NON_COMMERCIAL
+#     http://www.openvstorage.org/license
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -407,6 +407,8 @@ class xunit_testrail(Plugin):
         """Initializes a timer before starting a test."""
         assert test, "Test should be defined before trying to start a testrun ..."
 
+        section_names = ''
+        all_cases = list()
         test_id = test.id()
         log.log(2, str(test))
         if self.testrailIp:
@@ -419,8 +421,10 @@ class xunit_testrail(Plugin):
                 case_name = name_to_testrail_format(test_name)
 
                 suite = self.testrailApi.get_suite_by_name(self.project_id, suite_name)
+                assert suite, "Please create suite: {0} on testrail".format(suite_name)
                 suite_id = suite['id']
                 section = self.testrailApi.get_section_by_name(self.project_id, suite_id, section_name)
+                assert section, "Please create section: {0} on testrail".format(section_name)
                 section_id = section['id']
 
                 all_cases = self.testrailApi.get_cases(self.project_id, suite_id)

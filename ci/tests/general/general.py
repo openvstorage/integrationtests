@@ -1,10 +1,10 @@
 # Copyright 2014 iNuron NV
 #
-# Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
+# Licensed under the Open vStorage Modified Apache License (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.openvstorage.org/OVS_NON_COMMERCIAL
+#     http://www.openvstorage.org/license
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,38 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+import datetime
+import inspect
+import json
+import logging
 import os
 import re
-import sys
-import json
-import stat
-import time
-import debug
 import shutil
-import logging
-import inspect
-import datetime
-import paramiko
+import stat
 import subprocess
-import general_hypervisor
+import sys
+import time
 
-from ci import autotests
+sys.path.append(os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts"))
+
 from nose.plugins.skip import SkipTest
-
 from ovs.dal.lists.backendlist import BackendList
-from ovs.dal.lists.licenselist import LicenseList
 from ovs.dal.lists.pmachinelist import PMachineList
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.dal.lists.vmachinelist import VMachineList
 from ovs.dal.lists.vpoollist import VPoolList
-
-from ovs.lib.storagerouter import StorageRouterController
-from ovs.lib.setup import SetupController
-from ovs.extensions.generic.sshclient import SSHClient, UnableToConnectException
+from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.system import System
+from ovs.lib.setup import SetupController
+from ovs.lib.storagerouter import StorageRouterController
 
-sys.path.append(os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts"))
+import general_hypervisor
+from ci import autotests
+
+import debug
+import paramiko
 
 if not hasattr(sys, "debugEnabled"):
     sys.debugEnabled = True
@@ -84,11 +84,6 @@ def get_elem_with_val(iterable, key, value):
 def get_line_number():
     """Returns the current line number in our program."""
     return inspect.currentframe().f_back.f_lineno
-
-
-def get_alba_license(backend_type=test_config.get('vpool', 'vpool_type')):
-    """Returns the active license"""
-    return LicenseList.get_by_component(backend_type)
 
 
 def check_prereqs(testcase_number, tests_to_run):
@@ -176,56 +171,6 @@ def get_function_name(level=0):
     return sys._getframe(level + 1).f_code.co_name
 
 
-def is_backend_present(backend_name):
-    if not backend_name:
-        backend_name = test_config.get('main', 'backend_name')
-
-    return True if BackendList.get_by_name(backend_name) else False
-
-
-def get_alba_namespaces(backend_name):
-    if not is_backend_present(backend_name):
-        return
-
-    cmd_list = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(backend_name)
-    out = execute_command(cmd_list)[0].replace('true', 'True')
-    out = out.replace('false', 'False')
-    logging.log(1, "output: {0}".format(out))
-    if not out:
-        logging.log(1, "No backend present with name: {0}:\n".format(backend_name))
-        return
-
-    out = eval(out)
-    if out['success']:
-        nss = out['result']
-        logging.log(1, "Namespaces present on backend: {0}:\n{1}".format(backend_name, str(nss)))
-        return nss
-    else:
-        logging.log(1, "Error while retrieving namespaces: {0}".format(out['error']))
-
-
-def remove_alba_namespaces(backend_name=""):
-    if not is_backend_present(backend_name):
-        return
-
-    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg ".format(backend_name)
-    nss = get_alba_namespaces(backend_name)
-    logging.log(1, "Namespaces present: {0}".format(str(nss)))
-    fd_namespaces = list()
-    for ns in nss:
-        if 'fd-' in ns:
-            fd_namespaces.append(ns)
-            logging.log(1, "Skipping vpool namespace: {0}".format(ns))
-            continue
-        logging.log(1, "WARNING: Deleting leftover namespace: {0}".format(str(ns)))
-        print execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')
-
-    for ns in fd_namespaces:
-        logging.log(1, "WARNING: Deleting leftover vpool namespace: {0}".format(str(ns)))
-        print execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')
-    assert len(fd_namespaces) == 0, "Removing Alba namespaces should not be necessary!"
-
-
 def cleanup():
     machine_name = "AT_"
 
@@ -289,7 +234,7 @@ def cleanup():
             for vmachine in vmachines:
                 logging.log(1, 'WARNING: Removing leftover vmachine: {0}'.format(vmachine.name))
                 vmachine.delete()
-    remove_alba_namespaces()
+    # remove_alba_namespaces()
 
 
 def get_vpools():
@@ -335,7 +280,7 @@ def remove_vpool(browser):
             stdin, stdout, stderr = ssh_con.exec_command(cmd)
             print stdout.readlines()
             print stderr.readlines()
-    remove_alba_namespaces()
+    # remove_alba_namespaces()
     validate_vpool_cleanup(vpool_name)
 
 
@@ -466,7 +411,7 @@ def api_add_vpool(vpool_name=None,
         vpool_name = test_config.get(vpool_config, 'vpool_name')
 
     if not backend_name:
-        backend_name = test_config.get('main', 'backend_name')
+        backend_name = test_config.get('backend', 'name')
 
     parameters = {'storagerouter_ip': local_vsa_ip,
                   'vpool_name': vpool_name,

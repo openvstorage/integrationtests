@@ -1,10 +1,10 @@
 # Copyright 2014 iNuron NV
 #
-# Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
+# Licensed under the Open vStorage Modified Apache License (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.openvstorage.org/OVS_NON_COMMERCIAL
+#     http://www.openvstorage.org/license
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,15 +13,15 @@
 # limitations under the License.
 
 import logging
-from ci.tests.general import general
-from ci.tests.api.connection import Connection
 
 from nose.plugins.skip import SkipTest
-
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.system import System
 from ovs.lib.disk import DiskController
 from ovs.lib.storagerouter import StorageRouterController
+
+from ci.tests.general import general
+from ci.tests.general.connection import Connection
 
 log = logging.getLogger('test_flexible_disk_layout')
 vpool_name = general.test_config.get("vpool", "vpool_name")
@@ -37,10 +37,12 @@ __continue_testing.state = True
 
 
 def setup():
+
     pass
 
 
 def teardown():
+
     pass
 
 

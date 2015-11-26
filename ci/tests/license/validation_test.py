@@ -1,10 +1,10 @@
 # Copyright 2014 iNuron NV
 #
-# Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
+# Licensed under the Open vStorage Modified Apache License (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.openvstorage.org/OVS_NON_COMMERCIAL
+#     http://www.openvstorage.org/license
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ci.tests.general import general
 import os
 
 alternative_first_lines = ["Copyright 2014 iNuron NV", "Copyright 2015 iNuron NV", "Copyright 2016 iNuron NV"]
 license_to_check = """Copyright 2014 iNuron NV
 
-Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
+Licensed under the Open vStorage Modified Apache License (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.openvstorage.org/OVS_NON_COMMERCIAL
+    http://www.openvstorage.org/license
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,14 +35,17 @@ folders_to_check = ['/opt/OpenvStorage']
 # relative paths to the root
 skip_files = ['/webapps/frontend/index.html',
               '/config/gunicorn.cfg.py',
-              '/config/django/django_gunicorn_ovs.cfg.py']
+              '/config/django/django_gunicorn_ovs.cfg.py',
+              '/opt/OpenvStorage/ovs/extensions/generic/fakesleep.py']
 skip_dirs = ['/webapps/frontend/lib',
              '/webapps/api/static/rest_framework/css',
              '/webapps/frontend/css',
              '/webapps/api/static/rest_framework/js',
-             '/.hg',
+             '/.git',
              '/scripts/',
-             '/extensions/db/arakoon/']
+             '/extensions/db/arakoon/arakoon/',
+             '/opt/OpenvStorage/config/templates/cinder-volume-driver/',
+             '/opt/OpenvStorage/config/templates/cinder-unit-tests/']
 # define files and directories to except from skip
 # should be subdirectories of the skip directories
 # or files inside the skip_dirs
@@ -149,15 +151,16 @@ def check_license_headers_test():
                     skip = False
                     break
             if not skip:
-                out, err = general.execute_command('cat {0}'.format(file))
-                lines_to_check = out.splitlines()
+                with open(file, 'r') as utf_file:
+                    data = utf_file.read().decode("utf-8-sig").encode("utf-8")
+                    lines_to_check = data.splitlines()
                 offset = 0
                 before, after = get_comment_style(file.split('.')[-1])
                 if after:
                     offset += 1
                 comment_section_found = False
                 for line_index in range(0, len(lines_to_check) - 1):
-                    if lines_to_check[line_index].startswith(before):
+                    if lines_to_check[line_index].lstrip().startswith(before):
                         # found the first commented piece of code
                         offset += line_index
                         comment_section_found = True
@@ -169,15 +172,17 @@ def check_license_headers_test():
                         if alternative_first_line in lines_to_check[0 + offset]:
                             first_line_checked = True
                     if not first_line_checked:
-                        files_with_diff_licenses += file + '\n'
+                        files_with_diff_licenses += 'First line {1} differs for {0}\n'.format(file, lines_to_check[0 + offset])
                     else:
                         # checking the rest of the lines
                         if offset + len(license_splitlines) > len(lines_to_check):
                             # found comment section but it's too small for license to fit
-                            files_with_diff_licenses += file + '\n'
+                            files_with_diff_licenses += 'File too small for license to fit: {1}\n'.format(file)
                         else:
                             for line_index in range(1, len(license_splitlines) - 1):
                                 if license_splitlines[line_index] not in lines_to_check[line_index + offset]:
-                                    files_with_diff_licenses += file + '\n'
+                                    files_with_diff_licenses += 'File {0} has a different license\n{1}\nExpected:\n{2}\n'.format(file, lines_to_check[line_index + offset], license_splitlines[line_index])
                                     break
+                else:
+                    files_with_diff_licenses += 'No comments detected in {0}\n'.format(file)
     assert files_with_diff_licenses == '', 'Following files were found with different licenses:\n {0}'.format(files_with_diff_licenses)

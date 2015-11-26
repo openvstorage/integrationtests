@@ -1,10 +1,10 @@
 # Copyright 2014 iNuron NV
 #
-# Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
+# Licensed under the Open vStorage Modified Apache License (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.openvstorage.org/OVS_NON_COMMERCIAL
+#     http://www.openvstorage.org/license
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,7 @@ import itertools
 import random
 import logging
 
+import ci.tests.backend.test_alba
 from ci.tests.general import general
 from ovs.lib.setup import SetupController
 from ovs.extensions.generic.sshclient import SSHClient
@@ -55,7 +56,7 @@ def teardown():
 def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_dtl_mp,
                                   initial_part_used_space=None):
     vpool_params = {}
-    general.remove_alba_namespaces()
+    ci.tests.backend.test_alba.remove_alba_namespaces()
     try:
         general.apply_disk_layout(disk_layout)
         vpool_params = general.api_add_vpool(vpool_name=vpool_name,
@@ -343,6 +344,6 @@ def readcache_and_writecache_same_dir_tst():
 
 
 def verify_no_namespaces_remain_after_tstsuite():
-    alba_namespaces = general.get_alba_namespaces()
+    alba_namespaces = ci.tests.backend.test_alba.get_alba_namespaces()
     assert len(alba_namespaces) == 0,\
         "No alba namespaces should be present at the end of api test suite: {0}".format(alba_namespaces)
