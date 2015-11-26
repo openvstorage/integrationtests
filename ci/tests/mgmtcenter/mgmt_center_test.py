@@ -12,45 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from ovs.dal.lists.pmachinelist import PMachineList
-from ovs.dal.lists.mgmtcenterlist import MgmtCenterList
-from ovs.dal.hybrids.mgmtcenter import MgmtCenter
 from ovs.lib.mgmtcenter import MgmtCenterController
 from ci.tests.general import general
+from ci.tests.mgmtcenter import generic
 from ci import autotests
-from nose.plugins.skip import SkipTest
+from ci.tests.general.connection import Connection
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
+MGMT_NAME = general.test_config.get("mgmtcenter", "name")
+MGMT_USERNAME = general.test_config.get("mgmtcenter", "username")
+MGMT_PASS = general.test_config.get("mgmtcenter", "password")
+MGMT_IP = general.test_config.get('mgmtcenter', 'ip')
+MGMT_TYPE = general.test_config.get('mgmtcenter', 'type')
+MGMT_PORT = general.test_config.get('mgmtcenter', 'port')
+
+mgmtcenters_todelete = []
 
 
 def setup():
-    management_centers = MgmtCenterList.get_mgmtcenters()
-    if len(management_centers) >= 1:
-        mgmtcenter = management_centers[0]
-    else:
-        mgmtcenter = MgmtCenter()
-        mgmtcenter.name = general.test_config.get("mgmtcenter", "name")
-        mgmtcenter.username = general.test_config.get("mgmtcenter", "username")
-        mgmtcenter.password = general.test_config.get("mgmtcenter", "password")
-        mgmtcenter.ip = general.test_config.get('main', 'grid_ip')
-        mgmtcenter.type = 'OPENSTACK'
-        mgmtcenter.port = 443
-    mgmtcenter.save()
-    for physical_machine in PMachineList.get_pmachines():
-        MgmtCenterController.configure_host(physical_machine.guid, mgmtcenter.guid, True)
+    api = Connection.get_connection()
+    management_centers = api.get_components('mgmtcenters')
+    if len(management_centers) == 0:
+        mgmtcenter = generic.create_mgmt_center(MGMT_NAME, MGMT_USERNAME, MGMT_PASS, MGMT_IP, MGMT_TYPE, MGMT_PORT)
+        mgmtcenters_todelete.append(mgmtcenter['guid'])
+        for physical_machine in api.get_components('pmachines'):
+            generic.configure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
 
 
 def teardown():
-    management_centers = MgmtCenterList.get_mgmtcenters()
-
-    for mgmtcenter in management_centers:
-        for physical_machine in mgmtcenter.pmachines:
-            if MgmtCenterController.is_host_configured(physical_machine.guid) == False:
-                MgmtCenterController.configure_host(physical_machine.guid, mgmtcenter.guid, True)
+    for mgmcenter_guid in mgmtcenters_todelete:
+        generic.remove_mgmt_center(mgmcenter_guid)
 
 
-def check_reachability_test(management_centers=[]):
+def check_reachability_test():
     """
     {0}
     """.format(general.get_function_name())
@@ -58,16 +52,19 @@ def check_reachability_test(management_centers=[]):
     general.check_prereqs(testcase_number=1,
                           tests_to_run=testsToRun)
 
-    if not len(management_centers):
-        management_centers = MgmtCenterList.get_mgmtcenters()
+    api = Connection.get_connection()
+    management_centers = api.get_components('mgmtcenters')
+    issues_found = ""
 
     for mgmtcenter in management_centers:
-        out, err = general.execute_command("ping {0} -c 1".format(mgmtcenter.ip))
-        assert "Destination Host Unreachable" not in out, "Management center {0} with {1} cannot be reached"\
-            .format(mgmtcenter.name, mgmtcenter.ip)
+        out, err = general.execute_command("ping {0} -c 1".format(mgmtcenter['ip']))
+        if "Destination Host Unreachable" in out:
+            issues_found += "Management center {0} with ip {1}\n".format(mgmtcenter['name'], mgmtcenter['ip'])
+
+    assert issues_found == "", "Following management centers could not be reached:\n{0}".format(issues_found)
 
 
-def management_center_connection_test(management_centers=[]):
+def management_center_connection_test():
     """
     {0}
     """.format(general.get_function_name())
@@ -75,15 +72,18 @@ def management_center_connection_test(management_centers=[]):
     general.check_prereqs(testcase_number=2,
                           tests_to_run=testsToRun)
 
-    if not len(management_centers):
-        management_centers = MgmtCenterList.get_mgmtcenters()
+    api = Connection.get_connection()
+    management_centers = api.get_components('mgmtcenters')
+    issues_found = ""
 
     for mgmtcenter in management_centers:
-        assert MgmtCenterController.test_connection(mgmtcenter.guid), "Connection test failed for {0} management center"\
-            .format(mgmtcenter.name)
+        if not MgmtCenterController.test_connection(mgmtcenter['guid']):
+            issues_found += "Management center {0}\n".format(mgmtcenter['name'])
+
+    assert issues_found == "", "Following management centers failed the connection test:\n{0}".format(issues_found)
 
 
-def check_configured_management_center_test(management_centers=[]):
+def check_configured_management_center_test():
     """
     {0}
     """.format(general.get_function_name())
@@ -91,20 +91,21 @@ def check_configured_management_center_test(management_centers=[]):
     general.check_prereqs(testcase_number=3,
                           tests_to_run=testsToRun)
 
-    if not len(management_centers):
-        management_centers = MgmtCenterList.get_mgmtcenters()
+    api = Connection.get_connection()
+    management_centers = api.get_components('mgmtcenters')
+    issues_found = ""
 
     for mgmtcenter in management_centers:
-        if mgmtcenter.type not in ['OPENSTACK']:
-            raise SkipTest()
+        # TODO: remove 'if' when OVS-3626 is fixed
+        if mgmtcenter['type'] in ['OPENSTACK']:
+            for physical_machine_guid in mgmtcenter['pmachines_guids']:
+                if not MgmtCenterController.is_host_configured(physical_machine_guid):
+                    issues_found += "Mgmtcenter {0} has an unconfigured pmachine with guid {1}\n".format(mgmtcenter['name'], physical_machine_guid)
 
-    for mgmtcenter in management_centers:
-        for physical_machine in mgmtcenter.pmachines:
-            assert MgmtCenterController.is_host_configured(physical_machine.guid) == True, \
-                "Machine {0} is not configured in {1} management center".format(physical_machine.name, mgmtcenter.name)
+    assert issues_found == "", "Following pmachines where not configured with their management center:\n{0}".format(issues_found)
 
 
-def check_unconfigured_management_center_test(management_centers=[]):
+def check_unconfigured_management_center_test():
     """
     {0}
     """.format(general.get_function_name())
@@ -112,22 +113,17 @@ def check_unconfigured_management_center_test(management_centers=[]):
     general.check_prereqs(testcase_number=4,
                           tests_to_run=testsToRun)
 
-    if not len(management_centers):
-        management_centers = MgmtCenterList.get_mgmtcenters()
+    api = Connection.get_connection()
+    management_centers = api.get_components('mgmtcenters')
+    issues_found = ""
 
     for mgmtcenter in management_centers:
-        if mgmtcenter.type not in ['OPENSTACK']:
-            raise SkipTest()
+        # TODO: remove 'if' when OVS-3626 is fixed
+        if mgmtcenter['type'] not in ['OPENSTACK']:
+            for physical_machine in api.get_components('pmachines'):
+                generic.unconfigure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
+                if MgmtCenterController.is_host_configured(physical_machine['guid']):
+                    issues_found += "Machine {0} is still configured with {1} management center".format(physical_machine['name'], mgmtcenter['name'])
+                generic.configure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
 
-    for mgmtcenter in management_centers:
-        for physical_machine in PMachineList.get_pmachines():
-            MgmtCenterController.unconfigure_host(physical_machine.guid, mgmtcenter.guid, True)
-
-    for mgmtcenter in management_centers:
-        for physical_machine in mgmtcenter.pmachines:
-            assert MgmtCenterController.is_host_configured(physical_machine.guid) == False, \
-                "Machine {0} is still configured in {1} management center".format(physical_machine.name, mgmtcenter.name)
-
-    for mgmtcenter in management_centers:
-        for physical_machine in PMachineList.get_pmachines():
-            MgmtCenterController.configure_host(physical_machine.guid, mgmtcenter.guid, True)
+    assert issues_found == "", "Following pmachines where still configured with their management center:\n{0}".format(issues_found)

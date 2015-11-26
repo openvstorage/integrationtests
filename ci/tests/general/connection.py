@@ -150,7 +150,10 @@ class Connection:
         request = urllib2.Request(base_url.format(component + '/' + guid), None, headers=self.headers)
         request.get_method = lambda: 'DELETE'
         response = urllib2.urlopen(request).read()
-        result = json.loads(response)
+        if response:
+            result = json.loads(response)
+        else:
+            result = ''
 
         return result
 
