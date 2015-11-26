@@ -27,9 +27,7 @@ def remove_mgmt_center(mgmtcenter_guid):
     management_center = api.fetch('mgmtcenters', mgmtcenter_guid)
     for pmachine_guid in management_center['pmachines_guids']:
         unconfigure_pmachine_with_mgmtcenter(pmachine_guid, mgmtcenter_guid)
-    result = api.remove('mgmtcenters', mgmtcenter_guid)
-    import os
-    os.write(1, result)
+    _ = api.remove('mgmtcenters', mgmtcenter_guid)
 
 
 def configure_pmachine_with_mgmtcenter(pmachine_guid, mgmtcenter_guid):
