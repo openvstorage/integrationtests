@@ -263,6 +263,14 @@ cinder_type = {cinder_type}
 key = {testrail_key}
 server = {testrail_server}
 test_project = {test_project}
+
+[mgmtcenter]
+name = hmc
+username = admin
+password = rooter
+type = OPENSTACK
+port = 443
+ip = {grid_ip}
 EOF
 '''.format(os_name=os_name,
            vmware_info=vmware_info,
