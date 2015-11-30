@@ -44,10 +44,10 @@ def add_read_write_scrub_roles(storagerouter_guid):
     if len(disks) == 1:
         disk = disks[0]
         if not disk['partitions_guids']:
-            partition_guid = disklayout.partition_disk(disk['guid'])
-            disklayout.append_disk_role(partition_guid, ['READ', 'WRITE', 'SCRUB'])
+            partition_roles[disklayout.partition_disk(disk['guid'])] = ['READ', 'WRITE', 'SCRUB']
     elif len(disks) > 1:
-        disks_to_partition = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter_guid and not disk['partitions_guids'] and disk['is_ssd']]
+        disks_to_partition = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter_guid and
+                              not disk['partitions_guids'] and disk['is_ssd']]
         for disk in disks_to_partition:
             disklayout.partition_disk(disk['guid'])
 
@@ -77,8 +77,7 @@ def setup():
     if not backend:
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
         backend = generic.get_backend(backend_guid)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
-    alba.claim_disks(alba_backend, NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
+    alba.claim_disks(backend['alba_backend_guid'], NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
 
 
 def teardown():

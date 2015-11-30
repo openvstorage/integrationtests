@@ -36,8 +36,7 @@ def setup():
     if not backend:
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
         backend = generic.get_backend(backend_guid)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
-    alba.claim_disks(alba_backend, NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
+    alba.claim_disks(backend['alba_backend_guid'], NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
 
 
 def teardown():

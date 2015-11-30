@@ -253,8 +253,8 @@ vpool_config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "ded
 [backend]
 name = alba
 type = alba
-mode = converged
-use_local_disks = True
+nr_of_disks_to_claim = 3
+type_of_disks_to_claim = SATA
 
 [openstack]
 cinder_type = {cinder_type}
