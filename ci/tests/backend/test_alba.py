@@ -1,10 +1,10 @@
-# Copyright 2014 iNuron NV
+# Copyright 2015 iNuron NV
 #
-# Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
+# Licensed under the Open vStorage Modified Apache License (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.openvstorage.org/OVS_NON_COMMERCIAL
+#     http://www.openvstorage.org/license
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,23 +16,28 @@ from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general.general import test_config
 
+from ovs.extensions.generic.system import System
+
 import time
 
 BACKEND_NAME = test_config.get('backend', 'name')
 BACKEND_TYPE = test_config.get('backend', 'type')
+NR_OF_DISKS_TO_CLAIM = int(test_config.get('backend', 'nr_of_disks_to_claim'))
+TYPE_OF_DISKS_TO_CLAIM = test_config.get('backend', 'type_of_disks_to_claim')
 
 assert BACKEND_NAME, "Please fill out a valid backend name in autotest.cfg file"
 assert BACKEND_TYPE in generic.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
 
 
 def setup():
-    disklayout.add_db_role()
+    my_sr = System.get_my_storagerouter()
+    disklayout.add_db_role(my_sr.guid)
     backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
+    if not backend:
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
         backend = generic.get_backend(backend_guid)
     alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
-    alba.claim_disks(alba_backend, 3, 'sata')
+    alba.claim_disks(alba_backend, NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
 
 
 def teardown():
@@ -91,7 +96,6 @@ def add_preset(name, compression, encryption, policies, remove_when_finished=Tru
 
 
 def be_0001_add_and_verify_backend_is_running_test():
-    disklayout.add_db_role()
     if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
     else:
@@ -175,7 +179,7 @@ def be_0007_add_update_remove_preset_test():
     # to policy
     alba.run(BACKEND_NAME, 'deliver-messages', [], False)
 
-    filename, result = alba.upload_file(BACKEND_NAME, namespace_name, 1024*1024)
+    _, _ = alba.upload_file(BACKEND_NAME, namespace_name, 1024*1024)
 
     result = alba.show_namespace(BACKEND_NAME, namespace_name)['bucket_count']
 

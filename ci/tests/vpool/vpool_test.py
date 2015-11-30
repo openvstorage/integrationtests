@@ -1,10 +1,10 @@
 # Copyright 2015 iNuron NV
 #
-# Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
+# Licensed under the Open vStorage Modified Apache License (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.openvstorage.org/OVS_NON_COMMERCIAL
+#     http://www.openvstorage.org/license
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,30 +13,72 @@
 # limitations under the License.
 
 from ci.tests.general import general
+from ci.tests.general.connection import Connection
 from ci.tests.general.general import test_config
 from ci.tests.backend import alba, generic
 from ovs.dal.lists.backendlist import BackendList
-from ovs.dal.lists.albanodelist import AlbaNodeList
+from ovs.extensions.generic.system import System
 from ovs.lib.storagerouter import StorageRouterController
 from ovs.dal.lists.vpoollist import VPoolList
 from ci.tests.disklayout import disklayout
 
+
 VPOOL_NAME = test_config.get('vpool', 'vpool_name')
-VPOOL_NAME = 'vpool-' + VPOOL_NAME
+assert VPOOL_NAME, "Please fill out a valid vpool name in autotest.cfg file"
+
 BACKEND_NAME = test_config.get('backend', 'name')
 BACKEND_TYPE = test_config.get('backend', 'type')
+assert BACKEND_NAME, "Please fill out a valid backend name in autotest.cfg file"
+assert BACKEND_TYPE in generic.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
+
 GRID_IP = test_config.get('main', 'grid_ip')
+NR_OF_DISKS_TO_CLAIM = int(test_config.get('backend', 'nr_of_disks_to_claim'))
+TYPE_OF_DISKS_TO_CLAIM = test_config.get('backend', 'type_of_disks_to_claim')
+
+
+def add_read_write_scrub_roles(storagerouter_guid):
+    api = Connection.get_connection()
+    disks = api.get_components('disks')
+
+    partition_roles = dict()
+    if len(disks) == 1:
+        disk = disks[0]
+        if not disk['partitions_guids']:
+            partition_guid = disklayout.partition_disk(disk['guid'])
+            disklayout.append_disk_role(partition_guid, ['READ', 'WRITE', 'SCRUB'])
+    elif len(disks) > 1:
+        disks_to_partition = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter_guid and not disk['partitions_guids'] and disk['is_ssd']]
+        for disk in disks_to_partition:
+            disklayout.partition_disk(disk['guid'])
+
+        disks = api.get_components('disks')
+        hdds = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter_guid and not disk['is_ssd']]
+        ssds = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter_guid and disk['is_ssd']]
+
+        if len(ssds) == 0:
+            partition_roles[hdds[0]['partitions_guids'][0]] = ['READ']
+            partition_roles[hdds[1]['partitions_guids'][0]] = ['WRITE', 'SCRUB']
+        elif len(ssds) == 1:
+            partition_roles[hdds[0]['partitions_guids'][0]] = ['READ', 'SCRUB']
+            partition_roles[ssds[0]['partitions_guids'][0]] = ['WRITE']
+        elif len(ssds) >= 2:
+            partition_roles[ssds[0]['partitions_guids'][0]] = ['READ', 'SCRUB']
+            partition_roles[ssds[1]['partitions_guids'][0]] = ['WRITE']
+
+    for guid, roles in partition_roles.iteritems():
+        disklayout.append_disk_role(guid, roles)
 
 
 def setup():
-    disklayout.add_db_role()
-    disklayout.add_read_write_scrub_roles()
-    if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
-        alba.add_alba_backend(BACKEND_NAME)
-    backend = BackendList.get_by_name(BACKEND_NAME)
-    alba_node = AlbaNodeList.get_albanode_by_ip(GRID_IP)
-    alba.initialise_disks(alba_node, 'SATA')
-    alba.claim_disks(backend, 3, 'SATA')
+    my_sr = System.get_my_storagerouter()
+    disklayout.add_db_role(my_sr.guid)
+    add_read_write_scrub_roles(my_sr.guid)
+    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    if not backend:
+        backend_guid = alba.add_alba_backend(BACKEND_NAME)
+        backend = generic.get_backend(backend_guid)
+    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+    alba.claim_disks(alba_backend, NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
 
 
 def teardown():
