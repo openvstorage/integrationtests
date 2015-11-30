@@ -1,10 +1,10 @@
 # Copyright 2014 iNuron NV
 #
-# Licensed under the Open vStorage Non-Commercial License, Version 1.0 (the "License");
+# Licensed under the Open vStorage Modified Apache License (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.openvstorage.org/OVS_NON_COMMERCIAL
+#     http://www.openvstorage.org/license
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -248,7 +248,7 @@ vpool_secret_key =
 vpool_dtl_mp = /mnt/cache3/localvp/foc
 vpool_vrouter_port  = 12345
 vpool_storage_ip = 127.0.0.1
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
+vpool_config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128}}
 
 [backend]
 name = alba
@@ -295,7 +295,7 @@ vpool_secret_key    = testing
 vpool_dtl_mp    = /mnt/cache1/saio/foc
 vpool_vrouter_port  = 12345
 vpool_storage_ip    = {vpool_storage_ip}
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
+vpool_config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128}}
 """.format(vpool_host_ip=vpool_host_ip,
            vpool_storage_ip=vpool_storage_ip,
            vpool_name=vpool_name,
@@ -315,7 +315,7 @@ vpool_secret_key =
 vpool_dtl_mp = /mnt/cache1/alba/foc
 vpool_vrouter_port  = 12345
 vpool_storage_ip = 0.0.0.0
-vpool_config_params = {{"dtl_mode": "sync", "sco_size": 4, "dedupe_mode": "dedupe", "dtl_enabled": false, "dtl_location": "", "cache_strategy": "on_read", "write_buffer": 128}}
+vpool_config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128}}
 """.format(vpool_name=vpool_name,
            vpool_type=vpool_type)
 
