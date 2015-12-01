@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general.general import test_config
-
 from ovs.extensions.generic.system import System
-
-import time
 
 BACKEND_NAME = test_config.get('backend', 'name')
 BACKEND_TYPE = test_config.get('backend', 'type')
+NR_OF_DISKS_TO_CLAIM = int(test_config.get('backend', 'nr_of_disks_to_claim'))
+TYPE_OF_DISKS_TO_CLAIM = test_config.get('backend', 'type_of_disks_to_claim')
 
 assert BACKEND_NAME, "Please fill out a valid backend name in autotest.cfg file"
 assert BACKEND_TYPE in generic.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
@@ -31,18 +32,17 @@ def setup():
     my_sr = System.get_my_storagerouter()
     disklayout.add_db_role(my_sr.guid)
     backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
+    if not backend:
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
         backend = generic.get_backend(backend_guid)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
-    alba.claim_disks(alba_backend, 3, 'sata')
+    alba.claim_disks(backend['alba_backend_guid'], NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
 
 
 def teardown():
     backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
-    alba.unclaim_disks(alba_backend)
     if backend:
+        alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+        alba.unclaim_disks(alba_backend)
         alba.remove_alba_backend(backend['alba_backend_guid'])
 
 

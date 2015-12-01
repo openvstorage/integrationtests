@@ -251,10 +251,10 @@ vpool_storage_ip = 127.0.0.1
 vpool_config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128}}
 
 [backend]
-name = alba
+name = marie
 type = alba
-mode = converged
-use_local_disks = True
+nr_of_disks_to_claim = 3
+type_of_disks_to_claim = SATA
 
 [openstack]
 cinder_type = {cinder_type}
@@ -263,6 +263,20 @@ cinder_type = {cinder_type}
 key = {testrail_key}
 server = {testrail_server}
 test_project = {test_project}
+
+[mgmtcenter]
+name = hmc
+username = admin
+password = rooter
+type = OPENSTACK
+port = 443
+ip = {grid_ip}
+
+[logger]
+default_name = autotest
+default_file = main.log
+level = INFO
+path = /var/log/ovs/autotests
 EOF
 '''.format(os_name=os_name,
            vmware_info=vmware_info,
