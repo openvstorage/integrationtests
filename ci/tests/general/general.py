@@ -857,6 +857,13 @@ def create_testsuite_screenshot_dir(testsuite):
 
 
 def get_physical_disks(ip):
+    cmd = 'ls -la /dev/disk/by-id/'
+    disk_by_id = dict()
+    result = execute_command_on_node(ip, cmd)
+    for entry in result.splitlines():
+        if 'ata-' in entry:
+            device = entry.split()
+            disk_by_id[device[10][-3:]] = device[8]
 
     cmd = "lsblk -n -o name,type,size,rota"
     result = execute_command_on_node(ip, cmd)
@@ -869,7 +876,7 @@ def get_physical_disks(ip):
             continue
         if disk[1] in 'disk':
             if disk[3] == '0':
-                ssds[disk[0]] = {'size': disk[2], 'is_ssd': True}
+                ssds[disk[0]] = {'size': disk[2], 'is_ssd': True, 'name': disk_by_id[disk[0]]}
             else:
-                hdds[disk[0]] = {'size': disk[2], 'is_ssd': False}
+                hdds[disk[0]] = {'size': disk[2], 'is_ssd': False, 'name': disk_by_id[disk[0]]}
     return hdds, ssds

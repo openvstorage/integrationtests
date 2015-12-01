@@ -14,6 +14,7 @@
 
 from ci.tests.general.connection import Connection
 from ovs.lib.storagerouter import StorageRouterController
+import os
 
 
 def is_role_present(role, storagerouter_guid=None):
@@ -34,16 +35,16 @@ def is_role_present(role, storagerouter_guid=None):
         return True
 
 
-def append_disk_role(partition_guid, role):
+def append_disk_role(partition_guid, roles_to_add):
     api = Connection.get_connection()
     partition = api.fetch('diskpartitions', partition_guid)
     roles = list() if not partition['roles'] else partition['roles']
-    if role not in roles:
-        roles.append(role)
-        disk = api.fetch('disks', partition['disk_guid'])
-        storagerouter = api.fetch('storagerouters', disk['storagerouter_guid'])
-        StorageRouterController.configure_disk(storagerouter['guid'], partition['disk_guid'], partition['guid'],
-                                               partition['offset'], partition['size'], roles)
+    for role in roles_to_add:
+        if role not in roles:
+            roles.append(role)
+    disk = api.fetch('disks', partition['disk_guid'])
+    StorageRouterController.configure_disk(disk['storagerouter_guid'], partition['disk_guid'], partition['guid'],
+                                           partition['offset'], partition['size'], roles)
 
 
 def add_db_role(storagerouter_guid):
@@ -52,7 +53,7 @@ def add_db_role(storagerouter_guid):
         if partition['mountpoint'] in ['/'] or partition['folder'] in ['/mnt/storage']:
             disk = api.fetch('disks', partition['disk_guid'])
             if disk['storagerouter_guid'] == storagerouter_guid:
-                append_disk_role(partition['guid'], 'DB')
+                append_disk_role(partition['guid'], ['DB'])
                 break
 
 
@@ -68,35 +69,15 @@ def remove_role(storagerouter_guid, role, partition_guid=None):
                                                        partition['offset'], partition['size'], roles)
 
 
-def add_read_write_scrub_roles():
+def partition_disk(disk_guid):
     api = Connection.get_connection()
-    disks = api.get_components('disks')
-    ssds = list()
-    ssd_number = 0
-    for disk in disks:
-        if disk['is_ssd']:
-            ssd_number += 1
-            ssds.append(disk)
+    disk = api.fetch('disks', disk_guid)
+    if len(disk['partitions_guids']) == 0:
+        StorageRouterController.configure_disk(disk['storagerouter_guid'], disk['guid'], None, 0, disk['size'], [])
+    else:
+        return disk['partitions_guids'][0]
 
-    if ssd_number == 2:
-        for partition in api.get_components('diskpartitions'):
-            if partition['disk_guid'] == ssds[0]['guid']:
-                append_disk_role(partition['guid'], 'READ')
-                append_disk_role(partition['guid'], 'SCRUB')
-            elif partition['disk_guid'] == ssds[1]['guid']:
-                append_disk_role(partition['guid'], 'WRITE')
-    elif ssd_number == 1:
-        for partition in api.get_components('diskpartitions'):
-            if partition['disk_guid'] == ssds[0]['guid']:
-                append_disk_role(partition['guid'], 'READ')
-                append_disk_role(partition['guid'], 'SCRUB')
-                append_disk_role(partition['guid'], 'WRITE')
-                break
-    elif ssd_number >= 3:
-        for partition in api.get_components('diskpartitions'):
-            if partition['disk_guid'] == ssds[0]['guid']:
-                append_disk_role(partition['guid'], 'READ')
-            elif partition['disk_guid'] == ssds[1]['guid']:
-                append_disk_role(partition['guid'], 'WRITE')
-            elif partition['disk_guid'] == ssds[2]['guid']:
-                append_disk_role(partition['guid'], 'SCRUB')
+    disk = api.fetch('disks', disk_guid)
+    partition_guids = disk['partitions_guids']
+    assert len(partition_guids) >= 1, "Partitioning failed for disk:\n {0} ".format(disk)
+    return partition_guids[0]
