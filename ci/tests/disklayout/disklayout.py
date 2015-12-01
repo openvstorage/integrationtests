@@ -43,8 +43,7 @@ def append_disk_role(partition_guid, roles_to_add):
         if role not in roles:
             roles.append(role)
     disk = api.fetch('disks', partition['disk_guid'])
-    storagerouter = api.fetch('storagerouters', disk['storagerouter_guid'])
-    StorageRouterController.configure_disk(storagerouter['guid'], partition['disk_guid'], partition['guid'],
+    StorageRouterController.configure_disk(disk['storagerouter_guid'], partition['disk_guid'], partition['guid'],
                                            partition['offset'], partition['size'], roles)
 
 

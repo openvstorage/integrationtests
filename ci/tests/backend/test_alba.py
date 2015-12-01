@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general.general import test_config
-
 from ovs.extensions.generic.system import System
-
-import time
 
 BACKEND_NAME = test_config.get('backend', 'name')
 BACKEND_TYPE = test_config.get('backend', 'type')
@@ -41,9 +40,9 @@ def setup():
 
 def teardown():
     backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
-    alba.unclaim_disks(alba_backend)
     if backend:
+        alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+        alba.unclaim_disks(alba_backend)
         alba.remove_alba_backend(backend['alba_backend_guid'])
 
 
