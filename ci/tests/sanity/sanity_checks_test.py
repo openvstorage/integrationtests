@@ -407,12 +407,13 @@ def check_vpool_remove_sanity_test(vpool_name=''):
         if 'not' not in out:
             issues_found += "Directory {0} still present".format(directory)
 
-    for sd in vpool.storagedrivers:
-        for part in sd.partitions:
-            storagedriver_partitions[str(part.role)][str(part.sub_role)] = True
-    for role in storagedriver_partitions.iterkeys():
-        for sub_role in storagedriver_partitions[role].iterkeys():
-            if storagedriver_partitions[role][sub_role]:
-                issues_found += "Still found {0} partition role with {1} subrole after vpool deletion".format(role, sub_role)
+    if vpool:
+        for sd in vpool.storagedrivers:
+            for part in sd.partitions:
+                storagedriver_partitions[str(part.role)][str(part.sub_role)] = True
+        for role in storagedriver_partitions.iterkeys():
+            for sub_role in storagedriver_partitions[role].iterkeys():
+                if storagedriver_partitions[role][sub_role]:
+                    issues_found += "Still found {0} partition role with {1} subrole after vpool deletion".format(role, sub_role)
 
     assert len(issues_found) == 0, "Following issues found with vpool {0}\n{1}\n".format(vpool_name, issues_found)
