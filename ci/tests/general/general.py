@@ -880,3 +880,14 @@ def get_physical_disks(ip):
             else:
                 hdds[disk[0]] = {'size': disk[2], 'is_ssd': False, 'name': disk_by_id[disk[0]]}
     return hdds, ssds
+
+
+def get_loops(ip):
+    cmd = 'lsblk'
+    loop_devices = []
+    result = execute_command_on_node(ip, cmd)
+    for entry in result.splitlines():
+        if 'loop' in entry:
+            device = entry.split()
+            loop_devices.append(device[0])
+    return loop_devices
