@@ -65,6 +65,7 @@ def fdl_0001_match_model_with_reality_test():
 
     physical_disks = dict()
     modelled_disks = dict()
+    loops = dict()
 
     my_sr = System.get_my_storagerouter()
 
@@ -78,13 +79,16 @@ def fdl_0001_match_model_with_reality_test():
         hdds, ssds = general.get_physical_disks(storagerouter.ip)
         physical_disks[storagerouter.guid] = hdds
         physical_disks[storagerouter.guid].update(ssds)
+        loop_devices = general.get_loops(storagerouter.ip)
+        loops[storagerouter.guid] = loop_devices
 
     data = api.list('disks')
     for guid in data:
         disk = api.fetch('disks', guid)
         if not disk['storagerouter_guid'] in modelled_disks:
             modelled_disks[disk['storagerouter_guid']] = dict()
-        modelled_disks[disk['storagerouter_guid']][disk['name']] = {'is_ssd': disk['is_ssd']}
+        if not disk['name'] in loops[disk['storagerouter_guid']]:
+            modelled_disks[disk['storagerouter_guid']][disk['name']] = {'is_ssd': disk['is_ssd']}
 
     log.info('PDISKS: {0}'.format(physical_disks))
     log.info('MDISKS: {0}'.format(modelled_disks))
