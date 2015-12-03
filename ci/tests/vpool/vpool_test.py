@@ -69,26 +69,7 @@ def add_read_write_scrub_roles(storagerouter_guid):
         disklayout.append_disk_role(guid, roles)
 
 
-def setup():
-    my_sr = System.get_my_storagerouter()
-    disklayout.add_db_role(my_sr.guid)
-    add_read_write_scrub_roles(my_sr.guid)
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    if not backend:
-        backend_guid = alba.add_alba_backend(BACKEND_NAME)
-        backend = generic.get_backend(backend_guid)
-    alba.claim_disks(backend['alba_backend_guid'], NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
-
-
-def teardown():
-    be = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    if be:
-        alba_backend = alba.get_alba_backend(be['alba_backend_guid'])
-        alba.unclaim_disks(alba_backend)
-        alba.remove_alba_backend(be['alba_backend_guid'])
-
-
-def add_vpool_test():
+def add_vpool():
     backend = BackendList.get_by_name(BACKEND_NAME)
     add_vpool_params = {'storagerouter_ip': GRID_IP,
                         'vpool_name': VPOOL_NAME,
@@ -121,6 +102,29 @@ def add_vpool_test():
                                           }
                         }
     StorageRouterController.add_vpool.apply_async(kwargs={'parameters': add_vpool_params}).get(timeout=300)
+
+
+def setup():
+    my_sr = System.get_my_storagerouter()
+    disklayout.add_db_role(my_sr.guid)
+    add_read_write_scrub_roles(my_sr.guid)
+    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    if not backend:
+        backend_guid = alba.add_alba_backend(BACKEND_NAME)
+        backend = generic.get_backend(backend_guid)
+    alba.claim_disks(backend['alba_backend_guid'], NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
+
+
+def teardown():
+    be = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    if be:
+        alba_backend = alba.get_alba_backend(be['alba_backend_guid'])
+        alba.unclaim_disks(alba_backend)
+        alba.remove_alba_backend(be['alba_backend_guid'])
+
+
+def add_vpool_test():
+    add_vpool()
     vpool = VPoolList.get_vpool_by_name(VPOOL_NAME)
     assert vpool, 'Vpool {0} was not created'.format(VPOOL_NAME)
     general.api_remove_vpool(VPOOL_NAME)
