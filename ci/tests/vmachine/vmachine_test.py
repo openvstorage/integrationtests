@@ -16,6 +16,7 @@ from ci.tests.general.general import test_config
 from ci.tests.general.connection import Connection
 from ovs.dal.lists.vpoollist import VPoolList
 from ci.tests.vpool import vpool_test
+from ci.tests.mgmtcenter import mgmt_center_test
 from ci.tests.general import general
 from ci import autotests
 
@@ -57,6 +58,7 @@ def check_template_exists():
 def setup():
     check_template_exists()
     vpool_test.setup()
+    mgmt_center_test.setup()
     vpool_test.add_vpool()
 
 
@@ -66,6 +68,8 @@ def teardown():
         general.execute_command("rm -rf /mnt/{0}".format(VPOOL_NAME))
         general.api_remove_vpool(VPOOL_NAME)
     vpool_test.teardown()
+    # @todo change mgmgt teardown to delete recently added hmc
+    mgmt_center_test.teardown()
 
 
 def vms_with_fio_test():
@@ -83,3 +87,12 @@ def vms_with_fio_test():
         general.execute_command('qemu-img convert -O raw {0}{1} /mnt/{2}/disk-{3}.raw'.format(template_target_folder, template_image, vpool.name, disk_number))
 
     assert len(vpool.vdisks) == NUMBER_OF_DISKS, "Only {0} out of {1} VDisks have been created".format(len(vpool.vdisks), NUMBER_OF_DISKS)
+
+    for vm_number in range(NUMBER_OF_DISKS):
+        general.execute_command('virt-install --connect qemu:///system -n machine{0} -r 512 --disk /mnt/{1}/disk-{0}.raw,device=disk --noautoconsole --graphics vnc,listen=0.0.0.0 --vct,mac=RANDOM,model=e1000 --import'.format(vm_number, vpool.name))
+
+    assert len(vpool.vmachines) == NUMBER_OF_DISKS, "Only {0} out of {1} VMachines have been created".format(len(vpool.vmachines), NUMBER_OF_DISKS)
+
+    for vm_number in range(NUMBER_OF_DISKS):
+        general.execute_command('virsh destroy machine{0}'.format(vm_number))
+        general.execute_command('virsh undefine machine{0}'.format(vm_number))

@@ -101,7 +101,7 @@ def add_vpool():
                                           'dtl_transport': 'tcp',
                                           }
                         }
-    StorageRouterController.add_vpool.apply_async(kwargs={'parameters': add_vpool_params}).get(timeout=300)
+    StorageRouterController.add_vpool.apply_async(kwargs={'parameters': add_vpool_params}).get(timeout=500)
 
 
 def setup():
