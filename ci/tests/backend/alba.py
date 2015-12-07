@@ -22,13 +22,42 @@ import time
 from ci.tests.backend import generic
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import execute_command
+from ci.tests.general.general import get_physical_disks
+from ci.tests.general.general import test_config
+from ovs.lib.albanodecontroller import AlbaNodeController
+from ovs.lib.albacontroller import AlbaController
+from ovs.dal.lists.albanodelist import AlbaNodeList
+from ci.tests.general.logHandler import LogHandler
+
+logger = LogHandler.get('backend', name='alba')
+logger.logger.propagate = False
 
 ALBA_BACKENDS = 'alba/backends'
 ALBA_NODES = 'alba/nodes'
+GRID_IP = test_config.get('main', 'grid_ip')
+ALBA_TIMER = 600
+ALBA_TIMER_STEP = 5
 
 
 def get_config(backend_name):
     return '--config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg'.format(backend_name)
+
+
+def wait_for_disk_count_with_status(alba_backend_guid, nr_of_disks, status):
+    counter = ALBA_TIMER / ALBA_TIMER_STEP
+    while counter > 0:
+        logger.info('counter: {0}'.format(counter))
+        all_disks = get_all_disks(alba_backend_guid)
+        disks_with_status = [disk['name'] for disk in all_disks if 'status' in disk and disk['status'] == status and 'asd_id' in disk]
+        logger.info('looking for {0} disks with status {1}: {2}'.format(nr_of_disks, status, disks_with_status))
+        if len(disks_with_status) >= nr_of_disks:
+            break
+        counter -= 1
+        time.sleep(ALBA_TIMER_STEP)
+    assert len(disks_with_status) >= nr_of_disks,\
+        "Unable to find {0} disks, only found {1} disks with status: {2}.\n".format(nr_of_disks, len(disks_with_status),
+                                                                                    status)
+    return disks_with_status
 
 
 def run(backend_name, action, params, json_output=True):
@@ -232,21 +261,97 @@ def is_bucket_count_valid_with_policy(bucket_count, policies):
         policy = tuple(policy)
         for entry in bucket_count:
             bc_policy = entry[0]
-            print policy
             pol_k, pol_m, pol_c, pol_x = tuple(policy)
-            print bc_policy, tuple(bc_policy)
             bc_k, bc_m, bc_c, bc_x = tuple(bc_policy)
             safe = (pol_k == bc_k) and (pol_m == bc_m) and (bc_c >= pol_c) and (bc_x <= pol_c)
 
     return safe
 
 
-def claim_disks(alba_backend, nr_of_disks, disk_type='sata'):
-    pass
+def get_all_disks(alba_backend_guid):
+    api = Connection.get_connection()
+    alba_backend = api.fetch('alba/backends', alba_backend_guid)
+    if 'all_disks' in alba_backend:
+        all_disks = alba_backend['all_disks']
+    else:
+        all_disks = list()
+
+    return all_disks
 
 
-def get_claimed_disks(alba_backend):
-    return alba_backend.all_disks
+def filter_disks(available_disks, amount, disk_type=''):
+    hdds, ssds = get_physical_disks(GRID_IP)
+    count = 0
+    filtered_disks = list()
+
+    if disk_type == 'SATA':
+        list_to_check = hdds.values()
+    elif disk_type == 'SSD':
+        list_to_check = ssds.values()
+    else:
+        hdds.update(ssds)
+        list_to_check = hdds.values()
+
+    for disk_name in available_disks:
+        for disk in list_to_check:
+            if disk_name == disk['name']:
+                filtered_disks.append(disk['name'])
+                count += 1
+        if count == amount:
+            break
+
+    return filtered_disks
+
+
+def initialise_disks(alba_backend_guid, nr_of_disks, disk_type=''):
+    # assume no disks are claimed by a remote environment
+    all_disks = get_all_disks(alba_backend_guid)
+
+    initialised_disks = [disk['name'] for disk in all_disks if disk['status'] == 'available']
+    nr_of_disks_to_init = nr_of_disks - len(initialised_disks)
+    if nr_of_disks_to_init <= 0:
+        return True
+
+    uninitialized_disks = [disk['name'] for disk in all_disks if disk['status'] == 'uninitialized']
+    assert len(uninitialized_disks) >= nr_of_disks_to_init, "Not enough disks to initialize!"
+
+    disks_to_init = filter_disks(uninitialized_disks, nr_of_disks_to_init, disk_type)
+    assert len(disks_to_init) >= nr_of_disks_to_init, "Not enough disks to initialize!"
+
+    alba_node = AlbaNodeList.get_albanode_by_ip(GRID_IP)
+    failures = AlbaNodeController.initialize_disks(alba_node.guid, disks_to_init)
+    assert not failures, 'Alba disk initialization failed for (some) disks: {0}'.format(failures)
+
+
+def claim_disks(alba_backend_guid, nr_of_disks, disk_type=''):
+    all_disks = get_all_disks(alba_backend_guid)
+
+    claimed_disks = [disk['name'] for disk in all_disks if 'status' in disk and disk['status'] == 'claimed' and 'name' in disk]
+    nr_disks_to_claim = nr_of_disks - len(claimed_disks)
+    if nr_disks_to_claim <= 0:
+        return True
+
+    initialise_disks(alba_backend_guid, nr_disks_to_claim, disk_type)
+
+    claimable_disks = wait_for_disk_count_with_status(alba_backend_guid, nr_of_disks, 'available')
+
+    disks_to_claim = filter_disks(claimable_disks, nr_disks_to_claim, disk_type)
+    assert len(disks_to_claim) >= nr_disks_to_claim,\
+        "Unable to claim {0} disks, only found {1} disks.\n".format(nr_of_disks, len(disks_to_claim))
+
+    all_disks = get_all_disks(alba_backend_guid)
+    osds = dict()
+
+    alba_node = AlbaNodeList.get_albanode_by_ip(GRID_IP)
+    for name in disks_to_claim:
+        for disk in all_disks:
+            if name in disk['name'] and 'asd_id' in disk:
+                osds[disk['asd_id']] = alba_node.guid
+
+    logger.info('osds: {0}'.format(osds))
+    AlbaController.add_units(alba_backend_guid, osds)
+
+    wait_for_disk_count_with_status(alba_backend_guid, nr_of_disks, 'claimed')
 
 
 def unclaim_disks(alba_backend):
