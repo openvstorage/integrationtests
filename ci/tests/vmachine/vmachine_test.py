@@ -63,7 +63,7 @@ def setup():
 
 def teardown():
     api = Connection.get_connection()
-    vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)[0]
+    vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
     assert len(vpool_list), "No vpool found where one was expected"
     vpool = vpool_list[0]
     if vpool:
