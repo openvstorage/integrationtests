@@ -63,13 +63,14 @@ def setup():
 
 
 def teardown():
-    vpool = VPoolList.get_vpool_by_name(VPOOL_NAME)
-    if vpool:
-        general.execute_command("rm -rf /mnt/{0}".format(VPOOL_NAME))
-        general.api_remove_vpool(VPOOL_NAME)
-    vpool_test.teardown()
+    #vpool = VPoolList.get_vpool_by_name(VPOOL_NAME)
+    #if vpool:
+    #    general.execute_command("rm -rf /mnt/{0}".format(VPOOL_NAME))
+    #    general.api_remove_vpool(VPOOL_NAME)
+    #vpool_test.teardown()
     # @todo change mgmgt teardown to delete recently added hmc
-    mgmt_center_test.teardown()
+    #mgmt_center_test.teardown()
+    pass
 
 
 def vms_with_fio_test():
@@ -89,10 +90,10 @@ def vms_with_fio_test():
     assert len(vpool.vdisks) == NUMBER_OF_DISKS, "Only {0} out of {1} VDisks have been created".format(len(vpool.vdisks), NUMBER_OF_DISKS)
 
     for vm_number in range(NUMBER_OF_DISKS):
-        general.execute_command('virt-install --connect qemu:///system -n machine{0} -r 512 --disk /mnt/{1}/disk-{0}.raw,device=disk --noautoconsole --graphics vnc,listen=0.0.0.0 --vct,mac=RANDOM,model=e1000 --import'.format(vm_number, vpool.name))
+        general.execute_command('virt-install --connect qemu:///system -n machine{0} -r 512 --disk /mnt/{1}/disk-{0}.raw,device=disk --noautoconsole --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,model=e1000 --import'.format(vm_number, vpool.name))
 
     assert len(vpool.vmachines) == NUMBER_OF_DISKS, "Only {0} out of {1} VMachines have been created".format(len(vpool.vmachines), NUMBER_OF_DISKS)
 
-    for vm_number in range(NUMBER_OF_DISKS):
-        general.execute_command('virsh destroy machine{0}'.format(vm_number))
-        general.execute_command('virsh undefine machine{0}'.format(vm_number))
+    #for vm_number in range(NUMBER_OF_DISKS):
+    #    general.execute_command('virsh destroy machine{0}'.format(vm_number))
+    #    general.execute_command('virsh undefine machine{0}'.format(vm_number))
