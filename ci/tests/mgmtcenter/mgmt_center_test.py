@@ -118,7 +118,7 @@ def check_unconfigured_management_center_test():
     issues_found = ""
 
     for mgmtcenter in management_centers:
-        # TODO: remove 'if' when OVS-3626 is fixed
+        # @todo: remove 'if' when OVS-3626 is fixed
         if mgmtcenter['type'] not in ['OPENSTACK']:
             for physical_machine in api.get_components('pmachines'):
                 generic.unconfigure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
