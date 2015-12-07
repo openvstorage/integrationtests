@@ -69,9 +69,7 @@ def fdl_0001_match_model_with_reality_test():
 
     my_sr = System.get_my_storagerouter()
 
-    api = Connection(my_sr.ip, general.test_config.get('main', 'username'),
-                     general.test_config.get('main', 'password'))
-    api.authenticate()
+    api = Connection.get_connection()
 
     log.setLevel('INFO')
     storagerouters = StorageRouterList.get_storagerouters()
@@ -133,9 +131,7 @@ def fdl_0002_add_remove_partition_with_role_and_crosscheck_model_test():
     if not unused_disks:
         raise SkipTest("At least one unused disk should be available for partition testing")
 
-    api = Connection(my_sr.ip, general.test_config.get('main', 'username'),
-                     general.test_config.get('main', 'password'))
-    api.authenticate()
+    api = Connection.get_connection()
 
     hdds = dict()
     ssds = dict()

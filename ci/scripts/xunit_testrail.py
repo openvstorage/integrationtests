@@ -436,7 +436,6 @@ class xunit_testrail(Plugin):
                 all_tests = [test_case for case in TestLoader().loadTestsFromDir(os.path.dirname(test.context.__file__))
                              for test_case in case._tests]
                 all_testnames = [name_to_testrail_format(test_case.id().split('.')[-1]) for test_case in all_tests]
-                os.write(1, str(all_testnames) + "\n")
 
                 self.fullsuite_name = suite_name
                 reload_cases = False

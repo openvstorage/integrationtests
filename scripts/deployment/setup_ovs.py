@@ -277,7 +277,6 @@ default_name = autotest
 default_file = main.log
 level = INFO
 path = /var/log/ovs/autotests
-
 EOF
 '''.format(os_name=os_name,
            vmware_info=vmware_info,
