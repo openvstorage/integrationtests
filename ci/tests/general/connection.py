@@ -37,9 +37,12 @@ class Connection:
                     assert ip, "Please specify a valid ip in autotests.cfg for grid_ip"
                 if not username:
                     username = test_config.get('main', 'username')
+                    assert username, "Please specify a valid username in autotests.cfg for grid_ip"
                 if not password:
                     password = test_config.get('main', 'password')
+                    assert password, "Please specify a valid password in autotests.cfg for grid_ip"
             Connection.connection = Connection(ip, username, password)
+
         if not Connection.connection.is_authenticated():
             Connection.connection.authenticate()
 
@@ -50,6 +53,9 @@ class Connection:
         self.username = username
         self.password = password
         self.headers = {'Accept': 'application/json; version=*'}
+        if os.path.exists(self.TOKEN_CACHE_FILENAME) \
+                and (time.time() - os.path.getmtime(self.TOKEN_CACHE_FILENAME) > 3600.0):
+            os.remove(self.TOKEN_CACHE_FILENAME)
         if os.path.exists(self.TOKEN_CACHE_FILENAME):
             with open(self.TOKEN_CACHE_FILENAME, 'r') as token_cache_file:
                 self.token = token_cache_file.read()
