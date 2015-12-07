@@ -14,12 +14,11 @@
 
 from ci.tests.general.general import test_config
 from ci.tests.general.connection import Connection
-from ovs.dal.lists.vpoollist import VPoolList
 from ci.tests.vpool import vpool_test
 from ci.tests.mgmtcenter import mgmt_center_test
 from ci.tests.general import general
 from ci import autotests
-
+import time
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
@@ -63,14 +62,31 @@ def setup():
 
 
 def teardown():
-    #vpool = VPoolList.get_vpool_by_name(VPOOL_NAME)
-    #if vpool:
-    #    general.execute_command("rm -rf /mnt/{0}".format(VPOOL_NAME))
-    #    general.api_remove_vpool(VPOOL_NAME)
-    #vpool_test.teardown()
+    api = Connection.get_connection()
+    vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)[0]
+    assert len(vpool_list), "No vpool found where one was expected"
+    vpool = vpool_list[0]
+    if vpool:
+        _, __ = general.execute_command("rm -rf /mnt/{0}/*.raw".format(VPOOL_NAME))
+        general.api_remove_vpool(VPOOL_NAME)
+    vpool_test.teardown()
     # @todo change mgmgt teardown to delete recently added hmc
-    #mgmt_center_test.teardown()
-    pass
+    mgmt_center_test.teardown()
+
+
+def create_raw_vdisk_from_template(template_folder, image_name, vpool_name, disk_name):
+    _, __ = general.execute_command('qemu-img convert -O raw {0}{1} /mnt/{2}/{3}.raw'.format(template_folder, image_name, vpool_name, disk_name))
+
+
+def create_machine_from_existing_raw_disk(machine_name, vpool_name, disk_name):
+    _, __ = general.execute_command('virt-install --connect qemu:///system -n {0} -r 512 --disk /mnt/{1}/{2}.raw,'
+                                    'device=disk --noautoconsole --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,'
+                                    'model=e1000 --import'.format(machine_name, vpool_name, disk_name))
+
+
+def remove_machine_by_name(vmachine_name):
+    _, __ = general.execute_command('virsh destroy {0}'.format(vmachine_name))
+    _, __ = general.execute_command('virsh undefine {0}'.format(vmachine_name))
 
 
 def vms_with_fio_test():
@@ -82,18 +98,27 @@ def vms_with_fio_test():
                           tests_to_run=testsToRun)
 
     api = Connection.get_connection()
-    # @TODO change this to api connection call
-    vpool = VPoolList.get_vpool_by_name(VPOOL_NAME)
+    vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
+    assert len(vpool_list), "No vpool found where one was expected"
+    vpool = vpool_list[0]
     for disk_number in range(NUMBER_OF_DISKS):
-        general.execute_command('qemu-img convert -O raw {0}{1} /mnt/{2}/disk-{3}.raw'.format(template_target_folder, template_image, vpool.name, disk_number))
+        create_raw_vdisk_from_template(template_target_folder, template_image, vpool['name'], "disk-{0}".format(disk_number))
 
-    assert len(vpool.vdisks) == NUMBER_OF_DISKS, "Only {0} out of {1} VDisks have been created".format(len(vpool.vdisks), NUMBER_OF_DISKS)
+    assert len(vpool['vdisks_guids']) == NUMBER_OF_DISKS, "Only {0} out of {1} VDisks have been created".format(len(vpool['vdisks_guids']), NUMBER_OF_DISKS)
 
     for vm_number in range(NUMBER_OF_DISKS):
-        general.execute_command('virt-install --connect qemu:///system -n machine{0} -r 512 --disk /mnt/{1}/disk-{0}.raw,device=disk --noautoconsole --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,model=e1000 --import'.format(vm_number, vpool.name))
+        create_machine_from_existing_raw_disk("machine-{0}".format(vm_number), vpool['name'], "machine-{0}".format(vm_number))
 
-    assert len(vpool.vmachines) == NUMBER_OF_DISKS, "Only {0} out of {1} VMachines have been created".format(len(vpool.vmachines), NUMBER_OF_DISKS)
+    time.sleep(30)
+    vms = api.get_components('vmachines')
+    assert len(vms) == NUMBER_OF_DISKS, "Only {0} out of {1} VMachines have been created".format(len(vms), NUMBER_OF_DISKS)
+    time.sleep(350)
+    vms = api.get_components('vmachines')
+    for vm in vms:
+        assert vm['hypervisor_status'] in ['RUNNING'], "Machine {0} has wrong status on the hypervisor: {1}".format(vm['name'], vm['hypervisor_status'])
 
-    #for vm_number in range(NUMBER_OF_DISKS):
-    #    general.execute_command('virsh destroy machine{0}'.format(vm_number))
-    #    general.execute_command('virsh undefine machine{0}'.format(vm_number))
+    for vm_number in range(NUMBER_OF_DISKS):
+        remove_machine_by_name("machine-{0}".format(vm_number))
+
+    vms = api.get_components('vmachines')
+    assert len(vms) == 0, "Still some machines left on the vpool: {0}".format(vms)
