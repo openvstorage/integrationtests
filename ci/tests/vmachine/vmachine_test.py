@@ -20,6 +20,10 @@ from ci.tests.general.connection import Connection
 from ci.tests.vpool import vpool_test
 from ci.tests.mgmtcenter import mgmt_center_test
 from ci.tests.general import general
+from ci.tests.general.logHandler import LogHandler
+
+logger = LogHandler.get('vmachines', name='vmachine')
+logger.logger.propagate = False
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
@@ -39,10 +43,10 @@ def download_template(server_location):
     logging.info("Getting template from {0}".format(server_location))
     out, err = general.execute_command('wget -P {0} {1}{2}{3}'.format(template_target_folder, server_location, template_source_folder, template_image))
     if err:
-            logging.info("Error while downloading template: {0}".format(err))
+        logging.info("Error while downloading template: {0}".format(err))
     out, err = general.execute_command('chown root {0}{1}'.format(template_target_folder, template_image))
     if err:
-            logging.info("Error while changing user owner to root for template: {0}".format(err))
+        logging.info("Error while changing user owner to root for template: {0}".format(err))
 
 
 def get_template_location_by_ip(ip):
