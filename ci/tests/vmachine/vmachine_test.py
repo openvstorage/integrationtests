@@ -39,10 +39,10 @@ def download_template(server_location):
     logging.info("Getting template from {0}".format(server_location))
     out, err = general.execute_command('wget -P {0} {1}{2}{3}'.format(template_target_folder, server_location, template_source_folder, template_image))
     if err:
-            logging.log(1, "Error while downloading template: {0}".format(err))
+            logging.info("Error while downloading template: {0}".format(err))
     out, err = general.execute_command('chown root {0}{1}'.format(template_target_folder, template_image))
     if err:
-            logging.log(1, "Error while changing user owner to root for template: {0}".format(err))
+            logging.info("Error while changing user owner to root for template: {0}".format(err))
 
 
 def get_template_location_by_ip(ip):
@@ -126,14 +126,16 @@ def vms_with_fio_test():
     assert len(vpool_list), "No vpool found where one was expected"
     vpool = vpool_list[0]
     for disk_number in range(NUMBER_OF_DISKS):
-        create_raw_vdisk_from_template(template_target_folder, template_image, vpool['name'], "disk-{0}".format(disk_number))
+        disk_name = "disk-{0}".format(disk_number)
+        create_raw_vdisk_from_template(template_target_folder, template_image, vpool['name'], disk_name)
 
     vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
     vpool = vpool_list[0]
     assert len(vpool['vdisks_guids']) == NUMBER_OF_DISKS, "Only {0} out of {1} VDisks have been created".format(len(vpool['vdisks_guids']), NUMBER_OF_DISKS)
 
     for vm_number in range(NUMBER_OF_DISKS):
-        create_machine_from_existing_raw_disk("machine-{0}".format(vm_number), vpool['name'], "machine-{0}".format(vm_number))
+        machine_name = "machine-{0}".format(vm_number)
+        create_machine_from_existing_raw_disk(machine_name, vpool['name'], "disk-{0}".format(vm_number))
 
     time.sleep(30)
     vms = api.get_components('vmachines')
@@ -146,5 +148,6 @@ def vms_with_fio_test():
     for vm_number in range(NUMBER_OF_DISKS):
         remove_machine_by_name("machine-{0}".format(vm_number))
 
+    time.sleep(30)
     vms = api.get_components('vmachines')
     assert len(vms) == 0, "Still some machines left on the vpool: {0}".format(vms)
