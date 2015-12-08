@@ -14,14 +14,13 @@
 
 import os
 import time
-
 from nose.plugins.skip import SkipTest
-
 from ovs.dal.lists.backendlist import BackendList
 from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.pmachinelist import PMachineList
-
+from ci.tests.general.connection import Connection
 from ci.tests.general import general
+from ci.tests.vpool import vpool_test
 from ci import autotests
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
@@ -39,10 +38,20 @@ services_to_commands = {
 
 def setup():
     print "Setup called " + __name__
+    vpool_test.setup()
+    vpool_test.add_vpool()
 
 
 def teardown():
-    pass
+    vpool = []
+    api = Connection.get_connection()
+    vpool_name = general.test_config.get("vpool", "vpool_name")
+    vpool_list = api.get_component_by_name('vpools', vpool_name)
+    if vpool_list and len(vpool_list):
+        vpool = vpool_list[0]
+    if vpool:
+        general.api_remove_vpool(vpool_name)
+    vpool_test.teardown()
 
 
 def ssh_check_test():
@@ -194,7 +203,7 @@ def check_backend_services_test():
                         "ovs-arakoon-{0}-abm".format(my_backend_name),
                         "ovs-arakoon-{0}-nsm_0".format(my_backend_name)]
 
-    out = general.execute_command("initctl list | grep ovs-*")
+    out, err = general.execute_command("initctl list | grep ovs-*")
     statuses = out.splitlines()
 
     for status_line in statuses:
@@ -230,7 +239,7 @@ def check_backend_files_test():
             assert len(err) == 0, "Error executing command to get {0} info:{1}".format(file_to_check, err)
             assert 'not' not in out, "Couldn't find {0}".format(file_to_check)
         # check cluster arakoon master
-        out_abm, err = general.execute_command("/usr/bin/arakoon --who-master {0}".format(files_to_check[0]))
+        out_abm, err = general.execute_command("/usr/bin/arakoon --who-master -config {0}".format(files_to_check[0]))
         out_nsm, err = general.execute_command("/usr/bin/arakoon --who-master -config {0}".format(files_to_check[1]))
         assert len(out_abm) and len(out_nsm), "No arakoon master found in config files"
     else:
@@ -244,7 +253,7 @@ def check_backend_files_test():
                 nsm_config_file_found = True
                 out_nsm, err = general.execute_command("/usr/bin/arakoon --who-master -config {0}".format(files_to_check[1]))
                 assert len(out_nsm), "No arakoon master found in the namespace manager config file found on node {0}".format(node_ip)
-            out_abm, err = general.execute_command("/usr/bin/arakoon --who-master {0}".format(files_to_check[0]))
+            out_abm, err = general.execute_command("/usr/bin/arakoon --who-master -config {0}".format(files_to_check[0]))
             assert len(out_abm), "No arakoon master found in the alba manager config file on {0}".format(node_ip)
         assert nsm_config_file_found, "No namespace manager config file found on any of the nodes"
 
@@ -280,7 +289,7 @@ def check_vpool_sanity_test(vpool_name=''):
                                 "DB": {"TLOG": False,
                                        "MD": False,
                                        "MDS": False},
-                                "SCRUB": {"MDS": False}}
+                                "SCRUB": {"None": False}}
 
     directories_to_check = ["/mnt/{0}/".format(vpool_name)]
     # TODO: extend the check to all folders created for vpool (/mnt/storage, /mnt/ssd)
@@ -357,6 +366,13 @@ def check_vpool_remove_sanity_test(vpool_name=''):
 
     if not vpool_name:
         vpool_name = general.test_config.get("vpool", "vpool_name")
+
+    api = Connection.get_connection()
+    vpool_list = api.get_component_by_name('vpools', vpool_name)
+    assert len(vpool_list), "No vpool found where one was expected"
+    vpool = vpool_list[0]
+    if vpool:
+        general.api_remove_vpool(vpool_name)
 
     issues_found = ""
 
