@@ -433,11 +433,11 @@ python -c 'from ci import autotests; autotests.run("api.extended_test:post_reboo
 
 
 def install_devstack(node_ip, fixed_range, fixed_range_size, floating_range, master_node_ip=None,
-                     branch_name="stable/juno", tag_name="2014.2.3", flat_interface="eth0"):
+                     branch_name="stable/kilo", tag_name="", flat_interface="eth0"):
     """
     https://wiki.openstack.org/wiki/Releases
-    Juno: 2014.2.3
-    Kilo: 2015.1.1
+    Juno: 2014.2.4
+    Kilo: 2015.1.2
     Liberty: due Oct 15, 2015
     """
     con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
@@ -447,6 +447,12 @@ def install_devstack(node_ip, fixed_range, fixed_range_size, floating_range, mas
     (exitcode, output) = con.process.execute("apt-get install curl -y --force-yes")
     print exitcode
     print output
+
+    if not tag_name:
+        if branch_name == 'stable/juno':
+            tag_name = '2014.2.4'
+        elif branch_name == 'stable/kilo':
+            tag_name = '2015.1.2'
 
     branch, sub_branches = "", ""
     if tag_name:
