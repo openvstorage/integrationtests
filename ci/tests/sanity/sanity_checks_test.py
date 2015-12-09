@@ -20,7 +20,7 @@ from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.pmachinelist import PMachineList
 from ci.tests.general.connection import Connection
 from ci.tests.general import general
-from ci.tests.vpool import vpool_test
+from ci.tests.vpool import generic
 from ci import autotests
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
@@ -38,20 +38,17 @@ services_to_commands = {
 
 def setup():
     print "Setup called " + __name__
-    vpool_test.setup()
-    vpool_test.add_vpool()
+    generic.add_alba_backend()
+    generic.add_generic_vpool()
 
 
 def teardown():
-    vpool = []
     api = Connection.get_connection()
     vpool_name = general.test_config.get("vpool", "vpool_name")
     vpool_list = api.get_component_by_name('vpools', vpool_name)
-    if vpool_list and len(vpool_list):
-        vpool = vpool_list[0]
-    if vpool:
+    if vpool_list:
         general.api_remove_vpool(vpool_name)
-    vpool_test.teardown()
+    generic.remove_alba_backend()
 
 
 def ssh_check_test():
@@ -370,7 +367,6 @@ def check_vpool_remove_sanity_test(vpool_name=''):
     api = Connection.get_connection()
     vpool_list = api.get_component_by_name('vpools', vpool_name)
     assert vpool_list, "No vpool found where one was expected"
-    vpool = vpool_list[0]
     general.api_remove_vpool(vpool_name)
 
     issues_found = ""
