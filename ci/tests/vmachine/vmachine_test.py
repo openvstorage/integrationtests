@@ -79,7 +79,7 @@ def teardown():
     assert len(vpool_list), "No vpool found where one was expected"
     vpool = vpool_list[0]
     if vpool:
-        logger.log("Removing vpool vdisks from {0} vpool".format(VPOOL_NAME))
+        logger.info("Removing vpool vdisks from {0} vpool".format(VPOOL_NAME))
         out, err = general.execute_command("rm -rf /mnt/{0}/*.raw".format(VPOOL_NAME))
         if err:
             logger.error("Error while removing vdisks: {0}".format(err))

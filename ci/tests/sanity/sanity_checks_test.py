@@ -369,10 +369,9 @@ def check_vpool_remove_sanity_test(vpool_name=''):
 
     api = Connection.get_connection()
     vpool_list = api.get_component_by_name('vpools', vpool_name)
-    assert len(vpool_list), "No vpool found where one was expected"
+    assert vpool_list, "No vpool found where one was expected"
     vpool = vpool_list[0]
-    if vpool:
-        general.api_remove_vpool(vpool_name)
+    general.api_remove_vpool(vpool_name)
 
     issues_found = ""
 

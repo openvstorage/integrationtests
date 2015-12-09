@@ -124,7 +124,13 @@ def teardown():
 
 
 def add_vpool_test():
-    add_vpool()
+    vpool = []
+    api = Connection.get_connection()
+    vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
+    if vpool_list and len(vpool_list):
+        vpool = vpool_list[0]
+    if not vpool:
+        add_vpool()
     vpool = VPoolList.get_vpool_by_name(VPOOL_NAME)
     assert vpool, 'Vpool {0} was not created'.format(VPOOL_NAME)
     general.api_remove_vpool(VPOOL_NAME)
