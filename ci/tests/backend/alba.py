@@ -114,16 +114,18 @@ def remove_preset(alba_backend, name):
 
 def is_alba_backend_running(backend_guid, trigger=False):
     api = Connection.get_connection()
-    timeout = 60
-    wait = 5
+    timeout = ALBA_TIMER
+    wait = ALBA_TIMER_STEP
     is_running = False
     while timeout > 0 and not is_running:
         backend = generic.get_backend(backend_guid)
         if backend:
             if backend['status'] in ['RUNNING']:
                 is_running = True
+                logger.info('Backend in status running after {0} seconds'.format((ALBA_TIMER - timeout) * wait))
                 break
             elif trigger:
+                logger.info('Trigger backend installation')
                 trigger = False
                 api.add('alba/backends', {'backend_guid': backend_guid})
         time.sleep(wait)
@@ -135,10 +137,10 @@ def is_alba_backend_running(backend_guid, trigger=False):
 def add_alba_backend(name):
     if not generic.is_backend_present(name, 'alba'):
         backend_guid = generic.add_backend(name, 'alba')
+        assert (is_alba_backend_running(backend_guid, trigger=True)), 'Backend not in status RUNNING'
     else:
         backend = generic.get_backend_by_name_and_type(name, 'alba')
         backend_guid = backend['guid']
-    is_alba_backend_running(backend_guid, trigger=True)
 
     return backend_guid
 
