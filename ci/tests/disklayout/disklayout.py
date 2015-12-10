@@ -81,3 +81,36 @@ def partition_disk(disk_guid):
     partition_guids = disk['partitions_guids']
     assert len(partition_guids) >= 1, "Partitioning failed for disk:\n {0} ".format(disk)
     return partition_guids[0]
+
+
+def add_read_write_scrub_roles(storagerouter_guid):
+    api = Connection.get_connection()
+    disks = api.get_components('disks')
+
+    partition_roles = dict()
+    if len(disks) == 1:
+        disk = disks[0]
+        if not disk['partitions_guids']:
+            partition_roles[partition_disk(disk['guid'])] = ['READ', 'WRITE', 'SCRUB']
+    elif len(disks) > 1:
+        disks_to_partition = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter_guid and
+                              not disk['partitions_guids'] and disk['is_ssd']]
+        for disk in disks_to_partition:
+            partition_disk(disk['guid'])
+
+        disks = api.get_components('disks')
+        hdds = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter_guid and not disk['is_ssd']]
+        ssds = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter_guid and disk['is_ssd']]
+
+        if len(ssds) == 0:
+            partition_roles[hdds[0]['partitions_guids'][0]] = ['READ']
+            partition_roles[hdds[1]['partitions_guids'][0]] = ['WRITE', 'SCRUB']
+        elif len(ssds) == 1:
+            partition_roles[hdds[0]['partitions_guids'][0]] = ['READ', 'SCRUB']
+            partition_roles[ssds[0]['partitions_guids'][0]] = ['WRITE']
+        elif len(ssds) >= 2:
+            partition_roles[ssds[0]['partitions_guids'][0]] = ['READ', 'SCRUB']
+            partition_roles[ssds[1]['partitions_guids'][0]] = ['WRITE']
+
+    for guid, roles in partition_roles.iteritems():
+        append_disk_role(guid, roles)

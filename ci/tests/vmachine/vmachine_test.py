@@ -16,8 +16,8 @@ import time
 from ci import autotests
 from ci.tests.general.general import test_config
 from ci.tests.general.connection import Connection
-from ci.tests.vpool import vpool_test
-from ci.tests.mgmtcenter import mgmt_center_test
+from ci.tests.vpool import generic
+from ci.tests.mgmtcenter import generic as mgmtgeneric
 from ci.tests.general import general
 from ci.tests.general.logHandler import LogHandler
 
@@ -68,26 +68,22 @@ def check_template_exists():
 
 def setup():
     check_template_exists()
-    vpool_test.setup()
-    mgmt_center_test.setup()
-    vpool_test.add_vpool()
+    generic.add_alba_backend()
+    mgmtgeneric.create_generic_mgmt_center()
+    generic.add_generic_vpool()
 
 
 def teardown():
     api = Connection.get_connection()
     vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
-    assert len(vpool_list), "No vpool found where one was expected"
-    vpool = vpool_list[0]
-    if vpool:
-        logger.log("Removing vpool vdisks from {0} vpool".format(VPOOL_NAME))
-        out, err = general.execute_command("rm -rf /mnt/{0}/*.raw".format(VPOOL_NAME))
-        if err:
-            logger.error("Error while removing vdisks: {0}".format(err))
-        general.api_remove_vpool(VPOOL_NAME)
+    assert vpool_list, "No vpool found where one was expected"
     logger.info("Cleaning vpool")
-    vpool_test.teardown()
+    general.api_remove_vpool(VPOOL_NAME)
+    generic.remove_alba_backend()
     logger.info("Cleaning management center")
-    mgmt_center_test.teardown()
+    management_centers = api.get_components('mgmtcenters')
+    for mgmcenter in management_centers:
+        mgmtgeneric.remove_mgmt_center(mgmcenter['guid'])
 
 
 def create_raw_vdisk_from_template(template_folder, image_name, vpool_name, disk_name):
@@ -154,3 +150,12 @@ def vms_with_fio_test():
     time.sleep(30)
     vms = api.get_components('vmachines')
     assert len(vms) == 0, "Still some machines left on the vpool: {0}".format(vms)
+
+    logger.info("Removing vpool vdisks from {0} vpool".format(VPOOL_NAME))
+    out, err = general.execute_command("rm -rf /mnt/{0}/*.raw".format(VPOOL_NAME))
+    if err:
+        logger.error("Error while removing vdisks: {0}".format(err))
+
+    vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
+    vpool = vpool_list[0]
+    assert len(vpool['vdisks_guids']) == 0, "Still some disks left on the vpool: {}".format(vpool['vdisks_guids'])
