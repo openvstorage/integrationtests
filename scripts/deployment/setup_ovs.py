@@ -505,6 +505,7 @@ MYSQL_PASSWORD=rooter
 RABBIT_PASSWORD=rooter
 SERVICE_PASSWORD=rooter
 SERVICE_TOKEN=rooter
+disable_service tempest
 EOF
 if [ -n "{master_node_ip}" ]; then
 cat <<EOF >>local.conf
@@ -521,9 +522,6 @@ cat <<EOF >>local.conf
 {sub_branches}
 EOF
 fi
-cat <<EOF >>local.conf
-disable_service tempest
-EOF
 chown stack:stack local.conf
 echo 1""".format(host_ip=node_ip,
                  fixed_range=fixed_range,
