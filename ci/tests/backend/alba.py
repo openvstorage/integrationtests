@@ -145,7 +145,10 @@ def add_alba_backend(name):
 
 def remove_alba_backend(guid):
     api = Connection.get_connection()
-    api.remove('alba/backends', guid)
+    task_id = api.remove('alba/backends', guid)
+    api_response = api.wait_for_task(task_id, 30)
+    if not api_response[0]:
+        logger.error(api_response[1])
 
 
 def get_alba_backend(guid):
@@ -364,4 +367,6 @@ def unclaim_disks(alba_backend):
                     'disk': disk['name'],
                     'safety': {'good': 0, 'critical': 0, 'lost': 0}}
             task_id = api.execute_action(ALBA_NODES, node_guid, 'remove_disk', data)
-            api.wait_for_task(task_id)[0]
+            api_response = api.wait_for_task(task_id, 30)
+            if not api_response[0]:
+                logger.error(api_response[1])
