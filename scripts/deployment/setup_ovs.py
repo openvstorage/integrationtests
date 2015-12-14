@@ -505,6 +505,7 @@ MYSQL_PASSWORD=rooter
 RABBIT_PASSWORD=rooter
 SERVICE_PASSWORD=rooter
 SERVICE_TOKEN=rooter
+disable_service tempest
 EOF
 if [ -n "{master_node_ip}" ]; then
 cat <<EOF >>local.conf
