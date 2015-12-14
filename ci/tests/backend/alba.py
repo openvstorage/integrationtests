@@ -336,7 +336,7 @@ def claim_disks(alba_backend_guid, nr_of_disks, disk_type=''):
 
     initialise_disks(alba_backend_guid, nr_disks_to_claim, disk_type)
 
-    claimable_disks = wait_for_disk_count_with_status(alba_backend_guid, nr_of_disks, 'available')
+    claimable_disks = wait_for_disk_count_with_status(alba_backend_guid, nr_disks_to_claim, 'available')
 
     disks_to_claim = filter_disks(claimable_disks, nr_disks_to_claim, disk_type)
     assert len(disks_to_claim) >= nr_disks_to_claim,\
