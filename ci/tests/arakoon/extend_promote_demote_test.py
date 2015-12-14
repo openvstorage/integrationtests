@@ -25,22 +25,18 @@
 # promote will extend cluster / demote will reduce cluster
 #
 
-from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller, ArakoonClusterConfig
-from ovs.extensions.generic.sshclient import SSHClient
-from ovs.lib.storagedriver import StorageDriverController
-from ovs.lib.albacontroller import AlbaController
+from ConfigParser import RawConfigParser
 
 from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general import general
 from ci.tests.general import general_ovs
-
+from ci.tests.general.logHandler import LogHandler
 from nose.plugins.skip import SkipTest
 from nose.tools import assert_raises, assert_false, assert_true
-
-from ci.tests.general.logHandler import LogHandler
-
-from ConfigParser import RawConfigParser
+from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller, ArakoonClusterConfig
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.lib.storagedriver import StorageDriverController
 
 import os
 from StringIO import StringIO
@@ -52,6 +48,15 @@ logger.logger.propagate = False
 BACKEND_NAME = 'OVS_3554'
 BACKEND_TYPE = 'alba'
 PMACHINES = general_ovs.get_pmachines_by_ip()
+MASTER_IPS = [ip for ip in PMACHINES.keys() if PMACHINES[ip]['node_type'] == 'MASTER']
+MASTER_IPS.sort()
+
+BASE_DIR = '/var/tmp'
+
+TEST_CLEANUP = ['{0}/arakoon/OVS*'.format(BASE_DIR), '/etc/init/ovs-arakoon-OVS_*',
+                '/opt/OpenvStorage/config/arakoon/OVS*', '/var/log/arakoon/ar_00*', '/var/log/arakoon/OVS_*',
+                '{0}/arakoon/archive*'.format(BASE_DIR), '/var/log/arakoon/archive*',
+                '{0}/arakoon/ar_00*'.format(BASE_DIR)]
 
 
 def are_files_present_on(client, files):
@@ -73,30 +78,32 @@ def get_cluster_pmachines(ips):
 
 def setup():
     logger.info('setup alba backend')
-    pmachines = general_ovs.get_pmachines_by_ip()
-    master_ips = [ip for ip in pmachines.keys() if pmachines[ip]['node_type'] == 'MASTER']
-    master_ips.sort()
 
-    for ip in pmachines.keys():
+    for ip in MASTER_IPS:
+        cmd = 'status ovs-scheduled-tasks'
+        output = general.execute_command_on_node(ip, cmd)
+        if 'running' in output:
+            cmd = 'stop ovs-scheduled-tasks'
+            general.execute_command_on_node(ip, cmd)
+
+    for ip in PMACHINES.keys():
         storagerouter = general_ovs.get_storagerouter_by_ip(ip)
         disklayout.add_db_role(storagerouter['guid'])
+
+        for location in TEST_CLEANUP:
+            cmd = 'rm -rf {0}'.format(location)
+            general.execute_command_on_node(ip, cmd)
 
     if generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
         backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
         alba.remove_alba_backend(backend['alba_backend_guid'])
 
     _ = alba.add_alba_backend(BACKEND_NAME)
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-
     logger.info('running voldrv arakoon checkup ...')
     StorageDriverController.manual_voldrv_arakoon_checkup()
-    logger.info('running alba arakoon checkup ...')
-    AlbaController.manual_alba_arakoon_checkup(backend['alba_backend_guid'])
-    logger.info('running alba nsm checkup ...')
-    AlbaController.nsm_checkup()
 
     logger.info('validating arakoon config files on all nodes ...')
-    validate_arakoon_config_files(pmachines)
+    validate_arakoon_config_files(PMACHINES)
 
 
 def teardown():
@@ -104,13 +111,24 @@ def teardown():
         backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
         alba.remove_alba_backend(backend['alba_backend_guid'])
 
+    for ip in MASTER_IPS:
+        cmd = 'status ovs-scheduled-tasks'
+        output = general.execute_command_on_node(ip, cmd)
+        if 'stop/waiting' in output:
+            cmd = 'start ovs-scheduled-tasks'
+            general.execute_command_on_node(ip, cmd)
+
+        for location in TEST_CLEANUP:
+            cmd = 'rm -rf {0}'.format(location)
+            general.execute_command_on_node(ip, cmd)
+
 
 def is_arakoon_dir_config_structure_cleaned_up(ip, cluster_name, base_dir='/mnt/storage'):
     config_dir = ArakoonClusterConfig.ARAKOON_CONFIG_DIR.format(cluster_name)
     config_file = ArakoonClusterConfig.ARAKOON_CONFIG_FILE.format(cluster_name)
-    tlog_dir = '/'.join([base_dir, 'arakoon', cluster_name, 'tlogs'])
-    log_dir = '/'.join(['/var/log/arakoon', cluster_name])
-    home_dir = '/'.join([base_dir, 'arakoon', cluster_name, 'db'])
+    tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format(base_dir, cluster_name)
+    log_dir = ArakoonInstaller.ARAKOON_LOG_DIR.format(cluster_name)
+    home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format(base_dir, cluster_name)
 
     client = SSHClient(ip, username='root')
     assert_false(client.file_exists(config_file)),\
@@ -122,9 +140,9 @@ def is_arakoon_dir_config_structure_cleaned_up(ip, cluster_name, base_dir='/mnt/
 
 def is_arakoon_dir_config_structure_client_only(ip, cluster_name, base_dir='/mnt/storage'):
     config_file = ArakoonClusterConfig.ARAKOON_CONFIG_FILE.format(cluster_name)
-    tlog_dir = '/'.join([base_dir, 'arakoon', cluster_name, 'tlogs'])
-    log_dir = '/'.join(['/var/log/arakoon', cluster_name])
-    home_dir = '/'.join([base_dir, 'arakoon', cluster_name, 'db'])
+    tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format(base_dir, cluster_name)
+    log_dir = ArakoonInstaller.ARAKOON_LOG_DIR.format(cluster_name)
+    home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format(base_dir, cluster_name)
 
     client = SSHClient(ip)
     assert client.file_exists(config_file) == True,\
@@ -138,9 +156,9 @@ def is_arakoon_dir_config_structure_client_only(ip, cluster_name, base_dir='/mnt
 def is_arakoon_dir_config_structure_present(ip, cluster_name, base_dir='/mnt/storage'):
     config_dir = ArakoonClusterConfig.ARAKOON_CONFIG_DIR.format(cluster_name)
     config_file = ArakoonClusterConfig.ARAKOON_CONFIG_FILE.format(cluster_name)
-    tlog_dir = '/'.join([base_dir, 'arakoon', cluster_name, 'tlogs'])
-    log_dir = '/'.join(['/var/log/arakoon', cluster_name])
-    home_dir = '/'.join([base_dir, 'arakoon', cluster_name, 'db'])
+    tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format(base_dir, cluster_name)
+    log_dir = ArakoonInstaller.ARAKOON_LOG_DIR.format(cluster_name)
+    home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format(base_dir, cluster_name)
 
     client = SSHClient(ip, username='ovs')
     assert_true(client.file_exists(config_file)),\
@@ -386,11 +404,9 @@ def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_test():
     logger.info('===================================================')
     logger.info('remove cluster')
     ArakoonInstaller.delete_cluster(cluster_name, first_ip)
-    ovs_config = general_ovs.get_ovs_config(ip)
-    if ovs_config['core']['nodetype'] == 'EXTRA':
-        is_arakoon_dir_config_structure_client_only(first_ip, cluster_name, cluster_basedir)
     are_files_present_on(client, archived_files)
     are_files_missing_on(client, files_to_create)
+    is_arakoon_dir_config_structure_cleaned_up(first_ip, cluster_name, cluster_basedir)
 
 
 def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_and_extend_test():
