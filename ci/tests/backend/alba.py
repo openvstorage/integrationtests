@@ -147,7 +147,10 @@ def add_alba_backend(name):
 
 def remove_alba_backend(guid):
     api = Connection.get_connection()
-    api.remove('alba/backends', guid)
+    task_id = api.remove('alba/backends', guid)
+    api_response = api.wait_for_task(task_id, 30)
+    if not api_response[0]:
+        logger.error(api_response[1])
 
 
 def get_alba_backend(guid):
@@ -335,7 +338,7 @@ def claim_disks(alba_backend_guid, nr_of_disks, disk_type=''):
 
     initialise_disks(alba_backend_guid, nr_disks_to_claim, disk_type)
 
-    claimable_disks = wait_for_disk_count_with_status(alba_backend_guid, nr_of_disks, 'available')
+    claimable_disks = wait_for_disk_count_with_status(alba_backend_guid, nr_disks_to_claim, 'available')
 
     disks_to_claim = filter_disks(claimable_disks, nr_disks_to_claim, disk_type)
     assert len(disks_to_claim) >= nr_disks_to_claim,\
@@ -366,4 +369,6 @@ def unclaim_disks(alba_backend):
                     'disk': disk['name'],
                     'safety': {'good': 0, 'critical': 0, 'lost': 0}}
             task_id = api.execute_action(ALBA_NODES, node_guid, 'remove_disk', data)
-            api.wait_for_task(task_id)[0]
+            api_response = api.wait_for_task(task_id, 30)
+            if not api_response[0]:
+                logger.error(api_response[1])

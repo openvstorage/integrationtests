@@ -36,6 +36,8 @@ template_target_folder = '/var/tmp/templates/'
 
 NUMBER_OF_DISKS = 10
 GRID_IP = test_config.get('main', 'grid_ip')
+TIMEOUT = 30
+TIMER_STEP = 5
 
 
 def download_template(server_location):
@@ -136,10 +138,19 @@ def vms_with_fio_test():
         machine_name = "machine-{0}".format(vm_number)
         create_machine_from_existing_raw_disk(machine_name, vpool['name'], "disk-{0}".format(vm_number))
 
-    time.sleep(30)
+    counter = TIMEOUT / TIMER_STEP
+    while counter > 0:
+        vms = api.get_components('vmachines')
+        if len(vms) == NUMBER_OF_DISKS:
+            counter = 0
+        else:
+            counter -= 1
+            time.sleep(TIMER_STEP)
     vms = api.get_components('vmachines')
-    assert len(vms) == NUMBER_OF_DISKS, "Only {0} out of {1} VMachines have been created".format(len(vms), NUMBER_OF_DISKS)
-    time.sleep(350)
+    assert len(vms) == NUMBER_OF_DISKS, "Only {0} out of {1} VMachines have been created after {2} seconds".format(len(vms), NUMBER_OF_DISKS, TIMEOUT)
+
+    # waiting for 5 minutes of FIO activity on the vmachines
+    time.sleep(300)
     vms = api.get_components('vmachines')
     for vm in vms:
         assert vm['hypervisor_status'] in ['RUNNING'], "Machine {0} has wrong status on the hypervisor: {1}".format(vm['name'], vm['hypervisor_status'])
@@ -147,15 +158,29 @@ def vms_with_fio_test():
     for vm_number in range(NUMBER_OF_DISKS):
         remove_machine_by_name("machine-{0}".format(vm_number))
 
-    time.sleep(30)
+    counter = TIMEOUT / TIMER_STEP
+    while counter > 0:
+        vms = api.get_components('vmachines')
+        if len(vms):
+            counter -= 1
+            time.sleep(TIMER_STEP)
+        else:
+            counter = 0
     vms = api.get_components('vmachines')
-    assert len(vms) == 0, "Still some machines left on the vpool: {0}".format(vms)
+    assert len(vms) == 0, "Still some machines left on the vpool after waiting for {0} seconds: {1}".format(TIMEOUT, vms)
 
     logger.info("Removing vpool vdisks from {0} vpool".format(VPOOL_NAME))
     out, err = general.execute_command("rm -rf /mnt/{0}/*.raw".format(VPOOL_NAME))
     if err:
         logger.error("Error while removing vdisks: {0}".format(err))
 
-    vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
-    vpool = vpool_list[0]
-    assert len(vpool['vdisks_guids']) == 0, "Still some disks left on the vpool: {}".format(vpool['vdisks_guids'])
+    counter = TIMEOUT / TIMER_STEP
+    while counter > 0:
+        vpool = api.get_component_by_name('vpools', VPOOL_NAME)[0]
+        if len(vpool['vdisks_guids']):
+            counter -= 1
+            time.sleep(TIMER_STEP)
+        else:
+            counter = 0
+    vpool = api.get_component_by_name('vpools', VPOOL_NAME)[0]
+    assert len(vpool['vdisks_guids']) == 0, "Still some disks left on the vpool after waiting {0} seconds: {1}".format(TIMEOUT, vpool['vdisks_guids'])
