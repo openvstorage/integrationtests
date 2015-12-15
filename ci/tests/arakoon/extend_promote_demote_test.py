@@ -45,7 +45,7 @@ from StringIO import StringIO
 logger = LogHandler.get('arakoon', name='setup')
 logger.logger.propagate = False
 
-BACKEND_NAME = 'OVS_3554'
+BACKEND_NAME = 'AUTOTEST_ALBA'
 BACKEND_TYPE = 'alba'
 PMACHINES = general_ovs.get_pmachines_by_ip()
 MASTER_IPS = [ip for ip in PMACHINES.keys() if PMACHINES[ip]['node_type'] == 'MASTER']
@@ -79,6 +79,10 @@ def get_cluster_pmachines(ips):
 def setup():
     logger.info('setup alba backend')
 
+    if generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
+        backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+        alba.remove_alba_backend(backend['alba_backend_guid'])
+
     for ip in MASTER_IPS:
         cmd = 'status ovs-scheduled-tasks'
         output = general.execute_command_on_node(ip, cmd)
@@ -93,10 +97,6 @@ def setup():
         for location in TEST_CLEANUP:
             cmd = 'rm -rf {0}'.format(location)
             general.execute_command_on_node(ip, cmd)
-
-    if generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
-        backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-        alba.remove_alba_backend(backend['alba_backend_guid'])
 
     _ = alba.add_alba_backend(BACKEND_NAME)
     logger.info('running voldrv arakoon checkup ...')

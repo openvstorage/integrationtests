@@ -18,6 +18,10 @@ from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general.general import test_config
 from ovs.extensions.generic.system import System
+from ci.tests.general.logHandler import LogHandler
+
+logger = LogHandler.get('backend', name='alba')
+logger.logger.propagate = False
 
 BACKEND_NAME = test_config.get('backend', 'name')
 BACKEND_TYPE = test_config.get('backend', 'type')
@@ -222,3 +226,53 @@ def ovs_3490_add_remove_preset_test():
     status, message = alba.remove_preset(alba_backend, name)
     assert status, "Remove preset failed with: {0}".format(message)
     assert not is_preset_present(name), "Preset with name {0} is not present".format(name)
+
+
+def ovs_3769_validation_test():
+    """
+    Create an albanode with an asd statistics part set to {}
+    Assert code does not raise
+    :return:
+    """
+
+    from ovs.dal.hybrids.albanode import AlbaNode
+    from ovs.dal.hybrids.albaasd import AlbaASD
+    from ovs.dal.hybrids.albabackend import AlbaBackend
+    from ovs.dal.hybrids.backend import Backend
+    from ovs.dal.lists.backendtypelist import BackendTypeList
+
+    an = AlbaNode()
+    an.password = 'rooter'
+    an.node_id = 'ovs3769an'
+    an.port = 1234
+    an.ip = '127.0.0.1'
+    an.username = 'root'
+    an.save()
+
+    bet = BackendTypeList.get_backend_type_by_code('alba')
+
+    be = Backend()
+    be.backend_type = bet
+    be.name = 'ovs3769be'
+    be.save()
+
+    abe = AlbaBackend()
+    abe.backend = be
+    abe.save()
+
+    asd = AlbaASD()
+    asd.alba_backend = abe
+    asd.asd_id = 'ovs3769asd'
+    asd.alba_node = an
+    asd.save()
+
+    try:
+        abe._statistics()
+    except KeyError, ex:
+        logger.error('Regression OVS-3769 - asd statistics raises a KeyError: {0}'.format(str(ex)))
+
+    assert asd.statistics == dict(), "asd statistics should return an empty dict, go {0}".format(asd.statistics)
+    asd.delete()
+    an.delete()
+    abe.delete()
+    be.delete()
