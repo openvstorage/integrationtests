@@ -302,20 +302,20 @@ def ar_0001_validate_create_extend_shrink_delete_cluster_test():
 
     logger.info('===================================================')
     logger.info('setup and validate single node cluster')
-    ArakoonInstaller.create_cluster(cluster_name, first_ip, [], cluster_basedir)
+    ArakoonInstaller.create_cluster(cluster_name, first_ip, cluster_basedir)
     validate_arakoon_config_files(get_cluster_pmachines([first_ip]), cluster_basedir, cluster_name)
     is_arakoon_dir_config_structure_present(first_ip, cluster_name, cluster_basedir)
 
     logger.info('===================================================')
     logger.info('setup and validate two node cluster')
-    ArakoonInstaller.extend_cluster(first_ip, second_ip, cluster_name, [], cluster_basedir)
+    ArakoonInstaller.extend_cluster(first_ip, second_ip, cluster_name, cluster_basedir)
     validate_arakoon_config_files(get_cluster_pmachines([first_ip, second_ip]), cluster_basedir, cluster_name)
     is_arakoon_dir_config_structure_present(first_ip, cluster_name, cluster_basedir)
     is_arakoon_dir_config_structure_present(second_ip, cluster_name, cluster_basedir)
 
     logger.info('===================================================')
     logger.info('setup and validate three node cluster')
-    ArakoonInstaller.extend_cluster(first_ip, third_ip, cluster_name, [], cluster_basedir)
+    ArakoonInstaller.extend_cluster(first_ip, third_ip, cluster_name, cluster_basedir)
     validate_arakoon_config_files(get_cluster_pmachines([first_ip, second_ip, third_ip]), cluster_basedir, cluster_name)
     is_arakoon_dir_config_structure_present(first_ip, cluster_name, cluster_basedir)
     is_arakoon_dir_config_structure_present(second_ip, cluster_name, cluster_basedir)
@@ -395,7 +395,7 @@ def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_test():
 
     logger.info('===================================================')
     logger.info('setup and validate single node cluster')
-    ArakoonInstaller.create_cluster(cluster_name, first_ip, [], cluster_basedir)
+    ArakoonInstaller.create_cluster(cluster_name, first_ip, cluster_basedir)
     validate_arakoon_config_files(get_cluster_pmachines([first_ip]), cluster_basedir, cluster_name)
     is_arakoon_dir_config_structure_present(first_ip, cluster_name, cluster_basedir)
     are_files_present_on(client, archived_files)
@@ -448,9 +448,9 @@ def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_and_extend_te
         logger.info('===================================================')
         logger.info('setup and validate single node cluster')
         if ip == first_ip:
-            ArakoonInstaller.create_cluster(cluster_name, ip, [], cluster_basedir)
+            ArakoonInstaller.create_cluster(cluster_name, ip, cluster_basedir)
         else:
-            ArakoonInstaller.extend_cluster(first_ip, ip, cluster_name, [], cluster_basedir)
+            ArakoonInstaller.extend_cluster(first_ip, ip, cluster_name, cluster_basedir)
         validate_arakoon_config_files(get_cluster_pmachines([ip]), cluster_basedir, cluster_name)
         is_arakoon_dir_config_structure_present(ip, cluster_name, cluster_basedir)
         are_files_present_on(client, archived_files)
