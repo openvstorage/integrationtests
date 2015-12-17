@@ -53,15 +53,20 @@ def ssh_check_test():
     general.check_prereqs(testcase_number=1,
                           tests_to_run=testsToRun)
 
+    issues_found = ''
+
     env_ips = autotests._get_ips()
     if len(env_ips) == 1:
         raise SkipTest()
 
     for env_ip_connecting_from in env_ips:
-        out, err = general.execute_command_on_node(env_ip_connecting_from, "cat .ssh/known_hosts")
+        out = general.execute_command_on_node(env_ip_connecting_from, "cat ~/.ssh/known_hosts")
         for env_ip_connecting_to in env_ips:
             if env_ip_connecting_from != env_ip_connecting_to:
-                assert env_ip_connecting_to in out, "Host key verification not found between {0} and {1}".format(env_ip_connecting_from, env_ip_connecting_to)
+                if env_ip_connecting_to not in out:
+                    issues_found += "Host key verification not found between {0} and {1}\n".format(env_ip_connecting_from, env_ip_connecting_to)
+
+    assert issues_found == '', 'Following issues where found:\n{0}'.format(issues_found)
 
 
 def services_check_test():
