@@ -389,9 +389,9 @@ def check_vpool_remove_sanity_test(vpool_name=''):
     env_ips = autotests._get_ips()
 
     for node_ip in env_ips:
+        out = general.execute_command_on_node(node_ip, "initctl list | grep ovs")
         for vpool_service in vpool_services:
-            out = general.execute_command_on_node(node_ip, "initctl list | grep {0}".format(vpool_service))
-            if out:
+            if vpool_service in out:
                 issues_found += "Vpool service {0} still running.Has following status:{1}\n ".format(vpool_service, out)
         for config_file_to_check in vpool_config_files:
             out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(config_file_to_check))
