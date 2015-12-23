@@ -75,4 +75,5 @@ def add_generic_vpool():
                                           'dtl_transport': 'tcp',
                                           }
                         }
-    StorageRouterController.add_vpool.apply_async(kwargs={'parameters': add_vpool_params}).get(timeout=500)
+    my_sr = System.get_my_storagerouter()
+    StorageRouterController.add_vpool.s(add_vpool_params).apply_async(routing_key='sr.{0}'.format(my_sr.machine_id)).get(timeout=500)
