@@ -59,15 +59,20 @@ def ssh_check_test():
     general.check_prereqs(testcase_number=1,
                           tests_to_run=testsToRun)
 
+    issues_found = ''
+
     env_ips = autotests._get_ips()
     if len(env_ips) == 1:
         raise SkipTest()
 
     for env_ip_connecting_from in env_ips:
-        out, err = general.execute_command_on_node(env_ip_connecting_from, "cat .ssh/known_hosts")
+        out = general.execute_command_on_node(env_ip_connecting_from, "cat ~/.ssh/known_hosts")
         for env_ip_connecting_to in env_ips:
             if env_ip_connecting_from != env_ip_connecting_to:
-                assert env_ip_connecting_to in out, "Host key verification not found between {0} and {1}".format(env_ip_connecting_from, env_ip_connecting_to)
+                if env_ip_connecting_to not in out:
+                    issues_found += "Host key verification not found between {0} and {1}\n".format(env_ip_connecting_from, env_ip_connecting_to)
+
+    assert issues_found == '', 'Following issues where found:\n{0}'.format(issues_found)
 
 
 def services_check_test():
@@ -400,9 +405,9 @@ def check_vpool_remove_sanity_test(vpool_name=''):
     env_ips = autotests._get_ips()
 
     for node_ip in env_ips:
+        out = general.execute_command_on_node(node_ip, "initctl list | grep ovs")
         for vpool_service in vpool_services:
-            out = general.execute_command_on_node(node_ip, "initctl list | grep {0}".format(vpool_service))
-            if out:
+            if vpool_service in out:
                 issues_found += "Vpool service {0} still running.Has following status:{1}\n ".format(vpool_service, out)
         for config_file_to_check in vpool_config_files:
             out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(config_file_to_check))
