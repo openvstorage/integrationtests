@@ -25,6 +25,7 @@ from ci.tests.general import general
 from ci.tests.general.general import test_config
 from ci.tests.backend import alba, generic as backend_generic
 BACKEND_TYPE = test_config.get('backend', 'type')
+GRID_IP = test_config.get('main', 'grid_ip')
 assert BACKEND_TYPE in backend_generic.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
 from ci import autotests
 
@@ -300,8 +301,9 @@ def check_vpool_sanity_test(vpool_name=''):
         raise SkipTest()
     # assert vpool.name == vpool_name, "No vpool found modeled with {0} name".format(vpool_name)
 
-    env_ips = autotests._get_ips()
-    # check services on each node
+    # @TODO check services on each node after implementing vpool extension to all nodes
+    env_ips = [GRID_IP]
+    # env_ips = autotests._get_ips()
     for node_ip in env_ips:
         for vpool_service in vpool_services:
             out = general.execute_command_on_node(node_ip, "initctl list | grep {0}".format(vpool_service))
