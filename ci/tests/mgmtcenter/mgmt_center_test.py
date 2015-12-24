@@ -83,11 +83,9 @@ def check_configured_management_center_test():
     issues_found = ""
 
     for mgmtcenter in management_centers:
-        # @todo: remove 'if' when OVS-3626 is fixed
-        if mgmtcenter['type'] in ['OPENSTACK']:
-            for physical_machine_guid in mgmtcenter['pmachines_guids']:
-                if not generic.is_host_configured(physical_machine_guid):
-                    issues_found += "Mgmtcenter {0} has an unconfigured pmachine with guid {1}\n".format(mgmtcenter['name'], physical_machine_guid)
+        for physical_machine_guid in mgmtcenter['pmachines_guids']:
+            if not generic.is_host_configured(physical_machine_guid):
+                issues_found += "Mgmtcenter {0} has an unconfigured pmachine with guid {1}\n".format(mgmtcenter['name'], physical_machine_guid)
 
     assert issues_found == "", "Following pmachines where not configured with their management center:\n{0}".format(issues_found)
 
@@ -105,12 +103,10 @@ def check_unconfigured_management_center_test():
     issues_found = ""
 
     for mgmtcenter in management_centers:
-        # @todo: remove 'if' when OVS-3626 is fixed
-        if mgmtcenter['type'] not in ['OPENSTACK']:
-            for physical_machine in api.get_components('pmachines'):
-                generic.unconfigure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
-                if generic.is_host_configured(physical_machine['guid']):
-                    issues_found += "Machine {0} is still configured with {1} management center".format(physical_machine['name'], mgmtcenter['name'])
-                generic.configure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
+        for physical_machine in api.get_components('pmachines'):
+            generic.unconfigure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
+            if generic.is_host_configured(physical_machine['guid']):
+                issues_found += "Machine {0} is still configured with {1} management center".format(physical_machine['name'], mgmtcenter['name'])
+            generic.configure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
 
     assert issues_found == "", "Following pmachines where still configured with their management center:\n{0}".format(issues_found)
