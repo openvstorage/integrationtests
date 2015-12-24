@@ -21,6 +21,11 @@ from ovs.dal.lists.pmachinelist import PMachineList
 from ci.tests.general.connection import Connection
 from ci.tests.general import general
 from ci.tests.vpool import generic
+from ci.tests.general.general import test_config
+from ci.tests.backend import alba, generic as backend_generic
+BACKEND_TYPE = test_config.get('backend', 'type')
+GRID_IP = test_config.get('main', 'grid_ip')
+assert BACKEND_TYPE in backend_generic.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
 from ci import autotests
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
@@ -247,15 +252,14 @@ def check_backend_files_test():
     else:
         nsm_config_file_found = False
         for node_ip in env_ips:
-            out, err = general.execute_command_on_node(node_ip, '[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(files_to_check[0]))
-            assert len(err) == 0, "Error executing command to get {0} info:{1}".format(files_to_check[0], err)
+            out = general.execute_command_on_node(node_ip, '[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(files_to_check[0]))
             assert 'not' not in out, "Couldn't find {0} on node {1}".format(files_to_check[0], node_ip)
-            out, err = general.execute_command_on_node(node_ip, '[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(files_to_check[1]))
+            out = general.execute_command_on_node(node_ip, '[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(files_to_check[1]))
             if 'not' not in out:
                 nsm_config_file_found = True
-                out_nsm, err = general.execute_command("/usr/bin/arakoon --who-master -config {0}".format(files_to_check[1]))
+                out_nsm = general.execute_command_on_node(node_ip, "/usr/bin/arakoon --who-master -config {0}".format(files_to_check[1]))
                 assert len(out_nsm), "No arakoon master found in the namespace manager config file found on node {0}".format(node_ip)
-            out_abm, err = general.execute_command("/usr/bin/arakoon --who-master -config {0}".format(files_to_check[0]))
+            out_abm = general.execute_command_on_node(node_ip, "/usr/bin/arakoon --who-master -config {0}".format(files_to_check[0]))
             assert len(out_abm), "No arakoon master found in the alba manager config file on {0}".format(node_ip)
         assert nsm_config_file_found, "No namespace manager config file found on any of the nodes"
 
@@ -303,8 +307,9 @@ def check_vpool_sanity_test(vpool_name=''):
         raise SkipTest()
     # assert vpool.name == vpool_name, "No vpool found modeled with {0} name".format(vpool_name)
 
-    env_ips = autotests._get_ips()
-    # check services on each node
+    # @TODO check services on each node after implementing vpool extension to all nodes
+    env_ips = [GRID_IP]
+    # env_ips = autotests._get_ips()
     for node_ip in env_ips:
         for vpool_service in vpool_services:
             out = general.execute_command_on_node(node_ip, "initctl list | grep {0}".format(vpool_service))
@@ -433,3 +438,62 @@ def check_vpool_remove_sanity_test(vpool_name=''):
                     issues_found += "Still found {0} partition role with {1} subrole after vpool deletion".format(role, sub_role)
 
     assert len(issues_found) == 0, "Following issues found with vpool {0}\n{1}\n".format(vpool_name, issues_found)
+
+
+def check_backend_removal_test(backend_name=''):
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=9,
+                          tests_to_run=testsToRun)
+
+    if not backend_name:
+        backend_name = general.test_config.get("backend", "name")
+
+    backend = backend_generic.get_backend_by_name_and_type(backend_name, BACKEND_TYPE)
+    if backend:
+        alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+        alba.unclaim_disks(alba_backend)
+        alba.remove_alba_backend(backend['alba_backend_guid'])
+
+    issues_found = ''
+    backends_present_on_env = BackendList.get_backends()
+    for backend in backends_present_on_env:
+        if backend.name == backend_name:
+            issues_found += 'Backend {0} still present in the model with status {1}\n'.format(backend_name, backend.status)
+
+    backend_services = ["ovs-alba-rebalancer_{0}".format(backend_name),
+                        "ovs-alba-maintenance_{0}".format(backend_name),
+                        "ovs-arakoon-{0}-abm".format(backend_name),
+                        "ovs-arakoon-{0}-nsm_0".format(backend_name)]
+
+    out, err = general.execute_command("initctl list | grep ovs-*")
+    statuses = out.splitlines()
+
+    for status_line in statuses:
+        for service_to_check in backend_services:
+            if service_to_check in status_line:
+                issues_found += "Backend service {0} still present.Has following status:{1}\n ".format(service_to_check, status_line)
+
+    files_to_check = ["/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg".format(backend_name),
+                      "/opt/OpenvStorage/config/arakoon/{0}-nsm_0/{0}-nsm_0.cfg".format(backend_name),
+                      "/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-rebalancer.json".format(backend_name),
+                      "/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-maintenance.json".format(backend_name)]
+
+    # check single or multinode setup
+    env_ips = autotests._get_ips()
+    if len(env_ips) == 1:
+        # check files
+        for file_to_check in files_to_check:
+            out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(file_to_check))
+            if 'not' not in out:
+                issues_found += "File {0} still present after backend {1} removal\n".format(file_to_check, backend_name)
+    else:
+        for node_ip in env_ips:
+            for file_to_check in files_to_check:
+                out = general.execute_command_on_node(node_ip, '[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(file_to_check))
+                if 'not' not in out:
+                    issues_found += "File {0} still present after backend {1} removal on node {2}\n".format(file_to_check, backend_name, node_ip)
+
+    assert issues_found == '', "Following issues where found with the backend:\n{0}".format(issues_found)
