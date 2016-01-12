@@ -183,10 +183,11 @@ def check_model_test():
     if len(backends_present_on_env) == 0:
         raise SkipTest()
 
-    for be in backends_present_on_env:
-        if be.backend_type.code == 'alba':
-            assert be.name == general.test_config.get("backend", "name")
-            assert be.status == 'RUNNING'
+    backend_name = general.test_config.get("backend", "name")
+    backend = BackendList.get_by_name(backend_name)
+    assert backend, "Test backend: not found in model"
+    assert backend.backend_type.code == 'alba', "Backend: {0} not of type alba but of type: {1}".format(backend.name, backend.backend_type.code)
+    assert backend.status == 'RUNNING', "Backend: {0} in state: {1}, expected state: running".format(backend.name, backend.status)
 
 
 def check_backend_services_test():
