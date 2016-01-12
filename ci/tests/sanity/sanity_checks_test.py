@@ -185,9 +185,9 @@ def check_model_test():
 
     backend_name = general.test_config.get("backend", "name")
     backend = BackendList.get_by_name(backend_name)
-    assert backend, "Test backend with {0} name was not found in the model".format(backend_name)
-    assert backend.backend_type.code == 'alba', "Backend {0} was not of alba type in the model but of type {1}".format(backend.name, backend.backend_type.code)
-    assert backend.status == 'RUNNING', "Backend {0} is in {1} state and not running state".format(backend.name, backend.status)
+    assert backend, "Test backend: not found in model"
+    assert backend.backend_type.code == 'alba', "Backend: {0} not of type alba but of type: {1}".format(backend.name, backend.backend_type.code)
+    assert backend.status == 'RUNNING', "Backend: {0} in state: {1}, expected state: running".format(backend.name, backend.status)
 
 
 def check_backend_services_test():
