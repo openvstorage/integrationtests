@@ -482,12 +482,20 @@ cd devstack
 echo installing devstack pip ...
 /home/devstack/tools/install_prereqs.sh
 /home/devstack/tools/install_pip.sh
+
 echo reverting futures to 2.2.0
 pip install futures==2.2.0
 echo reverting oslo utils to 1.4.0 ...
+
 pip install oslo.utils==1.4.0
 echo checking oslo.utils version
 pip list | grep oslo.utils
+
+# https://bugs.launchpad.net/horizon/+bug/1532048
+pip install django-compressor==1.6
+echo checking django-compressor version
+pip list | grep django-compressor
+
 chown -R stack:stack /home/devstack
 sed -i 's/br100/pubbr/g' ./lib/nova
 sed -i 's/br100/pubbr/g' ./lib/nova_plugins/hypervisor-baremetal
@@ -635,7 +643,6 @@ def install_additional_node(hypervisor_type, hypervisor_ip, hypervisor_password,
                      hypervisor_ip=hypervisor_ip,
                      hypervisor_password=hypervisor_password,
                      hostname=hostname)
-    setup_mgmt_center(public_ip=new_node_ip)
 
 
 def deploy_ovsvsa_vmware(public_ip, hypervisor_ip, hypervisor_password, dns, public_network, gateway, public_netmask,
@@ -682,8 +689,210 @@ def deploy_ovsvsa_vmware(public_ip, hypervisor_ip, hypervisor_password, dns, pub
     q.clients.ssh.waitForConnection(public_ip, "root", UBUNTU_PASSWORD, times=60)
 
 
+def integrate_papertrail(ip):
+    """
+    setup beaver config to log to papertrail
+    """
+    con = q.remote.system.connect(ip, "root", UBUNTU_PASSWORD)
+    cmd = 'apt-get -y install python-pip'
+    out = con.process.execute(cmd)
+    print out
+
+    cmd = 'pip install beaver --upgrade'
+    out = con.process.execute(cmd)
+    print out
+
+    sentinel_transport_cmd = """
+mkdir -p /usr/local/lib/python2.7/dist-packages/beaver/transports
+
+cat <<EOF > /usr/local/lib/python2.7/dist-packages/beaver/transports/sentinel_transport.py
+
+# -*- coding: utf-8 -*-
+import redis
+import traceback
+import time
+import socket
+import ast
+
+from beaver.transports.base_transport import BaseTransport
+from beaver.transports.exception import TransportException
+from redis.sentinel import *
+
+
+class SentinelTransport(BaseTransport):
+    LIST_DATA_TYPE = 'list'
+    CHANNEL_DATA_TYPE = 'channel'
+
+    def __init__(self, beaver_config, logger=None):
+        super(SentinelTransport, self).__init__(beaver_config, logger=logger)
+
+        self._nodes = ast.literal_eval(beaver_config.get('sentinel_nodes'))
+        self._namespace = beaver_config.get('redis_namespace')
+        self._sentinel_master_name = beaver_config.get('sentinel_master_name')
+
+        self._data_type = beaver_config.get('redis_data_type')
+        if self._data_type not in [self.LIST_DATA_TYPE,
+                                   self.CHANNEL_DATA_TYPE]:
+            raise TransportException('Unknown Redis data type')
+
+        self._sentinel = Sentinel(self._nodes, socket_timeout=0.1)
+        self._get_master()
+
+    def _get_master(self):
+        if self._check_connection():
+            self._master = self._sentinel.master_for(self._sentinel_master_name, socket_timeout=0.1)
+
+    def _check_connection(self):
+        try:
+            if self._is_reachable():
+                master_info = self._sentinel.discover_master(self._sentinel_master_name)
+                self._logger.info('Master found: ' + str(master_info))
+                return True
+        except MasterNotFoundError:
+            self._logger.warn('Master not found')
+        except Exception, ex:
+            self._logger.warn('Error in _check_connection(): %s' %traceback.print_exc())
+
+        return False
+
+    def _is_reachable(self):
+        for node in self._nodes:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            result = sock.connect_ex(node)
+            sock.close()
+            return (result == 0)
+
+        self._logger.warn('Cannot connect to one of the given sentinel servers')
+        return False
+
+    def reconnect(self):
+        self._check_connections()
+
+    def invalidate(self):
+        super(SentinelTransport, self).invalidate()
+        self._master.connection_pool.disconnect()
+        return False
+
+    def callback(self, filename, lines, **kwargs):
+        self._logger.debug('Redis transport called')
+
+        timestamp = self.get_timestamp(**kwargs)
+        if kwargs.get('timestamp', False):
+            del kwargs['timestamp']
+
+        namespaces = self._beaver_config.get_field('redis_namespace', filename)
+
+        if not namespaces:
+            namespaces = self._namespace
+            namespaces = namespaces.split(",")
+
+        self._logger.debug('Got namespaces: '.join(namespaces))
+
+        data_type = self._data_type
+        self._logger.debug('Got data type: ' + data_type)
+
+        pipeline = self._master.pipeline(transaction=False)
+
+        callback_map = {
+            self.LIST_DATA_TYPE: pipeline.rpush,
+            self.CHANNEL_DATA_TYPE: pipeline.publish,
+        }
+        callback_method = callback_map[data_type]
+
+        for line in lines:
+            for namespace in namespaces:
+                callback_method(
+                    namespace.strip(),
+                    self.format(filename, line, timestamp, **kwargs)
+                )
+
+        try:
+            pipeline.execute()
+        except redis.exceptions.RedisError, exception:
+            self._logger.warn('Cannot push lines to redis server: ' + server['url'])
+            raise TransportException(exception)
+EOF
+"""
+    out = con.process.execute(sentinel_transport_cmd, dieOnNonZeroExitCode=False)
+    print out
+
+    config_cmd = """
+mkdir -p /etc/beaver
+
+cat <<EOF > /etc/beaver/beaver.conf
+[beaver]
+transport: sentinel
+sentinel_nodes: [('172.19.10.15',26379),('172.19.10.16',26379),('172.19.10.17',26379)]
+sentinel_master_name: master
+redis_namespace: logs
+logstash_version: 1
+
+[/var/log/rabbitmq/*.log]
+multiline_regex_before = ^[^=].*
+ignore_empty: 1
+type: rabbitmq
+tags: rabbitmq
+
+[/var/log/ovs/*.log]
+type: ovs
+tags: ovs
+
+[/var/log/upstart/*.log]
+type: upstart
+tags: upstart
+
+[/var/log/kern.log]
+type: kernel
+tags: kernel
+
+[/var/log/syslog]
+type: syslog
+tags: syslog
+
+[/var/log/auth.log]
+type: auth
+tags: auth
+
+[/var/log/libvirt/*.log]
+type: libvirt
+tags: libvirt
+
+[/var/log/nginx/error.log]
+type: nginx
+tags: nginx
+EOF
+"""
+
+    out = con.process.execute(config_cmd, dieOnNonZeroExitCode=False)
+    print out
+
+    upstart_cmd = """cat <<EOF > /etc/init/ovs-beaver.conf
+description "Beaver upstart for papertrail"
+
+start on (local-filesystems and started networking)
+stop on runlevel [016]
+
+kill timeout 60
+respawn
+respawn limit 10 5
+console log
+
+exec /usr/local/bin/beaver -c /etc/beaver/beaver.conf -P /var/tmp
+EOF
+
+stop ovs-beaver
+start ovs-beaver
+
+"""
+
+    out = con.process.execute(upstart_cmd, dieOnNonZeroExitCode=False)
+    print out
+
+
 def handle_ovs_setup(public_ip, qualitylevel, cluster_name, hypervisor_type, hypervisor_ip, hypervisor_password,
                      hostname):
+
+    integrate_papertrail(public_ip)
 
     con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
     con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
@@ -721,8 +930,17 @@ def handle_ovs_setup(public_ip, qualitylevel, cluster_name, hypervisor_type, hyp
     pick_option(child, public_ip)
     # 5 minutes to partition disks
     child.timeout = 300
-    child.expect(["Which type of hypervisor is this Grid Storage Router",
-                  "Which type of hypervisor is this Storage Router backing"])
+
+    PROVIDE_ROOT_PWDS = True
+    while PROVIDE_ROOT_PWDS:
+        idx = child.expect(["Which type of hypervisor is this Grid Storage Router",
+                            "Which type of hypervisor is this Storage Router backing",
+                            "Password:"])
+        if idx == 2:
+            child.sendline(UBUNTU_PASSWORD)
+        else:
+            PROVIDE_ROOT_PWDS = False
+
     pick_option(child, hypervisor_type.upper())
     child.expect("Enter hypervisor hostname")
     child.sendline("")
@@ -735,8 +953,10 @@ def handle_ovs_setup(public_ip, qualitylevel, cluster_name, hypervisor_type, hyp
         except:
             pass
     exit_script_mark = "~#"
+
     # 10 minutes to install ovs components
     child.timeout = 600
+
     idx = 0
     try:
         idx = child.expect(exit_script_mark)
@@ -757,6 +977,7 @@ def handle_ovs_setup(public_ip, qualitylevel, cluster_name, hypervisor_type, hyp
         print child.after
         print "--- pexpect end"
         raise
+
 if __name__ == '__main__':
     options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:l:h:E:H:M:S:s:N')
     for opt, arg in options:
