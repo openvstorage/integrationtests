@@ -323,7 +323,7 @@ def ar_0001_validate_create_extend_shrink_delete_cluster_test():
 
     logger.info('===================================================')
     logger.info('reduce and validate three node to two node cluster')
-    ArakoonInstaller.shrink_cluster(first_ip, second_ip, cluster_name)
+    ArakoonInstaller.shrink_cluster(second_ip, cluster_name)
     validate_arakoon_config_files(get_cluster_pmachines([first_ip, third_ip]), cluster_basedir, cluster_name)
     is_arakoon_dir_config_structure_present(first_ip, cluster_name, cluster_basedir)
     is_arakoon_dir_config_structure_client_only(second_ip, cluster_name, cluster_basedir)
@@ -331,7 +331,7 @@ def ar_0001_validate_create_extend_shrink_delete_cluster_test():
 
     logger.info('===================================================')
     logger.info('reduce and validate two node to one node cluster')
-    ArakoonInstaller.shrink_cluster(third_ip, first_ip, cluster_name)
+    ArakoonInstaller.shrink_cluster(first_ip, cluster_name)
     validate_arakoon_config_files(get_cluster_pmachines([third_ip]), cluster_basedir, cluster_name)
     is_arakoon_dir_config_structure_client_only(first_ip, cluster_name, cluster_basedir)
     is_arakoon_dir_config_structure_client_only(second_ip, cluster_name, cluster_basedir)
