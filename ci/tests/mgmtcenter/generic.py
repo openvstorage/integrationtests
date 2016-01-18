@@ -13,6 +13,9 @@
 # limitations under the License.
 
 from ovs.lib.mgmtcenter import MgmtCenterController
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.services.service import ServiceManager
+from ovs.extensions.os.os import OSManager
 from ci.tests.general.connection import Connection
 from ci.tests.general import general
 
@@ -24,6 +27,13 @@ MGMT_TYPE = general.test_config.get('mgmtcenter', 'type')
 MGMT_PORT = general.test_config.get('mgmtcenter', 'port')
 
 
+def is_devstack_installed():
+    client = SSHClient('127.0.0.1', username='root')
+    is_openstack = ServiceManager.has_service(OSManager.get_openstack_cinder_service_name(), client)
+    is_devstack = 'stack' in str(client.run('ps aux | grep SCREEN | grep stack | grep -v grep || true'))
+    return is_openstack and is_devstack
+
+
 def create_mgmt_center(name, username, password, ip, center_type, port):
     api = Connection.get_connection()
     center = api.add('mgmtcenters', {'name' : name, 'username' : username, 'password' : password, 'ip' : ip, 'type' : center_type, 'port' : port})
@@ -33,7 +43,7 @@ def create_mgmt_center(name, username, password, ip, center_type, port):
 def create_generic_mgmt_center():
     api = Connection.get_connection()
     management_centers = api.get_components('mgmtcenters')
-    if len(management_centers) == 0:
+    if len(management_centers) == 0 and is_devstack_installed():
         mgmtcenter = create_mgmt_center(MGMT_NAME, MGMT_USERNAME, MGMT_PASS, MGMT_IP, MGMT_TYPE, MGMT_PORT)
         for physical_machine in api.get_components('pmachines'):
             configure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])

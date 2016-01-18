@@ -1045,3 +1045,10 @@ if __name__ == '__main__':
                      hypervisor_ip=hypervisor_ip,
                      hypervisor_password=hypervisor_password,
                      hostname=hostname)
+    # TODO: remove this if when OVS-3984 is resolved
+    if hypervisor_type == "KVM":
+        con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
+        (exitcode, output) = con.process.execute("grep -c 'ovs' /etc/passwd")
+        if exitcode == 0 and output[0] == '1':
+            # user ovs exists
+            (exitcode, output) = con.process.execute("usermod -a -G ovs libvirt-qemu")
