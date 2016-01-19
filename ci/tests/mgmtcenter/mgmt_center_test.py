@@ -14,6 +14,7 @@
 
 from ci.tests.general import general
 from ci.tests.mgmtcenter import generic
+from nose.plugins.skip import SkipTest
 from ci import autotests
 from ci.tests.general.connection import Connection
 
@@ -39,6 +40,10 @@ def check_reachability_test():
     general.check_prereqs(testcase_number=1,
                           tests_to_run=testsToRun)
 
+    devstack_installed = generic.is_devstack_installed()
+    if devstack_installed is False:
+        raise SkipTest
+
     api = Connection.get_connection()
     management_centers = api.get_components('mgmtcenters')
     issues_found = ""
@@ -59,6 +64,10 @@ def management_center_connection_test():
     general.check_prereqs(testcase_number=2,
                           tests_to_run=testsToRun)
 
+    devstack_installed = generic.is_devstack_installed()
+    if devstack_installed is False:
+        raise SkipTest
+
     api = Connection.get_connection()
     management_centers = api.get_components('mgmtcenters')
     issues_found = ""
@@ -77,6 +86,10 @@ def check_configured_management_center_test():
 
     general.check_prereqs(testcase_number=3,
                           tests_to_run=testsToRun)
+
+    devstack_installed = generic.is_devstack_installed()
+    if devstack_installed is False:
+        raise SkipTest
 
     api = Connection.get_connection()
     management_centers = api.get_components('mgmtcenters')
@@ -97,6 +110,10 @@ def check_unconfigured_management_center_test():
 
     general.check_prereqs(testcase_number=4,
                           tests_to_run=testsToRun)
+
+    devstack_installed = generic.is_devstack_installed()
+    if devstack_installed is False:
+        raise SkipTest
 
     api = Connection.get_connection()
     management_centers = api.get_components('mgmtcenters')
