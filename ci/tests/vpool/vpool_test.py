@@ -93,7 +93,7 @@ def ovs_2263_verify_alba_namespace_cleanup_test():
     assert len(result) == 0, "Expected no namespaces present on the {1} backend, found {2}".format(no_namespaces, BACKEND_NAME, len(result))
 
 
-def ovs_2703_kill_various_services():
+def ovs_2703_kill_various_services_test():
     """
     Kill various services and see if they recover
     %s
