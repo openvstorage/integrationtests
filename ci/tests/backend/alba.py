@@ -34,7 +34,7 @@ logger.logger.propagate = False
 ALBA_BACKENDS = 'alba/backends'
 ALBA_NODES = 'alba/nodes'
 GRID_IP = test_config.get('main', 'grid_ip')
-ALBA_TIMER = 600
+ALBA_TIMER = 1800
 ALBA_TIMER_STEP = 5
 
 
