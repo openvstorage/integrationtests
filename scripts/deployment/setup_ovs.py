@@ -957,17 +957,26 @@ def handle_ovs_setup(public_ip, qualitylevel, cluster_name, hypervisor_type, hyp
     # 10 minutes to install ovs components
     child.timeout = 600
 
-    idx = 0
     try:
-        idx = child.expect(exit_script_mark)
-        return
+        # IP address to be used for the ASD API
+        idx = child.expect(["Select the public IP address to be used for the API", exit_script_mark])
+        if idx == 0:
+            pick_option(child, public_ip)
+            # port - default 8500
+            child.sendline("")
+            # IP addresses to be used for the ASDs - default all
+            child.sendline("")
+            # port to be used for the ASDs - default 8600
+            child.sendline("")
+        elif idx == 1:
+            return
     except:
         print
         print str(child)
         raise
     child.timeout = 180
     try:
-        child.expect("Setup complete")
+        child.expect(exit_script_mark)
     except:
         print "--- pexpect before:"
         print child.before
