@@ -520,7 +520,7 @@ def _get_cases(xml_file, testrail_api, project_ini, project_name, project_id):
             new_case = testrail_api.add_case(section_id=section_id, title=case_name)
             all_cases[suite_name].append(new_case)
 
-        ran_cases[suite_name] = ran_cases[suite_name].add(case) or \
+        ran_cases[suite_name] = ran_cases[suite_name].add(case_name) or \
             ran_cases[suite_name] if ran_cases.get(suite_name) else set([case_name])
 
     return all_cases, ran_cases, suite_name_to_id, section_name_to_id

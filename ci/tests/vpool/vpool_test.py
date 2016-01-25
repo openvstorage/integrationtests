@@ -21,12 +21,16 @@ from ci.tests.general.connection import Connection
 from ci.tests.general.general import test_config
 from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.pmachinelist import PMachineList
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.services.service import ServiceManager
 from ci.tests.vpool import generic
+from ci.tests.sanity import sanity_checks_test
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
 BACKEND_NAME = test_config.get('backend', 'name')
 BACKEND_TYPE = test_config.get('backend', 'type')
+ENV_IP = test_config.get('main', 'grid_ip')
 
 VPOOL_NAME = test_config.get('vpool', 'vpool_name')
 assert VPOOL_NAME, "Please fill out a valid vpool name in autotest.cfg file"
@@ -107,30 +111,39 @@ def ovs_2703_kill_various_services_test():
     if not vpool_list:
         generic.add_generic_vpool()
 
-    services_to_kill = [  # framework services
-                          'ovs-watcher-volumedriver',
-                          'ovs-watcher-framework',
-                          'ovs-webapp-api',
-                          'ovs-workers',
-                          # alba services
-                          'ovs-albaproxy',
-                          'alba-asdmanager']
+    services_folder = '/opt/OpenvStorage/config/templates/systemd/'
+    out, err = general.execute_command('ls {0}'.format(services_folder))
 
-    for service in services_to_kill:
-        out, err = general.execute_command("initctl list | grep {0}".format(service))
-        if not err and len(out):
-            service_status = out.split(' ')[1][:-1]
-            service_proc_id = out.split(' ')[3][:-1]
-            if service_status not in 'start/running':
-                issues_found += 'Service {0} not found in running state\n'.format(service)
-            else:
-                out, err = general.execute_command("kill -9 {0}".format(service_proc_id))
-                time.sleep(5)
-                out, err = general.execute_command("initctl list | grep {0}".format(service))
-                if len(out) == 0:
-                    issues_found += 'Service {0} not found after kill command issued\n'.format(service)
+    services_to_kill = out.splitlines()
+    for index in range(len(services_to_kill)):
+        services_to_kill[index] = services_to_kill[index].split('.')[0]
+
+    client = SSHClient(ENV_IP, username='root')
+
+    for master_service in services_to_kill:
+        all_services, err = general.execute_command("initctl list | grep {0}".format(master_service))
+        if not err and len(all_services):
+            for service in all_services.splitlines():
+                service_name = service.split(' ')[0]
+                if ServiceManager.has_service(service_name, client) is False:
+                    issues_found += 'Service {0} not modeled even if running on system\n'.format(service_name)
+                service_status = service.split(' ')[1][:-1]
+                service_proc_id = service.split(' ')[3][:-1]
+                if service_status not in 'start/running':
+                    issues_found += 'Service {0} not found in running state\n'.format(service)
                 else:
-                    if out.split(' ')[1][:-1] not in 'start/running':
-                        issues_found += 'Service {0} not found in running state after kill command issued\n'.format(service)
+                    out, err = general.execute_command("kill -9 {0}".format(service_proc_id))
+                    time.sleep(5)
+                    new_out, err = general.execute_command("initctl list | grep {0}".format(service_name))
+                    if len(new_out) == 0:
+                        issues_found += 'Service {0} not found after kill command issued\n'.format(service_name)
+                    else:
+                        if new_out.split(' ')[1][:-1] not in 'start/running':
+                            issues_found += 'Service {0} not found in running state after kill command issued\n'.format(service_name)
+                        if service_proc_id == new_out.split(' ')[3][:-1]:
+                            issues_found += 'Kill command did not work on service {0}'.format(service_name)
+
+    sanity_checks_test.check_vpool_sanity_test()
+    general.api_remove_vpool(VPOOL_NAME)
 
     assert issues_found == '', "Followind issues where found with the services:\n{0}".format(issues_found)
