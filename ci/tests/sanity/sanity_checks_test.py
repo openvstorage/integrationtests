@@ -23,10 +23,11 @@ from ci.tests.general import general
 from ci.tests.vpool import generic
 from ci.tests.general.general import test_config
 from ci.tests.backend import alba, generic as backend_generic
+from ci import autotests
+
 BACKEND_TYPE = test_config.get('backend', 'type')
 GRID_IP = test_config.get('main', 'grid_ip')
 assert BACKEND_TYPE in backend_generic.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
-from ci import autotests
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
 services_to_commands = {
@@ -369,7 +370,7 @@ def check_vpool_remove_sanity_test(vpool_name=''):
     {0}
     """.format(general.get_function_name())
 
-    general.check_prereqs(testcase_number=9,
+    general.check_prereqs(testcase_number=10,
                           tests_to_run=testsToRun)
 
     if not vpool_name:
@@ -446,7 +447,7 @@ def check_backend_removal_test(backend_name=''):
     {0}
     """.format(general.get_function_name())
 
-    general.check_prereqs(testcase_number=9,
+    general.check_prereqs(testcase_number=11,
                           tests_to_run=testsToRun)
 
     if not backend_name:
