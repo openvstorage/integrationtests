@@ -17,8 +17,10 @@ import time
 from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general.general import test_config
-from ovs.extensions.generic.system import System
 from ci.tests.general.logHandler import LogHandler
+from ovs.extensions.generic.system import System
+from ovs.lib.albascheduledtask import AlbaScheduledTaskController
+
 
 logger = LogHandler.get('backend', name='alba')
 logger.logger.propagate = False
@@ -232,7 +234,6 @@ def ovs_3769_validation_test():
     """
     Create an albanode with an asd statistics part set to {}
     Assert code does not raise
-    :return:
     """
 
     from ovs.dal.hybrids.albanode import AlbaNode
@@ -276,3 +277,28 @@ def ovs_3769_validation_test():
     an.delete()
     abe.delete()
     be.delete()
+
+
+def ovs_3188_verify_namespace_test():
+    nr_of_disks_to_create = 5
+    namespace_prefix = 'ovs_3188-'
+    compression = 'none'
+    encryption = 'none'
+    preset_name = 'be_preset_02'
+    policies = [[1, 1, 1, 2]]
+
+    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+    alba_backend_name = alba_backend['name']
+    alba.add_preset(alba_backend, preset_name, policies, compression, encryption)
+
+    for x in range(nr_of_disks_to_create):
+        namespace_name = namespace_prefix + str(x)
+        alba.create_namespace(alba_backend_name, namespace_name, preset_name)
+
+        alba.upload_file(alba_backend_name, namespace_name, 1024*1024*1)
+
+    AlbaScheduledTaskController.verify_namespaces()
+
+    alba.remove_alba_namespaces(alba_backend_name)
+    alba.remove_preset(alba_backend, preset_name)

@@ -39,7 +39,7 @@ ALBA_TIMER_STEP = 5
 
 
 def get_config(backend_name):
-    return '--config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg'.format(backend_name)
+    return '--config etcd://127.0.0.1:2379/ovs/arakoon/{0}-abm/config'.format(backend_name)
 
 
 def wait_for_disk_count_with_status(alba_backend_guid, nr_of_disks, status):
@@ -212,10 +212,10 @@ def get_alba_namespaces(name):
     if not generic.is_backend_present(name, 'alba'):
         return
 
-    cmd = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(name)
+    cmd = "alba list-namespaces {0} --to-json".format(get_config(name))
     out = execute_command(cmd)[0]
     out = json.loads(out)
-    logger.info( "output: {0}".format(out))
+    logger.info("output: {0}".format(out))
     if not out:
         logger.info("No backend present with name: {0}:\n".format(name))
         return
@@ -229,17 +229,17 @@ def get_alba_namespaces(name):
 
 
 def remove_alba_namespaces(name=""):
-    if not generic.is_backend_present(name):
+    if not generic.is_backend_present(name, 'alba'):
         return
 
-    cmd_delete = "alba delete-namespace --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg ".format(name)
+    cmd_delete = "alba delete-namespace {0} ".format(get_config(name))
     nss = get_alba_namespaces(name)
     logger.info("Namespaces present: {0}".format(str(nss)))
     fd_namespaces = list()
     for ns in nss:
-        if 'fd-' in ns:
+        if 'fd-' in ns['name']:
             fd_namespaces.append(ns)
-            logger.info("Skipping vpool namespace: {0}".format(ns))
+            logger.info("Skipping vpool namespace: {0}".format(ns['name']))
             continue
         logger.info("WARNING: Deleting leftover namespace: {0}".format(str(ns)))
         print execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')
