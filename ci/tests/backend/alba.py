@@ -232,14 +232,14 @@ def remove_alba_namespaces(name=""):
     if not generic.is_backend_present(name, 'alba'):
         return
 
-    cmd_delete = "alba delete-namespace {0}".format(get_config(name))
+    cmd_delete = "alba delete-namespace {0} ".format(get_config(name))
     nss = get_alba_namespaces(name)
     logger.info("Namespaces present: {0}".format(str(nss)))
     fd_namespaces = list()
     for ns in nss:
-        if 'fd-' in ns:
+        if 'fd-' in ns['name']:
             fd_namespaces.append(ns)
-            logger.info("Skipping vpool namespace: {0}".format(ns))
+            logger.info("Skipping vpool namespace: {0}".format(ns['name']))
             continue
         logger.info("WARNING: Deleting leftover namespace: {0}".format(str(ns)))
         print execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')

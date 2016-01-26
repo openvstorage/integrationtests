@@ -300,8 +300,5 @@ def ovs_3188_verify_namespace_test():
 
     AlbaScheduledTaskController.verify_namespaces()
 
-    print alba.list_namespaces(alba_backend_name)
-    #@todo namespaces are not removed
     alba.remove_alba_namespaces(alba_backend_name)
-    print alba.list_namespaces(alba_backend_name)
     alba.remove_preset(alba_backend, preset_name)
