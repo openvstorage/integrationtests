@@ -489,9 +489,9 @@ def _get_cases(xml_file, testrail_api, project_ini, project_name, project_id):
         if child.childNodes and child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest' and \
            child.childNodes[0].getAttribute('message') != BLOCKED_MESSAGE:
             continue
-        case = child.getAttribute('name')
-        match = re.search("c\d+_(.+)", case)
-        case = match.groups()[0] if match else case
+        case_name = child.getAttribute('name')
+        match = re.search("c\d+_(.+)", case_name)
+        case_name = match.groups()[0] if match else case_name
 
         previous_suite_name = suite_name
         suite_name = project_ini.get(project_name, option).split(';')[0]
@@ -499,12 +499,12 @@ def _get_cases(xml_file, testrail_api, project_ini, project_name, project_id):
         section_name = section_names[-1]
 
         if suite_name != previous_suite_name:
-            suite = testrail_api.get_suite_by_name(suite_name)
+            suite = testrail_api.get_suite_by_name(project_id, suite_name)
             suite_id = suite['id']
             suite_name_to_id[suite_name] = suite_id
             all_cases[suite_name] = testrail_api.get_cases(project_id, suite['id'])
 
-        section = testrail_api.get_section_by_name(section_name)
+        section = testrail_api.get_section_by_name(project_id, suite['id'], section_name)
 
         if suite['id'] not in all_sections:
             all_sections[suite['id']] = testrail_api.get_sections(project_id, suite['id'])
@@ -515,13 +515,13 @@ def _get_cases(xml_file, testrail_api, project_ini, project_name, project_id):
         else:
             section_name_to_id[suite_id] = {section_name: section_id}
         case_id = [case for case in all_cases[suite_name] if
-                   case['section_id'] == section_id and case['title'] == case]
+                   case['section_id'] == section_id and case['title'] == case_name]
         if not case_id:
-            new_case = testrail_api.add_case(section_id, case)
+            new_case = testrail_api.add_case(section_id=section_id, title=case_name)
             all_cases[suite_name].append(new_case)
 
-        ran_cases[suite_name] = ran_cases[suite_name].add(case) or \
-            ran_cases[suite_name] if ran_cases.get(suite_name) else set([case])
+        ran_cases[suite_name] = ran_cases[suite_name].add(case_name) or \
+            ran_cases[suite_name] if ran_cases.get(suite_name) else set([case_name])
 
     return all_cases, ran_cases, suite_name_to_id, section_name_to_id
 
@@ -603,8 +603,8 @@ def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
             raise Exception("Testsuite '%s' is not configured for project '%s' in '%s'" % (suite, project_name,
                                                                                            project_mapping_file))
 
-        suite_name = project_map.get(project_name, suite)
-
+        full_name = project_map.get(project_name, suite)
+        suite_name = full_name.split(';')[0]
         create_run = False
         if suite_name not in added_suites:
             create_run = True
