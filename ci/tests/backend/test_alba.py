@@ -13,17 +13,20 @@
 # limitations under the License.
 
 import time
-
 from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general.general import test_config
 from ci.tests.general.logHandler import LogHandler
 from ovs.extensions.generic.system import System
 from ovs.lib.albascheduledtask import AlbaScheduledTaskController
+from ci.tests.general import general
+from ci import autotests
 
 
 logger = LogHandler.get('backend', name='alba')
 logger.logger.propagate = False
+
+testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
 BACKEND_NAME = test_config.get('backend', 'name')
 BACKEND_TYPE = test_config.get('backend', 'type')
@@ -100,6 +103,12 @@ def add_preset(name, compression, encryption, policies, remove_when_finished=Tru
 
 
 def be_0001_add_and_verify_backend_is_running_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=1,
+                          tests_to_run=testsToRun)
     if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
     else:
@@ -110,6 +119,12 @@ def be_0001_add_and_verify_backend_is_running_test():
 
 
 def be_0002_add_remove_preset_no_compression_no_encryption_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=2,
+                          tests_to_run=testsToRun)
     compression = 'none'
     encryption = 'none'
     name = 'be_preset_02'
@@ -118,6 +133,12 @@ def be_0002_add_remove_preset_no_compression_no_encryption_test():
 
 
 def be_0003_add_remove_preset_compression_no_encryption_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=3,
+                          tests_to_run=testsToRun)
     name = 'be_preset_03'
     compression = 'bz2'
     encryption = 'none'
@@ -126,6 +147,12 @@ def be_0003_add_remove_preset_compression_no_encryption_test():
 
 
 def be_0004_validate_preset_with_replication_copies_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=4,
+                          tests_to_run=testsToRun)
     compression = 'none'
     encryption = 'none'
     name_prefix = 'be_preset_04'
@@ -136,6 +163,12 @@ def be_0004_validate_preset_with_replication_copies_test():
 
 
 def be_0005_add_remove_preset_no_compression_encryption_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=5,
+                          tests_to_run=testsToRun)
     name = 'be_preset_05'
     compression = 'none'
     encryption = 'aes-cbc-256'
@@ -144,6 +177,12 @@ def be_0005_add_remove_preset_no_compression_encryption_test():
 
 
 def be_0006_add_remove_preset_compression_encryption_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=6,
+                          tests_to_run=testsToRun)
     name = 'be_preset_06a'
     compression = 'bz2'
     encryption = 'aes-cbc-256'
@@ -158,7 +197,11 @@ def be_0006_add_remove_preset_compression_encryption_test():
 def be_0007_add_update_remove_preset_test():
     """
     Validation for OVS-3187 - edit policy of preset
-    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=7,
+                          tests_to_run=testsToRun)
     backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
 
@@ -214,7 +257,11 @@ def be_0007_add_update_remove_preset_test():
 def ovs_3490_add_remove_preset_test():
     """
     Adds and removes a preset with encryption to an existing alba backend
-    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=8,
+                          tests_to_run=testsToRun)
 
     name = 'ovs-3490'
     backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
@@ -232,9 +279,13 @@ def ovs_3490_add_remove_preset_test():
 
 def ovs_3769_validation_test():
     """
-    Create an albanode with an asd statistics part set to {}
+    Create an albanode with an asd statistics part set to empty dictionary
     Assert code does not raise
-    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=9,
+                          tests_to_run=testsToRun)
 
     from ovs.dal.hybrids.albanode import AlbaNode
     from ovs.dal.hybrids.albaasd import AlbaASD

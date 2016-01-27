@@ -13,6 +13,10 @@
 # limitations under the License.
 
 import os
+from ci.tests.general import general
+from ci import autotests
+
+testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
 alternative_first_lines = ["Copyright 2014 iNuron NV", "Copyright 2015 iNuron NV", "Copyright 2016 iNuron NV"]
 license_to_check = """Copyright 2014 iNuron NV
@@ -125,6 +129,13 @@ def get_comment_style(fextension):
 
 
 def check_license_headers_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=1,
+                          tests_to_run=testsToRun)
+
     license_splitlines = license_to_check.splitlines()
     files_with_diff_licenses = ''
     for root_folder in folders_to_check:

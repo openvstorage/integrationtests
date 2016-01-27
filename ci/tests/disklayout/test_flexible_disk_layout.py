@@ -19,9 +19,11 @@ from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.system import System
 from ovs.lib.disk import DiskController
 from ovs.lib.storagerouter import StorageRouterController
-
 from ci.tests.general import general
 from ci.tests.general.connection import Connection
+from ci import autotests
+
+testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
 log = logging.getLogger('test_flexible_disk_layout')
 vpool_name = general.test_config.get("vpool", "vpool_name")
@@ -49,7 +51,11 @@ def teardown():
 def fdl_0000_disklayout_prerequisites_test():
     """
     FDL-0000 - prerequisite tests for complete test suite
-    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=1,
+                          tests_to_run=testsToRun)
     __continue_testing.state = True
     pass
 
@@ -57,7 +63,11 @@ def fdl_0000_disklayout_prerequisites_test():
 def fdl_0001_match_model_with_reality_test():
     """
     FDL-0001 - disks in ovs model should match actual physical disk configuration
-    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=2,
+                          tests_to_run=testsToRun)
     if not __continue_testing.state:
         raise SkipTest()
 
@@ -120,7 +130,11 @@ def fdl_0002_add_remove_partition_with_role_and_crosscheck_model_test():
     - validate ovs model is correctly updated with DB role
     - cleanup that partition
     - verify ovs model is correctly updated
-    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=3,
+                          tests_to_run=testsToRun)
 
     if not __continue_testing.state:
         raise SkipTest()

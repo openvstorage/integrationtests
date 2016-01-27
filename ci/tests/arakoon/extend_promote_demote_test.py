@@ -26,10 +26,10 @@
 #
 
 from ConfigParser import RawConfigParser
-
 from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general import general
+from ci import autotests
 from ci.tests.general import general_ovs
 from ci.tests.general.logHandler import LogHandler
 from nose.plugins.skip import SkipTest
@@ -37,10 +37,10 @@ from nose.tools import assert_raises, assert_false, assert_true
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller, ArakoonClusterConfig
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.storagedriver import StorageDriverController
-
 import os
 from StringIO import StringIO
 
+testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
 logger = LogHandler.get('arakoon', name='setup')
 logger.logger.propagate = False
@@ -288,6 +288,13 @@ def validate_arakoon_config_files(pmachines, path=None, config=None):
 
 
 def ar_0001_validate_create_extend_shrink_delete_cluster_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=1,
+                          tests_to_run=testsToRun)
+
     if not len(PMACHINES) >= 3:
         raise SkipTest()
 
@@ -348,6 +355,13 @@ def ar_0001_validate_create_extend_shrink_delete_cluster_test():
 
 
 def ar_0002_arakoon_cluster_validation_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=2,
+                          tests_to_run=testsToRun)
+
     if not len(PMACHINES) >= 2:
         raise SkipTest()
 
@@ -355,6 +369,13 @@ def ar_0002_arakoon_cluster_validation_test():
 
 
 def ovs_3554_4_node_cluster_config_validation_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=3,
+                          tests_to_run=testsToRun)
+
     if not len(PMACHINES) >= 4:
         raise SkipTest()
 
@@ -362,6 +383,12 @@ def ovs_3554_4_node_cluster_config_validation_test():
 
 
 def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=4,
+                          tests_to_run=testsToRun)
 
     node_ips = [ip for ip in PMACHINES.keys()]
     node_ips.sort()
@@ -410,6 +437,12 @@ def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_test():
 
 
 def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_and_extend_test():
+    """
+    {0}
+    """.format(general.get_function_name())
+
+    general.check_prereqs(testcase_number=5,
+                          tests_to_run=testsToRun)
 
     node_ips = [ip for ip in PMACHINES.keys()]
     node_ips.sort()
@@ -465,4 +498,3 @@ def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_and_extend_te
         are_files_present_on(client, archived_files)
         are_files_missing_on(client, files_to_create)
         is_arakoon_dir_config_structure_cleaned_up(ip, cluster_name, cluster_basedir)
-
