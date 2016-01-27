@@ -146,4 +146,4 @@ def ovs_2703_kill_various_services_test():
     sanity_checks_test.check_vpool_sanity_test()
     general.api_remove_vpool(VPOOL_NAME)
 
-    assert issues_found == '', "Followind issues where found with the services:\n{0}".format(issues_found)
+    assert issues_found == '', "Following issues where found with the services:\n{0}".format(issues_found)
