@@ -41,6 +41,7 @@ def setup():
 
 
 def teardown():
+    general.api_remove_vpool(VPOOL_NAME)
     generic.remove_alba_backend()
 
 
