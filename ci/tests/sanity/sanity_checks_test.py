@@ -34,7 +34,7 @@ services_to_commands = {
     "nginx": "ps aux |grep [/]usr/sbin/nginx",
     "rabbitmq-server": "ps aux |grep [r]abbitmq-server",
     "memcached": "ps aux |grep [m]emcached",
-    "ovs-arakoon-ovsdb": "ps aux |grep [o]vsdb| grep -v config",
+    "ovs-arakoon-ovsdb": "ps aux |grep [o]vsdb",
     "ovs-snmp": "ps aux | grep [o]vssnmp",
     "ovs-support-agent": "ps aux | grep [s]upport/agent",
     "ovs-volumerouter-consumer": "ps aux | grep [v]olumerouter",
@@ -122,9 +122,9 @@ def system_services_check_test():
             errors += "Error executing command to get {0} info:{1}\n".format(service_to_check, err)
         else:
             if len(out):
-                errors += "Couldn't find any {0} running process:{1}".format(service_to_check, out)
-            else:
                 services_checked += "{0}\n".format(service_to_check)
+            else:
+                errors += "Couldn't find any {0} running process:{1}".format(service_to_check, out)
 
     print services_checked
     assert len(errors) == 0, "Found the following errors while checking for the system services:{0}\n".format(errors)
@@ -138,16 +138,22 @@ def config_files_check_test():
     general.check_prereqs(testcase_number=4,
                           tests_to_run=testsToRun)
 
-    config_files = {
-        "memcacheclient.cfg": "/opt/OpenvStorage/config/memcacheclient.cfg",
-        "rabbitmqclient.cfg": "/opt/OpenvStorage/config/rabbitmqclient.cfg",
-        "ovsdb.cfg": "/opt/OpenvStorage/config/arakoon/ovsdb/ovsdb.cfg"
+    issues_found = ''
+
+    edct_keys = {
+        "memcache",
+        "rabbitmq",
+        "ovsdb/config"
     }
 
-    for config_file_to_check in config_files.iterkeys():
-        out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(config_files[config_file_to_check]))
-        assert len(err) == 0, "Error executing command to get {0} info:{1}".format(config_file_to_check, err)
-        assert 'not' not in out, "Couldn't find {0}".format(config_file_to_check)
+    for key_to_check in edct_keys:
+        out, err = general.execute_command('etcdctl ls --recursive /ovs | grep {0}'.format(key_to_check))
+        if len(err):
+            issues_found += "Error executing command to get {0} info:{1}\n".format(key_to_check, err)
+        if 'not' in out:
+            issues_found += "Couldn't find {0}\n".format(key_to_check)
+
+    assert issues_found == '', "Found the following issues while checking for the config files:{0}\n".format(issues_found)
 
 
 def json_files_check_test():
@@ -158,17 +164,21 @@ def json_files_check_test():
     general.check_prereqs(testcase_number=5,
                           tests_to_run=testsToRun)
 
-    out, err = general.execute_command("cat /opt/OpenvStorage/config/ovs.json")
-    assert len(err) == 0, "Error found when trying to read ovs.json file:\n{0}".format(err)
+    issues_found = ''
+
+    out, err = general.execute_command("etcdctl ls --recursive /ovs | grep setupcompleted")
+    assert len(err) == 0, "Error found when to get setupcompleted key:\n{0}".format(err)
     lines = out.splitlines()
-    setup_completed_found = False
 
     for line in lines:
-        if "setupcompleted" in line:
-            setup_completed_found = True
-            assert "true" in line, "OVS setup complete flag has the wrong value:\n{0}".format(line)
+        out, err = general.execute_command("etcdctl get {0}".format(line))
+        if err:
+            issues_found += "Error trying to run {0}\n".format(err)
+        else:
+            if "true" not in out:
+                issues_found += "Setup not completed for {0}".format(line)
 
-    assert setup_completed_found, "OVS setup complete flag was never found in ovs.json file"
+    assert issues_found == '', "Found the following issues while checking for the setupcompleted:{0}\n".format(issues_found)
 
 
 # backend setup validation
@@ -205,10 +215,10 @@ def check_backend_services_test():
 
     # TODO: more than 1 backends present
     # TODO: different backends not just alba
+    issues_found = ''
 
     my_backend_name = backends_present_on_env[0].name
-    backend_services = ["ovs-alba-rebalancer_{0}".format(my_backend_name),
-                        "ovs-alba-maintenance_{0}".format(my_backend_name),
+    backend_services = ["ovs-alba-maintenance_{0}".format(my_backend_name),
                         "ovs-arakoon-{0}-abm".format(my_backend_name),
                         "ovs-arakoon-{0}-nsm_0".format(my_backend_name)]
 
@@ -218,7 +228,10 @@ def check_backend_services_test():
     for status_line in statuses:
         for service_to_check in backend_services:
             if service_to_check in status_line:
-                assert "running" in status_line, "Backend service {0} not running.Has following status:{1}\n ".format(service_to_check, status_line)
+                if "running" not in status_line:
+                    issues_found += "Backend service {0} not running.Has following status:{1}\n ".format(service_to_check, status_line)
+
+    assert issues_found == '', "Found the following issues while checking for the config files:{0}\n".format(issues_found)
 
 
 def check_backend_files_test():
@@ -233,37 +246,29 @@ def check_backend_files_test():
     if len(backends_present_on_env) == 0:
         raise SkipTest()
 
+    issues_found = ''
+
     my_backend_name = backends_present_on_env[0].name
-    files_to_check = ["/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg".format(my_backend_name),
-                      "/opt/OpenvStorage/config/arakoon/{0}-nsm_0/{0}-nsm_0.cfg".format(my_backend_name),
-                      "/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-rebalancer.json".format(my_backend_name),
-                      "/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-maintenance.json".format(my_backend_name)]
+    files_to_check = ["ovs/arakoon/{0}-abm/config".format(my_backend_name),
+                      "ovs/arakoon/{0}-nsm_0/config".format(my_backend_name)]
 
     # check single or multinode setup
     env_ips = autotests._get_ips()
     if len(env_ips) == 1:
         # check files
         for file_to_check in files_to_check:
-            out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(file_to_check))
-            assert len(err) == 0, "Error executing command to get {0} info:{1}".format(file_to_check, err)
-            assert 'not' not in out, "Couldn't find {0}".format(file_to_check)
+            out, err = general.execute_command('etcdctl ls --recursive /ovs | grep {0}'.format(file_to_check))
+            if len(err):
+                issues_found += "Error executing command to get {0} info:{1}\n".format(file_to_check, err)
+            else:
+                if len(out) == 0:
+                    issues_found += "Couldn't find {0}\n".format(file_to_check)
         # check cluster arakoon master
-        out_abm, err = general.execute_command("/usr/bin/arakoon --who-master -config {0}".format(files_to_check[0]))
-        out_nsm, err = general.execute_command("/usr/bin/arakoon --who-master -config {0}".format(files_to_check[1]))
-        assert len(out_abm) and len(out_nsm), "No arakoon master found in config files"
-    else:
-        nsm_config_file_found = False
-        for node_ip in env_ips:
-            out = general.execute_command_on_node(node_ip, '[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(files_to_check[0]))
-            assert 'not' not in out, "Couldn't find {0} on node {1}".format(files_to_check[0], node_ip)
-            out = general.execute_command_on_node(node_ip, '[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(files_to_check[1]))
-            if 'not' not in out:
-                nsm_config_file_found = True
-                out_nsm = general.execute_command_on_node(node_ip, "/usr/bin/arakoon --who-master -config {0}".format(files_to_check[1]))
-                assert len(out_nsm), "No arakoon master found in the namespace manager config file found on node {0}".format(node_ip)
-            out_abm = general.execute_command_on_node(node_ip, "/usr/bin/arakoon --who-master -config {0}".format(files_to_check[0]))
-            assert len(out_abm), "No arakoon master found in the alba manager config file on {0}".format(node_ip)
-        assert nsm_config_file_found, "No namespace manager config file found on any of the nodes"
+        out, err = general.execute_command("arakoon --who-master -config etcd://127.0.0.1:2379/ovs/arakoon/ovsdb/config")
+        if len(out) == 0:
+            issues_found += "No arakoon master found in config files\n"
+    # @TODO: check to see multi node setup
+    assert issues_found == '', "Found the following issues while checking for the config files:{0}\n".format(issues_found)
 
 
 def check_vpool_sanity_test(vpool_name=''):
@@ -284,10 +289,8 @@ def check_vpool_sanity_test(vpool_name=''):
                       "ovs-dtl_{0}".format(vpool_name),
                       "ovs-volumedriver_{0}".format(vpool_name)]
 
-    vpool_config_files = ["/opt/OpenvStorage/config/arakoon/voldrv/voldrv.cfg",
-                          "/opt/OpenvStorage/config/storagedriver/storagedriver/{0}.json".format(vpool_name),
-                          "/opt/OpenvStorage/config/storagedriver/storagedriver/{0}_alba.cfg".format(vpool_name),
-                          "/opt/OpenvStorage/config/storagedriver/storagedriver/{0}_alba.json".format(vpool_name)]
+    vpool_config_files = ["/ovs/arakoon/voldrv/config"]
+    # @TODO: check for more config files?
 
     storagedriver_partitions = {"WRITE": {"SCO": False,
                                           "FD": False,
@@ -300,16 +303,11 @@ def check_vpool_sanity_test(vpool_name=''):
                                 "SCRUB": {"None": False}}
 
     directories_to_check = ["/mnt/{0}/".format(vpool_name)]
-    # TODO: extend the check to all folders created for vpool (/mnt/storage, /mnt/ssd)
 
     # check vpool is modeled
     vpool = VPoolList.get_vpool_by_name(vpool_name)
-    # TODO: think of a way to skip the test if there's no vpool to check(mainly for full autotest runs)
-    if not vpool:
-        raise SkipTest()
-    # assert vpool.name == vpool_name, "No vpool found modeled with {0} name".format(vpool_name)
+    assert vpool.name == vpool_name, "No vpool found modeled with {0} name".format(vpool_name)
 
-    # @TODO check services on each node after implementing vpool extension to all nodes
     env_ips = [GRID_IP]
     # env_ips = autotests._get_ips()
     for node_ip in env_ips:
@@ -318,10 +316,10 @@ def check_vpool_sanity_test(vpool_name=''):
             if "running" not in out:
                 issues_found += "Vpool service {0} not running.Has following status:{1}\n ".format(vpool_service, out)
         for config_file_to_check in vpool_config_files:
-            out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(config_file_to_check))
+            out, err = general.execute_command('etcdctl ls --recursive /ovs | grep {0}'.format(config_file_to_check))
             if len(err):
                 issues_found += "Error executing command to get {0} info:{1}".format(config_file_to_check, err)
-            if 'not' in out:
+            if len(out) == 0:
                 issues_found += "Couldn't find {0} on node {1}".format(config_file_to_check, node_ip)
 
     # WRITE/FCACHE only for alba
