@@ -31,14 +31,14 @@ assert BACKEND_TYPE in backend_generic.VALID_BACKEND_TYPES, "Please fill out a v
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
 services_to_commands = {
-    "nginx": "ps aux |grep [/]usr/sbin/nginx",
-    "rabbitmq-server": "ps aux |grep [r]abbitmq-server",
-    "memcached": "ps aux |grep [m]emcached",
-    "ovs-arakoon-ovsdb": "ps aux |grep [o]vsdb",
-    "ovs-snmp": "ps aux | grep [o]vssnmp",
-    "ovs-support-agent": "ps aux | grep [s]upport/agent",
-    "ovs-volumerouter-consumer": "ps aux | grep [v]olumerouter",
-    "ovs-watcher-framework": "ps aux | grep [w]atcher | grep framework"
+    "nginx": "grep usr/sbin/nginx",
+    "rabbitmq-server": "grep rabbitmq-server",
+    "memcached": "grep memcached",
+    "ovs-arakoon-ovsdb": "grep ovsdb",
+    "ovs-snmp": "grep ovssnmp",
+    "ovs-support-agent": "grep support/agent",
+    "ovs-volumerouter-consumer": "grep volumerouter",
+    "ovs-watcher-framework": "grep watcher"
 }
 
 
@@ -117,14 +117,14 @@ def system_services_check_test():
     services_checked = 'Following services found running:\n'
 
     for service_to_check in services_to_commands.iterkeys():
-        out, err = general.execute_command(services_to_commands[service_to_check])
+        out, err = general.execute_command('ps aux |{0}|grep -v grep'.format(services_to_commands[service_to_check]))
         if len(err):
             errors += "Error executing command to get {0} info:{1}\n".format(service_to_check, err)
         else:
             if len(out):
                 services_checked += "{0}\n".format(service_to_check)
             else:
-                errors += "Couldn't find any {0} running process:{1}".format(service_to_check, out)
+                errors += "Couldn't find {0} running process\n".format(service_to_check)
 
     print services_checked
     assert len(errors) == 0, "Found the following errors while checking for the system services:{0}\n".format(errors)
@@ -140,17 +140,17 @@ def config_files_check_test():
 
     issues_found = ''
 
-    edct_keys = {
+    etcd_keys = {
         "memcache",
         "rabbitmq",
         "ovsdb/config"
     }
 
-    for key_to_check in edct_keys:
+    for key_to_check in etcd_keys:
         out, err = general.execute_command('etcdctl ls --recursive /ovs | grep {0}'.format(key_to_check))
         if len(err):
             issues_found += "Error executing command to get {0} info:{1}\n".format(key_to_check, err)
-        if 'not' in out:
+        if len(out) == 0:
             issues_found += "Couldn't find {0}\n".format(key_to_check)
 
     assert issues_found == '', "Found the following issues while checking for the config files:{0}\n".format(issues_found)
