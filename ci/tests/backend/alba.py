@@ -19,6 +19,7 @@ import tempfile
 import time
 
 from ci.tests.backend import generic
+from ci.tests.general import general
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import execute_command
 from ci.tests.general.general import get_physical_disks
@@ -140,6 +141,10 @@ def add_alba_backend(name):
     else:
         backend = generic.get_backend_by_name_and_type(name, 'alba')
         backend_guid = backend['guid']
+
+    out, err = general.execute_command('etcdctl ls /ovs/alba/asdnodes')
+    if err == '' and len(out):
+        AlbaNodeController.model_local_albanode()
 
     return backend_guid
 
