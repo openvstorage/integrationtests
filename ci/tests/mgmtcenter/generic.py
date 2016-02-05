@@ -31,7 +31,7 @@ def is_devstack_installed():
     client = SSHClient('127.0.0.1', username='root')
     is_openstack = ServiceManager.has_service(OSManager.get_openstack_cinder_service_name(), client)
     is_devstack = 'stack' in str(client.run('ps aux | grep SCREEN | grep stack | grep -v grep || true'))
-    return is_openstack and is_devstack
+    return is_openstack or is_devstack
 
 
 def create_mgmt_center(name, username, password, ip, center_type, port):
