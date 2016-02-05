@@ -237,9 +237,10 @@ def validate_arakoon_config_files(pmachines, config=None):
         out = general.execute_command_on_node(ip, cmd)
         for entry in out.splitlines():
             ar_config = entry
-            md5_sum, name = general.execute_command('etcdctl get {0} | md5sum'.format(entry))
-            if 'nsm_' not in ar_config:
-                matrix[ip][ar_config] = md5_sum.split(' ')
+            md5_sum, err = general.execute_command('etcdctl get {0} | md5sum'.format(entry))
+            if not len(err):
+                if 'nsm_' not in ar_config:
+                    matrix[ip][ar_config] = md5_sum.split(' ')[0]
         if is_master_node(ip):
             nr_of_configs_on_master = len(matrix[ip])
         else:
