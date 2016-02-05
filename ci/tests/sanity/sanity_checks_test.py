@@ -18,6 +18,7 @@ from nose.plugins.skip import SkipTest
 from ovs.dal.lists.backendlist import BackendList
 from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.pmachinelist import PMachineList
+from ovs.extensions.generic.sshclient import SSHClient
 from ci.tests.general.connection import Connection
 from ci.tests.general import general
 from ci.tests.vpool import generic
@@ -31,14 +32,14 @@ assert BACKEND_TYPE in backend_generic.VALID_BACKEND_TYPES, "Please fill out a v
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
 services_to_commands = {
-    "nginx": "grep usr/sbin/nginx",
-    "rabbitmq-server": "grep rabbitmq-server",
-    "memcached": "grep memcached",
-    "ovs-arakoon-ovsdb": "grep ovsdb",
-    "ovs-snmp": "grep ovssnmp",
-    "ovs-support-agent": "grep support/agent",
-    "ovs-volumerouter-consumer": "grep volumerouter",
-    "ovs-watcher-framework": "grep watcher"
+    "nginx": """ps -efx|grep nginx|grep -v grep""",
+    "rabbitmq-server": """ps -ef|grep rabbitmq-|grep -v grep""",
+    "memcached": """ps -ef|grep memcached|grep -v grep""",
+    "ovs-arakoon-ovsdb": """initctl list| grep ovsdb""",
+    "ovs-snmp": """initctl list| grep ovs-snmp""",
+    "ovs-support-agent": """initctl list| grep support""",
+    "ovs-volumerouter-consumer": """initctl list| grep volumerou""",
+    "ovs-watcher-framework": """initctl list| grep watcher-fr"""
 }
 
 
@@ -115,11 +116,12 @@ def system_services_check_test():
 
     errors = ''
     services_checked = 'Following services found running:\n'
+    client = SSHClient(GRID_IP, username='root')
 
     for service_to_check in services_to_commands.iterkeys():
-        out, err = general.execute_command('ps aux |{0}|grep -v grep'.format(services_to_commands[service_to_check]))
+        out, err = client.run(services_to_commands[service_to_check], debug=True)
         if len(err):
-            errors += "Error executing command to get {0} info:{1}\n".format(service_to_check, err)
+            errors += "Error when trying to run {0}:\n{1}".format(services_to_commands[service_to_check], err)
         else:
             if len(out):
                 services_checked += "{0}\n".format(service_to_check)
@@ -142,7 +144,6 @@ def config_files_check_test():
 
     etcd_keys = {
         "memcache",
-        "rabbitmq",
         "ovsdb/config"
     }
 
@@ -152,6 +153,16 @@ def config_files_check_test():
             issues_found += "Error executing command to get {0} info:{1}\n".format(key_to_check, err)
         if len(out) == 0:
             issues_found += "Couldn't find {0}\n".format(key_to_check)
+
+    config_files = {
+        "rabbitmq.config": "/etc/rabbitmq/rabbitmq.config",
+    }
+
+    for config_file_to_check in config_files.iterkeys():
+        out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(config_files[config_file_to_check]))
+        assert len(err) == 0, "Error executing command to get {0} info:{1}".format(config_file_to_check, err)
+        if 'not' in out:
+            issues_found += "Couldn't find {0}\n".format(config_file_to_check)
 
     assert issues_found == '', "Found the following issues while checking for the config files:{0}\n".format(issues_found)
 
