@@ -16,6 +16,9 @@ import os
 import time
 from nose.plugins.skip import SkipTest
 from ovs.dal.lists.backendlist import BackendList
+from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
+from ovs.dal.lists.storagerouterlist import StorageRouterList
+from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.pmachinelist import PMachineList
 from ovs.extensions.generic.sshclient import SSHClient
@@ -28,6 +31,8 @@ from ci import autotests
 
 BACKEND_TYPE = test_config.get('backend', 'type')
 GRID_IP = test_config.get('main', 'grid_ip')
+SSH_USER = 'root'
+SSH_PASS = test_config.get('mgmtcenter', 'password')
 assert BACKEND_TYPE in backend_generic.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
@@ -116,7 +121,7 @@ def system_services_check_test():
 
     errors = ''
     services_checked = 'Following services found running:\n'
-    client = SSHClient(GRID_IP, username='root')
+    client = SSHClient(GRID_IP, username=SSH_USER, password=SSH_PASS)
 
     for service_to_check in services_to_commands.iterkeys():
         out, err = client.run(services_to_commands[service_to_check], debug=True)
@@ -143,25 +148,21 @@ def config_files_check_test():
     issues_found = ''
 
     etcd_keys = {
-        "memcache",
-        "ovsdb/config"
+        "/ovs/framework/memcache",
+        "/ovs/arakoon/ovsdb/config"
     }
 
     for key_to_check in etcd_keys:
-        out, err = general.execute_command('etcdctl ls --recursive /ovs | grep {0}'.format(key_to_check))
-        if len(err):
-            issues_found += "Error executing command to get {0} info:{1}\n".format(key_to_check, err)
-        if len(out) == 0:
+        if not EtcdConfiguration.exists(key_to_check, raw = True):
             issues_found += "Couldn't find {0}\n".format(key_to_check)
 
     config_files = {
         "rabbitmq.config": "/etc/rabbitmq/rabbitmq.config",
     }
 
+    client = SSHClient(GRID_IP, username=SSH_USER, password=SSH_PASS)
     for config_file_to_check in config_files.iterkeys():
-        out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(config_files[config_file_to_check]))
-        assert len(err) == 0, "Error executing command to get {0} info:{1}".format(config_file_to_check, err)
-        if 'not' in out:
+        if not client.file_exists(config_files[config_file_to_check]):
             issues_found += "Couldn't find {0}\n".format(config_file_to_check)
 
     assert issues_found == '', "Found the following issues while checking for the config files:{0}\n".format(issues_found)
@@ -177,17 +178,11 @@ def json_files_check_test():
 
     issues_found = ''
 
-    out, err = general.execute_command("etcdctl ls --recursive /ovs | grep setupcompleted")
-    assert len(err) == 0, "Error found when to get setupcompleted key:\n{0}".format(err)
-    lines = out.splitlines()
-
-    for line in lines:
-        out, err = general.execute_command("etcdctl get {0}".format(line))
-        if err:
-            issues_found += "Error trying to run {0}\n".format(err)
-        else:
-            if "true" not in out:
-                issues_found += "Setup not completed for {0}".format(line)
+    srs = StorageRouterList.get_storagerouters()
+    for sr in srs:
+        config_contents = EtcdConfiguration.get('/ovs/framework/hosts/{0}/setupcompleted'.format(sr.machine_id), raw = True)
+        if "true" not in config_contents:
+            issues_found += "Setup not completed for node {0}\n".format(sr.name)
 
     assert issues_found == '', "Found the following issues while checking for the setupcompleted:{0}\n".format(issues_found)
 
@@ -275,7 +270,7 @@ def check_backend_files_test():
                 if len(out) == 0:
                     issues_found += "Couldn't find {0}\n".format(file_to_check)
         # check cluster arakoon master
-        out, err = general.execute_command("arakoon --who-master -config etcd://127.0.0.1:2379/ovs/arakoon/ovsdb/config")
+        out, err = general.execute_command("arakoon --who-master -config {0}".format(ArakoonInstaller.ETCD_CONFIG_PATH.format('ovsdb')))
         if len(out) == 0:
             issues_found += "No arakoon master found in config files\n"
     # @TODO: check to see multi node setup
@@ -421,22 +416,19 @@ def check_vpool_remove_sanity_test(vpool_name=''):
     env_ips = autotests._get_ips()
 
     for node_ip in env_ips:
-        out = general.execute_command_on_node(node_ip, "initctl list | grep ovs")
+        client = SSHClient(node_ip, username=SSH_USER, password=SSH_PASS)
         for vpool_service in vpool_services:
-            if vpool_service in out:
-                issues_found += "Vpool service {0} still running.Has following status:{1}\n ".format(vpool_service, out)
+            out = general.execute_command_on_node(node_ip, "initctl list | grep ovs")
+            for line in out.splitlines():
+                if vpool_service in line:
+                    issues_found += "Vpool service {0} still running.Has following status:{1}\n ".format(vpool_service, line)
         for config_file_to_check in vpool_config_files:
-            out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(config_file_to_check))
-            if len(err):
-                issues_found += "Error executing command to get {0} info:{1}".format(config_file_to_check, err)
-            if 'not' not in out:
+            if client.file_exists(config_file_to_check):
                 issues_found += "{0} file still present on node {1}".format(config_file_to_check, node_ip)
 
+    client = SSHClient(GRID_IP, username=SSH_USER, password=SSH_PASS)
     for directory in directories_to_check:
-        out, err = general.execute_command('[ -d {0} ] && echo "Dir exists" || echo "Dir does not exists"'.format(directory))
-        if len(err):
-            issues_found += "Error executing command to get {0} info:{1}".format(directory, err)
-        if 'not' not in out:
+        if client.dir_exists(directory):
             issues_found += "Directory {0} still present".format(directory)
 
     if vpool:
@@ -494,17 +486,10 @@ def check_backend_removal_test(backend_name=''):
 
     # check single or multinode setup
     env_ips = autotests._get_ips()
-    if len(env_ips) == 1:
-        # check files
+    for node_ip in env_ips:
+        client = SSHClient(node_ip, username=SSH_USER, password=SSH_PASS)
         for file_to_check in files_to_check:
-            out, err = general.execute_command('[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(file_to_check))
-            if 'not' not in out:
-                issues_found += "File {0} still present after backend {1} removal\n".format(file_to_check, backend_name)
-    else:
-        for node_ip in env_ips:
-            for file_to_check in files_to_check:
-                out = general.execute_command_on_node(node_ip, '[ -f {0} ] && echo "File exists" || echo "File does not exists"'.format(file_to_check))
-                if 'not' not in out:
-                    issues_found += "File {0} still present after backend {1} removal on node {2}\n".format(file_to_check, backend_name, node_ip)
+            if client.file_exists(file_to_check):
+                issues_found += "File {0} still present after backend {1} removal on node {2}\n".format(file_to_check, backend_name, node_ip)
 
     assert issues_found == '', "Following issues where found with the backend:\n{0}".format(issues_found)

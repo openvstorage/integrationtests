@@ -34,10 +34,12 @@ from ci.tests.general import general_ovs
 from ci.tests.general.logHandler import LogHandler
 from nose.plugins.skip import SkipTest
 from nose.tools import assert_raises, assert_false, assert_true
-from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller, ArakoonClusterConfig
+from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.storagedriver import StorageDriverController
+from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 import os
+import hashlib
 from StringIO import StringIO
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
@@ -52,7 +54,6 @@ MASTER_IPS = [ip for ip in PMACHINES.keys() if PMACHINES[ip]['node_type'] == 'MA
 MASTER_IPS.sort()
 
 BASE_DIR = '/var/tmp'
-BASE_KEY_DIR = '/ovs/arakoon'
 
 TEST_CLEANUP = ['{0}/arakoon/OVS*'.format(BASE_DIR), '/etc/init/ovs-arakoon-OVS_*',
                 '/var/log/arakoon/ar_00*', '/var/log/arakoon/OVS_*',
@@ -66,15 +67,17 @@ KEY_CLEANUP = ['ar_0001',
 def check_archived_directory(client, archived_files):
     for archived_file in archived_files:
         file_found = False
-        archived_directory = archived_file[:archived_file.rfind('/')]
-        archived_file_name = archived_file[archived_file.rfind('/') + 1:]
+        archived_file = archived_file.rstrip('/')
+        archived_directory = os.path.dirname(archived_file)
+        archived_file_name = os.path.basename(archived_file)
         if client.dir_exists(archived_directory):
             files_in_directory = client.file_list(archived_directory)
-            for file in files_in_directory:
-                if file.endswith('.tgz'):
-                    out = client.run('tar -tf {0}/{1}'.format(archived_directory, file))
-                    if archived_file_name in out:
-                        file_found = True
+            # checking just the last file
+            file_name = files_in_directory[-1]
+            if file_name.endswith('.tgz'):
+                out = client.run('tar -tf {0}/{1}'.format(archived_directory, file_name))
+                if archived_file_name in out:
+                    file_found = True
         if file_found is False:
             return False
     return True
@@ -144,40 +147,37 @@ def teardown():
             general.execute_command_on_node(ip, cmd)
 
     for key in KEY_CLEANUP:
-        cmd = 'etcdctl rm /ovs/arakoon/{0} --recursive'.format(key)
-        general.execute_command(cmd)
+        if EtcdConfiguration.exists('{0}/{1}'.format(ArakoonInstaller.ETCD_CONFIG_ROOT, key), raw = True):
+            EtcdConfiguration.delete('{0}/{1}'.format(ArakoonInstaller.ETCD_CONFIG_ROOT, key))
 
 
 def is_arakoon_dir_config_structure_cleaned_up(ip, cluster_name, base_dir='/mnt/storage'):
-    config_file = ArakoonClusterConfig.ETCD_CONFIG_KEY.format(cluster_name)
     tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format(base_dir, cluster_name)
     log_dir = ArakoonInstaller.ARAKOON_LOG_DIR.format(cluster_name)
     home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format(base_dir, cluster_name)
 
     client = SSHClient(ip, username='root')
-    assert_false(config_key_exists_on_node(ip, config_file)),\
+    assert_false(config_key_exists_on_node(cluster_name)),\
         "Arakoon configuration in etcdctl still exists on {0}".format(ip)
     for directory in [tlog_dir, home_dir, log_dir]:
         assert_false(client.dir_exists(directory)),\
             "Arakoon directory {0} still exists on {1}".format(directory, ip)
 
 
-def config_key_exists_on_node(ip, config_file):
-    out = general.execute_command_on_node(ip, 'etcdctl ls {0} --recursive'.format(BASE_KEY_DIR))
-    for key in out.splitlines():
-        if key == config_file:
-            return True
-    return False
+def config_key_exists_on_node(cluster_name):
+    if EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(cluster_name), raw = True):
+        return True
+    else:
+        return False
 
 
 def is_arakoon_dir_config_structure_client_only(ip, cluster_name, base_dir='/mnt/storage'):
-    config_file = ArakoonClusterConfig.ETCD_CONFIG_KEY.format(cluster_name)
     tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format(base_dir, cluster_name)
     log_dir = ArakoonInstaller.ARAKOON_LOG_DIR.format(cluster_name)
     home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format(base_dir, cluster_name)
 
     client = SSHClient(ip)
-    assert_true(config_key_exists_on_node(ip, config_file)),\
+    assert_true(config_key_exists_on_node(cluster_name)),\
         "Arakoon configuration in etcdctl no longer exists on {0}".format(ip)
 
     for directory in [tlog_dir, home_dir, log_dir]:
@@ -186,13 +186,12 @@ def is_arakoon_dir_config_structure_client_only(ip, cluster_name, base_dir='/mnt
 
 
 def is_arakoon_dir_config_structure_present(ip, cluster_name, base_dir='/mnt/storage'):
-    config_file = ArakoonClusterConfig.ETCD_CONFIG_KEY.format(cluster_name)
     tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format(base_dir, cluster_name)
     log_dir = ArakoonInstaller.ARAKOON_LOG_DIR.format(cluster_name)
     home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format(base_dir, cluster_name)
 
     client = SSHClient(ip, username='ovs')
-    assert_true(config_key_exists_on_node(ip, config_file)),\
+    assert_true(config_key_exists_on_node(cluster_name)),\
         "Arakoon configuration in etcdctl doesn't exists on {0}".format(ip)
     for directory in [tlog_dir, home_dir, log_dir]:
         assert_true(client.dir_exists(directory)),\
@@ -200,8 +199,8 @@ def is_arakoon_dir_config_structure_present(ip, cluster_name, base_dir='/mnt/sto
 
 
 def cleanup_arakoon_client_config_files(cluster_name):
-    config_dir = ArakoonClusterConfig.ETCD_CONFIG_KEY.format(cluster_name)[:-7]
-    general.execute_command('etcdctl rm {0} --recursive'.format(config_dir))
+    if EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(cluster_name), raw = True):
+        EtcdConfiguration.delete(os.path.dirname(ArakoonInstaller.ETCD_CONFIG_KEY.format(cluster_name)))
 
 
 def validate_arakoon_config_files(pmachines, config=None):
@@ -227,20 +226,20 @@ def validate_arakoon_config_files(pmachines, config=None):
             node_ids[ip] = out
         else:
             extra_ips.append(ip)
-
+        configs_to_check = []
         matrix[ip] = dict()
         if config:
-            cmd = "etcdctl ls / --recursive | grep arakoon | grep config | grep {0}".format(config)
+            if EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(config), raw = True):
+                configs_to_check = [ArakoonInstaller.ETCD_CONFIG_KEY.format(config)]
         else:
-            cmd = """etcdctl ls / --recursive | grep arakoon | grep config"""
-        logger.info("validate cmd: {0}".format(cmd))
-        out = general.execute_command_on_node(ip, cmd)
-        for entry in out.splitlines():
-            ar_config = entry
-            md5_sum, err = general.execute_command('etcdctl get {0} | md5sum'.format(entry))
-            if not len(err):
-                if 'nsm_' not in ar_config:
-                    matrix[ip][ar_config] = md5_sum.split(' ')[0]
+            gen = EtcdConfiguration.list(ArakoonInstaller.ETCD_CONFIG_ROOT)
+            for entry in gen:
+                if 'nsm_' not in entry:
+                    if EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(config), raw = True):
+                        configs_to_check.append(ArakoonInstaller.ETCD_CONFIG_KEY.format(entry))
+        for config_name in configs_to_check:
+            config_contents = EtcdConfiguration.get(configs_to_check[0], raw = True)
+            matrix[ip][config_name] = hashlib.md5(config_contents).hexdigest()
         if is_master_node(ip):
             nr_of_configs_on_master = len(matrix[ip])
         else:
@@ -260,18 +259,15 @@ def validate_arakoon_config_files(pmachines, config=None):
             incorrect_nodes.append(ip)
     assert len(incorrect_nodes) == 0, "Incorrect nr of configs on nodes: {0}".format(incorrect_nodes)
 
-    md5_matrix = dict()
+    md5sum_matrix = dict()
     incorrect_configs = list()
     for cfg in matrix[ips[0]]:
         for ip in ips:
-            # nsm configs are not present on extra nodes
-            if ip in extra_ips and 'nsm_' in cfg:
-                continue
-            if cfg not in md5_matrix:
-                md5_matrix[cfg] = matrix[ip][cfg]
-            elif matrix[ip][cfg] != md5_matrix[cfg]:
+            if cfg not in md5sum_matrix:
+                md5sum_matrix[cfg] = matrix[ip][cfg]
+            elif matrix[ip][cfg] != md5sum_matrix[cfg]:
                 incorrect_configs.append("Incorrect contents {0} for {1} on {2}, expected {3}"
-                                         .format(matrix[ip][cfg], ip, cfg, md5_matrix[cfg]))
+                                         .format(matrix[ip][cfg], ip, cfg, md5sum_matrix[cfg]))
 
     assert len(incorrect_configs) == 0, 'Incorrect arakoon config contents: \n{0}'.format('\n'.join(incorrect_configs))
 
@@ -280,9 +276,7 @@ def validate_arakoon_config_content(config_file, node_ids):
     ips = node_ids.keys()
     ips.sort()
 
-    first_ip = ips[0]
-    client = SSHClient(first_ip, username='root')
-    contents = client.run('etcdctl get {0}'.format(config_file))
+    contents = EtcdConfiguration.get(config_file, raw = True)
     cfg = RawConfigParser()
     cfg.readfp(StringIO(contents))
 
