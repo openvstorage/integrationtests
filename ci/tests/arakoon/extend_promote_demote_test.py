@@ -165,10 +165,7 @@ def is_arakoon_dir_config_structure_cleaned_up(ip, cluster_name, base_dir='/mnt/
 
 
 def config_key_exists_on_node(cluster_name):
-    if EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(cluster_name), raw = True):
-        return True
-    else:
-        return False
+    return EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(cluster_name), raw = True)
 
 
 def is_arakoon_dir_config_structure_client_only(ip, cluster_name, base_dir='/mnt/storage'):
