@@ -14,7 +14,6 @@
 
 import json
 import os
-
 from uuid import uuid4
 from ovs.dal.lists.albabackendlist import AlbaBackendList
 
@@ -38,10 +37,10 @@ def _config_asd(asd_id, port, path, node_id, slow):
     global local_nodeid_prefix
     cfg_path = path + "/asd.json"
     dump_to_cfg_as_json(cfg_path, {'asd_id': asd_id,
-                                   'port' : port,
-                                   'node_id' : node_id,
-                                   'home' : "%s/data" % path,
-                                   'log_level' : 'debug'})
+                                   'port': port,
+                                   'node_id': node_id,
+                                   'home': "%s/data" % path,
+                                   'log_level': 'debug'})
     cmd = [alba_bin, 'asd-start', "--config", cfg_path]
     if slow:
         cmd.append('--slow')

@@ -24,9 +24,7 @@ import stat
 import subprocess
 import sys
 import time
-
 sys.path.append(os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts"))
-
 from nose.plugins.skip import SkipTest
 from ovs.dal.lists.backendlist import BackendList
 from ovs.dal.lists.pmachinelist import PMachineList
@@ -38,10 +36,8 @@ from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.system import System
 from ovs.lib.setup import SetupController
 from ovs.lib.storagerouter import StorageRouterController
-
 import general_hypervisor
 from ci import autotests
-
 import debug
 import paramiko
 

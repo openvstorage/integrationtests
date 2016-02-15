@@ -19,11 +19,8 @@ import paramiko
 import urllib
 import urlparse
 from xml.dom import minidom
-
 from ci import autotests
 import general
-
-
 from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.vmachinelist import VMachineList
 from ovs.dal.lists.pmachinelist import PMachineList
@@ -216,9 +213,9 @@ class Vmware(HypervisorBase):
         HypervisorBase.__init__(self)
         self.vpool = vpool
         self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
-        hypervisorInfo = autotests.get_hypervisor_info()
-        assert hypervisorInfo, "No hypervisor info specified use autotests.set_hypervisor_info"
-        self.sdk = Vmware_sdk(*hypervisorInfo)
+        hypervisor_info = autotests.get_hypervisor_info()
+        assert hypervisor_info, "No hypervisor info specified use autotests.set_hypervisor_info"
+        self.sdk = Vmware_sdk(*hypervisor_info)
 
     def create_vm(self, name, cpus=1, ram=1024):
         # not sure if its the proper way to get the datastore

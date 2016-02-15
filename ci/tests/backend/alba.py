@@ -17,7 +17,6 @@ import os
 import random
 import tempfile
 import time
-
 from ci.tests.backend import generic
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import execute_command
@@ -44,6 +43,7 @@ def get_config(backend_name):
 
 def wait_for_disk_count_with_status(alba_backend_guid, nr_of_disks, status):
     counter = ALBA_TIMER / ALBA_TIMER_STEP
+    disks_with_status = []
     while counter > 0:
         logger.info('counter: {0}'.format(counter))
         all_disks = get_all_disks(alba_backend_guid)
@@ -215,7 +215,7 @@ def get_alba_namespaces(name):
     cmd = "alba list-namespaces --config /opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg --to-json".format(name)
     out = execute_command(cmd)[0]
     out = json.loads(out)
-    logger.info( "output: {0}".format(out))
+    logger.info("output: {0}".format(out))
     if not out:
         logger.info("No backend present with name: {0}:\n".format(name))
         return

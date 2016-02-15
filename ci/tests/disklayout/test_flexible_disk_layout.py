@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import logging
-
 from nose.plugins.skip import SkipTest
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.system import System
@@ -76,8 +75,6 @@ def fdl_0001_match_model_with_reality_test():
     physical_disks = dict()
     modelled_disks = dict()
     loops = dict()
-
-    my_sr = System.get_my_storagerouter()
 
     api = Connection.get_connection()
 

@@ -15,7 +15,6 @@
 import logging
 import time
 import datetime
-
 from browser_ovs import BrowserOvs
 from ovs.dal.lists.vmachinelist import VMachineList
 from ci.tests.general import general_hypervisor

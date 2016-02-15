@@ -19,12 +19,10 @@ import os
 import re
 import time
 import urllib2
-
 from splinter.browser import Browser
 from splinter.driver import webdriver
 from splinter.exceptions import ElementDoesNotExist
 from selenium.webdriver.common.keys import Keys
-
 from ci.tests.general import general
 from ci import autotests
 

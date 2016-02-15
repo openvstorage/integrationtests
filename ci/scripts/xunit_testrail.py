@@ -62,7 +62,6 @@ import ConfigParser
 from time import time
 from xml.sax import saxutils
 from StringIO import StringIO
-
 from ci.scripts import testrailapi
 from nose.exc import SkipTest
 from nose.loader import TestLoader
@@ -145,7 +144,10 @@ def name_to_testrail_format(test_name):
 def format_durations(dur):
     if not dur:
         return ""
-    nice_time = lambda x: str(datetime.timedelta(seconds=int(x)))
+
+    def nice_time(x):
+        return str(datetime.timedelta(seconds=int(x)))
+
     splits = dur.split("|")
     if len(splits) == 3:
         return "Past Runs Avg: " + nice_time(splits[2]) + " Min: " + nice_time(splits[0]) +\
@@ -176,7 +178,7 @@ class Tee(object):
         return False
 
 
-class xunit_testrail(Plugin):
+class XunitTestrail(Plugin):
     """This plugin provides test results in the standard XUnit XML format."""
     name = 'xunit_testrail'
     score = 2000
@@ -360,14 +362,14 @@ class xunit_testrail(Plugin):
         sys.stdout = Tee(self.encoding, self._currentStdout, sys.stdout)
         sys.stderr = Tee(self.encoding, self._currentStderr, sys.stderr)
 
-    def startContext(self, context):
+    def start_context(self, context):
         pass
 
-    def stopContext(self, context):
+    def stop_context(self, context):
         pass
 
-    def beforeTest(self, _):
-        log.info('beforeTest...')
+    def before_test(self, _):
+        log.info('before_test...')
         """Initializes a timer before starting a test."""
         self._timer = time()
         self._start_capture()
@@ -379,8 +381,8 @@ class xunit_testrail(Plugin):
             pprint.pprint(self._capture_stack)
             sys.stdout, sys.stderr = self._capture_stack.pop()
 
-    def afterTest(self, _):
-        log.info('afterTest...')
+    def after_test(self, _):
+        log.info('after_test...')
         self._end_capture()
         self._currentStdout = None
         self._currentStderr = None
@@ -403,7 +405,7 @@ class xunit_testrail(Plugin):
                 return '<system-err><![CDATA[%s]]></system-err>' % escape_cdata(value)
         return ''
 
-    def startTest(self, test):
+    def start_test(self, test):
         """Initializes a timer before starting a test."""
         assert test, "Test should be defined before trying to start a testrun ..."
 
@@ -440,8 +442,8 @@ class xunit_testrail(Plugin):
                 self.fullsuite_name = suite_name
                 reload_cases = False
                 for test_entry_name in all_testnames:
+                    found = False
                     for case in all_cases:
-                        found = False
                         if case['section_id'] == section_id and case['title'] == test_entry_name:
                             found = True
                             break
@@ -494,7 +496,7 @@ class xunit_testrail(Plugin):
                             "\ntest_id: " + test_id if test_id else 'UNKNOWN' +
                             "\n\n")
 
-    def addError(self, test, err, capt=None):
+    def add_error(self, test, err, capt=None):
         """
         Add error output to Xunit report.
         """
@@ -519,7 +521,7 @@ class xunit_testrail(Plugin):
              'errtype': self._quoteattr(nice_classname(err[0])),
              'message': self._quoteattr(exc_message(err)),
              'tb': escape_cdata(tb),
-            })
+             })
 
         if self.testrailIp:
             elapsed = '%ss' % (int(taken) or 1)
@@ -542,7 +544,7 @@ class xunit_testrail(Plugin):
                 with open(CRASH_FILE_LOG, "a") as f:
                     f.write(exception_text + "\n\n")
 
-    def addFailure(self, test, err):
+    def add_failure(self, test, err):
         """Add failure output to Xunit report.
         """
         taken = self._time_taken()
@@ -559,7 +561,7 @@ class xunit_testrail(Plugin):
              'errtype': self._quoteattr(nice_classname(err[0])),
              'message': self._quoteattr(exc_message(err)),
              'tb': escape_cdata(tb),
-            })
+             })
 
         if self.testrailIp:
             elapsed = (int(taken) or 1)
@@ -582,7 +584,7 @@ class xunit_testrail(Plugin):
                 with open(CRASH_FILE_LOG, "a") as f:
                     f.write(exception_text + "\n\n")
 
-    def addSuccess(self, test, capt=None):
+    def add_success(self, test, capt=None):
         """Add success output to Xunit report.
         """
         taken = self._time_taken()

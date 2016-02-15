@@ -21,6 +21,7 @@ import logging
 import os
 from ci.tests.general.general import test_config
 
+
 def _ignore_formatting_errors():
     """
     Decorator to ignore formatting errors during logging
@@ -99,8 +100,8 @@ class LogHandler(object):
         if not os.path.exists(log_path):
             os.mkdir(log_path)
         log_filename = '{0}/{1}.log'.format(log_path,
-            LogHandler.targets[source] if source in LogHandler.targets else test_config.get('logger', 'default_file')
-        )
+                                            LogHandler.targets[source] if source in LogHandler.targets else test_config.get('logger', 'default_file')
+                                            )
         if not os.path.exists(log_filename):
             open(log_filename, 'a').close()
             os.chmod(log_filename, 0o666)

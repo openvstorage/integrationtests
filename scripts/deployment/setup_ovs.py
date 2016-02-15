@@ -154,31 +154,31 @@ def run_deploy_ovs(hypervisor_ip, hypervisor_password, sdk, cli, vifs):
     child.expect('Specify the size in GB')
     child.sendline('')
 
-    SELECT_SSD = "Select an SSD device"
-    SELECT_HDD = "Select an HDD device"
-    idx = child.expect([SELECT_SSD, SELECT_HDD, "~ #"])
+    select_ssd = "Select an SSD device"
+    select_hdd = "Select an HDD device"
+    idx = child.expect([select_ssd, select_hdd, "~ #"])
     if idx in [0, 1]:
         child.expect("Select Nr:")
         child.sendline("1")
 
-        idx = child.expect([SELECT_HDD, "~ #"])
+        idx = child.expect([select_hdd, "~ #"])
         if idx == 0:
             child.expect("Select Nr:")
             child.sendline("1")
             child.expect("~ #")
 
-    vmObjects = q.tools.installerci.get_vm_objects_esx(sdk, ['name', 'config'])
-    vmObj = [v for v in vmObjects if v.name == OVS_NAME]
-    assert vmObj, "DeployOvs script failed to create vm"
-    vmObj = vmObj[0]
+    vmobjects = q.tools.installerci.get_vm_objects_esx(sdk, ['name', 'config'])
+    vmobj = [v for v in vmobjects if v.name == OVS_NAME]
+    assert vmobj, "DeployOvs script failed to create vm"
+    vmobj = vmobj[0]
 
-    storageEthAdapter = [dev for dev in vmObj.config.hardware.device if dev.deviceInfo.summary == STORAGE_NET_NAME]
-    storageEthAdapter = storageEthAdapter[0]
+    storage_eth_adapter = [dev for dev in vmobj.config.hardware.device if dev.deviceInfo.summary == STORAGE_NET_NAME]
+    storage_eth_adapter = storage_eth_adapter[0]
 
-    publicEthAdapter = [dev for dev in vmObj.config.hardware.device if dev.deviceInfo.summary == PUBLIC_NET_NAME]
-    publicEthAdapter = publicEthAdapter[0]
+    public_eth_adapter = [dev for dev in vmobj.config.hardware.device if dev.deviceInfo.summary == PUBLIC_NET_NAME]
+    public_eth_adapter = public_eth_adapter[0]
 
-    return vmObj, storageEthAdapter, publicEthAdapter
+    return vmobj, storage_eth_adapter, public_eth_adapter
 
 
 def configure_alba(hypervisor_ip, public_ip, alba_deploy_type, license, backend_name):
@@ -653,10 +653,10 @@ def deploy_ovsvsa_vmware(public_ip, hypervisor_ip, hypervisor_password, dns, pub
     cli = q.hypervisors.cmdtools.esx.cli.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
     vifs = q.hypervisors.cmdtools.esx.vifs.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
     sdk = q.hypervisors.cmdtools.esx.sdk.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
-    vmObj, storageEthAdapter, publicEthAdapter = run_deploy_ovs(hypervisor_ip, hypervisor_password, sdk, cli, vifs)
+    vmobj, storage_eth_adapter, public_eth_adapter = run_deploy_ovs(hypervisor_ip, hypervisor_password, sdk, cli, vifs)
     q.tools.installerci.shutdown_vm_esx(sdk, OVS_NAME)
     q.tools.installerci.poweron_vm_esx(sdk, OVS_NAME)
-    storage_nic_mac = storageEthAdapter.macAddress
+    storage_nic_mac = storage_eth_adapter.macAddress
     command = "python /opt/qbase5/utils/ubuntu_autoinstall.py -M {public_mac_address} \
 -m {storage_nic_mac} \
 -d {dns} \
@@ -670,7 +670,7 @@ def deploy_ovsvsa_vmware(public_ip, hypervisor_ip, hypervisor_password, dns, pub
 -v {UBUNTU_ISO} \
 -o {hostname} \
 -S {storage_ip_last_octet}"
-    command = command.format(public_mac_address=publicEthAdapter.macAddress,
+    command = command.format(public_mac_address=public_eth_adapter.macAddress,
                              storage_nic_mac=storage_nic_mac,
                              dns=dns,
                              public_ip=public_ip,
@@ -931,15 +931,15 @@ def handle_ovs_setup(public_ip, qualitylevel, cluster_name, hypervisor_type, hyp
     # 5 minutes to partition disks
     child.timeout = 300
 
-    PROVIDE_ROOT_PWDS = True
-    while PROVIDE_ROOT_PWDS:
+    provide_root_pwds = True
+    while provide_root_pwds:
         idx = child.expect(["Which type of hypervisor is this Grid Storage Router",
                             "Which type of hypervisor is this Storage Router backing",
                             "Password:"])
         if idx == 2:
             child.sendline(UBUNTU_PASSWORD)
         else:
-            PROVIDE_ROOT_PWDS = False
+            provide_root_pwds = False
 
     pick_option(child, hypervisor_type.upper())
     child.expect("Enter hypervisor hostname")

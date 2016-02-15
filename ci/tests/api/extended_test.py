@@ -14,9 +14,7 @@
 
 import os
 import time
-
 from nose.plugins.skip import SkipTest
-
 from ci.tests.general import general
 from ci import autotests
 

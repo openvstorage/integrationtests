@@ -25,9 +25,7 @@ import StringIO
 import subprocess
 import ConfigParser
 from xml.dom import minidom
-
 import nose
-
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
 
@@ -154,7 +152,7 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
     _run_tests(arguments)
 
 
-def pushToTestrail(project_name, _, output_folder, version=None, filename="", milestone="", comment=""):
+def push_to_testrail(project_name, _, output_folder, version=None, filename="", milestone="", comment=""):
     """
     Push xml file with test results to Testrail
     """
@@ -280,7 +278,7 @@ def _run_tests(arguments):
     """
     Run the tests
     """
-    nose.run(argv=arguments, addplugins=[xunit_testrail.xunit_testrail()])
+    nose.run(argv=arguments, addplugins=[xunit_testrail.XunitTestrail()])
 
 
 def list_tests(args=None):
