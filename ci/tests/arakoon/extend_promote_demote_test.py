@@ -59,6 +59,25 @@ TEST_CLEANUP = ['{0}/arakoon/OVS*'.format(BASE_DIR), '/etc/init/ovs-arakoon-OVS_
                 '{0}/arakoon/ar_00*'.format(BASE_DIR)]
 
 
+def check_archived_directory(client, archived_files):
+    for archived_file in archived_files:
+        file_found = False
+        archived_file = archived_file.rstrip('/')
+        archived_directory = os.path.dirname(archived_file)
+        archived_file_name = os.path.basename(archived_file)
+        if client.dir_exists(archived_directory):
+            files_in_directory = client.file_list(archived_directory)
+            # checking just the last file
+            file_name = files_in_directory[-1]
+            if file_name.endswith('.tgz'):
+                out = client.run('tar -tf {0}/{1}'.format(archived_directory, file_name))
+                if archived_file_name in out:
+                    file_found = True
+        if file_found is False:
+            return False
+    return True
+
+
 def are_files_present_on(client, files):
     for filename in files:
         assert client.file_exists(filename) == True, 'File {0} not present'.format(filename)
@@ -416,22 +435,20 @@ def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_test():
     client.file_create(files_to_create)
     are_files_present_on(client, files_to_create)
 
-    archived_files = ['/'.join([cluster_basedir, 'arakoon', 'archive', cluster_name, 'db', 'one.db']),
-                      '/'.join([cluster_basedir, 'arakoon', 'archive', cluster_name, 'tlogs', 'one.tlog']),
-                      '/'.join(['/var/log', 'arakoon', 'archive', cluster_name, 'one.log'])]
+    archived_files = ['/'.join(['/var/log', 'arakoon', cluster_name, 'archive', 'one.log'])]
 
     logger.info('===================================================')
     logger.info('setup and validate single node cluster')
     ArakoonInstaller.create_cluster(cluster_name, first_ip, cluster_basedir)
     validate_arakoon_config_files(get_cluster_pmachines([first_ip]), cluster_basedir, cluster_name)
     is_arakoon_dir_config_structure_present(first_ip, cluster_name, cluster_basedir)
-    are_files_present_on(client, archived_files)
+    check_archived_directory(client, archived_files)
     are_files_missing_on(client, files_to_create)
 
     logger.info('===================================================')
     logger.info('remove cluster')
     ArakoonInstaller.delete_cluster(cluster_name, first_ip)
-    are_files_present_on(client, archived_files)
+    check_archived_directory(client, archived_files)
     are_files_missing_on(client, files_to_create)
     is_arakoon_dir_config_structure_cleaned_up(first_ip, cluster_name, cluster_basedir)
 
@@ -474,9 +491,7 @@ def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_and_extend_te
         client.file_create(files_to_create)
         are_files_present_on(client, files_to_create)
 
-        archived_files = ['/'.join([cluster_basedir, 'arakoon', 'archive', cluster_name, 'db', 'one.db']),
-                          '/'.join([cluster_basedir, 'arakoon', 'archive', cluster_name, 'tlogs', 'one.tlog']),
-                          '/'.join(['/var/log', 'arakoon', 'archive', cluster_name, 'one.log'])]
+        archived_files = ['/'.join(['/var/log', 'arakoon', 'archive', cluster_name, 'one.log'])]
 
         logger.info('===================================================')
         logger.info('setup and validate single node cluster')
@@ -486,7 +501,7 @@ def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_and_extend_te
             ArakoonInstaller.extend_cluster(first_ip, ip, cluster_name, cluster_basedir)
         validate_arakoon_config_files(get_cluster_pmachines([ip]), cluster_basedir, cluster_name)
         is_arakoon_dir_config_structure_present(ip, cluster_name, cluster_basedir)
-        are_files_present_on(client, archived_files)
+        check_archived_directory(client, archived_files)
         are_files_missing_on(client, files_to_create)
 
     logger.info('===================================================')
@@ -495,6 +510,6 @@ def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_and_extend_te
 
     for ip in node_ips:
         client = SSHClient(ip, username='ovs')
-        are_files_present_on(client, archived_files)
+        check_archived_directory(client, archived_files)
         are_files_missing_on(client, files_to_create)
         is_arakoon_dir_config_structure_cleaned_up(ip, cluster_name, cluster_basedir)
