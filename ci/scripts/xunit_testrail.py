@@ -362,13 +362,13 @@ class XunitTestrail(Plugin):
         sys.stdout = Tee(self.encoding, self._currentStdout, sys.stdout)
         sys.stderr = Tee(self.encoding, self._currentStderr, sys.stderr)
 
-    def start_context(self, context):
+    def startContext(self, context):
         pass
 
-    def stop_context(self, context):
+    def stopContext(self, context):
         pass
 
-    def before_test(self, _):
+    def beforeTest(self, _):
         log.info('before_test...')
         """Initializes a timer before starting a test."""
         self._timer = time()
@@ -381,7 +381,7 @@ class XunitTestrail(Plugin):
             pprint.pprint(self._capture_stack)
             sys.stdout, sys.stderr = self._capture_stack.pop()
 
-    def after_test(self, _):
+    def afterTest(self, _):
         log.info('after_test...')
         self._end_capture()
         self._currentStdout = None
@@ -405,7 +405,7 @@ class XunitTestrail(Plugin):
                 return '<system-err><![CDATA[%s]]></system-err>' % escape_cdata(value)
         return ''
 
-    def start_test(self, test):
+    def startTest(self, test):
         """Initializes a timer before starting a test."""
         assert test, "Test should be defined before trying to start a testrun ..."
 
@@ -496,7 +496,7 @@ class XunitTestrail(Plugin):
                             "\ntest_id: " + test_id if test_id else 'UNKNOWN' +
                             "\n\n")
 
-    def add_error(self, test, err, capt=None):
+    def addError(self, test, err, capt=None):
         """
         Add error output to Xunit report.
         """
@@ -544,7 +544,7 @@ class XunitTestrail(Plugin):
                 with open(CRASH_FILE_LOG, "a") as f:
                     f.write(exception_text + "\n\n")
 
-    def add_failure(self, test, err):
+    def addFailure(self, test, err):
         """Add failure output to Xunit report.
         """
         taken = self._time_taken()
@@ -584,7 +584,7 @@ class XunitTestrail(Plugin):
                 with open(CRASH_FILE_LOG, "a") as f:
                     f.write(exception_text + "\n\n")
 
-    def add_success(self, test, capt=None):
+    def addSuccess(self, test, capt=None):
         """Add success output to Xunit report.
         """
         taken = self._time_taken()
