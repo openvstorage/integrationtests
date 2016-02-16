@@ -13,15 +13,17 @@
 # limitations under the License.
 
 import time
+from ci import autotests
 from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general.general import test_config
 from ci.tests.general.logHandler import LogHandler
-from ovs.extensions.generic.system import System
-from ovs.lib.albascheduledtask import AlbaScheduledTaskController
 from ci.tests.general import general
-from ci import autotests
-
+from ovs.dal.lists.albanodelist import AlbaNodeList
+from ovs.extensions.db.etcd.configuration import EtcdConfiguration as etcd
+from ovs.extensions.generic.system import System
+from ovs.lib.albanodecontroller import AlbaNodeController
+from ovs.lib.albascheduledtask import AlbaScheduledTaskController
 
 logger = LogHandler.get('backend', name='alba')
 logger.logger.propagate = False
@@ -44,7 +46,7 @@ def setup():
     if not backend:
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
         backend = generic.get_backend(backend_guid)
-    alba.claim_disks(backend['alba_backend_guid'], NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
+    # alba.claim_disks(backend['alba_backend_guid'], NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
 
 
 def teardown():
@@ -353,3 +355,47 @@ def ovs_3188_verify_namespace_test():
 
     alba.remove_alba_namespaces(alba_backend_name)
     alba.remove_preset(alba_backend, preset_name)
+
+
+def ovs_3977_maintenance_agent_test():
+
+    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+    name = alba_backend['name']
+
+    alba_node_ips = [node.ip for node in AlbaNodeList.get_albanodes()]
+
+    def get_total_nr_of_agents(name):
+        total = 0
+        for ip in alba_node_ips:
+            count = general.execute_command_on_node(ip, 'ls /etc/init/ovs-alba-maintenance_{0}-* | wc -l'.format(name))
+            if count:
+                count = int(count)
+            else:
+                count = 0
+            total += count
+        return total
+
+    etcd_key = '/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend['guid'])
+    nr_of_agents = etcd.get(etcd_key)
+    print '1. - nr of agents: {0}'.format(nr_of_agents)
+
+    actual_nr_of_agents = get_total_nr_of_agents(name)
+    assert nr_of_agents == actual_nr_of_agents, \
+        'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
+
+    # set nr to zero
+    etcd.set(etcd_key, 0)
+    AlbaNodeController.checkup_maintenance_agents()
+    assert get_total_nr_of_agents(name) == 0, \
+        'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
+    print '2. - nr of agents: {0}'.format(nr_of_agents)
+
+    # set nr to 10
+    etcd.set(etcd_key, 10)
+    AlbaNodeController.checkup_maintenance_agents()
+    assert get_total_nr_of_agents(name) == 10, \
+        'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
+    print '3. - nr of agents: {0}'.format(nr_of_agents)
+
+    # @todo check keys are cleaned up in etcd
