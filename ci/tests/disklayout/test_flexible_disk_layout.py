@@ -69,7 +69,7 @@ def fdl_0001_match_model_with_reality_test():
     general.check_prereqs(testcase_number=2,
                           tests_to_run=testsToRun)
     if not __continue_testing.state:
-        raise SkipTest()
+        raise SkipTest('Test suite signaled to stop')
 
     DiskController.sync_with_reality()
 
@@ -137,7 +137,7 @@ def fdl_0002_add_remove_partition_with_role_and_crosscheck_model_test():
                           tests_to_run=testsToRun)
 
     if not __continue_testing.state:
-        raise SkipTest()
+        raise SkipTest('Test suite signaled to stop')
 
     my_sr = System.get_my_storagerouter()
 

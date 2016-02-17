@@ -98,7 +98,7 @@ def check_prereqs(testcase_number, tests_to_run):
     @return:                  None
     """
     if 0 not in tests_to_run and testcase_number not in tests_to_run:
-        raise SkipTest()
+        raise SkipTest('Test number {0} not in the list of running tests.'.format(testcase_number))
 
 
 def get_tests_to_run(test_level):

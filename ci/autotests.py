@@ -51,6 +51,7 @@ class TestRunnerOutputFormat(object):
 TESTRAIL_STATUS_ID_PASSED = '1'
 TESTRAIL_STATUS_ID_BLOCKED = '2'
 TESTRAIL_STATUS_ID_FAILED = '5'
+TESTRAIL_STATUS_ID_SKIPPED = '11'
 
 BLOCKED_MESSAGE = "BLOCKED"
 
@@ -596,8 +597,6 @@ def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
         if child.childNodes and "SkipTest" in child.childNodes[0].getAttribute('type'):
             if child.childNodes[0].getAttribute('message') == BLOCKED_MESSAGE:
                 is_blocked = True
-            else:
-                continue
 
         if not project_map.has_option(project_name, suite):
             raise Exception("Testsuite '%s' is not configured for project '%s' in '%s'" % (suite, project_name,
@@ -642,14 +641,14 @@ def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
         comment = ''
         if not child.childNodes:
             status_id = TESTRAIL_STATUS_ID_PASSED
-        elif child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest':
+        elif child.childNodes[0].getAttribute('type') == 'unittest.case.SkipTest':
             if is_blocked:
                 status_id = TESTRAIL_STATUS_ID_BLOCKED
-                if child.childNodes[0].childNodes and \
-                   child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
-                    comment = child.childNodes[0].childNodes[0].data
             else:
-                continue
+                status_id = TESTRAIL_STATUS_ID_SKIPPED
+            if child.childNodes[0].childNodes and \
+               child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
+                comment = child.childNodes[0].childNodes[0].data
         else:
             status_id = TESTRAIL_STATUS_ID_FAILED
             if child.childNodes[0].childNodes and \

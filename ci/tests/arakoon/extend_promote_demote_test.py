@@ -296,7 +296,7 @@ def ar_0001_validate_create_extend_shrink_delete_cluster_test():
                           tests_to_run=testsToRun)
 
     if not len(PMACHINES) >= 3:
-        raise SkipTest()
+        raise SkipTest('Environment has only {0} node(s)'.format(len(PMACHINES)))
 
     node_ips = [ip for ip in PMACHINES.keys()]
     node_ips.sort()
@@ -363,7 +363,7 @@ def ar_0002_arakoon_cluster_validation_test():
                           tests_to_run=testsToRun)
 
     if not len(PMACHINES) >= 2:
-        raise SkipTest()
+        raise SkipTest('Environment has only {0} node(s)'.format(len(PMACHINES)))
 
     validate_arakoon_config_files(PMACHINES)
 
@@ -377,7 +377,7 @@ def ovs_3554_4_node_cluster_config_validation_test():
                           tests_to_run=testsToRun)
 
     if not len(PMACHINES) >= 4:
-        raise SkipTest()
+        raise SkipTest('Environment has only {0} node(s)'.format(len(PMACHINES)))
 
     validate_arakoon_config_files(PMACHINES)
 
@@ -449,7 +449,7 @@ def ovs_3671_validate_archiving_of_existing_arakoon_data_on_create_and_extend_te
     first_ip = node_ips[0]
 
     if len(node_ips) < 2:
-        raise SkipTest()
+        raise SkipTest('Environment has only {0} node(s)'.format(len(PMACHINES)))
 
     cluster_name = 'OVS_3671-multi-node-cluster'
     cluster_basedir = '/var/tmp'
