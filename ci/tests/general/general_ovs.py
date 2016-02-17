@@ -13,9 +13,6 @@
 # limitations under the License.
 
 from ci.tests.general.connection import Connection
-from ovs.extensions.generic.sshclient import SSHClient
-
-import json
 
 
 def get_pmachines_by_ip():
@@ -38,8 +35,3 @@ def get_pmachines_by_ip():
 def get_storagerouter_by_ip(ip):
     api = Connection.get_connection()
     return api.get_components_with_attribute('storagerouters', 'ip', ip, single=True)
-
-
-def get_ovs_config(ip):
-    client = SSHClient(ip)
-    return json.loads(client.file_read('/opt/OpenvStorage/config/ovs.json'))

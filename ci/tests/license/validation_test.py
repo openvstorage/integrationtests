@@ -14,9 +14,8 @@
 
 import os
 from ci.tests.general import general
-from ci import autotests
 
-testsToRun = general.get_tests_to_run(autotests.get_test_level())
+testsToRun = general.get_tests_to_run(general.get_test_level())
 
 alternative_first_lines = ["Copyright 2014 iNuron NV", "Copyright 2015 iNuron NV", "Copyright 2016 iNuron NV"]
 license_to_check = """Copyright 2014 iNuron NV

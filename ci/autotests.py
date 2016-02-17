@@ -19,26 +19,23 @@ OVS automatic test lib
 import os
 import re
 import sys
+import nose
 import time
 import datetime
 import StringIO
 import subprocess
 import ConfigParser
 from xml.dom import minidom
-
-import nose
-
+from ci.tests.general import general
+from ci.tests.general import general_hypervisor
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
 
+TESTRAIL_STATUS_ID_PASSED = '1'
+TESTRAIL_STATUS_ID_BLOCKED = '2'
+TESTRAIL_STATUS_ID_FAILED = '5'
 
-AUTOTEST_DIR = os.path.join(os.sep, "opt", "OpenvStorage", "ci")
-CONFIG_DIR = os.path.join(AUTOTEST_DIR, "config")
-SCRIPTS_DIR = os.path.join(AUTOTEST_DIR, "scripts")
-TESTS_DIR = os.path.join(AUTOTEST_DIR, "tests")
-
-AUTOTEST_CFG_FILE = os.path.join(CONFIG_DIR, "autotest.cfg")
-OS_MAPPING_CFG_FILE = os.path.join(CONFIG_DIR, "os_mapping.cfg")
+BLOCKED_MESSAGE = "BLOCKED"
 
 
 class TestRunnerOutputFormat(object):
@@ -48,64 +45,44 @@ class TestRunnerOutputFormat(object):
     TESTRAIL = 'TESTRAIL'
 
 
-TESTRAIL_STATUS_ID_PASSED = '1'
-TESTRAIL_STATUS_ID_BLOCKED = '2'
-TESTRAIL_STATUS_ID_FAILED = '5'
-
-BLOCKED_MESSAGE = "BLOCKED"
-
-sys.path.append(SCRIPTS_DIR)
-
-
-def get_config():
-    """
-    Get autotest config
-    """
-    global autotest_config
-    autotest_config = ConfigParser.ConfigParser()
-    autotest_config.read(AUTOTEST_CFG_FILE)
-
-    return globals()['autotest_config']
-
-
 def get_option(section, option):
-    if get_config().has_option(section, option):
-        return get_config().get(section, option)
+    if general.get_config().has_option(section, option):
+        return general.get_config().get(section, option)
     else:
         # @todo: add interactive part to ask for required parameters when run from cmd line
         return ""
 
-TESTRAIL_FOLDER = get_config().get(section="main", option="output_folder")
-TESTRAIL_KEY = get_config().get(section="testrail", option="key")
-TESTRAIL_PROJECT = get_config().get(section="testrail", option="test_project")
-TESTRAIL_QUALITYLEVEL = get_config().get(section="main", option="qualitylevel")
-TESTRAIL_SERVER = get_config().get(section="testrail", option="server")
+TESTRAIL_FOLDER = general.get_config().get(section="main", option="output_folder")
+TESTRAIL_KEY = general.get_config().get(section="testrail", option="key")
+TESTRAIL_PROJECT = general.get_config().get(section="testrail", option="test_project")
+TESTRAIL_QUALITYLEVEL = general.get_config().get(section="main", option="qualitylevel")
+TESTRAIL_SERVER = general.get_config().get(section="testrail", option="server")
 
 
 def _validate_run_parameters(tests=None, output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/var/tmp',
                              project_name='', qualitylevel='', always_die=False, existing_plan_id=None,
                              interactive=False):
 
-    if output_format not in ['CONSOLE', 'XML', 'TESTRAIL']:
+    if str(output_format) not in ['CONSOLE', 'XML', 'TESTRAIL']:
         if interactive:
-            output_format = check_input(predicate=lambda x: getattr(TestRunnerOutputFormat, x, False),
-                                        msg='Enter output format - [CONSOLE / XML / TESTRAIL]')
+            output_format = _check_input(predicate=lambda x: getattr(TestRunnerOutputFormat, x, False),
+                                         msg='Enter output format - [CONSOLE / XML / TESTRAIL]')
         else:
             raise RuntimeError('output_format should be: CONSOLE | XML | TESTRAIL')
         output_format = getattr(TestRunnerOutputFormat, str(output_format))
 
     if type(always_die) != bool:
         if interactive:
-            always_die = eval(check_input(predicate=lambda x: type(eval(x)) == bool,
-                                          msg="Only boolean values allowed for always_die param\n" +
-                                              "Do you want the tests to stop after error/failure?[True/False]"))
+            always_die = eval(_check_input(predicate=lambda x: type(eval(x)) == bool,
+                                           msg="Only boolean values allowed for always_die param\n" +
+                                               "Do you want the tests to stop after error/failure?[True/False]"))
         else:
             raise RuntimeError('always_die parameter should be a boolean: True|False')
 
     if interactive:
         if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL) and not output_folder:
-            output_folder = check_input(predicate=lambda x: os.path.exists(x) and os.path.isdir(x),
-                                        msg='Incorrect output_folder: {0}'.format(output_folder))
+            output_folder = _check_input(predicate=lambda x: os.path.exists(x) and os.path.isdir(x),
+                                         msg='Incorrect output_folder: {0}'.format(output_folder))
     elif not output_folder or not(os.path.exists(output_folder) and os.path.isdir(output_folder)):
         raise RuntimeError("Output folder incorrect: {0}".format(output_folder))
 
@@ -147,7 +124,6 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
         - TESTRAIL requires credentials to testrail
         - CONSOLE|XML can be used to run tests locally
     """
-
     arguments = _validate_run_parameters(tests, output_format, output_folder, project_name, qualitylevel,
                                          always_die, existing_plan_id, interactive)
 
@@ -164,8 +140,8 @@ def pushToTestrail(project_name, _, output_folder, version=None, filename="", mi
             return os.path.exists(path) and os.path.isdir(path)
 
         if not is_folder(output_folder):
-            output_folder = check_input(predicate=is_folder(output_folder),
-                                        msg='Incorrect output_folder: {0}'.format(output_folder))
+            output_folder = _check_input(predicate=is_folder(output_folder),
+                                         msg='Incorrect output_folder: {0}'.format(output_folder))
 
         result_files = _get_testresult_files(output_folder)
         if not result_files:
@@ -175,9 +151,9 @@ def pushToTestrail(project_name, _, output_folder, version=None, filename="", mi
         else:
             files_to_ask_range = list(range(len(result_files)))
             files_to_ask = zip(files_to_ask_range, result_files)
-            filename_index = eval(check_input(predicate=lambda x: eval(x) in files_to_ask_range,
-                                              msg="Please choose results file \n" + "\n".join(
-                                                  map(lambda x: str(x[0]) + "->" + str(x[1]), files_to_ask)) + ":\n"))
+            filename_index = eval(_check_input(predicate=lambda x: eval(x) in files_to_ask_range,
+                                               msg="Please choose results file \n" + "\n".join(
+                                                   map(lambda x: str(x[0]) + "->" + str(x[1]), files_to_ask)) + ":\n"))
         filename = os.path.join(output_folder, result_files[filename_index])
 
     if not version:
@@ -197,7 +173,7 @@ def _convert_test_spec(test_spec):
     be converted to top level_package/sub_package or no tests are picked up.
     """
     test_spec_parts = test_spec.split('.')
-    test_spec_path = os.path.join(TESTS_DIR, *test_spec_parts)
+    test_spec_path = os.path.join(general.TESTS_DIR, *test_spec_parts)
 
     if os.path.isdir(test_spec_path):
         return test_spec.replace('.', '/')
@@ -211,19 +187,14 @@ def _parse_args(suite_name, output_format, output_folder, always_die, testrail_u
     Parse arguments in the format expected by nose
     """
     # Default arguments. First argument is a dummy as it is stripped within nose.
-    arguments = ['', '--where', TESTS_DIR]
+    arguments = ['', '--where', general.TESTS_DIR, '--verbosity', '3']
     if always_die:
         arguments.append('-x')
-    if output_format == TestRunnerOutputFormat.CONSOLE:
-        arguments.append('--verbosity')
-        arguments.append('3')
-    elif output_format == TestRunnerOutputFormat.XML:
+    if output_format == TestRunnerOutputFormat.XML:
         if not output_folder:
             raise AttributeError("No output folder for the XML result files specified")
         if not os.path.exists(output_folder):
             raise AttributeError("Given output folder doesn't exist. Please create it first!")
-        arguments.append('--verbosity')
-        arguments.append('3')
         arguments.append('--with-xunit_testrail')
         arguments.append('--xunit_file2')
         arguments.append(os.path.join(output_folder, '%s.xml' % (suite_name + str(time.time()))))
@@ -253,8 +224,6 @@ def _parse_args(suite_name, output_format, output_folder, always_die, testrail_u
         if not version:
             raise AttributeError("No version specified")
 
-        arguments.append('--verbosity')
-        arguments.append('3')
         arguments.append('--with-xunit_testrail')
         arguments.append('--xunit_file2')
         arguments.append(os.path.join(output_folder, '%s.xml' % (suite_name + str(time.time()))))
@@ -265,13 +234,11 @@ def _parse_args(suite_name, output_format, output_folder, always_die, testrail_u
         arguments.append('--project-name')
         arguments.append(project_name)
         arguments.append('--push-name')
-        arguments.append(version + "__" + quality_level + "__" + _get_hypervisor())
+        arguments.append(version + "__" + quality_level + "__" + general_hypervisor.get_hypervisor())
         arguments.append('--description')
         arguments.append(_get_description())
         arguments.append('--plan-id')
         arguments.append(existing_plan_id)
-    else:
-        raise AttributeError("Invalid output format! Specify one of CONSOLE|XML|TESTRAIL ")
 
     return arguments
 
@@ -288,7 +255,7 @@ def list_tests(args=None):
     Lists all the tests that nose detects under TESTS_DIR
     """
     if not args:
-        arguments = ['--where', TESTS_DIR, '--verbosity', '3', '--collect-only', '--with-testEnum']
+        arguments = ['--where', general.TESTS_DIR, '--verbosity', '3', '--collect-only', '--with-testEnum']
     else:
         arguments = args + ['--collect-only', '--with-testEnum']
 
@@ -307,25 +274,17 @@ def list_tests(args=None):
     return all_cases
 
 
-def _get_hypervisor():
-    """
-    Get hypervisor
-    """
-    from ovs.dal.lists.pmachinelist import PMachineList
-    return list(PMachineList.get_pmachines())[0].hvtype
-
-
 def _get_description(plan_comment="", durations=""):
     """
     Generate description for pushing to Testrail
     """
     description = ""
     node_ips = ""
-    for ip in _get_ips():
+    for ip in general.get_ips():
         node_ips += "* " + ip + "\n"
     for item, value in (("ip", "%s" % node_ips),
                         ("testsuite", durations),
-                        ("Hypervisor", _get_hypervisor()),
+                        ("Hypervisor", general_hypervisor.get_hypervisor()),
                         ("hardware", _get_hardware_info()),
                         ("package", _get_package_info()),
                         ("Comment ", ('*' * 40 + "\n" + plan_comment) if plan_comment else '')):
@@ -334,7 +293,12 @@ def _get_description(plan_comment="", durations=""):
     return description
 
 
-def check_input(predicate, msg):
+def _check_input(predicate, msg):
+    """
+    :param predicate:
+    :param msg:
+    :return:
+    """
     while True:
         try:
             result = raw_input(msg)
@@ -549,7 +513,7 @@ def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
     date = today.strftime('%a %b %d %H:%M:%S')
     name = '%s_%s' % (version, date)
 
-    project_mapping_file = os.path.join(CONFIG_DIR, "project_testsuite_mapping.cfg")
+    project_mapping_file = os.path.join(general.CONFIG_DIR, "project_testsuite_mapping.cfg")
     project_map = ConfigParser.ConfigParser()
     project_map.read(project_mapping_file)
 
@@ -661,7 +625,7 @@ def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
         if elapsed == 0:
             elapsed = 1
         testrail_api.add_result(test_id=test_id, status_id=status_id, comment=comment, version=version,
-                                elapsed='%ss' % elapsed, custom_fields={'custom_hypervisor': _get_hypervisor()})
+                                elapsed='%ss' % elapsed, custom_fields={'custom_hypervisor': general_hypervisor.get_hypervisor()})
 
     xmlfile.unlink()
     del xmlfile
@@ -672,206 +636,3 @@ def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
     if not plan_id:
         return False
     return "http://%s/index.php?/plans/view/%s" % (TESTRAIL_SERVER, plan_id)
-
-
-def _get_ips():
-    """
-    Get node ips based on model information
-    """
-    ips = []
-    from ovs.dal.lists.pmachinelist import PMachineList
-    pms = PMachineList.get_pmachines()
-    for machine in pms:
-        ips.append(str(machine.ip))
-    return ips
-
-
-def _save_config(config):
-    """
-    Save autotest config file
-    """
-    with open(AUTOTEST_CFG_FILE, "wb") as fCfg:
-        config.write(fCfg)
-    globals()['autotestCfg'] = None
-    get_config()
-
-
-def get_test_level():
-    """
-    Read test level from config file
-    """
-    config = get_config()
-    return config.get(section="main", option="testlevel")
-
-
-def set_test_level(test_level):
-    """
-    Set test level : 1,2,3,8-12,15
-    """
-    testlevel_regex = "^([0-9]|[1-9][0-9])([,-]([1-9]|[1-9][0-9])){0,}$"
-    if not re.match(testlevel_regex, test_level):
-        print('Wrong testlevel specified\neg: 1,2,3,8-12,15')
-        return False
-
-    config = get_config()
-    config.set(section="main", option="testlevel", value=test_level)
-    _save_config(config)
-
-    return True
-
-
-def get_hypervisor_info():
-    """
-    Retrieve info about hypervisor (ip, username, password)
-    """
-    config = get_config()
-    hi = config.get(section="main", option="hypervisorinfo")
-    hpv_list = hi.split(",")
-    if not len(hpv_list) == 3:
-        print "No hypervisor info present in config"
-        return
-    return hpv_list
-
-
-def set_hypervisor_info(ip, username, password):
-    """
-    Set info about hypervisor( ip, username and password )
-
-    @param ip:         Ip address of hypervisor
-    @type ip:          String
-
-    @param username:   Username fort hypervisor
-    @type username:    Srting
-
-    @param password:    Password of hypervisor
-    @type password:    String
-
-    @return:           None
-    """
-
-    ipaddress_regex = \
-        "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
-
-    if not re.match(ipaddress_regex, ip):
-        print("Invalid ipaddress specified")
-        return False
-
-    if type(username) != str or type(password) != str:
-        print("Username and password need to be str format")
-        return False
-
-    value = ','.join([ip, username, password])
-    config = get_config()
-    config.set(section="main", option="hypervisorinfo", value=value)
-    _save_config(config)
-
-    return True
-
-
-def list_os():
-    """
-    List os' configured in os_mapping
-    """
-
-    os_mapping_config = ConfigParser.ConfigParser()
-    os_mapping_config.read(OS_MAPPING_CFG_FILE)
-
-    return os_mapping_config.sections()
-
-
-def get_os_info(os_name):
-    """
-    Get info about an os configured in os_mapping
-    """
-    os_mapping_config = ConfigParser.ConfigParser()
-    os_mapping_config.read(OS_MAPPING_CFG_FILE)
-
-    if not os_mapping_config.has_section(os_name):
-        print("No configuration found for os {0} in config".format(os_name))
-        return
-
-    return dict(os_mapping_config.items(os_name))
-
-
-def set_os(os_name):
-    """
-    Set current os to be used by tests
-    """
-    os_list = list_os()
-    if os_name not in os_list:
-        print("Invalid os specified, available options are {0}".format(str(os_list)))
-        return False
-
-    config = get_config()
-    config.set(section="main", option="os", value=os_name)
-    _save_config(config)
-
-    return True
-
-
-def get_os():
-    """
-    Retrieve current configured os for autotests
-    """
-    config = get_config()
-
-    return config.get(section="main", option="os")
-
-
-def set_template_server(template_server):
-    """
-    Set current template server to be used by tests
-    """
-
-    config = get_config()
-    config.set(section="main", option="template_server", value=template_server)
-    _save_config(config)
-
-    return True
-
-
-def get_template_server():
-    """
-    Retrieve current configured template server for autotests
-    """
-    config = get_config()
-
-    return config.get(section="main", option="template_server")
-
-
-def get_username():
-    """
-    Get username to use in tests
-    """
-    config = get_config()
-    return config.get(section="main", option="username")
-
-
-def set_username(username):
-    """
-    Set username to use in tests
-    """
-    config = get_config()
-    config.set(section="main", option="username", value=username)
-    _save_config(config)
-
-    return True
-
-
-def get_password():
-    """
-    Get password to use in tests
-    """
-    config = get_config()
-    return config.get(section="main", option="username")
-
-
-def set_password(password):
-    """
-    Set password to use in tests
-    """
-    config = get_config()
-    config.set(section="main", option="password", value=password)
-    _save_config(config)
-
-    return True

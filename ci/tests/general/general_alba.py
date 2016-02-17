@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
-
-from uuid import uuid4
+import json
+from ci.tests.backend import alba
+from ci.tests.backend import general_backend
+from ci.tests.disklayout import disklayout
+from ci.tests.general import general
 from ovs.dal.lists.albabackendlist import AlbaBackendList
+from ovs.extensions.generic.system import System
+from uuid import uuid4
 
 local_nodeid_prefix = str(uuid4())
 alba_bin = '/usr/bin/alba'
@@ -67,3 +71,44 @@ def asd_stop(port):
 def get_alba_backend():
     alba_bes = AlbaBackendList.get_albabackends()
     return alba_bes[0] if len(alba_bes) else None
+
+
+def add_alba_backend():
+    """
+    Create an ALBA backend and claim disks
+    :return: None
+    """
+    # @TODO: Fix this, because backend_type should not be configurable if you always create an ALBA backend
+    # @TODO 2: Get rid of these asserts, any test (or testsuite) should verify the required params first before starting execution
+    backend_name = general.get_config().get('backend', 'name')
+    backend_type = general.get_config().get('backend', 'type')
+    nr_of_disks_to_claim = general.get_config().getint('backend', 'nr_of_disks_to_claim')
+    type_of_disks_to_claim = general.get_config().get('backend', 'type_of_disks_to_claim')
+    assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
+    assert backend_type in general_backend.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
+
+    my_sr = System.get_my_storagerouter()
+    disklayout.add_db_role(my_sr.guid)
+    disklayout.add_read_write_scrub_roles(my_sr.guid)
+    backend = general_backend.get_backend_by_name_and_type(backend_name, backend_type)
+    if not backend:
+        backend_guid = alba.add_alba_backend(backend_name)
+        backend = general_backend.get_backend(backend_guid)
+    alba.claim_disks(backend['alba_backend_guid'], nr_of_disks_to_claim, type_of_disks_to_claim)
+
+
+def remove_alba_backend():
+    """
+    Removes an ALBA backend
+    :return: None
+    """
+    backend_name = general.get_config().get('backend', 'name')
+    backend_type = general.get_config().get('backend', 'type')
+    assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
+    assert backend_type in general_backend.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
+
+    be = general_backend.get_backend_by_name_and_type(backend_name, backend_type)
+    if be:
+        alba_backend = alba.get_alba_backend(be['alba_backend_guid'])
+        alba.unclaim_disks(alba_backend)
+        alba.remove_alba_backend(be['alba_backend_guid'])

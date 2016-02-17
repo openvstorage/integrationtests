@@ -13,20 +13,28 @@
 # limitations under the License.
 
 from ci.tests.general import general
-from ci import autotests
+from ci.tests.vpool.general_vpool import GeneralVPool
 
-vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = general.get_config().get("vpool", "name")
 vpool_name = 'system-' + vpool_name
 
-testsToRun = general.get_tests_to_run(autotests.get_test_level())
+testsToRun = general.get_tests_to_run(general.get_test_level())
 
 
 def setup():
+    """
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
     print "setup called " + __name__
     general.cleanup()
 
 
 def teardown():
+    """
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
     pass
 
 
@@ -53,7 +61,7 @@ def ovs_2493_detect_could_not_acquire_lock_events_test():
 
     errorlist = ""
     command = "grep  -C 1 'Could not acquire lock' /var/log/ovs/lib.log"
-    gridips = autotests._get_ips()
+    gridips = general.get_ips()
 
     for gridip in gridips:
         out = general.execute_command_on_node(gridip, command + " | wc -l")
@@ -71,7 +79,7 @@ def ovs_2468_verify_no_mds_files_left_after_remove_vpool_test():
     general.check_prereqs(testcase_number=3,
                           tests_to_run=testsToRun)
 
-    vpools = general.get_vpools()
+    vpools = GeneralVPool.get_vpools()
     vpool_names = [vpool.name for vpool in vpools]
     command = "find /mnt -name '*mds*'"
     mdsvpoolnames = []

@@ -12,24 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import os
+import re
 import time
 import paramiko
 import urllib
+import logging
 import urlparse
-from xml.dom import minidom
-
-from ci import autotests
-import general
-
-
-from ovs.dal.lists.vpoollist import VPoolList
+from ci.tests.general import general
+from ci.tests.vpool.general_vpool import GeneralVPool
 from ovs.dal.lists.vmachinelist import VMachineList
 from ovs.dal.lists.pmachinelist import PMachineList
 from ovs.extensions.hypervisor.hypervisors.kvm import Sdk as Kvm_sdk
 from ovs.extensions.hypervisor.hypervisors.vmware import Sdk as Vmware_sdk
 from ovs.lib.vdisk import VDiskController
+from xml.dom import minidom
 
 # disable excessive logging
 logging.getLogger('suds.client').setLevel(logging.WARNING)
@@ -50,47 +47,6 @@ logging.getLogger('plumbum.shell').setLevel(logging.WARNING)
 logging.getLogger('plumbum.local').setLevel(logging.WARNING)
 
 PUBLIC_BRIDGE_NAME_ESX = "CloudFramesPublic"
-
-
-class Hypervisor(object):
-    @staticmethod
-    def get(vpool_name, htype=None, cleanup=False):
-        vpool = [v for v in VPoolList.get_vpools() if v.name == vpool_name]
-        assert vpool, "Vpool with name {} not found".format(vpool_name)
-        vpool = vpool[0]
-
-        local_vsa = general.get_local_vsa()
-        sgs = [sg for sg in vpool.storagedrivers if sg.cluster_ip == local_vsa.ip]
-        if len(vpool.storagedrivers) > 0:
-            if sgs:
-                sg = sgs[0]
-            else:
-                logging.log(1, "Vpool storagedriver with ip {0} not found".format(local_vsa.ip))
-                return None
-        else:
-            logging.log(1, "Vpool present without any configured storagedriver")
-            vpool.delete()
-            return None
-
-        if not cleanup:
-            retries = 5 * 60
-            sleep_time = 5
-            while retries:
-                out = general.execute_command("df | grep {0}".format(sg.mountpoint))[0]
-                if sg.mountpoint in out:
-                    break
-                retries -= sleep_time
-                time.sleep(sleep_time)
-
-            assert retries > 0, "Vpool mountpoint {0} did not appear in due time".format(sg.mountpoint)
-
-        htype = htype or get_hypervisor_type()
-        if htype == "VMWARE":
-            return Vmware(vpool)
-        elif htype == "KVM":
-            return Kvm(vpool)
-        else:
-            raise Exception("{} not implemented".format(htype))
 
 
 def _download_to_vpool(url, path, overwrite_if_exists=False):
@@ -132,6 +88,103 @@ def get_vm_ip_from_mac(mac):
                                                                                                                mac=mac)
     out = general.execute_command(cmd)
     return out[0].strip()
+
+
+def get_hypervisor():
+    """
+    Get hypervisor
+    """
+    from ovs.dal.lists.pmachinelist import PMachineList
+    return list(PMachineList.get_pmachines())[0].hvtype
+
+
+def get_hypervisor_info():
+    """
+    Retrieve info about hypervisor (ip, username, password)
+    """
+    config = general.get_config()
+    hi = config.get(section="main", option="hypervisorinfo")
+    hpv_list = hi.split(",")
+    if not len(hpv_list) == 3:
+        print "No hypervisor info present in config"
+        return
+    return hpv_list
+
+
+def set_hypervisor_info(ip, username, password):
+    """
+    Set info about hypervisor( ip, username and password )
+
+    @param ip:         Ip address of hypervisor
+    @type ip:          String
+
+    @param username:   Username fort hypervisor
+    @type username:    Srting
+
+    @param password:    Password of hypervisor
+    @type password:    String
+
+    @return:           None
+    """
+
+    ipaddress_regex = \
+        "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
+
+    if not re.match(ipaddress_regex, ip):
+        print("Invalid ipaddress specified")
+        return False
+
+    if type(username) != str or type(password) != str:
+        print("Username and password need to be str format")
+        return False
+
+    value = ','.join([ip, username, password])
+    config = general.get_config()
+    config.set(section="main", option="hypervisorinfo", value=value)
+    general.save_config(config)
+
+    return True
+
+
+class Hypervisor(object):
+    @staticmethod
+    def get(vpool_name, htype=None, cleanup=False):
+        vpool = [v for v in GeneralVPool.get_vpools() if v.name == vpool_name]
+        assert vpool, "Vpool with name {} not found".format(vpool_name)
+        vpool = vpool[0]
+
+        local_vsa = general.get_local_vsa()
+        sgs = [sg for sg in vpool.storagedrivers if sg.cluster_ip == local_vsa.ip]
+        if len(vpool.storagedrivers) > 0:
+            if sgs:
+                sg = sgs[0]
+            else:
+                logging.log(1, "Vpool storagedriver with ip {0} not found".format(local_vsa.ip))
+                return None
+        else:
+            logging.log(1, "Vpool present without any configured storagedriver")
+            vpool.delete()
+            return None
+
+        if not cleanup:
+            retries = 5 * 60
+            sleep_time = 5
+            while retries:
+                out = general.execute_command("df | grep {0}".format(sg.mountpoint))[0]
+                if sg.mountpoint in out:
+                    break
+                retries -= sleep_time
+                time.sleep(sleep_time)
+
+            assert retries > 0, "Vpool mountpoint {0} did not appear in due time".format(sg.mountpoint)
+
+        htype = htype or get_hypervisor_type()
+        if htype == "VMWARE":
+            return Vmware(vpool)
+        elif htype == "KVM":
+            return Kvm(vpool)
+        else:
+            raise Exception("{} not implemented".format(htype))
 
 
 class HypervisorBase(object):
@@ -216,7 +269,7 @@ class Vmware(HypervisorBase):
         HypervisorBase.__init__(self)
         self.vpool = vpool
         self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
-        hypervisorInfo = autotests.get_hypervisor_info()
+        hypervisorInfo = get_hypervisor_info()
         assert hypervisorInfo, "No hypervisor info specified use autotests.set_hypervisor_info"
         self.sdk = Vmware_sdk(*hypervisorInfo)
 
@@ -228,8 +281,8 @@ class Vmware(HypervisorBase):
         assert datastore, "Did not found datastore"
         datastore = self.sdk._get_object(datastore[0])
 
-        os_name = autotests.get_os()
-        os_info = autotests.get_os_info(os_name)
+        os_name = general.get_os()
+        os_info = general.get_os_info(os_name)
         bootdisk_path_remote = os_info['bootdisk_location']
 
         os.mkdir(os.path.join(self.mountpoint, name))
@@ -239,7 +292,7 @@ class Vmware(HypervisorBase):
         bootdisk_path = os.path.join(self.mountpoint, name, disk_name)
         bootdisk_flat_path = os.path.join(self.mountpoint, name, disk_name_flat)
 
-        template_server = autotests.get_template_server()
+        template_server = general.get_template_server()
         bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote + disk_name)
         bootdisk_flat_url = urlparse.urljoin(template_server, bootdisk_path_remote + disk_name_flat)
 
@@ -424,8 +477,8 @@ class Kvm(HypervisorBase):
     def create_vm(self, name, ram=1024, small=False):
         import general_openstack
 
-        os_name = autotests.get_os()
-        bootdisk_path_remote = autotests.get_os_info(os_name + '_small' if small else os_name)['bootdisk_location']
+        os_name = general.get_os()
+        bootdisk_path_remote = general.get_os_info(os_name + '_small' if small else os_name)['bootdisk_location']
 
         vm_path = os.path.join(self.mountpoint, name)
         if not os.path.exists(vm_path):
@@ -436,7 +489,7 @@ class Kvm(HypervisorBase):
         else:
             bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
         if not os.path.exists(bootdisk_path):
-            template_server = autotests.get_template_server()
+            template_server = general.get_template_server()
             bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
             logging.log(1, 'Template url: {0}'.format(bootdisk_url))
             logging.log(1, 'Bootdisk path: {0}'.format(bootdisk_path))

@@ -18,12 +18,15 @@ import time
 from nose.plugins.skip import SkipTest
 
 from ci.tests.general import general
-from ci import autotests
 
-testsToRun = general.get_tests_to_run(autotests.get_test_level())
+testsToRun = general.get_tests_to_run(general.get_test_level())
 
 
 def setup():
+    """
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
     print "Setup called " + __name__
 
 

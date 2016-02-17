@@ -13,20 +13,18 @@
 # limitations under the License.
 
 import time
-from ci import autotests
-from ci.tests.general.general import test_config
 from ci.tests.general.connection import Connection
-from ci.tests.vpool import generic
-from ci.tests.mgmtcenter import generic as mgmtgeneric
-from ci.tests.general import general
+from ci.tests.vpool.general_vpool import GeneralVPool
+from ci.tests.mgmtcenter import general_mgmtcenter as mgmtgeneric
+from ci.tests.general import general, general_alba
 from ci.tests.general.logHandler import LogHandler
 
 logger = LogHandler.get('vmachines', name='vmachine')
 logger.logger.propagate = False
 
-testsToRun = general.get_tests_to_run(autotests.get_test_level())
+testsToRun = general.get_tests_to_run(general.get_test_level())
 
-VPOOL_NAME = test_config.get('vpool', 'vpool_name')
+VPOOL_NAME = general.get_config().get('vpool', 'name')
 TEMPLATE_SERVERS = ['http://sso-qpackages-loch.cloudfounders.com/templates/openvstorage', 'http://172.20.3.8/templates/openvstorage']
 
 
@@ -35,7 +33,7 @@ template_image = 'debian.qcow2'
 template_target_folder = '/var/tmp/templates/'
 
 NUMBER_OF_DISKS = 10
-GRID_IP = test_config.get('main', 'grid_ip')
+GRID_IP = general.get_config().get('main', 'grid_ip')
 TIMEOUT = 30
 TIMER_STEP = 5
 
@@ -69,19 +67,27 @@ def check_template_exists():
 
 
 def setup():
+    """
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
     check_template_exists()
-    generic.add_alba_backend()
+    general_alba.add_alba_backend()
     mgmtgeneric.create_generic_mgmt_center()
-    generic.add_generic_vpool()
+    GeneralVPool.add_vpool()
 
 
 def teardown():
+    """
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
     api = Connection.get_connection()
-    vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
-    assert vpool_list, "No vpool found where one was expected"
+    vpool = GeneralVPool.get_vpool_by_name(VPOOL_NAME)
+    assert vpool is not None, "No vpool found where one was expected"
     logger.info("Cleaning vpool")
-    general.api_remove_vpool(VPOOL_NAME)
-    generic.remove_alba_backend()
+    GeneralVPool.remove_vpool(vpool)
+    general_alba.remove_alba_backend()
     logger.info("Cleaning management center")
     management_centers = api.get_components('mgmtcenters')
     for mgmcenter in management_centers:

@@ -24,26 +24,15 @@ import stat
 import subprocess
 import sys
 import time
-
-sys.path.append(os.path.join(os.sep, "opt", "OpenvStorage", "ci", "scripts"))
-
+import paramiko
+import ConfigParser
+from ci.scripts import debug
 from nose.plugins.skip import SkipTest
-from ovs.dal.lists.backendlist import BackendList
-from ovs.dal.lists.pmachinelist import PMachineList
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.dal.lists.vmachinelist import VMachineList
-from ovs.dal.lists.vpoollist import VPoolList
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.extensions.generic.system import System
 from ovs.lib.setup import SetupController
-from ovs.lib.storagerouter import StorageRouterController
-
-import general_hypervisor
-from ci import autotests
-
-import debug
-import paramiko
 
 if not hasattr(sys, "debugEnabled"):
     sys.debugEnabled = True
@@ -51,9 +40,36 @@ if not hasattr(sys, "debugEnabled"):
 
 logging.getLogger("paramiko").setLevel(logging.WARNING)
 
-test_config = autotests.get_config()
 current_test = None    # Used by each individual test to indicate which test is running and is used by 'take_screenshot'
 screenshot_dir = None  # Used by each testsuite to indicate which testsuite is running and is used by 'take_screenshot'
+
+AUTOTEST_DIR = os.path.join(os.sep, "opt", "OpenvStorage", "ci")
+CONFIG_DIR = os.path.join(AUTOTEST_DIR, "config")
+SCRIPTS_DIR = os.path.join(AUTOTEST_DIR, "scripts")
+TESTS_DIR = os.path.join(AUTOTEST_DIR, "tests")
+
+AUTOTEST_CFG_FILE = os.path.join(CONFIG_DIR, "autotest.cfg")
+OS_MAPPING_CFG_FILE = os.path.join(CONFIG_DIR, "os_mapping.cfg")
+
+
+def get_config():
+    """
+    Get autotest config
+    """
+    # @TODO: Replace by ETCD
+    autotest_config = ConfigParser.ConfigParser()
+    autotest_config.read(AUTOTEST_CFG_FILE)
+    return autotest_config
+
+
+def save_config(config):
+    """
+    Save autotest config file
+    :param config: Configuration to save
+    """
+    # @TODO: Replace by ETCD
+    with open(AUTOTEST_CFG_FILE, "wb") as autotest_config:
+        config.write(autotest_config)
 
 
 def execute_command(command, wait=True, shell=True):
@@ -129,8 +145,6 @@ def get_tests_to_run(test_level):
 
 
 def get_remote_ssh_connection(ip_address, username, password):
-    """
-    """
     ssh_connection = paramiko.SSHClient()
     ssh_connection.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh_connection.connect(ip_address, username=username, password=password, timeout=2)
@@ -145,6 +159,18 @@ def get_ip_for(hostname):
         if ip == '127.0.0.1':
             continue
         return ip
+
+
+def get_ips():
+    """
+    Get node ips based on model information
+    """
+    ips = []
+    from ovs.dal.lists.pmachinelist import PMachineList
+    pms = PMachineList.get_pmachines()
+    for machine in pms:
+        ips.append(str(machine.ip))
+    return ips
 
 
 def get_virbr_ip():
@@ -174,7 +200,9 @@ def get_function_name(level=0):
 def cleanup():
     machine_name = "AT_"
 
-    for vpool in VPoolList.get_vpools():
+    from ci.tests.general import general_hypervisor
+    from ci.tests.vpool.general_vpool import GeneralVPool
+    for vpool in GeneralVPool.get_vpools():
         if vpool:
             hpv = general_hypervisor.Hypervisor.get(vpool.name, cleanup=True)
             vm_names = [vm.name for vm in VMachineList.get_vmachines()]
@@ -222,10 +250,11 @@ def cleanup():
                     vdisk.delete()
                     logging.log(1, 'WARNING: Removed leftover disk: {0}'.format(vdisk.name))
 
-            api_remove_vpool(vpool.name)
+
+            vpool.remove_vpool()
 
             if general_hypervisor.get_hypervisor_type() == "VMWARE":
-                hypervisor_info = autotests.get_hypervisor_info()
+                hypervisor_info = general_hypervisor.get_hypervisor_info()
                 ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
                 cmd = "esxcli storage nfs remove -v {0}".format(vpool.name)
                 ssh_con.exec_command(cmd)
@@ -235,53 +264,6 @@ def cleanup():
                 logging.log(1, 'WARNING: Removing leftover vmachine: {0}'.format(vmachine.name))
                 vmachine.delete()
     # remove_alba_namespaces()
-
-
-def get_vpools():
-    return VPoolList.get_vpools()
-
-
-def add_vpool(browser):
-    browser.add_vpool()
-
-    if general_hypervisor.get_hypervisor_type() == "VMWARE":
-        hypervisor_info = autotests.get_hypervisor_info()
-
-        vpool_name = browser.vpool_name
-        vpool = VPoolList.get_vpool_by_name(vpool_name)
-
-        for sd in vpool.storagedrivers:
-            hypervisor_info[0] = sd.storagerouter.pmachine.ip
-            ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
-
-            storage_ip = sd.storage_ip
-
-            cmd = "esxcli storage nfs add -H {0} -s /mnt/{1} -v {1}".format(storage_ip, vpool_name)
-            os.write(1, str(hypervisor_info) + "\n")
-            os.write(1, cmd + "\n")
-            _, stdout, stderr = ssh_con.exec_command(cmd)
-            os.write(1, str(stdout.readlines()))
-            os.write(1, str(stderr.readlines()))
-
-
-def remove_vpool(browser):
-    vpool_name = browser.vpool_name
-    browser.remove_vpool(vpool_name)
-
-    if general_hypervisor.get_hypervisor_type() == "VMWARE":
-        hypervisor_info = autotests.get_hypervisor_info()
-        ssh_con = get_remote_ssh_connection(*hypervisor_info)[0]
-
-        _, stdout, _ = ssh_con.exec_command("esxcli storage nfs list")
-        out = "\n".join(stdout.readlines())
-        if vpool_name in out:
-
-            cmd = "esxcli storage nfs remove -v {0}".format(vpool_name)
-            stdin, stdout, stderr = ssh_con.exec_command(cmd)
-            print stdout.readlines()
-            print stderr.readlines()
-    # remove_alba_namespaces()
-    validate_vpool_cleanup(vpool_name)
 
 
 def get_this_hostname():
@@ -389,112 +371,6 @@ def human2bytes(s):
     return int(num * prefix[letter])
 
 
-def api_add_vpool(vpool_name=None,
-                  vpool_config='vpool',
-                  vpool_type=None,
-                  vpool_host=None,
-                  vpool_port=None,
-                  vpool_access_key=None,
-                  vpool_secret_key=None,
-                  vpool_storage_ip=None,
-                  apply_to_all_nodes=True,
-                  integratemgmt=True,
-                  config_cinder=False,
-                  backend_name=None,
-                  vpool_config_params=None):
-
-    local_vsa_ip = get_local_vsa().ip
-    if vpool_config_params is None:
-        vpool_config_params = {}
-
-    if not vpool_name:
-        vpool_name = test_config.get(vpool_config, 'vpool_name')
-
-    if not backend_name:
-        backend_name = test_config.get('backend', 'name')
-
-    parameters = {'storagerouter_ip': local_vsa_ip,
-                  'vpool_name': vpool_name,
-                  'type': vpool_type or test_config.get(vpool_config, "vpool_type"),
-                  'connection_host': vpool_host or test_config.get(vpool_config, "vpool_host"),
-                  'connection_port': vpool_port or int(test_config.get(vpool_config, "vpool_port")),
-                  'connection_username': vpool_access_key or test_config.get(vpool_config, "vpool_access_key"),
-                  'connection_password': vpool_secret_key or test_config.get(vpool_config, "vpool_secret_key"),
-                  'readcache_size': 50,
-                  'writecache_size': 50,
-                  'storage_ip': vpool_storage_ip or test_config.get(vpool_config, "vpool_storage_ip"),
-                  'config_cinder': config_cinder,
-                  'cinder_pass': "rooter",
-                  'cinder_user': "admin",
-                  'cinder_tenant': "admin",
-                  'cinder_controller': local_vsa_ip,
-                  'integratemgmt': integratemgmt,
-                  'backend_name': backend_name,
-                  'config_params': vpool_config_params or json.loads(test_config.get(vpool_config, "vpool_config_params"))
-                  }
-
-    if parameters['type'] == 'alba':
-        alba_backend_guid = ''
-        for backend in BackendList.get_backends():
-            if backend.name.startswith(backend_name):
-                alba_backend_guid = backend.alba_backend_guid
-                break
-
-        assert alba_backend_guid, "No backend of specified alba type found!"
-        parameters['connection_backend'] = {'backend': alba_backend_guid, 'metadata': 'default'}
-
-    print "Adding vpool: "
-    print parameters
-
-    if apply_to_all_nodes:
-        storagerouters = [(sr.ip, sr.machine_id) for sr in StorageRouterList.get_storagerouters()]
-        StorageRouterController.update_storagedrivers([], storagerouters, parameters)
-    else:
-        StorageRouterController.add_vpool(parameters)
-
-    return parameters
-
-
-def api_remove_vpool(vpool_name):
-    mount_point = ''
-    vpool = VPoolList.get_vpool_by_name(vpool_name)
-    if not vpool:
-        return
-
-    for sd in vpool.storagedrivers:
-        mount_point = sd.mountpoint
-        storagerouter = sd.storagerouter
-        storagerouter_machineid = storagerouter.machine_id
-        local_machineid = System.get_my_machine_id()
-        logging.log(1, "local_machine_id: {0}".format(local_machineid))
-        logging.log(1, "storagerouter_machine_id: {0}".format(storagerouter_machineid))
-
-        if local_machineid == storagerouter_machineid:
-            # Inline execution, since it's on the same node (preventing deadlocks)
-            StorageRouterController.remove_storagedriver(sd.guid)
-        else:
-            # Async execution, since it has to be executed on another node
-            # @TODO: Will break in Celery 3.2, need to find another solution
-            # Requirements:
-            # - This code cannot continue until this new task is completed (as all these VSAs need to be
-            # handled sequentially
-            # - The wait() or get() method are not allowed anymore from within a task to prevent deadlocks
-            result = StorageRouterController.remove_storagedriver.s(sd.guid).apply_async(
-                routing_key='sr.{0}'.format(storagerouter_machineid)
-            )
-            result.wait()
-        time.sleep(3)
-
-    if mount_point:
-        retries = 20
-        while retries:
-            if not os.path.exists(mount_point):
-                break
-            time.sleep(1)
-            retries -= 1
-        assert retries, "Mountpoint {0} of vpool still exists after removing storage driver".format(mount_point)
-
-
 def apply_disk_layout(disk_layout):
     # @TODO: remove this when http://jira.cloudfounders.com/browse/OVS-1336 is fixed
     ovs_fstab_start = "BEGIN Open vStorage"
@@ -502,7 +378,7 @@ def apply_disk_layout(disk_layout):
 
     print "Disk layout to apply: {0}".format(disk_layout)
 
-    grid_ip = test_config.get("main", "grid_ip")
+    grid_ip = get_config().get("main", "grid_ip")
     client = SSHClient(grid_ip, username='root', password='rooter')
     sc = SetupController()
 
@@ -527,7 +403,7 @@ def apply_disk_layout(disk_layout):
 
 
 def clean_disk_layout(disk_layout):
-    if test_config.get("main", "cleanup") != "True":
+    if get_config().getboolean("main", "cleanup") is not True:
         return
     print "df before clean\n", execute_command("df")[0]
     disks_to_clean = []
@@ -552,7 +428,6 @@ def clean_disk_layout(disk_layout):
 
 def validate_vpool_size_calculation(vpool_name, disk_layout, initial_part_used_space):
     """
-
     @param vpool_name:                  Name of vpool
     @type vpool_name:                   String
 
@@ -787,69 +662,6 @@ def validate_logstash_open_files_amount():
             'Reached more than 90% of Logstash maximum allowed open files : {0}'.format(max_allowed_of)
 
 
-def setup_vpool(vpool_name, vpool_config='vpool'):
-    vpool = VPoolList.get_vpool_by_name(vpool_name)
-    if not vpool:
-        api_add_vpool(vpool_name=vpool_name, vpool_config=vpool_config, config_cinder=True)
-        vpool = VPoolList.get_vpool_by_name(vpool_name)
-
-    return vpool
-
-
-def get_vpool(vpool_name):
-    vpool = VPoolList.get_vpool_by_name(vpool_name)
-    return vpool
-
-
-def validate_vpool_cleanup(vpool_name):
-    pms = PMachineList.get_pmachines()
-    detected_issues = ""
-    vpool_path = '/mnt/' + vpool_name
-    for pm in pms:
-        logging.log(1, 'checking host: {0}'.format(pm.ip))
-
-        # check if mountpoint is still present
-        if os.path.isdir(vpool_path):
-            detected_issues += '\n{0} - vpool_mountpoint {1} still present\n'.format(pm.ip, vpool_path)
-            cmd = "ls -la {0}".format(vpool_path)
-            out = execute_command_on_node(pm.ip, cmd)
-            detected_issues += out
-
-        # detected remaining storagedriver process
-        cmd = "ps -ef | awk '/volumedriver_fs/ && /{0}/'".format(vpool_name)
-        out = execute_command_on_node(pm.ip, cmd)
-        output = ""
-        for line in out.splitlines():
-            if "awk" in line and "volumedriver_fs" in line:
-                continue
-            output += line
-        if output:
-            detected_issues += '\n\n{0} - volumedriver_fs process still running\n'.format(pm.ip)
-            detected_issues += output
-
-        # look for errors in storagedriver log file - only log these
-        cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' error '; echo true > /dev/null".format(vpool_name)
-        out = execute_command_on_node(pm.ip, cmd)
-        output = ""
-        for line in out.splitlines():
-            if "HierarchicalArakoon" in line:
-                continue
-            output += line
-        if output:
-            logging.log(1, '\n\n{0} - volumedriver log file contains errors\n'.format(pm.ip))
-            logging.log(1, output)
-
-        # look for fatal errors in storagedriver log file
-        cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -5000 | grep ' fatal '; echo true > /dev/null".format(vpool_name)
-        out = execute_command_on_node(pm.ip, cmd)
-        if out:
-            detected_issues += '\n\n{0} - volumedriver log file contains fatal errors\n'.format(pm.ip)
-            detected_issues += out
-
-        assert len(detected_issues) == 0,\
-            "Vpool cleanup for {0} was incomplete:\n{1}".format(vpool_name, detected_issues)
-
-
 def create_testsuite_screenshot_dir(testsuite):
     dir_name = '/var/tmp/{0}_{1}'.format(testsuite, str(datetime.datetime.fromtimestamp(time.time())).replace(" ", "_").replace(":", "_").replace(".", "_"))
     execute_command(command='mkdir {0}'.format(dir_name))
@@ -891,3 +703,150 @@ def get_loops(ip):
             device = entry.split()
             loop_devices.append(device[0])
     return loop_devices
+
+
+def get_mountpoints(client):
+    """
+    Retrieve the mountpoints on the specified client
+    :param client: SSHClient object
+    :return: List of mountpoints
+    """
+    mountpoints = []
+    for mountpoint in client.run('mount -v').strip().splitlines():
+        mp = mountpoint.split(' ')[2] if len(mountpoint.split(' ')) > 2 else None
+        if mp and not mp.startswith('/dev') and not mp.startswith('/proc') and not mp.startswith('/sys') and not mp.startswith('/run') and not mp.startswith('/mnt/alba-asd') and mp != '/':
+            mountpoints.append(mp)
+    return mountpoints
+
+
+def get_test_level():
+    """
+    Read test level from config file
+    """
+    config = get_config()
+    return config.get(section="main", option="testlevel")
+
+
+def set_test_level(test_level):
+    """
+    Set test level : 1,2,3,8-12,15
+    :param test_level: Tests to execute
+    """
+    testlevel_regex = "^([0-9]|[1-9][0-9])([,-]([1-9]|[1-9][0-9])){0,}$"
+    if not re.match(testlevel_regex, test_level):
+        print('Wrong testlevel specified\neg: 1,2,3,8-12,15')
+        return False
+
+    config = get_config()
+    config.set(section="main", option="testlevel", value=test_level)
+    save_config(config)
+
+    return True
+
+
+def list_os():
+    """
+    List os' configured in os_mapping
+    """
+
+    os_mapping_config = ConfigParser.ConfigParser()
+    os_mapping_config.read(OS_MAPPING_CFG_FILE)
+
+    return os_mapping_config.sections()
+
+
+def get_os_info(os_name):
+    """
+    Get info about an os configured in os_mapping
+    :param os_name: Name of operating system to retrieve information for
+    """
+    os_mapping_config = ConfigParser.ConfigParser()
+    os_mapping_config.read(OS_MAPPING_CFG_FILE)
+
+    if not os_mapping_config.has_section(os_name):
+        print("No configuration found for os {0} in config".format(os_name))
+        return
+
+    return dict(os_mapping_config.items(os_name))
+
+
+def set_os(os_name):
+    """
+    Set current os to be used by tests
+    :param os_name: Name of operating system to set
+    """
+    os_list = list_os()
+    if os_name not in os_list:
+        print("Invalid os specified, available options are {0}".format(str(os_list)))
+        return False
+
+    config = get_config()
+    config.set(section="main", option="os", value=os_name)
+    save_config(config)
+
+    return True
+
+
+def get_os():
+    """
+    Retrieve current configured os for autotests
+    """
+    return get_config().get(section="main", option="os")
+
+
+def set_template_server(template_server):
+    """
+    Set current template server to be used by tests
+    :param template_server: Template server to set
+    """
+
+    config = get_config()
+    config.set(section="main", option="template_server", value=template_server)
+    save_config(config)
+
+    return True
+
+
+def get_template_server():
+    """
+    Retrieve current configured template server for autotests
+    """
+    return get_config().get(section="main", option="template_server")
+
+
+def get_username():
+    """
+    Get username to use in tests
+    """
+    return get_config().get(section="main", option="username")
+
+
+def set_username(username):
+    """
+    Set username to use in tests
+    :param username: Username to set
+    """
+    config = get_config()
+    config.set(section="main", option="username", value=username)
+    save_config(config)
+
+    return True
+
+
+def get_password():
+    """
+    Get password to use in tests
+    """
+    return get_config().get(section="main", option="username")
+
+
+def set_password(password):
+    """
+    Set password to use in tests
+    :param password: Password to set
+    """
+    config = get_config()
+    config.set(section="main", option="password", value=password)
+    save_config(config)
+
+    return True

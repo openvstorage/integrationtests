@@ -19,24 +19,29 @@ import logging
 
 import ci.tests.backend.test_alba
 from ci.tests.general import general
+from ci.tests.vpool.general_vpool import GeneralVPool
 from ovs.lib.setup import SetupController
 from ovs.extensions.generic.sshclient import SSHClient
 from nose.plugins.skip import SkipTest
 from nose.tools import assert_raises
 
 log = logging.getLogger('test_partition_layout')
-vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = general.get_config().get("vpool", "name")
 vpool_name = 'api-' + vpool_name
 
 
 def setup():
+    """
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
     global client
     global sc
     global fstab_contents
 
     print "setup called " + __name__
 
-    grid_ip = general.test_config.get("main", "grid_ip")
+    grid_ip = general.get_config().get("main", "grid_ip")
     client = SSHClient(grid_ip, username='root', password='rooter')
     sc = SetupController()
 
@@ -48,6 +53,10 @@ def setup():
 
 
 def teardown():
+    """
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
     global fstab_contents
     with open("/etc/fstab", "w") as f:
         f.write(fstab_contents)
@@ -55,22 +64,17 @@ def teardown():
 
 def run_and_validate_partitioning(disk_layout, vpool_readcaches_mp, vpool_writecaches_mp, vpool_dtl_mp,
                                   initial_part_used_space=None):
-    vpool_params = {}
+    vpool = None
+    vpool_params = GeneralVPool.get_add_vpool_params()
     ci.tests.backend.test_alba.remove_alba_namespaces()
     try:
         general.apply_disk_layout(disk_layout)
-        vpool_params = general.api_add_vpool(vpool_name=vpool_name,
-                                             vpool_readcaches_mp=vpool_readcaches_mp,
-                                             vpool_writecaches_mp=vpool_writecaches_mp,
-                                             vpool_dtl_mp=vpool_dtl_mp,
-                                             apply_to_all_nodes=True,
-                                             config_cinder=True,
-                                             integratemgmt=True)
-        return general.validate_vpool_size_calculation(vpool_params['vpool_name'], disk_layout, initial_part_used_space)
+        vpool = GeneralVPool.add_vpool(vpool_parameters=vpool_params)
+        return general.validate_vpool_size_calculation(vpool.name, disk_layout, initial_part_used_space)
     finally:
-        if vpool_params:
-            general.api_remove_vpool(vpool_params['vpool_name'])
-            general.validate_vpool_cleanup(vpool_params['vpool_name'])
+        if vpool is not None:
+            vpool.remove_vpool()
+            GeneralVPool.check_vpool_cleanup(vpool_name=vpool_params['vpool_name'])
         general.clean_disk_layout(disk_layout)
         verify_no_namespaces_remain_after_tstsuite()
 

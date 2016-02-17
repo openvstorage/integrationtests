@@ -18,12 +18,11 @@ import random
 import tempfile
 import time
 
-from ci.tests.backend import generic
+from ci.tests.backend import general_backend
 from ci.tests.general import general
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import execute_command
 from ci.tests.general.general import get_physical_disks
-from ci.tests.general.general import test_config
 from ovs.lib.albanodecontroller import AlbaNodeController
 from ovs.lib.albacontroller import AlbaController
 from ovs.dal.lists.albanodelist import AlbaNodeList
@@ -34,7 +33,7 @@ logger.logger.propagate = False
 
 ALBA_BACKENDS = 'alba/backends'
 ALBA_NODES = 'alba/nodes'
-GRID_IP = test_config.get('main', 'grid_ip')
+GRID_IP = general.get_config().get('main', 'grid_ip')
 ALBA_TIMER = 1800
 ALBA_TIMER_STEP = 5
 
@@ -70,15 +69,13 @@ def run(backend_name, action, params, json_output=True):
     output = ''
     try:
         output = execute_command(' '.join(cmd))
-        if json_output:
+        if json_output is True:
             output = json.loads(output[0])
+            return output['result']
+        return output
     except (ValueError, RuntimeError):
         print "Command {0} failed:\nOutput: {1}".format(cmd, output)
-        assert False, "Command {0} failed".format(' '.join(cmd))
-    if json_output:
-        return output['result']
-    else:
-        return output
+        raise
 
 
 def add_preset(alba_backend, name, policies=[[1, 1, 1, 2]], compression='none', encryption='none'):
@@ -118,7 +115,7 @@ def is_alba_backend_running(backend_guid, trigger=False):
     wait = ALBA_TIMER_STEP
     is_running = False
     while timeout > 0 and not is_running:
-        backend = generic.get_backend(backend_guid)
+        backend = general_backend.get_backend(backend_guid)
         if backend:
             if backend['status'] in ['RUNNING']:
                 is_running = True
@@ -135,11 +132,11 @@ def is_alba_backend_running(backend_guid, trigger=False):
 
 
 def add_alba_backend(name):
-    if not generic.is_backend_present(name, 'alba'):
-        backend_guid = generic.add_backend(name, 'alba')
+    if not general_backend.is_backend_present(name, 'alba'):
+        backend_guid = general_backend.add_backend(name, 'alba')
         assert (is_alba_backend_running(backend_guid, trigger=True)), 'Backend {0} not in status RUNNING'.format(name)
     else:
-        backend = generic.get_backend_by_name_and_type(name, 'alba')
+        backend = general_backend.get_backend_by_name_and_type(name, 'alba')
         backend_guid = backend['guid']
 
     out, err = general.execute_command('etcdctl ls /ovs/alba/asdnodes')
@@ -214,7 +211,7 @@ def upload_file(backend_name, namespace, filesize, cleanup=False):
 
 
 def get_alba_namespaces(name):
-    if not generic.is_backend_present(name, 'alba'):
+    if not general_backend.is_backend_present(name, 'alba'):
         return
 
     cmd = "alba list-namespaces {0} --to-json".format(get_config(name))
@@ -234,7 +231,7 @@ def get_alba_namespaces(name):
 
 
 def remove_alba_namespaces(name=""):
-    if not generic.is_backend_present(name, 'alba'):
+    if not general_backend.is_backend_present(name, 'alba'):
         return
 
     cmd_delete = "alba delete-namespace {0} ".format(get_config(name))

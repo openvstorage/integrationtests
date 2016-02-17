@@ -13,42 +13,47 @@
 # limitations under the License.
 
 import time
-from ci.tests.backend import alba, generic
+from ci.tests.backend import alba, general_backend
 from ci.tests.disklayout import disklayout
-from ci.tests.general.general import test_config
 from ci.tests.general.logHandler import LogHandler
 from ovs.extensions.generic.system import System
 from ovs.lib.albascheduledtask import AlbaScheduledTaskController
 from ci.tests.general import general
-from ci import autotests
-
 
 logger = LogHandler.get('backend', name='alba')
 logger.logger.propagate = False
 
-testsToRun = general.get_tests_to_run(autotests.get_test_level())
+testsToRun = general.get_tests_to_run(general.get_test_level())
 
-BACKEND_NAME = test_config.get('backend', 'name')
-BACKEND_TYPE = test_config.get('backend', 'type')
-NR_OF_DISKS_TO_CLAIM = int(test_config.get('backend', 'nr_of_disks_to_claim'))
-TYPE_OF_DISKS_TO_CLAIM = test_config.get('backend', 'type_of_disks_to_claim')
+BACKEND_NAME = general.get_config().get('backend', 'name')
+BACKEND_TYPE = general.get_config().get('backend', 'type')
+NR_OF_DISKS_TO_CLAIM = general.get_config().getint('backend', 'nr_of_disks_to_claim')
+TYPE_OF_DISKS_TO_CLAIM = general.get_config().get('backend', 'type_of_disks_to_claim')
 
 assert BACKEND_NAME, "Please fill out a valid backend name in autotest.cfg file"
-assert BACKEND_TYPE in generic.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
+assert BACKEND_TYPE in general_backend.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
 
 
 def setup():
+    """
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
     my_sr = System.get_my_storagerouter()
     disklayout.add_db_role(my_sr.guid)
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    backend = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     if not backend:
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
-        backend = generic.get_backend(backend_guid)
+        backend = general_backend.get_backend(backend_guid)
     alba.claim_disks(backend['alba_backend_guid'], NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
 
 
 def teardown():
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    """
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
+    backend = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     if backend:
         alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
         alba.unclaim_disks(alba_backend)
@@ -56,7 +61,7 @@ def teardown():
 
 
 def verify_policies_for_preset(preset_name, policies, compression, encryption):
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    backend = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
     presets = alba_backend['presets']
 
@@ -80,7 +85,7 @@ def verify_policies_for_preset(preset_name, policies, compression, encryption):
 
 
 def is_preset_present(name):
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    backend = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
     presets = alba_backend['presets']
     for preset in presets:
@@ -90,7 +95,7 @@ def is_preset_present(name):
 
 
 def add_preset(name, compression, encryption, policies, remove_when_finished=True):
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    backend = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
     status, message = alba.add_preset(alba_backend, name, policies, compression, encryption)
     assert status, "Add preset failed with: {0}".format(message)
@@ -109,10 +114,10 @@ def be_0001_add_and_verify_backend_is_running_test():
 
     general.check_prereqs(testcase_number=1,
                           tests_to_run=testsToRun)
-    if not generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
+    if not general_backend.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
     else:
-        backend_guid = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)['guid']
+        backend_guid = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)['guid']
 
     is_running = alba.is_alba_backend_running(backend_guid, trigger=True)
     assert is_running, "Backend {0} is not present/running!".format(BACKEND_NAME)
@@ -202,7 +207,7 @@ def be_0007_add_update_remove_preset_test():
 
     general.check_prereqs(testcase_number=7,
                           tests_to_run=testsToRun)
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    backend = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
 
     timeout = 120
@@ -264,7 +269,7 @@ def ovs_3490_add_remove_preset_test():
                           tests_to_run=testsToRun)
 
     name = 'ovs-3490'
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    backend = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
     policies = [[1, 1, 1, 2]]
     compression = 'none'
@@ -338,7 +343,7 @@ def ovs_3188_verify_namespace_test():
     preset_name = 'be_preset_02'
     policies = [[1, 1, 1, 2]]
 
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    backend = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
     alba_backend_name = alba_backend['name']
     alba.add_preset(alba_backend, preset_name, policies, compression, encryption)

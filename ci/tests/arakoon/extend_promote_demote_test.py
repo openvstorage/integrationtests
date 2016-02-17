@@ -26,14 +26,13 @@
 #
 
 from ConfigParser import RawConfigParser
-from ci.tests.backend import alba, generic
+from ci.tests.backend import alba, general_backend
 from ci.tests.disklayout import disklayout
 from ci.tests.general import general
-from ci import autotests
 from ci.tests.general import general_ovs
 from ci.tests.general.logHandler import LogHandler
 from nose.plugins.skip import SkipTest
-from nose.tools import assert_raises, assert_false, assert_true
+from nose.tools import assert_false, assert_true
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.storagedriver import StorageDriverController
@@ -42,7 +41,7 @@ import os
 import hashlib
 from StringIO import StringIO
 
-testsToRun = general.get_tests_to_run(autotests.get_test_level())
+testsToRun = general.get_tests_to_run(general.get_test_level())
 
 logger = LogHandler.get('arakoon', name='setup')
 logger.logger.propagate = False
@@ -101,10 +100,14 @@ def get_cluster_pmachines(ips):
 
 
 def setup():
+    """
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
     logger.info('setup alba backend')
 
-    if generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
-        backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    if general_backend.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
+        backend = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
         alba.remove_alba_backend(backend['alba_backend_guid'])
 
     for ip in MASTER_IPS:
@@ -131,8 +134,12 @@ def setup():
 
 
 def teardown():
-    if generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
-        backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    """
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
+    if general_backend.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
+        backend = general_backend.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
         alba.remove_alba_backend(backend['alba_backend_guid'])
 
     for ip in MASTER_IPS:

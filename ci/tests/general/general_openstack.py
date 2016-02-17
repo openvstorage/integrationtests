@@ -23,7 +23,6 @@ from ovs.dal.lists.vdisklist import VDiskList
 from ovs.dal.lists.vmachinelist import VMachineList
 
 import general
-from ci import autotests
 
 
 IMAGE_NAME = "AUTOTEST_IMAGE"
@@ -51,9 +50,9 @@ def create_glance_image():
     if existing_images:
         return existing_images[0]['ID']
 
-    os_name = autotests.get_os()
-    bootdisk_path_remote = autotests.get_os_info(os_name)['bootdisk_location']
-    template_server = autotests.get_template_server()
+    os_name = general.get_os()
+    bootdisk_path_remote = general.get_os_info(os_name)['bootdisk_location']
+    template_server = general.get_template_server()
 
     bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
     md5_url = urlparse.urljoin(template_server, "md5")

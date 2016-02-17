@@ -21,12 +21,11 @@ from ovs.lib.disk import DiskController
 from ovs.lib.storagerouter import StorageRouterController
 from ci.tests.general import general
 from ci.tests.general.connection import Connection
-from ci import autotests
 
-testsToRun = general.get_tests_to_run(autotests.get_test_level())
+testsToRun = general.get_tests_to_run(general.get_test_level())
 
 log = logging.getLogger('test_flexible_disk_layout')
-vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = general.get_config().get("vpool", "name")
 vpool_name = 'api-' + vpool_name
 
 
@@ -39,12 +38,18 @@ __continue_testing.state = True
 
 
 def setup():
-
+    """
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
     pass
 
 
 def teardown():
-
+    """
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
     pass
 
 

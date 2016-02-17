@@ -17,8 +17,7 @@ import urllib
 import json
 import os
 import time
-
-from ci.tests.general.general import test_config
+from ci.tests.general import general
 
 
 class Connection:
@@ -33,14 +32,14 @@ class Connection:
         else:
             if use_config:
                 if not ip:
-                    ip = test_config.get('main', 'grid_ip')
+                    ip = general.get_config().get('main', 'grid_ip')
                     assert ip, "Please specify a valid ip in autotests.cfg for grid_ip"
                 if not username:
-                    username = test_config.get('main', 'username')
-                    assert username, "Please specify a valid username in autotests.cfg for grid_ip"
+                    username = general.get_config().get('main', 'username')
+                    assert username, "Please specify a valid username in autotests.cfg"
                 if not password:
-                    password = test_config.get('main', 'password')
-                    assert password, "Please specify a valid password in autotests.cfg for grid_ip"
+                    password = general.get_config().get('main', 'password')
+                    assert password, "Please specify a valid password in autotests.cfg"
             Connection.connection = Connection(ip, username, password)
 
         if not Connection.connection.is_authenticated():
@@ -126,79 +125,82 @@ class Connection:
         return tasks
 
     def list(self, component):
-        base_url = 'https://{0}/api/{{0}}'.format(self.get_ip())
-        request = urllib2.Request(base_url.format(component + '/'), None, headers=self.headers)
+        base_url = 'https://{0}/api/{1}/'.format(self.get_ip(), component)
+        request = urllib2.Request(base_url, None, headers=self.headers)
         response = urllib2.urlopen(request).read()
-        result = json.loads(response)
-
-        return result['data']
+        return json.loads(response)['data']
 
     def fetch(self, component, guid):
-        base_url = 'https://{0}/api/{{0}}/'.format(self.get_ip())
-        request = urllib2.Request(base_url.format(component + '/' + guid), None, headers=self.headers)
+        base_url = 'https://{0}/api/{1}/{2}/'.format(self.get_ip(), component, guid)
+        request = urllib2.Request(base_url, None, headers=self.headers)
         response = urllib2.urlopen(request).read()
-        result = json.loads(response)
-
-        return result
+        return json.loads(response)
 
     def add(self, component, data):
         base_url = 'https://{0}/api/{1}/'.format(self.get_ip(), component)
-        print 'data: {0}'.format(data)
         request = urllib2.Request(base_url, json.dumps(data), headers=self.headers)
         request.add_header('Content-Type', 'application/json')
         response = urllib2.urlopen(request).read()
-        result = json.loads(response)
+        return json.loads(response)
 
-        return result
+    def get(self, component, guid, action):
+        base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.get_ip(), component, guid, action)
+        request = urllib2.Request(base_url, None, headers=self.headers)
+        response = urllib2.urlopen(request).read()
+        return json.loads(response)
 
     def remove(self, component, guid):
-        base_url = 'https://{0}/api/{{0}}/'.format(self.get_ip())
-        request = urllib2.Request(base_url.format(component + '/' + guid), None, headers=self.headers)
+        base_url = 'https://{0}/api/{1}/{2}/'.format(self.get_ip(), component, guid)
+        request = urllib2.Request(base_url, None, headers=self.headers)
         request.get_method = lambda: 'DELETE'
         response = urllib2.urlopen(request).read()
-        if response:
-            result = json.loads(response)
-        else:
-            result = ''
-
-        return result
+        return json.loads(response) if response else ''
 
     def execute_action(self, component, guid, action, data):
+        """
+        Execute a POST action
+        :param component: Component (eg: vpools, storagerouters, ...)
+        :param guid: Guid of the component to execute an action on
+        :param action: Action to perform (eg: add_vpool)
+        :param data: Data required for the POST action
+        :return: Celery task ID
+        """
         base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.get_ip(), component, guid, action)
-        print 'url: {0}'.format(base_url)
-        print 'data: {0}'.format(data)
         request = urllib2.Request(base_url, json.dumps(data), headers=self.headers)
         request.add_header('Content-Type', 'application/json')
         response = urllib2.urlopen(request).read()
-        result = json.loads(response)
+        return json.loads(response)
 
-        return result
+    def get_component_by_name(self, component, name, single=False):
+        """
+        Retrieve a component based on its 'name' field
+        :param component: Component type to retrieve
+        :param name: Name of the component
+        :param single: Expect only 1 return value
+        :return: Information about the component
+        """
+        return self.get_components_with_attribute(component, 'name', name, single)
 
-    def get_component_by_name(self, module, name):
-
-        return self.get_components_with_attribute(module, 'name', name)
-
-    def get_components_with_attribute(self, module, attribute, value, single=False):
-        result = list()
-        components = self.list(module)
-        for guid in components:
-            component = self.fetch(module, guid)
-            attr = component[attribute]
-            if (type(attr) == list and value in attr) or (type(attr) == unicode and value == attr):
-                if result and single:
-                    raise RuntimeError('Multiple results found for component: {0}'.format(module))
+    def get_components_with_attribute(self, component, attribute, value, single=False):
+        """
+        Retrieve component information based on a certain attribute
+        :param component: Component type to retrieve
+        :param attribute: Attribute to compare
+        :param value: Value of the attribute
+        :param single: Expect only 1 return value
+        :return: Information about the retrieved components
+        """
+        result = []
+        for guid in self.list(component):
+            component = self.fetch(component, guid)
+            attr = component.get(attribute)
+            if attr is not None and ((type(attr) == list and value in attr) or (type(attr) == unicode and value == attr)):
+                if result and single is True:
+                    raise RuntimeError('Multiple results found for component: {0}'.format(component))
                 result.append(component)
 
         if result:
-            if single:
-                return result[0]
-            else:
-                return result
-        else:
-            return None
-
-    def get_component_with_attribute(self, module, attribute, value):
-        return self.get_components_with_attribute(module, attribute, value, True)
+            return result[0] if single is True else result
 
     def get_components(self, module):
         result = list()
@@ -208,6 +210,12 @@ class Connection:
         return result
 
     def wait_for_task(self, task_id, timeout=None):
+        """
+        Wait for a celery task to end
+        :param task_id: Celery task ID to wait for
+        :param timeout: Maximum time in seconds to wait for the task to return
+        :return: Tuple containing a boolean if the task was successful or not and the result of the task
+        """
         start = time.time()
         task_metadata = {'ready': False}
         while task_metadata['ready'] is False:

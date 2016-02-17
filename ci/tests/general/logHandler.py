@@ -19,7 +19,8 @@ Contains the loghandler module
 import inspect
 import logging
 import os
-from ci.tests.general.general import test_config
+from ci.tests.general import general
+
 
 def _ignore_formatting_errors():
     """
@@ -80,7 +81,7 @@ class LogHandler(object):
             raise RuntimeError('Cannot invoke instance from outside this class. Please use LogHandler.get(source, name=None) instead')
 
         if name is None:
-            name = test_config.get('logger', 'default_name')
+            name = general.get_config().get('logger', 'default_name')
 
         log_filename = LogHandler.load_path(source)
 
@@ -90,16 +91,16 @@ class LogHandler(object):
 
         self.logger = logging.getLogger(name)
         self.logger.propagate = True
-        self.logger.setLevel(getattr(logging, test_config.get('logger', 'level')))
+        self.logger.setLevel(getattr(logging, general.get_config().get('logger', 'level')))
         self.logger.addHandler(handler)
 
     @staticmethod
     def load_path(source):
-        log_path = test_config.get('logger', 'path')
+        log_path = general.get_config().get('logger', 'path')
         if not os.path.exists(log_path):
             os.mkdir(log_path)
         log_filename = '{0}/{1}.log'.format(log_path,
-            LogHandler.targets[source] if source in LogHandler.targets else test_config.get('logger', 'default_file')
+            LogHandler.targets[source] if source in LogHandler.targets else general.get_config().get('logger', 'default_file')
         )
         if not os.path.exists(log_filename):
             open(log_filename, 'a').close()

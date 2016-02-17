@@ -13,55 +13,75 @@
 # limitations under the License.
 
 import time
-import os
-from ci import autotests
-from ci.tests.general import general
 from ci.tests.backend import alba
-from ci.tests.general.connection import Connection
-from ci.tests.general.general import test_config
-from ovs.dal.lists.vpoollist import VPoolList
-from ovs.dal.lists.pmachinelist import PMachineList
+from ci.tests.general import general, general_alba
+from ci.tests.general.general_vdisk import GeneralVDisk
+from ci.tests.vpool.general_vpool import GeneralVPool
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.generic.system import System
 from ovs.extensions.services.service import ServiceManager
-from ci.tests.vpool import generic
-from ci.tests.sanity import sanity_checks_test
-
-testsToRun = general.get_tests_to_run(autotests.get_test_level())
-
-BACKEND_NAME = test_config.get('backend', 'name')
-BACKEND_TYPE = test_config.get('backend', 'type')
-ENV_IP = test_config.get('main', 'grid_ip')
-
-VPOOL_NAME = test_config.get('vpool', 'vpool_name')
-assert VPOOL_NAME, "Please fill out a valid vpool name in autotest.cfg file"
 
 
 def setup():
-    generic.add_alba_backend()
+    """
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
+    # general_alba.add_alba_backend()
 
 
 def teardown():
-    general.api_remove_vpool(VPOOL_NAME)
-    generic.remove_alba_backend()
+    """
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
+    # general_alba.remove_alba_backend()
 
 
 def add_vpool_test():
     """
     {0}
+    Create a vPool using default values (from autotest.cfg)
+    If a vPool with name already exists, remove it and create a new vPool
+    Validate the newly created vPool is correctly running
+    Remove the newly created vPool and validate everything related to the vPool has been cleaned up
+    :return: None
     """.format(general.get_function_name())
+    vpool_params = GeneralVPool.get_add_vpool_params()
+    vpool_name = vpool_params['vpool_name']
+    if vpool_name is None or len(vpool_name) < 3:
+        raise RuntimeError('Invalid vPool name provided in autotest.cfg')
 
-    general.check_prereqs(testcase_number=1,
-                          tests_to_run=testsToRun)
+    # Remove vPool if 1 already exists
+    vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
+    if vpool is not None:
+        GeneralVPool.remove_vpool(vpool=vpool)
+        vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
+        if vpool is not None:
+            raise RuntimeError('vPool with name "{0}" still exists'.format(vpool_name))
 
-    api = Connection.get_connection()
-    vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
-    if not vpool_list:
-        generic.add_generic_vpool()
-    vpool = VPoolList.get_vpool_by_name(VPOOL_NAME)
-    assert vpool, 'Vpool {0} was not created'.format(VPOOL_NAME)
-    general.api_remove_vpool(VPOOL_NAME)
-    vpool = VPoolList.get_vpool_by_name(VPOOL_NAME)
-    assert not vpool, 'Vpool {0} was not deleted'.format(VPOOL_NAME)
+    # Add vPool and validate health
+    vpool = GeneralVPool.add_vpool(vpool_parameters=vpool_params)
+    assert vpool is not None, 'vPool {0} was not created'.format(vpool_name)
+    GeneralVPool.check_vpool_sanity(vpool=vpool,
+                                    expected_settings=vpool_params)
+
+    # Retrieve vPool information before removal
+    guid = vpool.guid
+    name = vpool.name
+    backend_type = vpool.backend_type.code
+    files = GeneralVPool.get_related_files(vpool)
+    directories = GeneralVPool.get_related_directories(vpool)
+
+    # Remove vPool and validate removal
+    GeneralVPool.remove_vpool(vpool=vpool)
+    vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
+    assert vpool is None, 'vPool {0} was not deleted'.format(vpool_name)
+    GeneralVPool.check_vpool_cleanup(vpool_info={'guid': guid,
+                                                 'name': name,
+                                                 'type': backend_type,
+                                                 'files': files,
+                                                 'directories': directories})
 
 
 def ovs_2263_verify_alba_namespace_cleanup_test():
@@ -69,33 +89,37 @@ def ovs_2263_verify_alba_namespace_cleanup_test():
     {0}
     """.format(general.get_function_name())
 
-    general.check_prereqs(testcase_number=2,
-                          tests_to_run=testsToRun)
+    # Create some namespaces in alba
     no_namespaces = 3
-
+    backend_name = general.get_config().get('backend', 'name')
     for nmspc_index in range(no_namespaces):
-        alba.create_namespace(BACKEND_NAME, 'nmspc_{0}'.format(nmspc_index), 'default')
-    result = alba.list_namespaces(BACKEND_NAME)
-    assert len(result) == no_namespaces, "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, BACKEND_NAME, len(result))
-    generic.add_generic_vpool()
+        alba.create_namespace(backend_name, 'autotest-ns_{0}'.format(nmspc_index), 'default')
+    result = alba.list_namespaces(backend_name)
+    assert len(result) == no_namespaces, "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name, len(result))
+
+    # Create a vPool and create volumes on it
+    vpool = GeneralVPool.add_vpool()
+    root_client = SSHClient(System.get_my_storagerouter(), username='root')
+    if vpool.storagedrivers[0].storagerouter.pmachine.hvtype == 'VMWARE':
+        GeneralVPool.mount_vpool(vpool=vpool,
+                                 root_client=root_client)
+
     for disk_index in range(no_namespaces):
-        pmachine_type = PMachineList.get_pmachines()[0].hvtype
-        if pmachine_type == 'VMWARE':
-            file_name = os.path.join('/mnt/{0}'.format(VPOOL_NAME), "validate_namespace" + str(time.time()).replace(".", "") + "-flat.vmdk")
-        else:
-            file_name = os.path.join('/mnt/{0}'.format(VPOOL_NAME), "validate_namespace" + str(time.time()).replace(".", "") + ".raw")
-        cmd = "truncate {0} --size 10000000".format(file_name)
-        out, error = general.execute_command(cmd)
-    result = alba.list_namespaces(BACKEND_NAME)
-    assert len(result) == 2 * no_namespaces + 1, "Expected {0} namespaces present on the {1} backend, found {2}".format(2 * no_namespaces + 1, BACKEND_NAME, len(result))
-    _, __ = general.execute_command("rm -rf /mnt/{0}/*validate_namespace*".format(VPOOL_NAME))
-    general.api_remove_vpool(VPOOL_NAME)
-    result = alba.list_namespaces(BACKEND_NAME)
-    assert len(result) == no_namespaces, "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, BACKEND_NAME, len(result))
+        GeneralVDisk.create_volume(size=10,
+                                   vpool=vpool,
+                                   root_client=root_client)
+    result = alba.list_namespaces(backend_name)
+    assert len(result) == 2 * no_namespaces + 1, "Expected {0} namespaces present on the {1} backend, found {2}".format(2 * no_namespaces + 1, backend_name, len(result))
+
+    #
+    general.execute_command("rm -rf /mnt/{0}/*validate_namespace*".format(vpool.name))
+    GeneralVPool.remove_vpool(vpool)
+    result = alba.list_namespaces(backend_name)
+    assert len(result) == no_namespaces, "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name, len(result))
     for namespace in result:
-        alba.delete_namespace(BACKEND_NAME, namespace['name'])
-    result = alba.list_namespaces(BACKEND_NAME)
-    assert len(result) == 0, "Expected no namespaces present on the {1} backend, found {2}".format(no_namespaces, BACKEND_NAME, len(result))
+        alba.delete_namespace(backend_name, namespace['name'])
+    result = alba.list_namespaces(backend_name)
+    assert len(result) == 0, "Expected no namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name, len(result))
 
 
 def ovs_2703_kill_various_services_test():
@@ -104,13 +128,11 @@ def ovs_2703_kill_various_services_test():
     %s
     """ % general.get_function_name()
 
-    general.check_prereqs(testcase_number=3,
-                          tests_to_run=testsToRun)
     issues_found = ''
-    api = Connection.get_connection()
-    vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
-    if not vpool_list:
-        generic.add_generic_vpool()
+    vpool_name = general.get_config().get('vpool', 'name')
+    vpool = GeneralVPool.get_vpool_by_name(vpool_name)
+    if vpool is None:
+        vpool = GeneralVPool.add_vpool()
 
     services_folder = '/opt/OpenvStorage/config/templates/systemd/'
     out, err = general.execute_command('ls {0}'.format(services_folder))
@@ -119,7 +141,8 @@ def ovs_2703_kill_various_services_test():
     for index in range(len(services_to_kill)):
         services_to_kill[index] = services_to_kill[index].split('.')[0]
 
-    client = SSHClient(ENV_IP, username='root')
+    env_ip = general.get_config().get('main', 'grid_ip')
+    client = SSHClient(env_ip, username='root')
 
     for master_service in services_to_kill:
         all_services, err = general.execute_command("initctl list | grep {0}".format(master_service))
@@ -133,7 +156,7 @@ def ovs_2703_kill_various_services_test():
                 if service_status not in 'start/running':
                     issues_found += 'Service {0} not found in running state\n'.format(service)
                 else:
-                    out, err = general.execute_command("kill -9 {0}".format(service_proc_id))
+                    general.execute_command("kill -9 {0}".format(service_proc_id))
                     time.sleep(5)
                     new_out, err = general.execute_command("initctl list | grep {0}".format(service_name))
                     if len(new_out) == 0:
@@ -144,7 +167,6 @@ def ovs_2703_kill_various_services_test():
                         if service_proc_id == new_out.split(' ')[3][:-1]:
                             issues_found += 'Kill command did not work on service {0}'.format(service_name)
 
-    sanity_checks_test.check_vpool_sanity_test()
-    general.api_remove_vpool(VPOOL_NAME)
+    GeneralVPool.remove_vpool(vpool)
 
     assert issues_found == '', "Following issues where found with the services:\n{0}".format(issues_found)

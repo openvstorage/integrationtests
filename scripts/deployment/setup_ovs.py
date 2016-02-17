@@ -15,8 +15,6 @@
 from pylabs.InitBaseCore import q
 import re
 import sys
-import time
-import json
 import getopt
 import ipcalc
 import pexpect
@@ -217,7 +215,7 @@ def install_autotests(node_ip):
     con.process.execute("apt-get install unzip openvstorage-test -y --force-yes")
 
 
-def create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, vpool_config, vpool_name, backend_name,
+def create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, vpool_name, backend_name,
                         cinder_type, grid_ip, test_project, testrail_server, testrail_key, output_folder, qualitylevel):
 
     cmd = '''cat << EOF > /opt/OpenvStorage/ci/config/autotest.cfg
@@ -235,20 +233,31 @@ vpool_name = {vpool_name}
 output_folder = {output_folder}
 qualitylevel = {qualitylevel}
 
-{vpool_config}
+[vpool]
+name                 = autotest-vpool
+type                 = alba
+alba_connection_host =
+alba_connection_port = 443
+alba_connection_user =
+alba_connection_pass =
+readcache_size       = 10
+writecache_size      = 10
+integrate_mgmt       = True
+storage_ip           = 127.0.0.1
+config_params        = {"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128, "dtl_target": ""}
 
 [vpool2]
-vpool_name = localvp
-vpool_type = local
-vpool_type_name = Local FS
-vpool_host =
-vpool_port =
-vpool_access_key =
-vpool_secret_key =
-vpool_dtl_mp = /mnt/cache3/localvp/foc
-vpool_vrouter_port  = 12345
-vpool_storage_ip = 127.0.0.1
-vpool_config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128}}
+name                 = localvp
+type                 = local
+alba_connection_host =
+alba_connection_port = 443
+alba_connection_user =
+alba_connection_pass =
+readcache_size       = 10
+writecache_size      = 10
+integrate_mgmt       = True
+storage_ip           = 127.0.0.1
+config_params        = {"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128, "dtl_target": ""}
 
 [backend]
 name = marie
@@ -282,7 +291,6 @@ EOF
            vmware_info=vmware_info,
            template_server=template_server,
            screen_capture=screen_capture,
-           vpool_config=vpool_config,
            vpool_name=vpool_name,
            backend_name=backend_name,
            cinder_type=cinder_type,
@@ -299,17 +307,16 @@ EOF
 def get_swift_vpool_config(vpool_host_ip, vpool_storage_ip, vpool_name, vpool_type):
     return """
 [vpool]
-vpool_name = {vpool_name}
-vpool_type = {vpool_type}
-vpool_type_name     = Swift S3
-vpool_host          = {vpool_host_ip}
-vpool_port          = 8080
-vpool_access_key    = test:tester
-vpool_secret_key    = testing
-vpool_dtl_mp    = /mnt/cache1/saio/foc
-vpool_vrouter_port  = 12345
-vpool_storage_ip    = {vpool_storage_ip}
-vpool_config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128}}
+name          = {vpool_name}
+type          = {vpool_type}
+type_name     = Swift S3
+host          = {vpool_host_ip}
+port          = 8080
+access_key    = test:tester
+secret_key    = testing
+dtl_mp        = /mnt/cache1/saio/foc
+storage_ip    = {vpool_storage_ip}
+config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128}}
 """.format(vpool_host_ip=vpool_host_ip,
            vpool_storage_ip=vpool_storage_ip,
            vpool_name=vpool_name,
@@ -319,17 +326,16 @@ vpool_config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "ded
 def get_alba_vpool_config(vpool_name, vpool_type):
     return """
 [vpool]
-vpool_name = {vpool_name}
-vpool_type = {vpool_type}
-vpool_type_name = Open vStorage Backend
-vpool_host =
-vpool_port = 80
-vpool_access_key =
-vpool_secret_key =
-vpool_dtl_mp = /mnt/cache1/alba/foc
-vpool_vrouter_port  = 12345
-vpool_storage_ip = 0.0.0.0
-vpool_config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128}}
+name          = {vpool_name}
+type          = {vpool_type}
+type_name     = Open vStorage Backend
+host          =
+port          = 80
+access_key    =
+secret_key    =
+dtl_mp        = /mnt/cache1/alba/foc
+storage_ip    = 0.0.0.0
+config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128}}
 """.format(vpool_name=vpool_name,
            vpool_type=vpool_type)
 
@@ -342,9 +348,6 @@ def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=
     """
 
     con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
-
-    vpool_storage_ip = con.process.execute("ip a | awk '/inet/ && /privbr/ {print $2}'")[0]
-    vpool_storage_ip = ipcalc.IP(vpool_storage_ip).dq
 
     os_name = "ubuntu_desktop14_kvm" if not vmware_info else "small_linux_esx"
 
@@ -361,25 +364,13 @@ def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=
                "always_die={3}, qualitylevel='{4}', interactive={5})".format(test_plan, output_folder, test_project,
                                                                              False, qualitylevel, False)
 
-    if vpool_type == "swift_s3":
-        vpool_config = get_swift_vpool_config(vpool_host_ip=vpool_host_ip,
-                                              vpool_storage_ip=vpool_storage_ip,
-                                              vpool_name=vpool_name,
-                                              vpool_type=vpool_type)
-    elif vpool_type == "alba":
-        vpool_config = get_alba_vpool_config(vpool_name=vpool_name,
-                                             vpool_type=vpool_type)
-
-    cinder_type = vpool_name
-
     cmd = create_autotest_cfg(os_name=os_name,
                               vmware_info=vmware_info,
                               template_server=template_server,
                               screen_capture=str(capture_screen),
-                              vpool_config=vpool_config,
                               vpool_name=vpool_name,
                               backend_name=backend_name,
-                              cinder_type=cinder_type,
+                              cinder_type=vpool_name,
                               grid_ip=node_ip,
                               test_project=test_project,
                               testrail_server=testrail_server,

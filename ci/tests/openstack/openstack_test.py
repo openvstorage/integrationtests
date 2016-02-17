@@ -18,35 +18,33 @@ import pwd
 import time
 import random
 
-from ci import autotests
 from nose.plugins.skip import SkipTest
 from ci.tests.general import general
 from ci.tests.general import general_openstack
-from ci.tests.general import general_alba
-
-from nose.tools import timed
-
+from ci.tests.vpool.general_vpool import GeneralVPool
 from ovs.dal.lists.vpoollist import VPoolList
-from ovs.lib.albacontroller import AlbaController
-from ovs.dal.lists.albanodelist import AlbaNodeList
 
 from selenium.webdriver.remote.remote_connection import LOGGER
 
 LOGGER.setLevel(logging.WARNING)
 
-tests_to_run = general.get_tests_to_run(autotests.get_test_level())
+tests_to_run = general.get_tests_to_run(general.get_test_level())
 machinename = "AT_" + __name__.split(".")[-1]
-vpool_name = general.test_config.get("vpool", "vpool_name")
+vpool_name = general.get_config().get("vpool", "name")
 vpool_name = 'openstack-' + vpool_name
 
 
 def setup():
+    """
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
     global prev_os
 
     if not general_openstack.is_openstack_present():
         return
-    prev_os = autotests.get_os()
-    autotests.set_os('ubuntu_server14_kvm')
+    prev_os = general.get_os()
+    general.set_os('ubuntu_server14_kvm')
 
     # make sure we start with clean env
     if general_openstack.is_openstack_present():
@@ -55,16 +53,20 @@ def setup():
 
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     if not vpool:
-        general.api_add_vpool(vpool_name=vpool_name, apply_to_all_nodes=True, config_cinder=True)
+        GeneralVPool.add_vpool(vpool_name=vpool_name, apply_to_all_nodes=True, config_cinder=True)
         _ = VPoolList.get_vpool_by_name(vpool_name)
 
 
 def teardown():
+    """
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
     if not general_openstack.is_openstack_present():
         return
 
-    autotests.set_os(prev_os)
-    if general.test_config.get("main", "cleanup") == "True":
+    general.set_os(prev_os)
+    if general.get_config().getboolean("main", "cleanup") is True:
         general_openstack.cleanup()
 
     # Check the amount of open log files at the end at the test suite
@@ -105,7 +107,8 @@ def create_volume_from_image_tst():
     else:
         general_openstack.cleanup()
 
-    _ = general.setup_vpool(vpool_name)
+    if GeneralVPool.get_vpool_by_name(vpool_name) is None:
+        GeneralVPool.add_vpool(vpool_name)
 
     volume_name = machinename + str(time.time()) + "_vol_from_img"
 
@@ -139,7 +142,8 @@ def boot_nova_instance_from_volume_tst():
     else:
         general_openstack.cleanup()
 
-    _ = general.setup_vpool(vpool_name)
+    if GeneralVPool.get_vpool_by_name(vpool_name) is None:
+        GeneralVPool.add_vpool(vpool_name)
 
     instance_name = "{0}_{1}_boot_from_vol".format(machinename, int(time.time()))
     volume_name = "{0}_disk".format(instance_name)
@@ -190,7 +194,8 @@ def boot_nova_instance_from_snapshot_tst():
     else:
         general_openstack.cleanup()
 
-    _ = general.setup_vpool(vpool_name)
+    if GeneralVPool.get_vpool_by_name(vpool_name) is None:
+        GeneralVPool.add_vpool(vpool_name)
 
     instance_name = "{0}_{1}_boot_from_snap".format(machinename, int(time.time()))
     volume_name = "{0}_disk".format(instance_name)
@@ -245,8 +250,7 @@ def permissions_check_tst():
     expected_dir_perms = "755"
     expected_file_perms = "775"
 
-    vpool = general.setup_vpool(vpool_name)
-
+    vpool = GeneralVPool.add_vpool(vpool_name)
     assert vpool.storagedrivers, "At least one storagedriver should be configured for vpool: {0}".format(vpool.name)
     mount_point = vpool.storagedrivers[0].mountpoint
 
