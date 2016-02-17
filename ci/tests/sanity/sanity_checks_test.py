@@ -182,6 +182,7 @@ def check_model_test():
 
     backends_present_on_env = BackendList.get_backends()
     if len(backends_present_on_env) == 0:
+        # @TODO: Remove this skipTest
         raise SkipTest('No backend present at the time of the test')
 
     backend_name = general.test_config.get("backend", "name")
@@ -201,6 +202,7 @@ def check_backend_services_test():
 
     backends_present_on_env = BackendList.get_backends()
     if len(backends_present_on_env) == 0:
+        # @TODO: Remove this skipTest
         raise SkipTest('No backend present at the time of the test')
 
     # TODO: more than 1 backends present
@@ -231,6 +233,7 @@ def check_backend_files_test():
 
     backends_present_on_env = BackendList.get_backends()
     if len(backends_present_on_env) == 0:
+        # @TODO: Remove this skipTest
         raise SkipTest('No backend present at the time of the test')
 
     my_backend_name = backends_present_on_env[0].name
@@ -306,7 +309,7 @@ def check_vpool_sanity_test(vpool_name=''):
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     # TODO: think of a way to skip the test if there's no vpool to check(mainly for full autotest runs)
     if not vpool:
-        raise SkipTest('No vpool present at the time of the test')
+        raise SkipTest('No vpool present with name {0} at the time of the test'.format(vpool_name))
     # assert vpool.name == vpool_name, "No vpool found modeled with {0} name".format(vpool_name)
 
     # @TODO check services on each node after implementing vpool extension to all nodes
