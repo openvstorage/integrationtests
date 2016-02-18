@@ -17,19 +17,11 @@ import os
 import pwd
 import time
 import random
-
 from ci import autotests
 from nose.plugins.skip import SkipTest
 from ci.tests.general import general
 from ci.tests.general import general_openstack
-from ci.tests.general import general_alba
-
-from nose.tools import timed
-
 from ovs.dal.lists.vpoollist import VPoolList
-from ovs.lib.albacontroller import AlbaController
-from ovs.dal.lists.albanodelist import AlbaNodeList
-
 from selenium.webdriver.remote.remote_connection import LOGGER
 
 LOGGER.setLevel(logging.WARNING)

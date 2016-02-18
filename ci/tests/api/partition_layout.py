@@ -16,7 +16,6 @@ import os
 import itertools
 import random
 import logging
-
 import ci.tests.backend.test_alba
 from ci.tests.general import general
 from ovs.lib.setup import SetupController

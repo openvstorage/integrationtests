@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from ci.tests.general.connection import Connection
 from ovs.extensions.generic.sshclient import SSHClient
-
-import json
 
 
 def get_pmachines_by_ip():

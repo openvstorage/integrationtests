@@ -36,7 +36,7 @@ def is_devstack_installed():
 
 def create_mgmt_center(name, username, password, ip, center_type, port):
     api = Connection.get_connection()
-    center = api.add('mgmtcenters', {'name' : name, 'username' : username, 'password' : password, 'ip' : ip, 'type' : center_type, 'port' : port})
+    center = api.add('mgmtcenters', {'name': name, 'username': username, 'password': password, 'ip': ip, 'type': center_type, 'port': port})
     return center
 
 

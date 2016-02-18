@@ -14,7 +14,6 @@
 
 from ci.tests.general.connection import Connection
 from ovs.lib.storagerouter import StorageRouterController
-import os
 
 
 def is_role_present(role, storagerouter_guid=None):

@@ -23,7 +23,6 @@
 
 import time
 import urlparse
-
 from browser_ovs import BrowserOvs
 from ci.tests.general import general, general_hypervisor
 from nose.plugins.skip import SkipTest

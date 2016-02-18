@@ -17,6 +17,11 @@ from ci.tests.backend import alba, generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general.general import test_config
 from ovs.extensions.generic.system import System
+from ovs.dal.hybrids.albanode import AlbaNode
+from ovs.dal.hybrids.albaasd import AlbaASD
+from ovs.dal.hybrids.albabackend import AlbaBackend
+from ovs.dal.hybrids.backend import Backend
+from ovs.dal.lists.backendtypelist import BackendTypeList
 from ci.tests.general.logHandler import LogHandler
 from ci.tests.general import general
 from ci import autotests
@@ -224,7 +229,7 @@ def be_0007_add_update_remove_preset_test():
     # to policy
     alba.run(BACKEND_NAME, 'deliver-messages', [], False)
 
-    _, _ = alba.upload_file(BACKEND_NAME, namespace_name, 1024*1024)
+    _, _ = alba.upload_file(BACKEND_NAME, namespace_name, 1024 * 1024)
 
     result = alba.show_namespace(BACKEND_NAME, namespace_name)['bucket_count']
 
@@ -285,12 +290,6 @@ def ovs_3769_validation_test():
 
     general.check_prereqs(testcase_number=9,
                           tests_to_run=testsToRun)
-
-    from ovs.dal.hybrids.albanode import AlbaNode
-    from ovs.dal.hybrids.albaasd import AlbaASD
-    from ovs.dal.hybrids.albabackend import AlbaBackend
-    from ovs.dal.hybrids.backend import Backend
-    from ovs.dal.lists.backendtypelist import BackendTypeList
 
     an = AlbaNode()
     an.password = 'rooter'

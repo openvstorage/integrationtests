@@ -39,7 +39,7 @@ storage_nic_mac = ""
 print sys.argv
 
 
-def randomMAC():
+def random_mac():
     mac = [0x00, 0x16, 0x3e,
            random.randint(0x00, 0x7f),
            random.randint(0x00, 0xff),
@@ -118,23 +118,23 @@ deployOvs.InstallHelper.execute_command(['vim-cmd', 'vmsvc/power.on', vm_id])
 
     retries = 200
     while retries:
-        vmObjects = q.tools.installerci.get_vm_objects_esx(sdk, ['name', 'config', 'runtime'])
-        vmObj = [v for v in vmObjects if v.name == name]
-        assert vmObj, "failed to create vm"
-        vmObj = vmObj[0]
-        if vmObj.runtime.powerState == "poweredOn":
+        vmobjects = q.tools.installerci.get_vm_objects_esx(sdk, ['name', 'config', 'runtime'])
+        vmobj = [v for v in vmobjects if v.name == name]
+        assert vmobj, "failed to create vm"
+        vmobj = vmobj[0]
+        if vmobj.runtime.powerState == "poweredOn":
             break
         retries -= 1
 
-    storageEthAdapter = [dev for dev in vmObj.config.hardware.device if dev.deviceInfo.summary == STORAGE_NET_NAME]
-    storageEthAdapter = storageEthAdapter[0]
+    storage_eth_adapter = [dev for dev in vmobj.config.hardware.device if dev.deviceInfo.summary == STORAGE_NET_NAME]
+    storage_eth_adapter = storage_eth_adapter[0]
 
-    publicEthAdapter = [dev for dev in vmObj.config.hardware.device if dev.deviceInfo.summary == PUBLIC_NET_NAME]
-    publicEthAdapter = publicEthAdapter[0]
+    public_eth_adapter = [dev for dev in vmobj.config.hardware.device if dev.deviceInfo.summary == PUBLIC_NET_NAME]
+    public_eth_adapter = public_eth_adapter[0]
 
-    command = "python /opt/qbase5/utils/ubuntu_autoinstall.py -M {publicEthAdapter.macAddress} -m {storageEthAdapter.macAddress} -d {dns} -P {public_ip} -n {public_network} -g {gateway} -k {public_netmask} -a sda -x {hypervisor_ip} -b {saio_name} -v {UBUNTU_ISO} -o {hostname}"
-    command = command.format(publicEthAdapter=publicEthAdapter,
-                             storageEthAdapter=storageEthAdapter,
+    command = "python /opt/qbase5/utils/ubuntu_autoinstall.py -M {public_eth_adapter.macAddress} -m {storage_eth_adapter.macAddress} -d {dns} -P {public_ip} -n {public_network} -g {gateway} -k {public_netmask} -a sda -x {hypervisor_ip} -b {saio_name} -v {UBUNTU_ISO} -o {hostname}"
+    command = command.format(publicEthAdapter=public_eth_adapter,
+                             storageEthAdapter=storage_eth_adapter,
                              dns=dns,
                              public_ip=public_ip,
                              public_network=public_network,
@@ -174,8 +174,8 @@ done'''
         if size < min_hdd_size * (1024 ** 3):
             disks.remove(d)
 
-    public_mac_address = randomMAC()
-    storage_mac_address = randomMAC()
+    public_mac_address = random_mac()
+    storage_mac_address = random_mac()
 
     con.process.execute("mkdir -p /vm/{0}".format(name))
     cmd = "virt-install --connect qemu:///system -n {name} -r 4096 --autostart ".format(name=name)

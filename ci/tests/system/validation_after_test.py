@@ -60,7 +60,7 @@ def ovs_2493_detect_could_not_acquire_lock_events_test():
         if not out == '0':
             errorlist += "node %s \n:{0}\n\n".format(general.execute_command_on_node(gridip, command).splitlines()) % gridip
 
-    assert len(errorlist) == 0 , "Lock errors detected in lib logs on \n" + errorlist
+    assert len(errorlist) == 0, "Lock errors detected in lib logs on \n" + errorlist
 
 
 def ovs_2468_verify_no_mds_files_left_after_remove_vpool_test():

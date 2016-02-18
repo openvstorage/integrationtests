@@ -18,20 +18,16 @@ import ipcalc
 import signal
 import random
 import logging
-
 from nose.tools import with_setup
 from nose.plugins.skip import SkipTest
-
 from ci.tests.general import general
 from ci.tests.general import general_hypervisor
 from ci.tests.gui.vpool import Vpool
 from ci.tests.gui.browser_ovs import BrowserOvs
 from ci.tests.gui.vmachine import Vmachine
 from ci import autotests
-
 from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.vmachinelist import VMachineList
-
 from selenium.webdriver.remote.remote_connection import LOGGER
 
 LOGGER.setLevel(logging.WARNING)
@@ -283,7 +279,7 @@ def set_as_template_tst():
 
     name = machine_name + "_set_as_template"
 
-    vpool = general.setup_vpool(vpool_name)
+    general.setup_vpool(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool_name)
     hpv.create_vm(name, small=False)
 
@@ -326,7 +322,7 @@ def create_from_template_tst():
 
     name = machine_name + "_create" + str(random.randrange(0, 9999999))
 
-    vpool = general.setup_vpool(vpool_name)
+    general.setup_vpool(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool_name)
     hpv.create_vm(machine_name, small=False)
 
@@ -366,7 +362,7 @@ def start_stop_vm_tst():
     bt.login()
     bt.take_screenshot("start_start_stop_vm_test")
 
-    vpool = general.setup_vpool(vpool_name)
+    general.setup_vpool(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool_name)
 
     template = Vmachine.get_template(template_name, vpool_name)
@@ -418,7 +414,7 @@ def delete_clone_tst():
     bt.login()
     bt.take_screenshot("start_delete_clone_test")
 
-    vpool = general.setup_vpool(vpool_name)
+    general.setup_vpool(vpool_name)
 
     name = machine_name + "_delete" + str(random.randrange(0, 9999999))
     template = Vmachine.get_template(machine_name, vpool_name)
@@ -455,7 +451,7 @@ def machine_snapshot_rollback_tst():
     bt.take_screenshot("start_machine_snapshot_rollback_test")
 
     name = machine_name + "_sn_roll" + str(random.randrange(0, 9999999))
-    vpool = general.setup_vpool(vpool_name)
+    general.setup_vpool(vpool_name)
     template = Vmachine.get_template(machine_name, vpool_name)
 
     hpv = general_hypervisor.Hypervisor.get(vpool_name)
@@ -534,7 +530,7 @@ def try_to_delete_template_with_clones_tst():
 
     name = machine_name + "_tmpl_cln" + str(random.randrange(0, 9999999))
 
-    vpool = general.setup_vpool(vpool_name)
+    general.setup_vpool(vpool_name)
     template = Vmachine.get_template(machine_name, vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool_name)
 
@@ -577,7 +573,7 @@ def delete_template_tst():
     bt.login()
     bt.take_screenshot("start_delete_template_test")
 
-    vpool = general.setup_vpool(vpool_name)
+    general.setup_vpool(vpool_name)
     hpv = general_hypervisor.Hypervisor.get(vpool_name)
     template = Vmachine.get_template(machine_name, vpool_name)
 
