@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+A general class dedicated to vDisk logic
+"""
+
 import os
 import time
 import uuid
@@ -105,3 +109,11 @@ class GeneralVDisk(object):
         :return: vDisk DAL object
         """
         return VDiskList.get_vdisk_by_name(vdiskname=name)
+
+    @staticmethod
+    def get_vdisks():
+        """
+        Retrieve all Virtual Disks
+        :return: Virtual Disk data-object list
+        """
+        return VDiskList.get_vdisks()

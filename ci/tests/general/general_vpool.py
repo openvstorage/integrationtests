@@ -12,24 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import uuid
-from ci.tests.backend.general_backend import GeneralBackend
-from ci.tests.general import general
+"""
+A general class dedicated to vPool logic
+"""
+
 from ci.tests.general.connection import Connection
+from ci.tests.general.general import General
 from ci.tests.general.general_arakoon import GeneralArakoon
+from ci.tests.general.general_backend import GeneralBackend
+from ci.tests.general.general_mgmtcenter import GeneralManagementCenter
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagedriver import GeneralStorageDriver
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
-from ci.tests.mgmtcenter.general_mgmtcenter import GeneralManagementCenter
 from ovs.dal.hybrids.diskpartition import DiskPartition
 from ovs.dal.hybrids.vpool import VPool
 from ovs.dal.lists.backendlist import BackendList
 from ovs.dal.lists.vpoollist import VPoolList
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.extensions.generic.system import System
 from ovs.extensions.services.service import ServiceManager
 from ovs.extensions.storageserver.storagedriver import StorageDriverClient
 from ovs.lib.helpers.toolbox import Toolbox
@@ -39,15 +40,15 @@ class GeneralVPool(object):
     """
     A general class dedicated to vPool logic
     """
-    api = Connection.get_connection()
+    api = Connection()
 
     @staticmethod
-    def add_vpool(vpool_parameters=None, extend=False, storagerouter_guids=None):
+    def add_vpool(vpool_parameters=None, extend=False, storagerouters=None):
         """
         Create a vPool based on the kwargs provided or default parameters found in the autotest.cfg
         :param vpool_parameters: Parameters to be used for vPool creation
         :param extend: Boolean indicating this is to extend an existing vPool or create a new vPool
-        :param storagerouter_guids: Guids of the Storage Routers on which to create and extend this vPool
+        :param storagerouters: Guids of the Storage Routers on which to create and extend this vPool
         :return: Created or extended vPool
         """
         if vpool_parameters is None:
@@ -83,15 +84,16 @@ class GeneralVPool(object):
 
         Toolbox.verify_required_params(required_params=required_params, actual_params=vpool_parameters, exact_match=True)
 
-        if storagerouter_guids is None:
-            storagerouter_guids = [System.get_my_storagerouter().guid]
+        if storagerouters is None:
+            storagerouters = [GeneralStorageRouter.get_local_storagerouter()]
 
-        for sr_guid in storagerouter_guids:
-            task_id = GeneralVPool.api.execute_action(component='storagerouters',
-                                                      guid=sr_guid,
-                                                      action='add_vpool',
-                                                      data={'call_parameters': vpool_parameters})
-            task_result = GeneralVPool.api.wait_for_task(task_id=task_id, timeout=500)
+        for sr in storagerouters:
+            task_result = GeneralVPool.api.execute_post_action(component='storagerouters',
+                                                               guid=sr.guid,
+                                                               action='add_vpool',
+                                                               data={'call_parameters': vpool_parameters},
+                                                               wait=True,
+                                                               timeout=500)
             if task_result[0] is not True:
                 raise RuntimeError('vPool was not {0} successfully'.format('extended' if extend is True else 'created'))
 
@@ -120,13 +122,14 @@ class GeneralVPool(object):
         vpool = storage_driver.vpool
         if storage_driver.storagerouter.pmachine.hvtype == 'VMWARE':
             root_client = SSHClient(storage_driver.storagerouter, username='root')
-            if storage_driver.mountpoint in general.get_mountpoints(root_client):
+            if storage_driver.mountpoint in General.get_mountpoints(root_client):
                 root_client.run('umount {0}'.format(storage_driver.mountpoint))
-        task_id = GeneralVPool.api.execute_action(component='vpools',
-                                                  guid=vpool.guid,
-                                                  action='shrink_vpool',
-                                                  data={'storagerouter_guid': storage_driver.storagerouter.guid})
-        task_result = GeneralVPool.api.wait_for_task(task_id=task_id, timeout=500)
+        task_result = GeneralVPool.api.execute_post_action(component='vpools',
+                                                           guid=vpool.guid,
+                                                           action='shrink_vpool',
+                                                           data={'storagerouter_guid': storage_driver.storagerouter.guid},
+                                                           wait=True,
+                                                           timeout=500)
         if task_result[0] is not True:
             raise RuntimeError('Storage Driver with ID {0} was not successfully removed from vPool {1}'.format(storage_driver.storagedriver_id, vpool.name))
         return vpool
@@ -138,10 +141,11 @@ class GeneralVPool(object):
         :param vpool: vPool to retrieve configuration for
         :return: Storage Driver configuration
         """
-        task_id = GeneralVPool.api.get(component='vpools',
-                                       guid=vpool.guid,
-                                       action='get_configuration')
-        task_result = GeneralVPool.api.wait_for_task(task_id=task_id, timeout=30)
+        task_result = GeneralVPool.api.execute_get_action(component='vpools',
+                                                          guid=vpool.guid,
+                                                          action='get_configuration',
+                                                          wait=True,
+                                                          timeout=60)
         if task_result[0] is not True:
             raise RuntimeError('Failed to retrieve the configuration for vPool {0}'.format(vpool.name))
         return task_result[1]
@@ -161,7 +165,7 @@ class GeneralVPool(object):
         :param extend: Retrieve config for extending a vPool
         :return: Dictionary with default settings
         """
-        test_config = general.get_config()
+        test_config = General.get_config()
         vpool_type = kwargs.get('type', test_config.get('vpool', 'type'))
         vpool_params = {'type': vpool_type,
                         'vpool_name': kwargs.get('name', test_config.get('vpool', 'name')),
@@ -513,5 +517,17 @@ class GeneralVPool(object):
         :return: None
         """
         mountpoint = '/mnt/{0}'.format(vpool.name)
-        if mountpoint not in general.get_mountpoints(root_client):
+        if mountpoint not in General.get_mountpoints(root_client):
             root_client.run('mount 127.0.0.1:{0} {0}'.format(mountpoint))
+
+    @staticmethod
+    def unmount_vpool(vpool, root_client):
+        """
+        Umount the vPool
+        :param vpool: vPool to umount
+        :param root_client: SSHClient object
+        :return: None
+        """
+        mountpoint = '/mnt/{0}'.format(vpool.name)
+        if mountpoint in General.get_mountpoints(root_client):
+            root_client.run('umount {0}'.format(mountpoint))

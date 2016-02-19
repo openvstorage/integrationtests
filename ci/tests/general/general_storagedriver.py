@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+A general class dedicated to Storage Driver logic
+"""
+
 from ovs.dal.hybrids.diskpartition import DiskPartition
 from ovs.dal.hybrids.j_storagedriverpartition import StorageDriverPartition
 

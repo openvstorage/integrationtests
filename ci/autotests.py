@@ -26,8 +26,8 @@ import StringIO
 import subprocess
 import ConfigParser
 from xml.dom import minidom
-from ci.tests.general import general
-from ci.tests.general import general_hypervisor
+from ci.tests.general.general import General
+from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
 
@@ -39,6 +39,9 @@ BLOCKED_MESSAGE = "BLOCKED"
 
 
 class TestRunnerOutputFormat(object):
+    """
+    Enumerator
+    """
     CONSOLE = 'CONSOLE'
     LOGGER = 'LOGGER'
     XML = 'XML'
@@ -46,17 +49,17 @@ class TestRunnerOutputFormat(object):
 
 
 def get_option(section, option):
-    if general.get_config().has_option(section, option):
-        return general.get_config().get(section, option)
+    if General.get_config().has_option(section, option):
+        return General.get_config().get(section, option)
     else:
         # @todo: add interactive part to ask for required parameters when run from cmd line
         return ""
 
-TESTRAIL_FOLDER = general.get_config().get(section="main", option="output_folder")
-TESTRAIL_KEY = general.get_config().get(section="testrail", option="key")
-TESTRAIL_PROJECT = general.get_config().get(section="testrail", option="test_project")
-TESTRAIL_QUALITYLEVEL = general.get_config().get(section="main", option="qualitylevel")
-TESTRAIL_SERVER = general.get_config().get(section="testrail", option="server")
+TESTRAIL_FOLDER = General.get_config().get(section="main", option="output_folder")
+TESTRAIL_KEY = General.get_config().get(section="testrail", option="key")
+TESTRAIL_PROJECT = General.get_config().get(section="testrail", option="test_project")
+TESTRAIL_QUALITYLEVEL = General.get_config().get(section="main", option="qualitylevel")
+TESTRAIL_SERVER = General.get_config().get(section="testrail", option="server")
 
 
 def _validate_run_parameters(tests=None, output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/var/tmp',
@@ -173,7 +176,7 @@ def _convert_test_spec(test_spec):
     be converted to top level_package/sub_package or no tests are picked up.
     """
     test_spec_parts = test_spec.split('.')
-    test_spec_path = os.path.join(general.TESTS_DIR, *test_spec_parts)
+    test_spec_path = os.path.join(General.TESTS_DIR, *test_spec_parts)
 
     if os.path.isdir(test_spec_path):
         return test_spec.replace('.', '/')
@@ -187,7 +190,7 @@ def _parse_args(suite_name, output_format, output_folder, always_die, testrail_u
     Parse arguments in the format expected by nose
     """
     # Default arguments. First argument is a dummy as it is stripped within nose.
-    arguments = ['', '--where', general.TESTS_DIR, '--verbosity', '3']
+    arguments = ['', '--where', General.TESTS_DIR, '--verbosity', '3']
     if always_die:
         arguments.append('-x')
     if output_format == TestRunnerOutputFormat.XML:
@@ -234,7 +237,7 @@ def _parse_args(suite_name, output_format, output_folder, always_die, testrail_u
         arguments.append('--project-name')
         arguments.append(project_name)
         arguments.append('--push-name')
-        arguments.append(version + "__" + quality_level + "__" + general_hypervisor.get_hypervisor())
+        arguments.append(version + "__" + quality_level + "__" + GeneralPMachine.get_hypervisor_type())
         arguments.append('--description')
         arguments.append(_get_description())
         arguments.append('--plan-id')
@@ -255,7 +258,7 @@ def list_tests(args=None):
     Lists all the tests that nose detects under TESTS_DIR
     """
     if not args:
-        arguments = ['--where', general.TESTS_DIR, '--verbosity', '3', '--collect-only', '--with-testEnum']
+        arguments = ['--where', General.TESTS_DIR, '--verbosity', '3', '--collect-only', '--with-testEnum']
     else:
         arguments = args + ['--collect-only', '--with-testEnum']
 
@@ -280,11 +283,11 @@ def _get_description(plan_comment="", durations=""):
     """
     description = ""
     node_ips = ""
-    for ip in general.get_ips():
+    for ip in GeneralPMachine.get_all_ips():
         node_ips += "* " + ip + "\n"
     for item, value in (("ip", "%s" % node_ips),
                         ("testsuite", durations),
-                        ("Hypervisor", general_hypervisor.get_hypervisor()),
+                        ("Hypervisor", GeneralPMachine.get_hypervisor_type()),
                         ("hardware", _get_hardware_info()),
                         ("package", _get_package_info()),
                         ("Comment ", ('*' * 40 + "\n" + plan_comment) if plan_comment else '')):
@@ -513,7 +516,7 @@ def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
     date = today.strftime('%a %b %d %H:%M:%S')
     name = '%s_%s' % (version, date)
 
-    project_mapping_file = os.path.join(general.CONFIG_DIR, "project_testsuite_mapping.cfg")
+    project_mapping_file = os.path.join(General.CONFIG_DIR, "project_testsuite_mapping.cfg")
     project_map = ConfigParser.ConfigParser()
     project_map.read(project_mapping_file)
 
@@ -625,13 +628,13 @@ def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
         if elapsed == 0:
             elapsed = 1
         testrail_api.add_result(test_id=test_id, status_id=status_id, comment=comment, version=version,
-                                elapsed='%ss' % elapsed, custom_fields={'custom_hypervisor': general_hypervisor.get_hypervisor()})
+                                elapsed='%ss' % elapsed, custom_fields={'custom_hypervisor': GeneralPMachine.get_hypervisor_type()})
 
     xmlfile.unlink()
     del xmlfile
 
     if error_messages:
-        print "\nSome testsuites failed to start because an error occured during setup:\n{0}".format(error_messages)
+        print "\nSome testsuites failed to start because an error occurred during setup:\n{0}".format(error_messages)
 
     if not plan_id:
         return False

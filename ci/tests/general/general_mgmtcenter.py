@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ci.tests.general import general
+"""
+A general class dedicated to Management Center logic
+"""
+
+from ci.tests.general.general import General
 from ci.tests.general.connection import Connection
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.hypervisor.factory import Factory
@@ -25,7 +29,7 @@ class GeneralManagementCenter(object):
     """
     A general class dedicated to Management Center logic
     """
-    api = Connection.get_connection()
+    api = Connection()
 
     @staticmethod
     def is_devstack_installed():
@@ -74,7 +78,7 @@ class GeneralManagementCenter(object):
         Create and configure a management center
         :return: None
         """
-        autotest_config = general.get_config()
+        autotest_config = General.get_config()
         management_centers = GeneralManagementCenter.api.get_components('mgmtcenters')
         if len(management_centers) == 0 and GeneralManagementCenter.is_devstack_installed():
             mgmtcenter = GeneralManagementCenter.create_mgmt_center(name=autotest_config.get("mgmtcenter", "name"),

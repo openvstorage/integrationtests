@@ -12,268 +12,159 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+A general class dedicated to Hypervisor logic
+"""
+
 import os
 import re
 import time
-import paramiko
 import urllib
 import logging
 import urlparse
-from ci.tests.general import general
-from ci.tests.vpool.general_vpool import GeneralVPool
-from ovs.dal.lists.vmachinelist import VMachineList
-from ovs.dal.lists.pmachinelist import PMachineList
+from ci.tests.general.general import General
+from ci.tests.general.general_openstack import GeneralOpenStack
+from ci.tests.general.general_pmachine import GeneralPMachine
+from ci.tests.general.general_vmachine import GeneralVMachine
 from ovs.extensions.hypervisor.hypervisors.kvm import Sdk as Kvm_sdk
 from ovs.extensions.hypervisor.hypervisors.vmware import Sdk as Vmware_sdk
+from ovs.lib.helpers.toolbox import Toolbox
 from ovs.lib.vdisk import VDiskController
 from xml.dom import minidom
 
-# disable excessive logging
-logging.getLogger('suds.client').setLevel(logging.WARNING)
-logging.getLogger('suds.transport').setLevel(logging.WARNING)
-logging.getLogger('suds.xsd.schema').setLevel(logging.WARNING)
-logging.getLogger('suds.wsdl').setLevel(logging.WARNING)
-logging.getLogger('suds.resolver').setLevel(logging.WARNING)
-logging.getLogger('suds.xsd.query').setLevel(logging.WARNING)
-logging.getLogger('suds.xsd.basic').setLevel(logging.WARNING)
-logging.getLogger('suds.xsd.sxbasic').setLevel(logging.WARNING)
-logging.getLogger('suds.binding.marshaller').setLevel(logging.WARNING)
-logging.getLogger('suds.mx.literal').setLevel(logging.WARNING)
-logging.getLogger('suds.mx.core').setLevel(logging.WARNING)
-logging.getLogger('suds.sudsobject').setLevel(logging.WARNING)
-logging.getLogger('suds.metrics').setLevel(logging.WARNING)
-logging.getLogger('suds.xsd.sxbase').setLevel(logging.WARNING)
-logging.getLogger('plumbum.shell').setLevel(logging.WARNING)
-logging.getLogger('plumbum.local').setLevel(logging.WARNING)
 
-PUBLIC_BRIDGE_NAME_ESX = "CloudFramesPublic"
-
-
-def _download_to_vpool(url, path, overwrite_if_exists=False):
+class GeneralHypervisor(object):
     """
-    special method to download to vpool because voldrv does not support extending file at write
+    A general class dedicated to Hypervisor logic
     """
-    print url
-    print path
-    if os.path.exists(path) and not overwrite_if_exists:
-        return
-    u = urllib.urlopen(url)
-    file_size = u.info()['Content-Length']
-    bsize = 4096 * 1024
-    VDiskController.create_volume(path, 0)
-    with open(path, "wb") as f:
-        size_written = 0
-        os.ftruncate(f.fileno(), int(file_size))
-        while 1:
-            s = u.read(bsize)
-            size_written += len(s)
-            f.write(s)
-            if len(s) < bsize:
-                break
-    u.close()
+    @staticmethod
+    def download_to_vpool(url, path, overwrite_if_exists=False):
+        """
+        Special method to download to vpool because voldrv does not support extending file at write
+        :param url: URL to download from
+        :param path: Path to download to
+        :param overwrite_if_exists: Overwrite if file already exists
+        :return: None
+        """
+        print url
+        print path
+        if os.path.exists(path) and not overwrite_if_exists:
+            return
+        u = urllib.urlopen(url)
+        file_size = u.info()['Content-Length']
+        bsize = 4096 * 1024
+        VDiskController.create_volume(path, 0)
+        with open(path, "wb") as f:
+            size_written = 0
+            os.ftruncate(f.fileno(), int(file_size))
+            while 1:
+                s = u.read(bsize)
+                size_written += len(s)
+                f.write(s)
+                if len(s) < bsize:
+                    break
+        u.close()
 
+    @staticmethod
+    def get_hypervisor_info():
+        """
+        Retrieve info about hypervisor (ip, username, password)
+        """
+        config = General.get_config()
+        # @TODO: Split these settings up in separate section or at least in 3 separate values in main
+        hi = config.get(section='main', option='hypervisorinfo')
+        hpv_list = hi.split(',')
+        if not len(hpv_list) == 3:
+            raise RuntimeError('No hypervisor info present in config')
+        return hpv_list
 
-def get_hypervisor_type():
-    return PMachineList.get_pmachines()[0].hvtype
+    @staticmethod
+    def set_hypervisor_info(ip, username, password):
+        """
+        Set info about hypervisor( ip, username and password )
 
+        :param ip:         IP address of hypervisor
+        :type ip:          String
 
-def _xml_get_child(dom, name):
-    c = [e for e in dom.childNodes if e.localName == name]
-    return c
+        :param username:   Username for hypervisor
+        :type username:    String
 
+        :param password:   Password of hypervisor
+        :type password:    String
 
-def get_vm_ip_from_mac(mac):
-    ip = general.get_virbr_ip()
-    cmd = "nmap -sP {ip} >/dev/null && arp -an | grep -i {mac} | awk '{{print $2;}}' | sed 's/[()]//g'".format(ip=ip,
-                                                                                                               mac=mac)
-    out = general.execute_command(cmd)
-    return out[0].strip()
+        :return:           None
+        """
+        if not re.match(Toolbox.regex_ip, ip):
+            print 'Invalid IP address specified'
+            return False
 
+        if type(username) != str or type(password) != str:
+            print 'Username and password need to be str format'
+            return False
 
-def get_hypervisor():
-    """
-    Get hypervisor
-    """
-    from ovs.dal.lists.pmachinelist import PMachineList
-    return list(PMachineList.get_pmachines())[0].hvtype
-
-
-def get_hypervisor_info():
-    """
-    Retrieve info about hypervisor (ip, username, password)
-    """
-    config = general.get_config()
-    hi = config.get(section="main", option="hypervisorinfo")
-    hpv_list = hi.split(",")
-    if not len(hpv_list) == 3:
-        print "No hypervisor info present in config"
-        return
-    return hpv_list
-
-
-def set_hypervisor_info(ip, username, password):
-    """
-    Set info about hypervisor( ip, username and password )
-
-    @param ip:         Ip address of hypervisor
-    @type ip:          String
-
-    @param username:   Username fort hypervisor
-    @type username:    Srting
-
-    @param password:    Password of hypervisor
-    @type password:    String
-
-    @return:           None
-    """
-
-    ipaddress_regex = \
-        "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
-
-    if not re.match(ipaddress_regex, ip):
-        print("Invalid ipaddress specified")
-        return False
-
-    if type(username) != str or type(password) != str:
-        print("Username and password need to be str format")
-        return False
-
-    value = ','.join([ip, username, password])
-    config = general.get_config()
-    config.set(section="main", option="hypervisorinfo", value=value)
-    general.save_config(config)
-
-    return True
+        value = ','.join([ip, username, password])
+        config = General.get_config()
+        config.set(section='main', option='hypervisorinfo', value=value)
+        General.save_config(config)
+        return True
 
 
 class Hypervisor(object):
+    """
+    Wrapper class for VMWare and KVM hypervisor classes
+    """
+    # Disable excessive logging
+    logging.getLogger('suds.client').setLevel(logging.WARNING)
+    logging.getLogger('suds.transport').setLevel(logging.WARNING)
+    logging.getLogger('suds.xsd.schema').setLevel(logging.WARNING)
+    logging.getLogger('suds.wsdl').setLevel(logging.WARNING)
+    logging.getLogger('suds.resolver').setLevel(logging.WARNING)
+    logging.getLogger('suds.xsd.query').setLevel(logging.WARNING)
+    logging.getLogger('suds.xsd.basic').setLevel(logging.WARNING)
+    logging.getLogger('suds.xsd.sxbasic').setLevel(logging.WARNING)
+    logging.getLogger('suds.binding.marshaller').setLevel(logging.WARNING)
+    logging.getLogger('suds.mx.literal').setLevel(logging.WARNING)
+    logging.getLogger('suds.mx.core').setLevel(logging.WARNING)
+    logging.getLogger('suds.sudsobject').setLevel(logging.WARNING)
+    logging.getLogger('suds.metrics').setLevel(logging.WARNING)
+    logging.getLogger('suds.xsd.sxbase').setLevel(logging.WARNING)
+    logging.getLogger('plumbum.shell').setLevel(logging.WARNING)
+    logging.getLogger('plumbum.local').setLevel(logging.WARNING)
+
     @staticmethod
-    def get(vpool_name, htype=None, cleanup=False):
-        vpool = [v for v in GeneralVPool.get_vpools() if v.name == vpool_name]
-        assert vpool, "Vpool with name {} not found".format(vpool_name)
-        vpool = vpool[0]
+    def get(vpool):
+        """
+        Retrieve the correct hypervisor class
+        :param vpool: vPool DAL object
+        :return: Specific hypervisor class
+        """
+        if len(vpool.storagedrivers) == 0:
+            raise ValueError('No Storage Drivers found on vPool {0}'.format(vpool.name))
 
-        local_vsa = general.get_local_vsa()
-        sgs = [sg for sg in vpool.storagedrivers if sg.cluster_ip == local_vsa.ip]
-        if len(vpool.storagedrivers) > 0:
-            if sgs:
-                sg = sgs[0]
-            else:
-                logging.log(1, "Vpool storagedriver with ip {0} not found".format(local_vsa.ip))
-                return None
-        else:
-            logging.log(1, "Vpool present without any configured storagedriver")
-            vpool.delete()
-            return None
-
-        if not cleanup:
-            retries = 5 * 60
-            sleep_time = 5
-            while retries:
-                out = general.execute_command("df | grep {0}".format(sg.mountpoint))[0]
-                if sg.mountpoint in out:
-                    break
-                retries -= sleep_time
-                time.sleep(sleep_time)
-
-            assert retries > 0, "Vpool mountpoint {0} did not appear in due time".format(sg.mountpoint)
-
-        htype = htype or get_hypervisor_type()
-        if htype == "VMWARE":
+        htype = GeneralPMachine.get_hypervisor_type()
+        if htype == 'VMWARE':
             return Vmware(vpool)
-        elif htype == "KVM":
+        else:
             return Kvm(vpool)
-        else:
-            raise Exception("{} not implemented".format(htype))
 
 
-class HypervisorBase(object):
-    def __init__(self):
-        self.autotest_check_code = "autotest_check_code"
-
-    def wait_for_vm_pingable(self, name, retries=50, pingable=True, vm_ip=None):
-        while retries:
-            mac = self.get_mac_address(name)
-            print mac
-            vm_ip = vm_ip or get_vm_ip_from_mac(mac)
-            print vm_ip
-
-            if vm_ip:
-                response = os.system("ping -c 1 >/dev/null 2>&1 " + vm_ip)
-                if (response == 0 and pingable) or (response != 0 and not pingable):
-                    return vm_ip
-
-            retries -= 1
-            time.sleep(1)
-        assert retries
-        return vm_ip
-
-    def delete_clones(self, vm_name):
-        vm_object = VMachineList.get_vmachine_by_name(vm_name)
-        assert vm_object, "Vm with name {} was not found".format(vm_name)
-        vm_object = vm_object[0]
-        clones = []
-        for vd in vm_object.vdisks:
-            for child_vd in vd.child_vdisks:
-                if child_vd.vmachine:
-                    clones.append(child_vd.vmachine)
-        unique_guids = set()
-        clones = [c for c in clones if c.guid not in unique_guids and not unique_guids.add(c.guid)]
-        for clone in clones:
-            self.delete(clone.name)
-
-    def get_ssh_con(self, vm_name):
-        vm_ip = self.wait_for_vm_pingable(vm_name)
-        ssh_con = paramiko.SSHClient()
-        ssh_con.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        username, password = "root", "rooter"
-        ssh_con.connect(vm_ip, username=username, password=password, timeout=200)
-        return ssh_con
-
-    def write_test_data(self, vm_name, filename, zero_filled=False, zero_filled_count=1):
-        ssh_con = self.get_ssh_con(vm_name)
-
-        path = os.path.join(os.sep, "opt", filename)
-        if not zero_filled:
-            cmd = "echo -n {0} >{1};sync".format(self.autotest_check_code, path)
-        else:
-            cmd = "dd if=/dev/zero of={0} bs=1K count={1}".format(path, zero_filled_count)
-
-        _, stdout, _ = ssh_con.exec_command(cmd)
-        stdout.readlines()
-        time.sleep(1)
-
-    def delete_test_data(self, vm_name, filename):
-        ssh_con = self.get_ssh_con(vm_name)
-        path = os.path.join(os.sep, "opt", filename)
-        _, stdout, _ = ssh_con.exec_command("rm {0}".format(path))
-        stdout.readlines()
-        time.sleep(1)
-
-    def check_test_data(self, vm_name, filename, not_present=False):
-        ssh_con = self.get_ssh_con(vm_name)
-        path = os.path.join(os.sep, "opt", filename)
-        _, stdout, _ = ssh_con.exec_command("cat {0}".format(path))
-        out = stdout.readlines()
-        out = out[0] if out else ''
-        if not_present:
-            assert not out, "Data shouldn't be there: {}".format(out)
-        else:
-            assert out == self.autotest_check_code, "Wrong test data:{}".format(out)
-
-        time.sleep(1)
-
-
-class Vmware(HypervisorBase):
+class Vmware(object):
+    """
+    VMWare specific hypervisor class
+    """
     def __init__(self, vpool):
-        HypervisorBase.__init__(self)
         self.vpool = vpool
-        self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
-        hypervisorInfo = get_hypervisor_info()
-        assert hypervisorInfo, "No hypervisor info specified use autotests.set_hypervisor_info"
-        self.sdk = Vmware_sdk(*hypervisorInfo)
+        self.mountpoint = '/mnt/{0}'.format(vpool.name)
+        self.sdk = Vmware_sdk(*GeneralHypervisor.get_hypervisor_info())
 
     def create_vm(self, name, cpus=1, ram=1024):
+        """
+        Create a Virtual Machine on hypervisor and start it
+        :param name: Name of the Virtual Machine
+        :param cpus: Amount of CPUs
+        :param ram: Amount of RAM
+        :return: None
+        """
         # not sure if its the proper way to get the datastore
         esxhost = self.sdk._validate_host(None)
         datastores = self.sdk._get_object(esxhost, properties=['datastore']).datastore.ManagedObjectReference
@@ -281,8 +172,8 @@ class Vmware(HypervisorBase):
         assert datastore, "Did not found datastore"
         datastore = self.sdk._get_object(datastore[0])
 
-        os_name = general.get_os()
-        os_info = general.get_os_info(os_name)
+        os_name = General.get_os()
+        os_info = General.get_os_info(os_name)
         bootdisk_path_remote = os_info['bootdisk_location']
 
         os.mkdir(os.path.join(self.mountpoint, name))
@@ -292,28 +183,28 @@ class Vmware(HypervisorBase):
         bootdisk_path = os.path.join(self.mountpoint, name, disk_name)
         bootdisk_flat_path = os.path.join(self.mountpoint, name, disk_name_flat)
 
-        template_server = general.get_template_server()
+        template_server = General.get_template_server()
         bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote + disk_name)
         bootdisk_flat_url = urlparse.urljoin(template_server, bootdisk_path_remote + disk_name_flat)
 
-        _download_to_vpool(bootdisk_url, bootdisk_path)
-        _download_to_vpool(bootdisk_flat_url, bootdisk_flat_path)
+        GeneralHypervisor.download_to_vpool(bootdisk_url, bootdisk_path)
+        GeneralHypervisor.download_to_vpool(bootdisk_flat_url, bootdisk_flat_path)
         """
         task = self.sdk.create_vm(name      = name,
                                   cpus      = cpus,
                                   memory    = ram,
                                   os        = os_info['esx_os_name'],
                                   disks     = [],
-                                  nics      = [{'bridge': PUBLIC_BRIDGE_NAME_ESX}],
+                                  nics      = [{'bridge': 'CloudFramesPublic'}],
                                   kvmport   = str(random.randint(0, 100000)),
                                   datastore = datastore.info.name,
                                   wait      = True)
         self.sdk.validate_result(task)
         """
 
-        nics = [{'bridge': PUBLIC_BRIDGE_NAME_ESX}]
+        nics = [{'bridge': 'CloudFramesPublic'}]
 
-        esxhost = self.sdk._validate_host(None)
+        self.sdk._validate_host(None)
 
         # Build basic config information
         config = self.sdk._client.factory.create('ns0:VirtualMachineConfigSpec')
@@ -420,9 +311,14 @@ class Vmware(HypervisorBase):
                                                'path': 'vm'})
 
     def start(self, name):
+        """
+        Start a Virtual Machine
+        :param name: Name of the Virtual Machine
+        :return: None
+        """
         vms = self._get_vms()
         vm = [v for v in vms if v.name == name]
-        assert vm, "Vm with name {} not found".format(name)
+        assert vm, "Vm with name {0} not found".format(name)
         vm = vm[0]
         if vm.runtime.powerState == "poweredOn":
             return
@@ -432,9 +328,14 @@ class Vmware(HypervisorBase):
         self.sdk.validate_result(task)
 
     def shutdown(self, name):
+        """
+        Shut down a Virtual Machine
+        :param name: Name of the Virtual Machine
+        :return: None
+        """
         vms = self._get_vms()
         vm = [v for v in vms if v.name == name]
-        assert vm, "Vm with name {} not found".format(name)
+        assert vm, "Vm with name {0} not found".format(name)
         vm = vm[0]
         if vm.runtime.powerState == "poweredOff":
             return
@@ -443,20 +344,36 @@ class Vmware(HypervisorBase):
         self.sdk.validate_result(task)
 
     def poweroff(self, name):
-        vms = self._get_vms()
-        vm = [v for v in vms if v.name == name]
-        assert vm, "Vm with name {} not found".format(name)
-        vm = vm[0]
-        if vm.runtime.powerState == "poweredOff":
-            return
-        task = self.sdk._client.service.PowerOffVM_Task(vm.obj_identifier)
-        self.sdk.wait_for_task(task)
-        self.sdk.validate_result(task)
+        """
+        Power off a Virtual Machine
+        :param name: Name of the Virtual Machine
+        :return: None
+        """
+        self.shutdown(name=name)
+
+    def delete_clones(self, vm):
+        """
+        Delete all clones for Virtual Machine with name
+        :param vm: Virtual Machine DAL object
+        :return: None
+        """
+        clones = set()
+        for vd in vm.vdisks:
+            for child_vd in vd.child_vdisks:
+                if child_vd.vmachine:
+                    clones.add(child_vd.vmachine)
+        for clone in clones:
+            self.delete(clone.name)
 
     def delete(self, name):
+        """
+        Delete a Virtual Machine
+        :param name: Name of the Virtual Machine
+        :return: None
+        """
         vms = self._get_vms()
         vm = [v for v in vms if v.name == name]
-        assert vm, "Vm with name {} not found".format(name)
+        assert vm, "Vm with name {0} not found".format(name)
         vm = vm[0]
         logging.log(1, "Powering off vm: {0}:".format(vm.name))
         self.poweroff(name)
@@ -467,18 +384,25 @@ class Vmware(HypervisorBase):
         logging.log(1, "Deleted vm: {0}:".format(vm.name))
 
 
-class Kvm(HypervisorBase):
+class Kvm(object):
+    """
+    KVM specific hypervisor class
+    """
     def __init__(self, vpool):
-        HypervisorBase.__init__(self)
         self.vpool = vpool
         self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
         self.sdk = Kvm_sdk()
 
     def create_vm(self, name, ram=1024, small=False):
-        import general_openstack
-
-        os_name = general.get_os()
-        bootdisk_path_remote = general.get_os_info(os_name + '_small' if small else os_name)['bootdisk_location']
+        """
+        Create a Virtual Machine
+        :param name: Name of the Virtual Machine
+        :param ram: Amount of RAM
+        :param small: Small
+        :return: None
+        """
+        os_name = General.get_os()
+        bootdisk_path_remote = General.get_os_info(os_name + '_small' if small else os_name)['bootdisk_location']
 
         vm_path = os.path.join(self.mountpoint, name)
         if not os.path.exists(vm_path):
@@ -489,22 +413,22 @@ class Kvm(HypervisorBase):
         else:
             bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
         if not os.path.exists(bootdisk_path):
-            template_server = general.get_template_server()
+            template_server = General.get_template_server()
             bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)
             logging.log(1, 'Template url: {0}'.format(bootdisk_url))
             logging.log(1, 'Bootdisk path: {0}'.format(bootdisk_path))
 
-            _download_to_vpool(bootdisk_url, bootdisk_path)
+            GeneralHypervisor.download_to_vpool(bootdisk_url, bootdisk_path)
 
             # When running with devstack need to set kvm group
-            if general_openstack.is_openstack_present():
-                general.execute_command("chgrp kvm {0}".format(bootdisk_path))
+            if GeneralOpenStack.is_openstack_present():
+                General.execute_command("chgrp kvm {0}".format(bootdisk_path))
 
             cmd = "virt-install --connect qemu:///system -n {name} -r {ram} --disk {bootdisk_path},device=disk,format=raw,bus=virtio --import --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,model=e1000 --boot hd"
             cmd = cmd.format(name=name,
                              bootdisk_path=bootdisk_path,
                              ram=ram)
-            out, error = general.execute_command(cmd)
+            out, error = General.execute_command(cmd)
             logging.log(1, 'cmd: ---')
             logging.log(1, cmd)
             logging.log(1, 'stdout: ---')
@@ -527,18 +451,33 @@ class Kvm(HypervisorBase):
         assert actual_state == state, "Vm did not go into state {0}, actual {1}".format(state, actual_state)
 
     def shutdown(self, name):
+        """
+        Shut down a Virtual Machine
+        :param name: Name of the Virtual Machine
+        :return: None
+        """
         if self.sdk.get_power_state(name) == 'TURNEDOFF':
             return
         self.sdk.shutdown(name)
         self._wait_for_state(name, 'TURNEDOFF')
 
     def poweroff(self, name):
+        """
+        Power off a Virtual Machine
+        :param name: Name of the Virtual Machine
+        :return: None
+        """
         if self.sdk.get_power_state(name) == 'TURNEDOFF':
             return
         vm_obj = self.sdk.get_vm_object(name)
         vm_obj.destroy()
 
     def start(self, name):
+        """
+        Start a Virtual Machine
+        :param name: Name of the Virtual Machine
+        :return: None
+        """
         if self.sdk.get_power_state(name) == 'RUNNING':
             print "Vm {} already running".format(name)
             return
@@ -546,18 +485,41 @@ class Kvm(HypervisorBase):
         self._wait_for_state(name, 'RUNNING')
 
     def get_mac_address(self, name):
+        """
+        Retrieve a MAC address of a Virtual Machine
+        :param name: Name of the Virtual Machine
+        :return:
+        """
         vmo = self.sdk.get_vm_object(name)
         dom = minidom.parseString(vmo.XMLDesc()).childNodes[0]
-        devices = _xml_get_child(dom, "devices")[0]
-        nic = _xml_get_child(devices, "interface")[0]
-        mac = _xml_get_child(nic, "mac")[0]
+        devices = [e for e in dom.childNodes if e.localName == 'devices'][0]
+        nic = [e for e in devices.childNodes if e.localName == 'interface'][0]
+        mac = [e for e in nic.childNodes if e.localName == 'mac'][0]
         return mac.attributes['address'].value
 
+    def delete_clones(self, vm):
+        """
+        Delete all clones for Virtual Machine with name
+        :param vm: Virtual Machine DAL object
+        :return: None
+        """
+        clones = set()
+        for vd in vm.vdisks:
+            for child_vd in vd.child_vdisks:
+                if child_vd.vmachine:
+                    clones.add(child_vd.vmachine)
+        for clone in clones:
+            self.delete(clone.name)
+
     def delete(self, name):
-        vm = VMachineList.get_vmachine_by_name(name)
-        assert vm, "Couldn't find vm with name {}".format(name)
+        """
+        Delete a Virtual Machine
+        :param name: Name of the Virtual Machine
+        :return: None
+        """
+        vm = GeneralVMachine.get_vmachine_by_name(name)
+        assert vm, "Couldn't find Virtual Machine with name {0}".format(name)
         assert len(vm) == 1, "More than 1 result when looking up vmachine with name: {0}".format(name)
-        vm = vm[0]
 
         logging.log(1, "Powering off vm: {0}".format(vm.name))
         self.poweroff(name)

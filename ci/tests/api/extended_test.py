@@ -12,52 +12,74 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Extended testsuite
+"""
+
 import os
 import time
-
+from ci.tests.general.general import General
 from nose.plugins.skip import SkipTest
 
-from ci.tests.general import general
 
-testsToRun = general.get_tests_to_run(general.get_test_level())
-
-
-def setup():
+class TestExtended(object):
     """
-    Make necessary changes before being able to run the tests
-    :return: None
+    Extended testsuite
     """
-    print "Setup called " + __name__
+    tests_to_run = General.get_tests_to_run(General.get_test_level())
 
+    ######################
+    # SETUP AND TEARDOWN #
+    ######################
 
-def post_reboot_checks_test():
-    """
-    {0}
-    """.format(general.get_function_name())
+    @staticmethod
+    def setup():
+        """
+        Make necessary changes before being able to run the tests
+        :return: None
+        """
+        print "Setup called " + __name__
 
-    general.check_prereqs(testcase_number=1,
-                          tests_to_run=testsToRun)
+    @staticmethod
+    def teardown():
+        """
+        Removal actions of possible things left over after the test-run
+        :return: None
+        """
+        pass
 
-    rebooted_host = os.environ.get('POST_REBOOT_HOST')
-    if not rebooted_host:
-        raise SkipTest()
+    #########
+    # TESTS #
+    #########
 
-    print "Post reboot check node {0}\n".format(rebooted_host)
+    @staticmethod
+    def post_reboot_checks_test():
+        """
+        Perform service checks after reboot
+        """
+        General.check_prereqs(testcase_number=1,
+                              tests_to_run=TestExtended.tests_to_run)
 
-    wait_time = 5 * 60
-    sleep_time = 5
+        rebooted_host = os.environ.get('POST_REBOOT_HOST')
+        if not rebooted_host:
+            raise SkipTest()
 
-    non_running_services = ''
-    while wait_time > 0:
-        out = general.execute_command_on_node(rebooted_host, "initctl list | grep ovs-*")
-        statuses = out.splitlines()
+        print "Post reboot check node {0}\n".format(rebooted_host)
 
-        non_running_services = [s for s in statuses if 'start/running' not in s]
-        if len(non_running_services) == 0:
-            break
+        wait_time = 5 * 60
+        sleep_time = 5
 
-        wait_time -= sleep_time
-        time.sleep(sleep_time)
+        non_running_services = ''
+        while wait_time > 0:
+            out = General.execute_command_on_node(rebooted_host, "initctl list | grep ovs-*")
+            statuses = out.splitlines()
 
-    assert len(non_running_services) == 0,\
-        "Found non running services after reboot on node {0}\n{1}".format(rebooted_host, non_running_services)
+            non_running_services = [s for s in statuses if 'start/running' not in s]
+            if len(non_running_services) == 0:
+                break
+
+            wait_time -= sleep_time
+            time.sleep(sleep_time)
+
+        assert len(non_running_services) == 0,\
+            "Found non running services after reboot on node {0}\n{1}".format(rebooted_host, non_running_services)

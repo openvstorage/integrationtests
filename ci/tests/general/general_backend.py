@@ -12,14 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+A general class dedicated to Backend and BackendType logic
+"""
+
 from ci.tests.general.connection import Connection
+from ovs.dal.lists.backendlist import BackendList
+from ovs.dal.lists.backendtypelist import BackendTypeList
 
 
 class GeneralBackend(object):
     """
     A general class dedicated to Backend and BackendType logic
     """
-    api = Connection.get_connection()
+    api = Connection()
 
     @staticmethod
     def get_backendtype_by_name(name):
@@ -49,6 +55,34 @@ class GeneralBackend(object):
         return GeneralBackend.api.fetch('backends', guid)
 
     @staticmethod
+    def get_backends():
+        """
+        Retrieve a list of all backend
+        :return: Data-object list of Backends
+        """
+        return BackendList.get_backends()
+
+    @staticmethod
+    def get_by_name(name):
+        """
+        Retrieve a backend based on name
+        :param name: Name of the backend
+        :return: Backend DAL object
+        """
+        return BackendList.get_by_name(name=name)
+
+    @staticmethod
+    def get_backendtype_by_code(code):
+        """
+        Retrieve the Backend Type based on its code
+        :param code: Code of the Backend Type
+        :return: Backend Type DAL object
+        """
+        if code not in GeneralBackend.get_valid_backendtypes():
+            raise ValueError('Unsupported backend type {0} provided'.format(code))
+        return BackendTypeList.get_backend_type_by_code(code=code)
+
+    @staticmethod
     def get_backend_by_name_and_type(backend_name, backend_type_name):
         """
         Retrieve a Backend based on name and type
@@ -62,7 +96,6 @@ class GeneralBackend(object):
                 backend_type = GeneralBackend.api.fetch('backendtypes', backend['backend_type_guid'])
                 if backend['name'] == backend_name and backend_type['code'] == backend_type_name:
                     return backend
-        return None
 
     @staticmethod
     def is_backend_present(backend_name, backend_type_name):
@@ -72,9 +105,7 @@ class GeneralBackend(object):
         :param backend_type_name: Name of the Backend Type
         :return: True if existent
         """
-        if GeneralBackend.get_backend_by_name_and_type(backend_name, backend_type_name):
-            return True
-        return False
+        return GeneralBackend.get_backend_by_name_and_type(backend_name, backend_type_name) is not None
 
     @staticmethod
     def add_backend(backend_name, backend_type_name):

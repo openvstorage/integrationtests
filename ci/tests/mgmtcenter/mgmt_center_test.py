@@ -12,125 +12,134 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ci.tests.general import general
-from ci.tests.mgmtcenter import general_mgmtcenter
-from nose.plugins.skip import SkipTest
+"""
+Management center testsuite
+"""
+
 from ci.tests.general.connection import Connection
+from ci.tests.general.general import General
+from ci.tests.general.general_mgmtcenter import GeneralManagementCenter
+from nose.plugins.skip import SkipTest
 
-testsToRun = general.get_tests_to_run(general.get_test_level())
 
-
-def setup():
+class TestMgmtCenter(object):
     """
-    Make necessary changes before being able to run the tests
-    :return: None
+    Management center testsuite
     """
-    general_mgmtcenter.create_generic_mgmt_center()
+    api = Connection()
+    tests_to_run = General.get_tests_to_run(General.get_test_level())
 
+    ######################
+    # SETUP AND TEARDOWN #
+    ######################
 
-def teardown():
-    """
-    Removal actions of possible things left over after the test-run
-    :return: None
-    """
-    api = Connection.get_connection()
-    management_centers = api.get_components('mgmtcenters')
-    for mgmcenter in management_centers:
-        general_mgmtcenter.remove_mgmt_center(mgmcenter['guid'])
+    @staticmethod
+    def setup():
+        """
+        Make necessary changes before being able to run the tests
+        :return: None
+        """
+        GeneralManagementCenter.create_generic_mgmt_center()
 
+    @staticmethod
+    def teardown():
+        """
+        Removal actions of possible things left over after the test-run
+        :return: None
+        """
+        management_centers = TestMgmtCenter.api.get_components('mgmtcenters')
+        for mgmcenter in management_centers:
+            GeneralManagementCenter.remove_mgmt_center(mgmcenter['guid'])
 
-def check_reachability_test():
-    """
-    {0}
-    """.format(general.get_function_name())
+    #########
+    # TESTS #
+    #########
 
-    general.check_prereqs(testcase_number=1,
-                          tests_to_run=testsToRun)
+    @staticmethod
+    def check_reachability_test():
+        """
+        Verify the management center is reachable
+        """
+        General.check_prereqs(testcase_number=1,
+                              tests_to_run=TestMgmtCenter.tests_to_run)
 
-    devstack_installed = general_mgmtcenter.is_devstack_installed()
-    if devstack_installed is False:
-        raise SkipTest
+        devstack_installed = GeneralManagementCenter.is_devstack_installed()
+        if devstack_installed is False:
+            raise SkipTest
 
-    api = Connection.get_connection()
-    management_centers = api.get_components('mgmtcenters')
-    issues_found = ""
+        management_centers = TestMgmtCenter.api.get_components('mgmtcenters')
+        issues_found = ""
 
-    for mgmtcenter in management_centers:
-        out, err = general.execute_command("ping {0} -c 1".format(mgmtcenter['ip']))
-        if "Destination Host Unreachable" in out:
-            issues_found += "Management center {0} with ip {1}\n".format(mgmtcenter['name'], mgmtcenter['ip'])
+        for mgmtcenter in management_centers:
+            out, err = General.execute_command("ping {0} -c 1".format(mgmtcenter['ip']))
+            if "Destination Host Unreachable" in out:
+                issues_found += "Management center {0} with ip {1}\n".format(mgmtcenter['name'], mgmtcenter['ip'])
 
-    assert issues_found == "", "Following management centers could not be reached:\n{0}".format(issues_found)
+        assert issues_found == "", "Following management centers could not be reached:\n{0}".format(issues_found)
 
+    @staticmethod
+    def management_center_connection_test():
+        """
+        Verify the management center connectivity
+        """
+        General.check_prereqs(testcase_number=2,
+                              tests_to_run=TestMgmtCenter.tests_to_run)
 
-def management_center_connection_test():
-    """
-    {0}
-    """.format(general.get_function_name())
+        devstack_installed = GeneralManagementCenter.is_devstack_installed()
+        if devstack_installed is False:
+            raise SkipTest
 
-    general.check_prereqs(testcase_number=2,
-                          tests_to_run=testsToRun)
+        management_centers = TestMgmtCenter.api.get_components('mgmtcenters')
+        issues_found = ""
 
-    devstack_installed = general_mgmtcenter.is_devstack_installed()
-    if devstack_installed is False:
-        raise SkipTest
+        for mgmtcenter in management_centers:
+            if not GeneralManagementCenter.test_connection(mgmtcenter['guid']):
+                issues_found += "Management center {0}\n".format(mgmtcenter['name'])
 
-    api = Connection.get_connection()
-    management_centers = api.get_components('mgmtcenters')
-    issues_found = ""
+        assert issues_found == "", "Following management centers failed the connection test:\n{0}".format(issues_found)
 
-    for mgmtcenter in management_centers:
-        if not general_mgmtcenter.test_connection(mgmtcenter['guid']):
-            issues_found += "Management center {0}\n".format(mgmtcenter['name'])
+    @staticmethod
+    def check_configured_management_center_test():
+        """
+        Verify if the management center has been configured correctly
+        """
+        General.check_prereqs(testcase_number=3,
+                              tests_to_run=TestMgmtCenter.tests_to_run)
 
-    assert issues_found == "", "Following management centers failed the connection test:\n{0}".format(issues_found)
+        devstack_installed = GeneralManagementCenter.is_devstack_installed()
+        if devstack_installed is False:
+            raise SkipTest
 
+        management_centers = TestMgmtCenter.api.get_components('mgmtcenters')
+        issues_found = ""
 
-def check_configured_management_center_test():
-    """
-    {0}
-    """.format(general.get_function_name())
+        for mgmtcenter in management_centers:
+            for physical_machine_guid in mgmtcenter['pmachines_guids']:
+                if not GeneralManagementCenter.is_host_configured(physical_machine_guid):
+                    issues_found += "Mgmtcenter {0} has an unconfigured pmachine with guid {1}\n".format(mgmtcenter['name'], physical_machine_guid)
 
-    general.check_prereqs(testcase_number=3,
-                          tests_to_run=testsToRun)
+        assert issues_found == "", "Following pmachines where not configured with their management center:\n{0}".format(issues_found)
 
-    devstack_installed = general_mgmtcenter.is_devstack_installed()
-    if devstack_installed is False:
-        raise SkipTest
+    @staticmethod
+    def check_unconfigured_management_center_test():
+        """
+        Verify if the management center has been un-configured correctly
+        """
+        General.check_prereqs(testcase_number=4,
+                              tests_to_run=TestMgmtCenter.tests_to_run)
 
-    api = Connection.get_connection()
-    management_centers = api.get_components('mgmtcenters')
-    issues_found = ""
+        devstack_installed = GeneralManagementCenter.is_devstack_installed()
+        if devstack_installed is False:
+            raise SkipTest
 
-    for mgmtcenter in management_centers:
-        for physical_machine_guid in mgmtcenter['pmachines_guids']:
-            if not general_mgmtcenter.is_host_configured(physical_machine_guid):
-                issues_found += "Mgmtcenter {0} has an unconfigured pmachine with guid {1}\n".format(mgmtcenter['name'], physical_machine_guid)
+        management_centers = TestMgmtCenter.api.get_components('mgmtcenters')
+        issues_found = ""
 
-    assert issues_found == "", "Following pmachines where not configured with their management center:\n{0}".format(issues_found)
+        for mgmtcenter in management_centers:
+            for physical_machine in TestMgmtCenter.api.get_components('pmachines'):
+                GeneralManagementCenter.unconfigure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
+                if GeneralManagementCenter.is_host_configured(physical_machine['guid']):
+                    issues_found += "Machine {0} is still configured with {1} management center".format(physical_machine['name'], mgmtcenter['name'])
+                GeneralManagementCenter.configure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
 
-
-def check_unconfigured_management_center_test():
-    """
-    {0}
-    """.format(general.get_function_name())
-
-    general.check_prereqs(testcase_number=4,
-                          tests_to_run=testsToRun)
-
-    devstack_installed = general_mgmtcenter.is_devstack_installed()
-    if devstack_installed is False:
-        raise SkipTest
-
-    api = Connection.get_connection()
-    management_centers = api.get_components('mgmtcenters')
-    issues_found = ""
-
-    for mgmtcenter in management_centers:
-        for physical_machine in api.get_components('pmachines'):
-            general_mgmtcenter.unconfigure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
-            if general_mgmtcenter.is_host_configured(physical_machine['guid']):
-                issues_found += "Machine {0} is still configured with {1} management center".format(physical_machine['name'], mgmtcenter['name'])
-            general_mgmtcenter.configure_pmachine_with_mgmtcenter(physical_machine['guid'], mgmtcenter['guid'])
-
-    assert issues_found == "", "Following pmachines where still configured with their management center:\n{0}".format(issues_found)
+        assert issues_found == "", "Following pmachines where still configured with their management center:\n{0}".format(issues_found)
