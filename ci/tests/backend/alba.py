@@ -18,7 +18,7 @@ import random
 import tempfile
 import time
 
-from ci.tests.backend import generic
+from ci.tests.backend import backend_generic
 from ci.tests.general import general
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import execute_command
@@ -118,7 +118,7 @@ def is_alba_backend_running(backend_guid, trigger=False):
     wait = ALBA_TIMER_STEP
     is_running = False
     while timeout > 0 and not is_running:
-        backend = generic.get_backend(backend_guid)
+        backend = backend_generic.get_backend(backend_guid)
         if backend:
             if backend['status'] in ['RUNNING']:
                 is_running = True
@@ -135,11 +135,11 @@ def is_alba_backend_running(backend_guid, trigger=False):
 
 
 def add_alba_backend(name):
-    if not generic.is_backend_present(name, 'alba'):
-        backend_guid = generic.add_backend(name, 'alba')
+    if not backend_generic.is_backend_present(name, 'alba'):
+        backend_guid = backend_generic.add_backend(name, 'alba')
         assert (is_alba_backend_running(backend_guid, trigger=True)), 'Backend {0} not in status RUNNING'.format(name)
     else:
-        backend = generic.get_backend_by_name_and_type(name, 'alba')
+        backend = backend_generic.get_backend_by_name_and_type(name, 'alba')
         backend_guid = backend['guid']
 
     out, err = general.execute_command('etcdctl ls /ovs/alba/asdnodes')
@@ -214,7 +214,7 @@ def upload_file(backend_name, namespace, filesize, cleanup=False):
 
 
 def get_alba_namespaces(name):
-    if not generic.is_backend_present(name, 'alba'):
+    if not backend_generic.is_backend_present(name, 'alba'):
         return
 
     cmd = "alba list-namespaces {0} --to-json".format(get_config(name))
@@ -234,7 +234,7 @@ def get_alba_namespaces(name):
 
 
 def remove_alba_namespaces(name=""):
-    if not generic.is_backend_present(name, 'alba'):
+    if not backend_generic.is_backend_present(name, 'alba'):
         return
 
     cmd_delete = "alba delete-namespace {0} ".format(get_config(name))

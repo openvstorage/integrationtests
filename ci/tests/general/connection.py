@@ -37,10 +37,10 @@ class Connection:
                     assert ip, "Please specify a valid ip in autotests.cfg for grid_ip"
                 if not username:
                     username = test_config.get('main', 'username')
-                    assert username, "Please specify a valid username in autotests.cfg for grid_ip"
+                    assert username, "Please specify a valid username in autotests.cfg for username"
                 if not password:
                     password = test_config.get('main', 'password')
-                    assert password, "Please specify a valid password in autotests.cfg for grid_ip"
+                    assert password, "Please specify a valid password in autotests.cfg for password"
             Connection.connection = Connection(ip, username, password)
 
         if not Connection.connection.is_authenticated():

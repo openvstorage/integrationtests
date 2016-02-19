@@ -24,9 +24,9 @@ from ovs.dal.lists.pmachinelist import PMachineList
 from ovs.extensions.generic.sshclient import SSHClient
 from ci.tests.general.connection import Connection
 from ci.tests.general import general
-from ci.tests.vpool import generic
+from ci.tests.vpool import vpool_generic
 from ci.tests.general.general import test_config
-from ci.tests.backend import alba, generic as backend_generic
+from ci.tests.backend import alba, backend_generic as backend_generic
 from ci import autotests
 
 BACKEND_TYPE = test_config.get('backend', 'type')
@@ -50,8 +50,8 @@ services_to_commands = {
 
 def setup():
     print "Setup called " + __name__
-    generic.add_alba_backend()
-    generic.add_generic_vpool()
+    vpool_generic.add_alba_backend()
+    vpool_generic.add_vpool()
 
 
 def teardown():
@@ -60,7 +60,7 @@ def teardown():
     vpool_list = api.get_component_by_name('vpools', vpool_name)
     if vpool_list:
         general.api_remove_vpool(vpool_name)
-    generic.remove_alba_backend()
+    vpool_generic.remove_alba_backend()
 
 
 def ssh_check_test():

@@ -16,7 +16,7 @@ import time
 from ci import autotests
 from ci.tests.general.general import test_config
 from ci.tests.general.connection import Connection
-from ci.tests.vpool import generic
+from ci.tests.vpool import vpool_generic
 from ci.tests.mgmtcenter import generic as mgmtgeneric
 from ci.tests.general import general
 from ci.tests.general.logHandler import LogHandler
@@ -70,9 +70,9 @@ def check_template_exists():
 
 def setup():
     check_template_exists()
-    generic.add_alba_backend()
+    vpool_generic.add_alba_backend()
     mgmtgeneric.create_generic_mgmt_center()
-    generic.add_generic_vpool()
+    vpool_generic.add_vpool()
 
 
 def teardown():
@@ -81,7 +81,7 @@ def teardown():
     assert vpool_list, "No vpool found where one was expected"
     logger.info("Cleaning vpool")
     general.api_remove_vpool(VPOOL_NAME)
-    generic.remove_alba_backend()
+    vpool_generic.remove_alba_backend()
     logger.info("Cleaning management center")
     management_centers = api.get_components('mgmtcenters')
     for mgmcenter in management_centers:
