@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ci.tests.backend import alba, generic
+from ci.tests.backend import alba, backend_generic
+from ci.tests.general import general
 from ci.tests.general.general import test_config
 from ovs.extensions.generic.system import System
 from ci.tests.disklayout import disklayout
 from ovs.dal.lists.backendlist import BackendList
+from ovs.dal.lists.vpoollist import VPoolList
 from ovs.lib.storagerouter import StorageRouterController
 
 VPOOL_NAME = test_config.get('vpool', 'vpool_name')
@@ -25,7 +27,7 @@ assert VPOOL_NAME, "Please fill out a valid vpool name in autotest.cfg file"
 BACKEND_NAME = test_config.get('backend', 'name')
 BACKEND_TYPE = test_config.get('backend', 'type')
 assert BACKEND_NAME, "Please fill out a valid backend name in autotest.cfg file"
-assert BACKEND_TYPE in generic.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
+assert BACKEND_TYPE in backend_generic.VALID_BACKEND_TYPES, "Please fill out a valid backend type in autotest.cfg file"
 
 GRID_IP = test_config.get('main', 'grid_ip')
 NR_OF_DISKS_TO_CLAIM = int(test_config.get('backend', 'nr_of_disks_to_claim'))
@@ -33,7 +35,7 @@ TYPE_OF_DISKS_TO_CLAIM = test_config.get('backend', 'type_of_disks_to_claim')
 
 
 def remove_alba_backend():
-    be = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    be = backend_generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     if be:
         alba_backend = alba.get_alba_backend(be['alba_backend_guid'])
         alba.unclaim_disks(alba_backend)
@@ -44,14 +46,14 @@ def add_alba_backend():
     my_sr = System.get_my_storagerouter()
     disklayout.add_db_role(my_sr.guid)
     disklayout.add_read_write_scrub_roles(my_sr.guid)
-    backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    backend = backend_generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
     if not backend:
         backend_guid = alba.add_alba_backend(BACKEND_NAME)
-        backend = generic.get_backend(backend_guid)
+        backend = backend_generic.get_backend(backend_guid)
     alba.claim_disks(backend['alba_backend_guid'], NR_OF_DISKS_TO_CLAIM, TYPE_OF_DISKS_TO_CLAIM)
 
 
-def add_generic_vpool():
+def add_vpool():
     backend = BackendList.get_by_name(BACKEND_NAME)
     add_vpool_params = {'storagerouter_ip': GRID_IP,
                         'vpool_name': VPOOL_NAME,
@@ -75,5 +77,11 @@ def add_generic_vpool():
                                           'dtl_transport': 'tcp',
                                           }
                         }
+
     my_sr = System.get_my_storagerouter()
-    StorageRouterController.add_vpool.s(add_vpool_params).apply_async(routing_key='sr.{0}'.format(my_sr.machine_id)).get(timeout=500)
+    if not VPoolList.get_vpool_by_name(VPOOL_NAME):
+        StorageRouterController.add_vpool.s(add_vpool_params).apply_async(routing_key='sr.{0}'.format(my_sr.machine_id)).get(timeout=500)
+
+
+def remove_vpool():
+    general.api_remove_vpool(VPOOL_NAME)

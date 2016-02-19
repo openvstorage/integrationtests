@@ -23,7 +23,7 @@ from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.pmachinelist import PMachineList
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.service import ServiceManager
-from ci.tests.vpool import generic
+from ci.tests.vpool import vpool_generic
 from ci.tests.sanity import sanity_checks_test
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
@@ -37,13 +37,12 @@ assert VPOOL_NAME, "Please fill out a valid vpool name in autotest.cfg file"
 
 
 def setup():
-    generic.add_alba_backend()
+    vpool_generic.add_alba_backend()
 
 
 def teardown():
     general.api_remove_vpool(VPOOL_NAME)
-    generic.remove_alba_backend()
-
+    vpool_generic.remove_alba_backend()
 
 def add_vpool_test():
     """
@@ -56,7 +55,7 @@ def add_vpool_test():
     api = Connection.get_connection()
     vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
     if not vpool_list:
-        generic.add_generic_vpool()
+        vpool_generic.add_vpool()
     vpool = VPoolList.get_vpool_by_name(VPOOL_NAME)
     assert vpool, 'Vpool {0} was not created'.format(VPOOL_NAME)
     general.api_remove_vpool(VPOOL_NAME)
@@ -77,7 +76,7 @@ def ovs_2263_verify_alba_namespace_cleanup_test():
         alba.create_namespace(BACKEND_NAME, 'nmspc_{0}'.format(nmspc_index), 'default')
     result = alba.list_namespaces(BACKEND_NAME)
     assert len(result) == no_namespaces, "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, BACKEND_NAME, len(result))
-    generic.add_generic_vpool()
+    vpool_generic.add_vpool()
     for disk_index in range(no_namespaces):
         pmachine_type = PMachineList.get_pmachines()[0].hvtype
         if pmachine_type == 'VMWARE':
@@ -110,7 +109,7 @@ def ovs_2703_kill_various_services_test():
     api = Connection.get_connection()
     vpool_list = api.get_component_by_name('vpools', VPOOL_NAME)
     if not vpool_list:
-        generic.add_generic_vpool()
+        vpool_generic.add_vpool()
 
     services_folder = '/opt/OpenvStorage/config/templates/systemd/'
     out, err = general.execute_command('ls {0}'.format(services_folder))

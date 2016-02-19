@@ -26,7 +26,7 @@
 #
 
 from ConfigParser import RawConfigParser
-from ci.tests.backend import alba, generic
+from ci.tests.backend import alba, backend_generic
 from ci.tests.disklayout import disklayout
 from ci.tests.general import general
 from ci import autotests
@@ -103,8 +103,8 @@ def get_cluster_pmachines(ips):
 def setup():
     logger.info('setup alba backend')
 
-    if generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
-        backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    if backend_generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
+        backend = backend_generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
         alba.remove_alba_backend(backend['alba_backend_guid'])
 
     for ip in MASTER_IPS:
@@ -131,8 +131,8 @@ def setup():
 
 
 def teardown():
-    if generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
-        backend = generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    if backend_generic.is_backend_present(BACKEND_NAME, BACKEND_TYPE):
+        backend = backend_generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
         alba.remove_alba_backend(backend['alba_backend_guid'])
 
     for ip in MASTER_IPS:
