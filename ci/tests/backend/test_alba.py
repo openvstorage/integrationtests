@@ -63,7 +63,7 @@ class TestALBA(object):
             backend = GeneralBackend.get_backend(backend_guid)
         nr_disks_to_claim = TestALBA.autotest_config.getint('backend', 'nr_of_disks_to_claim')
         type_of_disk_to_claim = TestALBA.autotest_config.get('backend', 'type_of_disks_to_claim')
-        GeneralAlba.claim_disks(backend['alba_backend_guid'], nr_disks_to_claim, type_of_disk_to_claim)
+        #GeneralAlba.claim_disks(backend['alba_backend_guid'], nr_disks_to_claim, type_of_disk_to_claim)
 
     @staticmethod
     def teardown():
@@ -392,3 +392,54 @@ class TestALBA(object):
 
         GeneralAlba.remove_alba_namespaces(alba_backend_name)
         GeneralAlba.remove_preset(alba_backend, preset_name)
+
+
+def ovs_3977_maintenance_agent_test():
+
+    backend = backend_generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
+    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
+    name = alba_backend['name']
+
+    alba_node_ips = [node.ip for node in AlbaNodeList.get_albanodes()]
+
+    def get_agent_distribution(name):
+        result = {}
+        total = 0
+        for ip in alba_node_ips:
+            count = general.execute_command_on_node(ip, 'ls /etc/init/ovs-alba-maintenance_{0}-* | wc -l'.format(name))
+            if count:
+                count = int(count)
+            else:
+                count = 0
+            total += count
+            result[ip] = count
+        result['total'] = total
+
+        print 'Maintenance agent distribution: {0}'.format(result)
+        for ip in alba_node_ips:
+            assert (result[ip] == total / len(alba_node_ips) or result[ip] == (total / len(alba_node_ips)) + 1),\
+                "Agents not equally distributed!"
+
+        return result
+
+    etcd_key = '/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend['guid'])
+    nr_of_agents = etcd.get(etcd_key)
+    print '1. - nr of agents: {0}'.format(nr_of_agents)
+
+    actual_nr_of_agents = get_agent_distribution(name)['total']
+    assert nr_of_agents == actual_nr_of_agents, \
+        'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
+
+    # set nr to zero
+    etcd.set(etcd_key, 0)
+    AlbaNodeController.checkup_maintenance_agents()
+    assert get_agent_distribution(name)['total'] == 0, \
+        'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
+    print '2. - nr of agents: {0}'.format(nr_of_agents)
+
+    # set nr to 10
+    etcd.set(etcd_key, 10)
+    AlbaNodeController.checkup_maintenance_agents()
+    assert get_agent_distribution(name)['total'] == 10, \
+        'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
+    print '3. - nr of agents: {0}'.format(nr_of_agents)
