@@ -11,3 +11,39 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from ci.tests.general.general import General
+from ci.tests.general.general_alba import GeneralAlba
+from ci.tests.general.general_backend import GeneralBackend
+from ci.tests.general.general_vpool import GeneralVPool
+
+
+def setup():
+    """
+    Setup for VirtualDisk package, will be executed when any test in this package is being executed
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
+    autotest_config = General.get_config()
+    backend_name = autotest_config.get('backend', 'name')
+    assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
+
+    GeneralAlba.prepare_alba_backend()
+    GeneralVPool.add_vpool()
+
+
+def teardown():
+    """
+    Teardown for VirtualDisk package, will be executed when all started tests in this package have ended
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
+    vpool_name = General.get_config().get("vpool", "name")
+    vpool = GeneralVPool.get_vpool_by_name(vpool_name)
+    if vpool is not None:
+        GeneralVPool.remove_vpool(vpool)
+
+    autotest_config = General.get_config()
+    be = GeneralBackend.get_by_name(autotest_config.get('backend', 'name'))
+    if be:
+        GeneralAlba.unclaim_disks_and_remove_alba_backend(alba_backend=be.alba_backend)

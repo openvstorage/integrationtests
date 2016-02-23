@@ -82,6 +82,9 @@ class GeneralVPool(object):
             required_params['connection_backend'] = (dict, {'backend': (str, Toolbox.regex_guid),
                                                             'metadata': (str, Toolbox.regex_preset)})
 
+        if vpool_type == 'distributed':
+            required_params['distributed_mountpoint'] = (str, None)
+
         Toolbox.verify_required_params(required_params=required_params, actual_params=vpool_parameters, exact_match=True)
 
         if storagerouters is None:
@@ -132,7 +135,7 @@ class GeneralVPool(object):
                                                            timeout=500)
         if task_result[0] is not True:
             raise RuntimeError('Storage Driver with ID {0} was not successfully removed from vPool {1}'.format(storage_driver.storagedriver_id, vpool.name))
-        return vpool
+        return GeneralVPool.get_vpool_by_name(vpool_name=vpool.name)
 
     @staticmethod
     def get_configuration(vpool):
@@ -190,6 +193,8 @@ class GeneralVPool(object):
             if backend is not None:
                 vpool_params['connection_backend'] = {'backend': backend.alba_backend_guid,
                                                       'metadata': kwargs.get('preset_name', 'default')}
+        if vpool_type == 'distributed':
+            vpool_params['distributed_mountpoint'] = kwargs.get('distributed_mountpoint', '/tmp')
         return vpool_params
 
     @staticmethod
@@ -236,6 +241,8 @@ class GeneralVPool(object):
             for partition in storagedriver.partitions:
                 if partition.role != DiskPartition.ROLES.READ:
                     directories.add(partition.path)
+            if vpool.backend_type.code == 'distributed' and storagedriver.mountpoint_dfs is not None:
+                directories.add('{0}/fd-{1}-{2}'.format(storagedriver.mountpoint_dfs, vpool.name, vpool.guid))
             all_directories[storagedriver.storagerouter.guid] = directories
         return all_directories
 
@@ -380,15 +387,17 @@ class GeneralVPool(object):
                 GeneralVPool.mount_vpool(vpool=vpool,
                                          root_client=root_client)
 
-            file_name = GeneralVDisk.create_volume(size=10,
-                                                   vpool=vpool,
-                                                   root_client=root_client)
-            GeneralVDisk.write_to_volume(location=file_name,
+            vdisk = GeneralVDisk.create_volume(size=10,
+                                               vpool=vpool,
+                                               root_client=root_client)
+            GeneralVDisk.write_to_volume(vdisk=vdisk,
+                                         vpool=vpool,
                                          root_client=root_client,
                                          count=10,
                                          bs='1M',
                                          input_type='random')
-            GeneralVDisk.delete_volume(location=file_name,
+            GeneralVDisk.delete_volume(vdisk=vdisk,
+                                       vpool=vpool,
                                        root_client=root_client)
 
         for role, sub_roles in sd_partitions.iteritems():
@@ -461,7 +470,7 @@ class GeneralVPool(object):
             # Check management center
             mgmt_center = GeneralManagementCenter.get_mgmt_center(pmachine=storagerouter.pmachine)
             if mgmt_center is not None:
-                assert GeneralManagementCenter.is_host_configured(pmachine_guid=storagerouter.pmachine.guid) is False, 'Management Center is still configured on Storage Router {0}'.format(storagerouter.ip)
+                assert GeneralManagementCenter.is_host_configured(pmachine=storagerouter.pmachine) is False, 'Management Center is still configured on Storage Router {0}'.format(storagerouter.ip)
 
             # Check MDS services
             mds_services = GeneralService.get_services_by_name('MetadataServer')

@@ -181,7 +181,7 @@ readcache_size       = 10
 writecache_size      = 10
 integrate_mgmt       = True
 storage_ip           = 127.0.0.1
-config_params        = {"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128, "dtl_target": ""}
+config_params        = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128, "dtl_target": ""}}
 
 [vpool2]
 name                 = localvp
@@ -194,7 +194,7 @@ readcache_size       = 10
 writecache_size      = 10
 integrate_mgmt       = True
 storage_ip           = 127.0.0.1
-config_params        = {"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128, "dtl_target": ""}
+config_params        = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128, "dtl_target": ""}}
 
 [backend]
 name = marie

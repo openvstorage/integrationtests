@@ -28,26 +28,6 @@ class TestExtended(object):
     """
     tests_to_run = General.get_tests_to_run(General.get_test_level())
 
-    ######################
-    # SETUP AND TEARDOWN #
-    ######################
-
-    @staticmethod
-    def setup():
-        """
-        Make necessary changes before being able to run the tests
-        :return: None
-        """
-        print "Setup called " + __name__
-
-    @staticmethod
-    def teardown():
-        """
-        Removal actions of possible things left over after the test-run
-        :return: None
-        """
-        pass
-
     #########
     # TESTS #
     #########

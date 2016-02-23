@@ -26,6 +26,7 @@ from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.logHandler import LogHandler
+from ovs.dal.exceptions import ObjectNotFoundException
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.lists.albanodelist import AlbaNodeList
 from ovs.extensions.generic.sshclient import SSHClient
@@ -53,16 +54,33 @@ class GeneralAlba(object):
         return AlbaBackend(guid)
 
     @staticmethod
-    def get_abm_config(backend_name):
+    def get_alba_nodes():
         """
-        Retrieve the configuration string to pass to the ALBA CLI
-        :param backend_name: Name of the backend
-        :return: Configuration string
+        Retrieve all ALBA nodes
+        :return: Data-object list of ALBA nodes
         """
-        return '--config etcd://127.0.0.1:2379/ovs/arakoon/{0}-abm/config'.format(backend_name)
+        return AlbaNodeList.get_albanodes()
 
     @staticmethod
-    def add_alba_backend(name=None):
+    def get_node_by_id(node_id):
+        """
+        Retrieve ASD node by ID
+        :param node_id: ID of the ASD node
+        :return: ASD node information
+        """
+        return AlbaNodeList.get_albanode_by_node_id(node_id=node_id)
+
+    @staticmethod
+    def get_abm_config(alba_backend):
+        """
+        Retrieve the configuration string to pass to the ALBA CLI
+        :param alba_backend: ALBA backend
+        :return: Configuration string
+        """
+        return '--config etcd://127.0.0.1:2379/ovs/arakoon/{0}-abm/config'.format(alba_backend.name)
+
+    @staticmethod
+    def prepare_alba_backend(name=None):
         """
         Create an ALBA backend and claim disks
         :param name: Name for the backend
@@ -73,50 +91,41 @@ class GeneralAlba(object):
         autotest_config = General.get_config()
         if name is None:
             name = autotest_config.get('backend', 'name')
-        backend_type = autotest_config.get('backend', 'type')
         nr_of_disks_to_claim = autotest_config.getint('backend', 'nr_of_disks_to_claim')
         type_of_disks_to_claim = autotest_config.get('backend', 'type_of_disks_to_claim')
         assert name, "Please fill out a valid backend name in autotest.cfg file"
-        assert backend_type in GeneralBackend.get_valid_backendtypes(), "Please fill out a valid backend type in autotest.cfg file"
 
         my_sr = GeneralStorageRouter.get_local_storagerouter()
         GeneralDisk.add_db_role(my_sr)
         GeneralDisk.add_read_write_scrub_roles(my_sr)
-        backend = GeneralBackend.get_backend_by_name_and_type(name, backend_type)
+        backend = GeneralBackend.get_by_name(name)
         if not backend:
-            backend_guid = GeneralAlba.model_alba_backend(name)
-            backend = GeneralBackend.get_backend(backend_guid)
-        GeneralAlba.claim_disks(backend['alba_backend_guid'], nr_of_disks_to_claim, type_of_disks_to_claim)
+            alba_backend = GeneralAlba.add_alba_backend(name)
+        else:
+            alba_backend = backend.alba_backend
+        GeneralAlba.claim_disks(alba_backend, nr_of_disks_to_claim, type_of_disks_to_claim)
 
     @staticmethod
-    def unclaim_disks_and_remove_alba_backend():
+    def unclaim_disks_and_remove_alba_backend(alba_backend):
         """
         Removes an ALBA backend
+        :param alba_backend: ALBA backend
         :return: None
         """
-        autotest_config = General.get_config()
-        backend_name = autotest_config.get('backend', 'name')
-        backend_type = autotest_config.get('backend', 'type')
-        assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
-        assert backend_type in GeneralBackend.get_valid_backendtypes(), "Please fill out a valid backend type in autotest.cfg file"
-
-        be = GeneralBackend.get_backend_by_name_and_type(backend_name, backend_type)
-        if be:
-            alba_backend = GeneralAlba.get_alba_backend(be['alba_backend_guid'])
-            GeneralAlba.unclaim_disks(alba_backend)
-            GeneralAlba.remove_alba_backend(be['alba_backend_guid'])
+        GeneralAlba.unclaim_disks(alba_backend)
+        GeneralAlba.remove_alba_backend(alba_backend)
 
     @staticmethod
-    def execute_alba_cli_action(backend_name, action, params=None, json_output=True):
+    def execute_alba_cli_action(alba_backend, action, params=None, json_output=True):
         """
         Execute an ALBA CLI command
-        :param backend_name: Name of the ALBA backend
+        :param alba_backend: ALBA backend
         :param action: Action to execute
         :param params: Parameters to pass to the action
         :param json_output: Return JSON output
         :return: Output of the action
         """
-        config = GeneralAlba.get_abm_config(backend_name)
+        config = GeneralAlba.get_abm_config(alba_backend)
         cmd = ['alba', action, config]
         if json_output:
             cmd.append('--to-json')
@@ -178,88 +187,74 @@ class GeneralAlba(object):
         return GeneralAlba.api.execute_post_action('alba/backends', alba_backend.guid, 'delete_preset', data, wait=True)
 
     @staticmethod
-    def is_alba_backend_running(backend_guid, trigger=False):
+    def wait_for_alba_backend_status(alba_backend, status='RUNNING', timeout=None):
         """
         Verify the ALBA backend status
-        :param backend_guid: ALBA backend guid
-        :param trigger:
+        :param alba_backend: ALBA Backend
+        :param status: Status to wait for
+        :param timeout: Time to wait for status
         :return:
         """
-        timeout = GeneralAlba.ALBA_TIMER
+        if timeout is None:
+            timeout = GeneralAlba.ALBA_TIMER
         wait = GeneralAlba.ALBA_TIMER_STEP
-        is_running = False
-        while timeout > 0 and not is_running:
-            backend = GeneralBackend.get_backend(backend_guid)
-            if backend:
-                if backend['status'] in ['RUNNING']:
-                    is_running = True
-                    GeneralAlba.logger.info('Backend in status running after {0} seconds'.format((GeneralAlba.ALBA_TIMER - timeout) * wait))
-                    break
-                elif trigger:
-                    GeneralAlba.logger.info('Trigger backend installation')
-                    trigger = False
-                    GeneralAlba.api.add('alba/backends', {'backend_guid': backend_guid})
+        while timeout > 0:
+            if alba_backend.backend.status == status:
+                GeneralAlba.logger.info('Backend in status {0} after {1} seconds'.format(status, (GeneralAlba.ALBA_TIMER - timeout) * wait))
+                return
             time.sleep(wait)
             timeout -= wait
-        return is_running
+            alba_backend = GeneralAlba.get_alba_backend(guid=alba_backend.guid)
+        if timeout <= 0:
+            raise ValueError('ALBA Backend {0} did not reach {1} status in {2} seconds'.format(alba_backend.backend.name, status, timeout))
 
     @staticmethod
-    def model_alba_backend(name):
+    def add_alba_backend(name, wait=True):
         """
         Put an ALBA backend in the model
         :param name: Name of the backend
-        :return: Guid of the backend
+        :param wait: Wait for backend to enter RUNNING state
+        :return: Newly created ALBA backend
         """
-        if not GeneralBackend.is_backend_present(name, 'alba'):
-            backend_guid = GeneralBackend.add_backend(name, 'alba')
-            assert (GeneralAlba.is_alba_backend_running(backend_guid, trigger=True)), 'Backend {0} not in status RUNNING'.format(name)
-        else:
-            backend = GeneralBackend.get_backend_by_name_and_type(name, 'alba')
-            backend_guid = backend['guid']
+        backend = GeneralBackend.get_by_name(name)
+        if backend is None:
+            backend = GeneralBackend.add_backend(name, 'alba')
+            alba_backend = AlbaBackend(GeneralAlba.api.add('alba/backends', {'backend_guid': backend.guid})['guid'])
+            if wait is True:
+                GeneralAlba.wait_for_alba_backend_status(alba_backend)
 
         out, err = General.execute_command('etcdctl ls /ovs/alba/asdnodes')
         if err == '' and len(out):
             AlbaNodeController.model_local_albanode()
 
-        return backend_guid
+        return GeneralBackend.get_by_name(name).alba_backend
 
     @staticmethod
-    def remove_alba_backend(guid):
+    def remove_alba_backend(alba_backend):
         """
         Remove an ALBA backend
-        :param guid: Guid of the backend to remove
+        :param alba_backend: ALBA Backend
         :return: None
         """
-        name = GeneralAlba.api.fetch('alba/backends', guid)['name']
-        GeneralAlba.api.remove('alba/backends', guid)
+        GeneralAlba.api.remove('alba/backends', alba_backend.guid)
 
         counter = GeneralAlba.ALBA_TIMER / GeneralAlba.ALBA_TIMER_STEP
-        while counter >= 0:
-            if not GeneralAlba.api.get_component_by_name('backends', name):
-                break
+        while counter > 0:
+            try:
+                GeneralAlba.get_alba_backend(alba_backend.guid)
+            except ObjectNotFoundException:
+                return
             counter -= 1
             time.sleep(GeneralAlba.ALBA_TIMER_STEP)
 
-        assert (GeneralAlba.api.get_component_by_name('backends', name) is None), "Unable to remove backend {0}".format(name)
+        if counter == 0:
+            raise ValueError('Unable to remove backend {0}'.format(alba_backend.name))
 
     @staticmethod
-    def get_node_by_id(node_id):
-        """
-        Retrieve ASD node by ID
-        :param node_id: ID of the ASD node
-        :return: ASD node information
-        """
-        nodes = GeneralAlba.api.list('alba/nodes')
-        for node_guid in nodes:
-            node = GeneralAlba.api.fetch('alba/nodes', node_guid)
-            if node['node_id'] == node_id:
-                return node_guid
-
-    @staticmethod
-    def upload_file(backend_name, namespace, file_size):
+    def upload_file(alba_backend, namespace, file_size):
         """
         Upload a file into ALBA
-        :param backend_name: Name of the ALBA backend
+        :param alba_backend: ALBA backend
         :param namespace: Namespace to upload file into
         :param file_size: Size of file
         :return: None
@@ -270,20 +265,17 @@ class GeneralAlba(object):
             temp_file.write(contents)
             temp_file.flush()
 
-        GeneralAlba.execute_alba_cli_action(backend_name, 'upload', [namespace, temp_file_name, temp_file_name], False)
+        GeneralAlba.execute_alba_cli_action(alba_backend, 'upload', [namespace, temp_file_name, temp_file_name], False)
 
     @staticmethod
-    def remove_alba_namespaces(name=""):
+    def remove_alba_namespaces(alba_backend):
         """
         Remove ALBA namespaces
-        :param name: Name of the ALBA backend
+        :param alba_backend: ALBA backend
         :return: None
         """
-        if not GeneralBackend.is_backend_present(name, 'alba'):
-            return
-
-        cmd_delete = "alba delete-namespace {0} ".format(GeneralAlba.get_abm_config(name))
-        nss = GeneralAlba.execute_alba_cli_action(name, 'list-namespaces')
+        cmd_delete = "alba delete-namespace {0} ".format(GeneralAlba.get_abm_config(alba_backend))
+        nss = GeneralAlba.execute_alba_cli_action(alba_backend, 'list-namespaces')
         GeneralAlba.logger.info("Namespaces present: {0}".format(str(nss)))
         fd_namespaces = list()
         for ns in nss:
@@ -334,10 +326,10 @@ class GeneralAlba(object):
         return safe
 
     @staticmethod
-    def filter_disks(available_disks, amount, disk_type):
+    def filter_disks(disk_names, amount, disk_type):
         """
         Filter the available disks
-        :param available_disks: Disks to filter
+        :param disk_names: Disks to filter
         :param amount: Amount to retrieve
         :param disk_type: Type of disk
         :return: Filtered disks
@@ -357,7 +349,7 @@ class GeneralAlba(object):
             hdds.update(ssds)
             list_to_check = hdds.values()
 
-        for disk_name in available_disks:
+        for disk_name in disk_names:
             for disk in list_to_check:
                 if disk_name == disk['name']:
                     filtered_disks.append(disk['name'])
@@ -368,16 +360,16 @@ class GeneralAlba(object):
         return filtered_disks
 
     @staticmethod
-    def initialise_disks(alba_backend_guid, nr_of_disks, disk_type):
+    def initialise_disks(alba_backend, nr_of_disks, disk_type):
         """
         Initialize disks
-        :param alba_backend_guid: Guid of the ALBA backend
+        :param alba_backend: ALBA backend
         :param nr_of_disks: Amount of disks to initialize
         :param disk_type: Type of disks
         :return: None
         """
         # Assume no disks are claimed by a remote environment
-        alba_backend = GeneralAlba.get_alba_backend(alba_backend_guid)
+        alba_backend.invalidate_dynamics(['all_disks'])
         all_disks = alba_backend.all_disks
 
         initialised_disks = [disk['name'] for disk in all_disks if disk['status'] == 'available']
@@ -385,10 +377,10 @@ class GeneralAlba(object):
         if nr_of_disks_to_init <= 0:
             return True
 
-        uninitialized_disks = [disk['name'] for disk in all_disks if disk['status'] == 'uninitialized']
-        assert len(uninitialized_disks) >= nr_of_disks_to_init, "Not enough disks to initialize!"
+        uninitialized_disk_names = [disk['name'] for disk in all_disks if disk['status'] == 'uninitialized']
+        assert len(uninitialized_disk_names) >= nr_of_disks_to_init, "Not enough disks to initialize!"
 
-        disks_to_init = GeneralAlba.filter_disks(uninitialized_disks, nr_of_disks_to_init, disk_type)
+        disks_to_init = GeneralAlba.filter_disks(uninitialized_disk_names, nr_of_disks_to_init, disk_type)
         assert len(disks_to_init) >= nr_of_disks_to_init, "Not enough disks to initialize!"
 
         grid_ip = General.get_config().get('main', 'grid_ip')
@@ -397,10 +389,10 @@ class GeneralAlba(object):
         assert not failures, 'Alba disk initialization failed for (some) disks: {0}'.format(failures)
 
     @staticmethod
-    def claim_disks(alba_backend_guid, nr_of_disks, disk_type=''):
+    def claim_disks(alba_backend, nr_of_disks, disk_type=''):
         """
         Claim disks
-        :param alba_backend_guid: Guid of the ALBA backend
+        :param alba_backend: ALBA Backend
         :param nr_of_disks: Amount of disks to claim
         :param disk_type: Type of disks
         :return: None
@@ -421,7 +413,6 @@ class GeneralAlba(object):
                 "Unable to find {0} disks, only found {1} disks with status: {2}.\n".format(_nr_of_disks, len(disks_with_status), status)
             return disks_with_status
 
-        alba_backend = GeneralAlba.get_alba_backend(alba_backend_guid)
         all_disks = alba_backend.all_disks
 
         claimed_disks = [disk['name'] for disk in all_disks if 'status' in disk and disk['status'] == 'claimed' and 'name' in disk]
@@ -429,11 +420,11 @@ class GeneralAlba(object):
         if nr_disks_to_claim <= 0:
             return True
 
-        GeneralAlba.initialise_disks(alba_backend_guid, nr_disks_to_claim, disk_type)
+        GeneralAlba.initialise_disks(alba_backend, nr_disks_to_claim, disk_type)
 
-        claimable_disks = _wait_for_disk_count_with_status(alba_backend, nr_disks_to_claim, 'available')
+        claimable_disk_names = _wait_for_disk_count_with_status(alba_backend, nr_disks_to_claim, 'available')
 
-        disks_to_claim = GeneralAlba.filter_disks(claimable_disks, nr_disks_to_claim, disk_type)
+        disks_to_claim = GeneralAlba.filter_disks(claimable_disk_names, nr_disks_to_claim, disk_type)
         assert len(disks_to_claim) >= nr_disks_to_claim,\
             "Unable to claim {0} disks, only found {1} disks.\n".format(nr_of_disks, len(disks_to_claim))
 
@@ -449,7 +440,7 @@ class GeneralAlba(object):
                     osds[disk['asd_id']] = alba_node.guid
 
         GeneralAlba.logger.info('osds: {0}'.format(osds))
-        AlbaController.add_units(alba_backend_guid, osds)
+        AlbaController.add_units(alba_backend.guid, osds)
 
         _wait_for_disk_count_with_status(alba_backend, nr_of_disks, 'claimed')
 
@@ -463,8 +454,16 @@ class GeneralAlba(object):
         alba_backend.invalidate_dynamics(['all_disks'])
         for disk in alba_backend.all_disks:
             if disk['status'] in ['available', 'claimed']:
-                node_guid = GeneralAlba.get_node_by_id(disk['node_id'])
+                asd_node = GeneralAlba.get_node_by_id(disk['node_id'])
                 data = {'alba_backend_guid': alba_backend.guid,
                         'disk': disk['name'],
                         'safety': {'good': 0, 'critical': 0, 'lost': 0}}
-                GeneralAlba.api.execute_post_action('alba/nodes', node_guid, 'remove_disk', data, wait=True)
+                GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'remove_disk', data, wait=True)
+
+    @staticmethod
+    def checkup_maintenance_agents():
+        """
+        Perform a maintenance agent checkup
+        :return: None
+        """
+        AlbaNodeController.checkup_maintenance_agents()

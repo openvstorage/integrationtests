@@ -31,14 +31,15 @@ def _ignore_formatting_errors():
         Wrapper function
         :param outer_function: Function to wrap
         """
-        def new_function(msg, *args, **kwargs):
+        def new_function(self, msg, *args, **kwargs):
             """
             Wrapped function
+            :param self: Logger instance
             :param msg: Message
             """
             try:
                 msg = str(msg)
-                return outer_function(msg, *args, **kwargs)
+                return outer_function(self, msg, *args, **kwargs)
             except TypeError as exception:
                 too_many = 'not all arguments converted during string formatting' in str(exception)
                 not_enough = 'not enough arguments for format string' in str(exception)
@@ -46,7 +47,7 @@ def _ignore_formatting_errors():
                     msg = msg.replace('%', '%%')
                     msg = msg % args
                     msg = msg.replace('%%', '%')
-                    return outer_function(msg, *[], **kwargs)
+                    return outer_function(self, msg, *[], **kwargs)
                 raise
 
         new_function.__name__ = outer_function.__name__

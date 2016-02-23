@@ -65,26 +65,6 @@ class TestValidation(object):
     except_skip_dirs = ['/webapps/frontend/lib/ovs']
     except_skip_files = ['/webapps/frontend/css/ovs.css']
 
-    ######################
-    # SETUP AND TEARDOWN #
-    ######################
-
-    @staticmethod
-    def setup():
-        """
-        Make necessary changes before being able to run the tests
-        :return: None
-        """
-        pass
-
-    @staticmethod
-    def teardown():
-        """
-        Removal actions of possible things left over after the test-run
-        :return: None
-        """
-        pass
-
     ####################
     # HELPER FUNCTIONS #
     ####################
@@ -205,7 +185,7 @@ class TestValidation(object):
                             # checking the rest of the lines
                             if offset + len(license_splitlines) > len(lines_to_check):
                                 # found comment section but it's too small for license to fit
-                                files_with_diff_licenses += 'File too small for license to fit: {1}\n'.format(file_name)
+                                files_with_diff_licenses += 'File too small for license to fit: {0}\n'.format(file_name)
                             else:
                                 for line_index in range(1, len(license_splitlines) - 1):
                                     if license_splitlines[line_index] not in lines_to_check[line_index + offset]:

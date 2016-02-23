@@ -20,13 +20,12 @@ import time
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
-from ci.tests.general.general_disk import GeneralDisk
-from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.albaasd import AlbaASD
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.albanode import AlbaNode
 from ovs.dal.hybrids.backend import Backend
+from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.lib.albascheduledtask import AlbaScheduledTaskController
 
 
@@ -41,41 +40,7 @@ class TestALBA(object):
 
     autotest_config = General.get_config()
     backend_name = autotest_config.get('backend', 'name')
-    backend_type = autotest_config.get('backend', 'type')
     assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
-    assert backend_type in GeneralBackend.get_valid_backendtypes(), "Please fill out a valid backend type in autotest.cfg file"
-
-    ######################
-    # SETUP AND TEARDOWN #
-    ######################
-
-    @staticmethod
-    def setup():
-        """
-        Make necessary changes before being able to run the tests
-        :return: None
-        """
-        my_sr = GeneralStorageRouter.get_local_storagerouter()
-        GeneralDisk.add_db_role(my_sr)
-        backend = GeneralBackend.get_backend_by_name_and_type(TestALBA.backend_name, TestALBA.backend_type)
-        if not backend:
-            backend_guid = GeneralAlba.model_alba_backend(TestALBA.backend_name)
-            backend = GeneralBackend.get_backend(backend_guid)
-        nr_disks_to_claim = TestALBA.autotest_config.getint('backend', 'nr_of_disks_to_claim')
-        type_of_disk_to_claim = TestALBA.autotest_config.get('backend', 'type_of_disks_to_claim')
-        #GeneralAlba.claim_disks(backend['alba_backend_guid'], nr_disks_to_claim, type_of_disk_to_claim)
-
-    @staticmethod
-    def teardown():
-        """
-        Removal actions of possible things left over after the test-run
-        :return: None
-        """
-        backend = GeneralBackend.get_backend_by_name_and_type(TestALBA.backend_name, TestALBA.backend_type)
-        if backend:
-            alba_backend = GeneralAlba.get_alba_backend(backend['alba_backend_guid'])
-            GeneralAlba.unclaim_disks(alba_backend)
-            GeneralAlba.remove_alba_backend(backend['alba_backend_guid'])
 
     ####################
     # HELPER FUNCTIONS #
@@ -91,22 +56,19 @@ class TestALBA(object):
         :param encryption: Encryption for preset
         :return: True is valid
         """
-        backend = GeneralBackend.get_backend_by_name_and_type(TestALBA.backend_name, TestALBA.backend_type)
-        alba_backend = GeneralAlba.get_alba_backend(backend['alba_backend_guid'])
-        presets = alba_backend.presets
-
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
         valid = False
-        for preset in presets:
-            if preset.name == preset_name:
-                assert preset.compression == compression,\
-                    "Alba compression {0} does not match configured {1} type".format(preset.compression,
+        for preset in backend.alba_backend.presets:
+            if preset['name'] == preset_name:
+                assert preset['compression'] == compression,\
+                    "Alba compression {0} does not match configured {1} type".format(preset['compression'],
                                                                                      compression)
-                assert preset.fragment_encryption[0] == encryption, \
-                    "Alba encryption {0} does not match configured {1} type".format(preset.fragment_encryption,
+                assert preset['fragment_encryption'][0] == encryption, \
+                    "Alba encryption {0} does not match configured {1} type".format(preset['fragment_encryption'],
                                                                                     encryption)
                 for policy in policies:
                     valid = False
-                    for alba_policy in preset.policies:
+                    for alba_policy in preset['policies']:
                         print 'Matching: {0} with {1}'.format(tuple(policy), alba_policy)
                         if tuple(policy) == alba_policy:
                             valid = True
@@ -120,11 +82,9 @@ class TestALBA(object):
         :param name: Name of the preset
         :return: True if present
         """
-        backend = GeneralBackend.get_backend_by_name_and_type(TestALBA.backend_name, TestALBA.backend_type)
-        alba_backend = GeneralAlba.get_alba_backend(backend['alba_backend_guid'])
-        presets = alba_backend.presets
-        for preset in presets:
-            if name == preset.name:
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        for preset in backend.alba_backend.presets:
+            if name == preset['name']:
                 return True
         return False
 
@@ -139,14 +99,13 @@ class TestALBA(object):
         :param remove_when_finished: Remove after validation
         :return: None
         """
-        backend = GeneralBackend.get_backend_by_name_and_type(TestALBA.backend_name, TestALBA.backend_type)
-        alba_backend = GeneralAlba.get_alba_backend(backend['alba_backend_guid'])
-        status, message = GeneralAlba.add_preset(alba_backend, name, policies, compression, encryption)
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        status, message = GeneralAlba.add_preset(backend.alba_backend, name, policies, compression, encryption)
         assert status, "Add preset failed with: {0}".format(message)
         assert TestALBA.is_preset_present(name), "Preset with name {0} is not present".format(name)
         TestALBA.verify_policies_for_preset(name, policies, compression, encryption)
         if remove_when_finished:
-            status, message = GeneralAlba.remove_preset(alba_backend, name, )
+            status, message = GeneralAlba.remove_preset(backend.alba_backend, name, )
             assert status, "Remove preset failed with: {0}".format(message)
             assert not TestALBA.is_preset_present(name), "Preset with name {0} is not present".format(name)
 
@@ -161,13 +120,12 @@ class TestALBA(object):
         """
         General.check_prereqs(testcase_number=1,
                               tests_to_run=TestALBA.tests_to_run)
-        if not GeneralBackend.is_backend_present(TestALBA.backend_name, TestALBA.backend_type):
-            backend_guid = GeneralAlba.model_alba_backend(TestALBA.backend_name)
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        if backend is None:
+            alba_backend = GeneralAlba.add_alba_backend(TestALBA.backend_name)
         else:
-            backend_guid = GeneralBackend.get_backend_by_name_and_type(TestALBA.backend_name, TestALBA.backend_type)['guid']
-
-        is_running = GeneralAlba.is_alba_backend_running(backend_guid, trigger=True)
-        assert is_running, "Backend {0} is not present/running!".format(TestALBA.backend_name)
+            alba_backend = backend.alba_backend
+        GeneralAlba.wait_for_alba_backend_status(alba_backend)
 
     @staticmethod
     def be_0002_add_remove_preset_no_compression_no_encryption_test():
@@ -248,8 +206,7 @@ class TestALBA(object):
         """
         General.check_prereqs(testcase_number=7,
                               tests_to_run=TestALBA.tests_to_run)
-        backend = GeneralBackend.get_backend_by_name_and_type(TestALBA.backend_name, TestALBA.backend_type)
-        alba_backend = GeneralAlba.get_alba_backend(backend['alba_backend_guid'])
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
 
         timeout = 120
         preset_name = 'be_preset_0007'
@@ -260,29 +217,29 @@ class TestALBA(object):
         new_policy = [[2, 2, 3, 3]]
 
         TestALBA.add_validate_remove_preset(preset_name, compression, encryption, org_policy, remove_when_finished=False)
-        result = GeneralAlba.execute_alba_cli_action(TestALBA.backend_name, 'list-namespaces')
+        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'list-namespaces')
 
         for namespace in result:
             if namespace['name'] == namespace_name:
-                GeneralAlba.execute_alba_cli_action(TestALBA.backend_name, 'delete-namespace', [namespace_name], False)
-        GeneralAlba.execute_alba_cli_action(TestALBA.backend_name, 'create-namespace', [namespace_name, preset_name], False)
+                GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'delete-namespace', [namespace_name], False)
+        GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'create-namespace', [namespace_name, preset_name], False)
 
         # @TODO: remove next deliver messages command when http://jira.cloudfounders.com/browse/OVS-3580 is fixed
         # command is necessary after namespace create to allow object upload to be distributed to all disks according
         # to policy
-        GeneralAlba.execute_alba_cli_action(TestALBA.backend_name, 'deliver-messages', [], False)
+        GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'deliver-messages', [], False)
 
-        GeneralAlba.upload_file(TestALBA.backend_name, namespace_name, 1024 * 1024)
+        GeneralAlba.upload_file(backend.alba_backend, namespace_name, 1024 * 1024)
 
-        result = GeneralAlba.execute_alba_cli_action(TestALBA.backend_name, 'show-namespace', [namespace_name])['bucket_count']
+        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'show-namespace', [namespace_name])['bucket_count']
 
         assert len(result) == 1, "Only one policy should be present, found: {0}".format(result)
         GeneralAlba.is_bucket_count_valid_with_policy(result, org_policy)
 
         # update and verify policies for preset
-        GeneralAlba.update_preset(alba_backend, preset_name, new_policy)
+        GeneralAlba.update_preset(backend.alba_backend, preset_name, new_policy)
 
-        result = GeneralAlba.execute_alba_cli_action(TestALBA.backend_name, 'show-namespace', [namespace_name])['bucket_count']
+        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'show-namespace', [namespace_name])['bucket_count']
         assert len(result) == 1, "Expected 1 policy, but got: {0}".format(result)
 
         object_has_new_policy = False
@@ -291,13 +248,13 @@ class TestALBA(object):
                 object_has_new_policy = True
                 break
             time.sleep(1)
-            result = GeneralAlba.execute_alba_cli_action(TestALBA.backend_name, 'show-namespace', [namespace_name])['bucket_count']
+            result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'show-namespace', [namespace_name])['bucket_count']
 
         assert object_has_new_policy, "Object was not rewritten within {0} seconds: {1}".format(timeout, result)
 
         # cleanup
-        GeneralAlba.execute_alba_cli_action(TestALBA.backend_name, 'delete-namespace', [namespace_name], False)
-        GeneralAlba.remove_preset(alba_backend, preset_name)
+        GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'delete-namespace', [namespace_name], False)
+        GeneralAlba.remove_preset(backend.alba_backend, preset_name)
 
     @staticmethod
     def ovs_3490_add_remove_preset_test():
@@ -308,15 +265,14 @@ class TestALBA(object):
                               tests_to_run=TestALBA.tests_to_run)
 
         name = 'ovs-3490'
-        backend = GeneralBackend.get_backend_by_name_and_type(TestALBA.backend_name, TestALBA.backend_type)
-        alba_backend = GeneralAlba.get_alba_backend(backend['alba_backend_guid'])
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
         policies = [[1, 1, 1, 2]]
         compression = 'none'
         encryption = 'aes-cbc-256'
-        status, message = GeneralAlba.add_preset(alba_backend, name, policies, compression, encryption)
+        status, message = GeneralAlba.add_preset(backend.alba_backend, name, policies, compression, encryption)
         assert status, "Add preset failed with: {0}".format(message)
         TestALBA.verify_policies_for_preset(name, policies, compression, encryption)
-        status, message = GeneralAlba.remove_preset(alba_backend, name)
+        status, message = GeneralAlba.remove_preset(backend.alba_backend, name)
         assert status, "Remove preset failed with: {0}".format(message)
         assert not TestALBA.is_preset_present(name), "Preset with name {0} is not present".format(name)
 
@@ -377,69 +333,67 @@ class TestALBA(object):
         preset_name = 'be_preset_02'
         policies = [[1, 1, 1, 2]]
 
-        backend = GeneralBackend.get_backend_by_name_and_type(TestALBA.backend_name, TestALBA.backend_type)
-        alba_backend = GeneralAlba.get_alba_backend(backend['alba_backend_guid'])
-        alba_backend_name = alba_backend.name
-        GeneralAlba.add_preset(alba_backend, preset_name, policies, compression, encryption)
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        GeneralAlba.add_preset(backend.alba_backend, preset_name, policies, compression, encryption)
 
         for x in range(nr_of_disks_to_create):
             namespace_name = namespace_prefix + str(x)
-            GeneralAlba.execute_alba_cli_action(alba_backend_name, 'create-namespace', [namespace_name, preset_name], False)
-
-            GeneralAlba.upload_file(alba_backend_name, namespace_name, 1024 * 1024 * 1)
+            GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'create-namespace', [namespace_name, preset_name], False)
+            GeneralAlba.upload_file(backend.alba_backend, namespace_name, 1024 * 1024 * 1)
 
         AlbaScheduledTaskController.verify_namespaces()
 
-        GeneralAlba.remove_alba_namespaces(alba_backend_name)
-        GeneralAlba.remove_preset(alba_backend, preset_name)
+        GeneralAlba.remove_alba_namespaces(backend.alba_backend)
+        GeneralAlba.remove_preset(backend.alba_backend, preset_name)
 
+    @staticmethod
+    def ovs_3977_maintenance_agent_test():
+        """
+        Test maintenance agent processes
+        """
+        def _get_agent_distribution(agent_name):
+            result = {}
+            total = 0
+            for ip in alba_node_ips:
+                count = General.execute_command_on_node(ip, 'ls /etc/init/ovs-alba-maintenance_{0}-* | wc -l'.format(agent_name))
+                if count:
+                    count = int(count)
+                else:
+                    count = 0
+                total += count
+                result[ip] = count
+            result['total'] = total
 
-def ovs_3977_maintenance_agent_test():
+            print 'Maintenance agent distribution: {0}'.format(result)
+            for ip in alba_node_ips:
+                assert (result[ip] == total / len(alba_node_ips) or result[ip] == (total / len(alba_node_ips)) + 1),\
+                    "Agents not equally distributed!"
 
-    backend = backend_generic.get_backend_by_name_and_type(BACKEND_NAME, BACKEND_TYPE)
-    alba_backend = alba.get_alba_backend(backend['alba_backend_guid'])
-    name = alba_backend['name']
+            return result
 
-    alba_node_ips = [node.ip for node in AlbaNodeList.get_albanodes()]
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        name = backend.alba_backend.name
 
-    def get_agent_distribution(name):
-        result = {}
-        total = 0
-        for ip in alba_node_ips:
-            count = general.execute_command_on_node(ip, 'ls /etc/init/ovs-alba-maintenance_{0}-* | wc -l'.format(name))
-            if count:
-                count = int(count)
-            else:
-                count = 0
-            total += count
-            result[ip] = count
-        result['total'] = total
+        alba_node_ips = [node.ip for node in GeneralAlba.get_alba_nodes()]
 
-        print 'Maintenance agent distribution: {0}'.format(result)
-        for ip in alba_node_ips:
-            assert (result[ip] == total / len(alba_node_ips) or result[ip] == (total / len(alba_node_ips)) + 1),\
-                "Agents not equally distributed!"
+        etcd_key = '/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(backend.alba_backend.guid)
+        nr_of_agents = EtcdConfiguration.get(etcd_key)
+        print '1. - nr of agents: {0}'.format(nr_of_agents)
 
-        return result
+        actual_nr_of_agents = _get_agent_distribution(name)['total']
+        assert nr_of_agents == actual_nr_of_agents, \
+            'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
 
-    etcd_key = '/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend['guid'])
-    nr_of_agents = etcd.get(etcd_key)
-    print '1. - nr of agents: {0}'.format(nr_of_agents)
+        # set nr to zero
+        EtcdConfiguration.set(etcd_key, 0)
+        GeneralAlba.checkup_maintenance_agents()
+        assert _get_agent_distribution(name)['total'] == 0, \
+            'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
+        print '2. - nr of agents: {0}'.format(nr_of_agents)
 
-    actual_nr_of_agents = get_agent_distribution(name)['total']
-    assert nr_of_agents == actual_nr_of_agents, \
-        'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
-
-    # set nr to zero
-    etcd.set(etcd_key, 0)
-    AlbaNodeController.checkup_maintenance_agents()
-    assert get_agent_distribution(name)['total'] == 0, \
-        'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
-    print '2. - nr of agents: {0}'.format(nr_of_agents)
-
-    # set nr to 10
-    etcd.set(etcd_key, 10)
-    AlbaNodeController.checkup_maintenance_agents()
-    assert get_agent_distribution(name)['total'] == 10, \
-        'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
-    print '3. - nr of agents: {0}'.format(nr_of_agents)
+        # set nr to 10
+        EtcdConfiguration.set(etcd_key, 10)
+        GeneralAlba.checkup_maintenance_agents()
+        assert _get_agent_distribution(name)['total'] == 10, \
+            'Actual {0} and requested {1} nr of agents does not match'.format(nr_of_agents, actual_nr_of_agents)
+        print '3. - nr of agents: {0}'.format(nr_of_agents)

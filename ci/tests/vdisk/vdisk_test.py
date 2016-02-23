@@ -12,74 +12,80 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ci import autotests
-from ci.tests.general.general import test_config
-from ci.tests.general import general
-from ci.tests.general.logHandler import LogHandler
-from ci.tests.vdisk import vdisk_generic
-from ci.tests.vpool import vpool_generic as vpool_generic
-
-from ovs.dal.lists.vdisklist import VDiskList
-from ovs.lib.scheduledtask import ScheduledTaskController
+"""
+Virtual Disk testsuite
+"""
 
 import os
-import time
-
-logger = LogHandler.get('vdisks', name='vdisk')
-logger.logger.propagate = False
-
-testsToRun = general.get_tests_to_run(autotests.get_test_level())
-
-
-def setup():
-    vpool_generic.add_alba_backend()
-    vpool_generic.add_vpool()
+from ci.tests.general.general import General
+from ci.tests.general.general_vdisk import GeneralVDisk
+from ci.tests.general.general_vpool import GeneralVPool
+from ci.tests.general.logHandler import LogHandler
+from ovs.lib.scheduledtask import ScheduledTaskController
 
 
-def teardown():
-    vpool_generic.remove_vpool()
-    vpool_generic.remove_alba_backend()
+class TestVDisk(object):
+    """
+    Virtual Disk testsuite
+    """
+    logger = LogHandler.get('vdisks', name='vdisk')
+    logger.logger.propagate = False
 
+    vpool_name = General.get_config().get("vpool", "name")
+    assert vpool_name, 'vPool name required in autotest.cfg file'
+    tests_to_run = General.get_tests_to_run(General.get_test_level())
 
-def ovs_3700_validate_test():
-    def get_scrubber_log_size():
-        scrubber_log_name = '/var/log/upstart/ovs-scrubber.log'
-        if os.path.exists(scrubber_log_name):
-            return os.stat(scrubber_log_name).st_size
-        return 0
+    #########
+    # TESTS #
+    #########
 
-    disk_name = "ovs-3700-disk"
-    loop_device = 'loop0'
+    @staticmethod
+    def ovs_3700_validate_test():
+        """
+        Validate something test
+        """
+        def _get_scrubber_log_size():
+            scrubber_log_name = '/var/log/upstart/ovs-scrubber.log'
+            if os.path.exists(scrubber_log_name):
+                return os.stat(scrubber_log_name).st_size
+            return 0
 
-    vdisk_generic.create(disk_name, 2048, loop_device)
+        loop = 'loop0'
+        vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
+        vdisk = GeneralVDisk.create_volume(size=2,
+                                           vpool=vpool,
+                                           name='ovs-3700-disk',
+                                           loop_device=loop,
+                                           wait=True)
 
-    print general.execute_command('ls -la /mnt/{0}'.format(test_config.get('vpool', 'vpool_name')))
-    print general.execute_command('mount')
+        count = 2
+        GeneralVDisk.create_snapshot(vdisk=vdisk,
+                                     snapshot_name='snap0')
+        for x in xrange(count):
+            GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, x),
+                                            size=512)
 
-    # wait for disk to appear in model
-    timeout = 10
-    while not timeout:
-        if not VDiskList.get_vdisk_by_name(disk_name):
-            time.sleep(5)
-        else:
-            break
+        GeneralVDisk.create_snapshot(vdisk=vdisk,
+                                     snapshot_name='snap1')
+        for x in xrange(count):
+            GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, x),
+                                            size=512)
 
-    count = 2
-    vdisk_generic.create_snapshot(disk_name, 'snap0')
-    for x in xrange(count):
-        vdisk_generic.generate_hash_file('/mnt/{0}/{1}_{2}.txt'.format(loop_device, disk_name, x), 512)
-    vdisk_generic.create_snapshot(disk_name, 'snap1')
-    for x in xrange(count):
-        vdisk_generic.generate_hash_file('/mnt/{0}/{1}_{2}.txt'.format(loop_device, disk_name, x), 512)
-    vdisk_generic.delete_snapshot(disk_name, 'snap1')
-    for x in xrange(count):
-        vdisk_generic.generate_hash_file('/mnt/{0}/{1}_{2}.txt'.format(loop_device, disk_name, x), 512)
-    vdisk_generic.create_snapshot(disk_name, 'snap2')
+        GeneralVDisk.delete_snapshot(disk=vdisk,
+                                     snapshot_name='snap1')
 
-    pre_scrubber_logsize = get_scrubber_log_size()
-    ScheduledTaskController.gather_scrub_work()
-    post_scrubber_logsize = get_scrubber_log_size()
+        for x in xrange(count):
+            GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, x),
+                                            size=512)
+        GeneralVDisk.create_snapshot(vdisk=vdisk,
+                                     snapshot_name='snap2')
 
-    vdisk_generic.delete(disk_name, loop_device)
+        pre_scrubber_logsize = _get_scrubber_log_size()
+        ScheduledTaskController.gather_scrub_work()
+        post_scrubber_logsize = _get_scrubber_log_size()
 
-    assert post_scrubber_logsize > pre_scrubber_logsize, "Scrubber actions where not logged!"
+        GeneralVDisk.delete_volume(vdisk=vdisk,
+                                   vpool=vpool,
+                                   loop_device=loop)
+
+        assert post_scrubber_logsize > pre_scrubber_logsize, "Scrubber actions where not logged!"

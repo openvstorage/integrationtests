@@ -17,7 +17,6 @@ Flexible disk layout testsuite
 """
 
 import logging
-from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
@@ -51,26 +50,6 @@ class TestFlexibleDiskLayout(object):
 
     logger = logging.getLogger('test_flexible_disk_layout')
 
-    ######################
-    # SETUP AND TEARDOWN #
-    ######################
-
-    @staticmethod
-    def setup():
-        """
-        Make necessary changes before being able to run the tests
-        :return: None
-        """
-        pass
-
-    @staticmethod
-    def teardown():
-        """
-        Removal actions of possible things left over after the test-run
-        :return: None
-        """
-        pass
-
     #########
     # TESTS #
     #########
@@ -91,8 +70,6 @@ class TestFlexibleDiskLayout(object):
         modelled_disks = dict()
         loops = dict()
 
-        api = Connection()
-
         TestFlexibleDiskLayout.logger.setLevel('INFO')
         storagerouters = GeneralStorageRouter.get_storage_routers()
         for storagerouter in storagerouters:
@@ -103,13 +80,12 @@ class TestFlexibleDiskLayout(object):
             loop_devices = General.get_loop_devices(client=root_client)
             loops[storagerouter.guid] = loop_devices
 
-        data = api.list('disks')
-        for guid in data:
-            disk = api.fetch('disks', guid)
-            if not disk['storagerouter_guid'] in modelled_disks:
-                modelled_disks[disk['storagerouter_guid']] = dict()
-            if not disk['name'] in loops[disk['storagerouter_guid']]:
-                modelled_disks[disk['storagerouter_guid']][disk['name']] = {'is_ssd': disk['is_ssd']}
+        disks = GeneralDisk.get_disks()
+        for disk in disks:
+            if disk.storagerouter_guid not in modelled_disks:
+                modelled_disks[disk.storagerouter_guid] = dict()
+            if disk.name not in loops[disk.storagerouter_guid]:
+                modelled_disks[disk.storagerouter_guid][disk.name] = {'is_ssd': disk.is_ssd}
 
         TestFlexibleDiskLayout.logger.info('PDISKS: {0}'.format(physical_disks))
         TestFlexibleDiskLayout.logger.info('MDISKS: {0}'.format(modelled_disks))
@@ -155,18 +131,15 @@ class TestFlexibleDiskLayout(object):
         if not unused_disks:
             raise SkipTest("At least one unused disk should be available for partition testing")
 
-        api = Connection()
-
         hdds = dict()
         ssds = dict()
-        mdisks = api.list('disks')
-        for guid in mdisks:
-            disk = api.fetch('disks', guid)
-            if disk['storagerouter_guid'] == my_sr.guid:
-                if disk['is_ssd']:
-                    ssds['/dev/' + disk['name']] = disk
+        mdisks = GeneralDisk.get_disks()
+        for disk in mdisks:
+            if disk.storagerouter_guid == my_sr.guid:
+                if disk.is_ssd:
+                    ssds['/dev/' + disk.name] = disk
                 else:
-                    hdds['/dev/' + disk['name']] = disk
+                    hdds['/dev/' + disk.name] = disk
 
         all_disks = dict(ssds)
         all_disks.update(hdds)
@@ -174,33 +147,30 @@ class TestFlexibleDiskLayout(object):
         print all_disks.keys()
 
         # check no partitions are modelled for unused disks
-        partitions = api.list('diskpartitions')
+        partitions = GeneralDisk.get_disk_partitions()
         partitions_detected = False
         disk_guid = ''
         for path in unused_disks:
-            disk_guid = all_disks[path]
-            for partition_guid in partitions:
-                partition = api.fetch('diskpartitions', partition_guid)
-                if partition['disk_guid'] == disk_guid:
+            disk_guid = all_disks[path].guid
+            for partition in partitions:
+                if partition.disk_guid == disk_guid:
                     partitions_detected = True
         assert partitions_detected is False, 'Existing partitions detected on unused disks!'
 
         # try partition a disk using it's full reported size
         disk = all_disks[unused_disks[0]]
-        GeneralDisk.configure_disk(storagerouter_guid=my_sr.guid,
-                                   disk_guid=disk['guid'],
-                                   partition_guid=None,
+        GeneralDisk.configure_disk(storagerouter=my_sr,
+                                   disk=disk,
                                    offset=0,
-                                   size=int(disk['size']),
+                                   size=int(disk.size),
                                    roles=['DB'])
 
         # lookup partition in model
         mountpoint = None
-        partitions = api.list('diskpartitions')
-        for partition_guid in partitions:
-            partition = api.fetch('diskpartitions', partition_guid)
-            if partition['disk_guid'] == disk['guid'] and 'DB' in str(partition['roles']):
-                mountpoint = partition['mountpoint']
+        partitions = GeneralDisk.get_disk_partitions()
+        for partition in partitions:
+            if partition.disk_guid == disk.guid and 'DB' in partition.roles:
+                mountpoint = partition.mountpoint
                 break
 
         assert mountpoint, 'New partition was not detected in model'
@@ -209,24 +179,22 @@ class TestFlexibleDiskLayout(object):
         cmd = 'umount {0}; rmdir {0}'.format(mountpoint)
         General.execute_command_on_node(my_sr.ip, cmd)
 
-        cmd = 'parted -s {0} rm 1'.format(disk['path'])
+        cmd = 'parted -s {0} rm 1'.format(disk.path)
         General.execute_command_on_node(my_sr.ip, cmd)
 
         # wipe partition table to be able to reuse this disk in another test
-        cmd = 'dd if=/dev/zero of={0} bs=1M count=64'.format(disk['path'])
+        cmd = 'dd if=/dev/zero of={0} bs=1M count=64'.format(disk.path)
         General.execute_command_on_node(my_sr.ip, cmd)
 
         GeneralStorageRouter.sync_with_reality()
 
         # verify partition no longer exists in ovs model
         is_partition_removed = True
-        partition = dict()
-        partitions = api.list('diskpartitions')
-        for partition_guid in partitions:
-            partition = api.fetch('diskpartitions', partition_guid)
-            if partition['disk_guid'] == disk_guid and 'DB' in partition['roles']:
+        partitions = GeneralDisk.get_disk_partitions()
+        for partition in partitions:
+            if partition.disk_guid == disk_guid and 'DB' in partition.roles:
                 is_partition_removed = False
                 break
 
-        assert is_partition_removed,\
-            'New partition was not deleted successfully from system/model!\n{0}'.format(partition)
+        assert is_partition_removed is True,\
+            'New partition was not deleted successfully from system/model!'

@@ -24,6 +24,10 @@ import urllib
 import urllib2
 from ci.tests.general.general import General
 from ovs.lib.helpers.toolbox import Toolbox
+from requests.packages.urllib3 import disable_warnings
+from requests.packages.urllib3.exceptions import InsecurePlatformWarning
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from requests.packages.urllib3.exceptions import SNIMissingWarning
 
 
 class Connection(object):
@@ -31,6 +35,9 @@ class Connection(object):
     API class
     """
     TOKEN_CACHE_FILENAME = '/tmp/at_token_cache'
+    disable_warnings(InsecurePlatformWarning)
+    disable_warnings(InsecureRequestWarning)
+    disable_warnings(SNIMissingWarning)
 
     def __init__(self, ip=None, username=None, password=None):
         if ip is None:
@@ -146,7 +153,7 @@ class Connection(object):
         task_id = json.loads(response)
 
         if kwargs.get('wait') is True and re.match(Toolbox.regex_guid, task_id):
-            self.wait_for_task(task_id=task_id, timeout=kwargs.get('timeout'))
+            return self.wait_for_task(task_id=task_id, timeout=kwargs.get('timeout'))
         return task_id
 
     def execute_post_action(self, component, guid, action, data, **kwargs):
@@ -167,45 +174,6 @@ class Connection(object):
         if kwargs.get('wait') is True and re.match(Toolbox.regex_guid, task_id):
             return self.wait_for_task(task_id=task_id, timeout=kwargs.get('timeout'))
         return task_id
-
-    def get_component_by_name(self, component, name, single=False):
-        """
-        Retrieve a component based on its 'name' field
-        :param component: Component type to retrieve
-        :param name: Name of the component
-        :param single: Expect only 1 return value
-        :return: Information about the component
-        """
-        return self.get_components_with_attribute(component, 'name', name, single)
-
-    def get_components_with_attribute(self, component, attribute, value, single=False):
-        """
-        Retrieve component information based on a certain attribute
-        :param component: Component type to retrieve
-        :param attribute: Attribute to compare
-        :param value: Value of the attribute
-        :param single: Expect only 1 return value
-        :return: Information about the retrieved components
-        """
-        result = []
-        for guid in self.list(component):
-            component = self.fetch(component, guid)
-            attr = component.get(attribute)
-            if attr is not None and ((type(attr) == list and value in attr) or (type(attr) == unicode and value == attr)):
-                if result and single is True:
-                    raise RuntimeError('Multiple results found for component: {0}'.format(component))
-                result.append(component)
-
-        if result:
-            return result[0] if single is True else result
-
-    def get_components(self, component):
-        """
-        Retrieve component information
-        :param component: Component type to retrieve
-        :return: List of components
-        """
-        return [self.fetch(component, guid) for guid in self.list(component)]
 
     def wait_for_task(self, task_id, timeout=None):
         """

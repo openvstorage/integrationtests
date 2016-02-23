@@ -28,31 +28,12 @@ class GeneralBackend(object):
     api = Connection()
 
     @staticmethod
-    def get_backendtype_by_name(name):
-        """
-        Retrieve backend type information
-        :param name: Name of the backend type
-        :return: Backend Type information
-        """
-        return GeneralBackend.api.get_component_by_name('backendtypes', name)
-
-    @staticmethod
     def get_valid_backendtypes():
         """
         Retrieve a list of supported Backend Types
         :return: List of Backend Type Names
         """
-        backendtypes = GeneralBackend.api.get_components('backendtypes')
-        return [be['code'] for be in backendtypes]
-
-    @staticmethod
-    def get_backend(guid):
-        """
-        Retrieve Backend information
-        :param guid: Guid of the Backend
-        :return: Backend information
-        """
-        return GeneralBackend.api.fetch('backends', guid)
+        return [backend_type.code for backend_type in BackendTypeList.get_backend_types()]
 
     @staticmethod
     def get_backends():
@@ -83,40 +64,18 @@ class GeneralBackend(object):
         return BackendTypeList.get_backend_type_by_code(code=code)
 
     @staticmethod
-    def get_backend_by_name_and_type(backend_name, backend_type_name):
-        """
-        Retrieve a Backend based on name and type
-        :param backend_name: Name of the Backend
-        :param backend_type_name: Name of the Backend Type
-        :return:
-        """
-        backends = GeneralBackend.api.get_components_with_attribute('backends', 'name', backend_name)
-        if backends:
-            for backend in backends:
-                backend_type = GeneralBackend.api.fetch('backendtypes', backend['backend_type_guid'])
-                if backend['name'] == backend_name and backend_type['code'] == backend_type_name:
-                    return backend
-
-    @staticmethod
-    def is_backend_present(backend_name, backend_type_name):
-        """
-        Verify if a backend with name and type is modelled
-        :param backend_name: Name of the Backend
-        :param backend_type_name: Name of the Backend Type
-        :return: True if existent
-        """
-        return GeneralBackend.get_backend_by_name_and_type(backend_name, backend_type_name) is not None
-
-    @staticmethod
-    def add_backend(backend_name, backend_type_name):
+    def add_backend(backend_name, backend_code):
         """
         Add a new backend
         :param backend_name: Name of the Backend to add
-        :param backend_type_name: Name of the Backend Type to add
+        :param backend_code: Code of the Backend Type to add
         :return: Guid of the new Backend
         """
-        if not GeneralBackend.is_backend_present(backend_name, backend_type_name):
-            backend_type = GeneralBackend.api.get_components_with_attribute('backendtypes', 'code', backend_type_name, True)
-            new_backend = GeneralBackend.api.add('backends', {'name': backend_name,
-                                                              'backend_type_guid': backend_type['guid']})
-            return new_backend['guid']
+        backend = GeneralBackend.get_by_name(backend_name)
+        if backend is not None:
+            return backend
+
+        backend_type = GeneralBackend.get_backendtype_by_code(code=backend_code)
+        GeneralBackend.api.add('backends', {'name': backend_name,
+                                            'backend_type_guid': backend_type.guid})
+        return GeneralBackend.get_by_name(backend_name)

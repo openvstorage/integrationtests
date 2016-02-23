@@ -89,6 +89,26 @@ class GeneralService(object):
         return ServiceManager.get_service_status(name, client)
 
     @staticmethod
+    def start_service(name, client):
+        """
+        Start a service
+        :param name: Name of the service
+        :param client: SSHClient object
+        :return: None
+        """
+        ServiceManager.start_service(name, client)
+
+    @staticmethod
+    def stop_service(name, client):
+        """
+        Stop a service
+        :param name: Name of the service
+        :param client: SSHClient object
+        :return: None
+        """
+        ServiceManager.stop_service(name, client)
+
+    @staticmethod
     def get_service_pid(name, client):
         """
         Retrieve the PID of a service

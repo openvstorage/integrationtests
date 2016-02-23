@@ -12,3 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+def setup():
+    """
+    Setup for License package, will be executed when any test in this package is being executed
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
+    pass
+
+
+def teardown():
+    """
+    Teardown for License package, will be executed when all started tests in this package have ended
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
+    pass

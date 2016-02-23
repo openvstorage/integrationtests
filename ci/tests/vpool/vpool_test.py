@@ -19,10 +19,13 @@ vPool testsuite
 import time
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
+from ci.tests.general.general_backend import GeneralBackend
+from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
+from nose.plugins.skip import SkipTest
 from ovs.extensions.generic.sshclient import SSHClient
 
 
@@ -30,27 +33,6 @@ class TestVPool(object):
     """
     vPool testsuite
     """
-
-    ######################
-    # SETUP AND TEARDOWN #
-    ######################
-
-    @staticmethod
-    def setup():
-        """
-        Make necessary changes before being able to run the tests
-        :return: None
-        """
-        GeneralAlba.add_alba_backend()
-
-    @staticmethod
-    def teardown():
-        """
-        Removal actions of possible things left over after the test-run
-        :return: None
-        """
-        GeneralAlba.unclaim_disks_and_remove_alba_backend()
-
     #########
     # TESTS #
     #########
@@ -63,11 +45,68 @@ class TestVPool(object):
         Validate the newly created vPool is correctly running
         Remove the newly created vPool and validate everything related to the vPool has been cleaned up
         """
-
         vpool_params = GeneralVPool.get_add_vpool_params()
         vpool_name = vpool_params['vpool_name']
         if vpool_name is None or len(vpool_name) < 3:
             raise RuntimeError('Invalid vPool name provided in autotest.cfg')
+
+        # Remove vPool if 1 already exists
+        vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
+        if vpool is not None:
+            GeneralVPool.remove_vpool(vpool=vpool)
+            vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
+            if vpool is not None:
+                raise RuntimeError('vPool with name "{0}" still exists'.format(vpool_name))
+
+        # Add vPool and validate health
+        vpool = GeneralVPool.add_vpool(vpool_parameters=vpool_params)
+        assert vpool is not None, 'vPool {0} was not created'.format(vpool_name)
+        GeneralVPool.check_vpool_sanity(vpool=vpool,
+                                        expected_settings=vpool_params)
+
+        # Retrieve vPool information before removal
+        guid = vpool.guid
+        name = vpool.name
+        backend_type = vpool.backend_type.code
+        files = GeneralVPool.get_related_files(vpool)
+        directories = GeneralVPool.get_related_directories(vpool)
+
+        # Remove vPool and validate removal
+        GeneralVPool.remove_vpool(vpool=vpool)
+        vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
+        assert vpool is None, 'vPool {0} was not deleted'.format(vpool_name)
+        GeneralVPool.check_vpool_cleanup(vpool_info={'guid': guid,
+                                                     'name': name,
+                                                     'type': backend_type,
+                                                     'files': files,
+                                                     'directories': directories})
+
+    @staticmethod
+    def add_remove_distributed_vpool_test():
+        """
+        Create a vPool with 'distributed' BackendType and remove it
+        Related ticket: http://jira.cloudfounders.com/browse/OVS-4050
+        """
+        # Verify if an unused disk is available to mount
+        unused_disks = GeneralDisk.get_unused_disks()
+        if len(unused_disks) == 0:
+            raise SkipTest('No available disks found to mount locally for the distributed backend')
+
+        unused_disk = unused_disks[0]
+        if not unused_disk.startswith('/dev/'):
+            raise ValueError('Unused disk must be absolute path')
+
+        # Create a partition on the disk
+        local_sr = GeneralStorageRouter.get_local_storagerouter()
+        disk = GeneralDisk.get_disk_by_devicename(storagerouter=local_sr,
+                                                  device_name=unused_disk)
+        partition = GeneralDisk.partition_disk(disk=disk)
+
+        # Mount the unused disk
+        vpool_name = 'autotest-distr-vpool'
+        vpool_params = GeneralVPool.get_add_vpool_params(name=vpool_name,
+                                                         type='distributed',
+                                                         distributed_mountpoint=partition.mountpoint)
 
         # Remove vPool if 1 already exists
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
@@ -114,9 +153,10 @@ class TestVPool(object):
         # Create some namespaces in alba
         no_namespaces = 3
         backend_name = General.get_config().get('backend', 'name')
+        backend = GeneralBackend.get_by_name(name=backend_name)
         for nmspc_index in range(no_namespaces):
-            GeneralAlba.execute_alba_cli_action(backend_name, 'create-namespace', ['autotest-ns_{0}'.format(nmspc_index), 'default'], False)
-        result = GeneralAlba.execute_alba_cli_action(backend_name, 'list-namespaces')
+            GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'create-namespace', ['autotest-ns_{0}'.format(nmspc_index), 'default'], False)
+        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'list-namespaces')
         assert len(result) == no_namespaces, "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name, len(result))
 
         # Create a vPool and create volumes on it
@@ -126,17 +166,18 @@ class TestVPool(object):
             GeneralVPool.mount_vpool(vpool=vpool,
                                      root_client=root_client)
 
-        files = []
+        vdisks = []
         for disk_index in range(no_namespaces):
-            files.append(GeneralVDisk.create_volume(size=10,
-                                                    vpool=vpool,
-                                                    root_client=root_client))
-        result = GeneralAlba.execute_alba_cli_action(backend_name, 'list-namespaces')
+            vdisks.append(GeneralVDisk.create_volume(size=10,
+                                                     vpool=vpool,
+                                                     root_client=root_client))
+        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'list-namespaces')
         assert len(result) == 2 * no_namespaces + 1, "Expected {0} namespaces present on the {1} backend, found {2}".format(2 * no_namespaces + 1, backend_name, len(result))
 
         # Remove files and vPool
-        for file_name in files:
-            GeneralVDisk.delete_volume(location=file_name,
+        for vdisk in vdisks:
+            GeneralVDisk.delete_volume(vdisk=vdisk,
+                                       vpool=vpool,
                                        root_client=root_client)
 
         if vpool.storagedrivers[0].storagerouter.pmachine.hvtype == 'VMWARE':
@@ -146,11 +187,11 @@ class TestVPool(object):
         GeneralVPool.remove_vpool(vpool)
 
         # Verify amount of namespaces
-        result = GeneralAlba.execute_alba_cli_action(backend_name, 'list-namespaces')
+        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'list-namespaces')
         assert len(result) == no_namespaces, "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name, len(result))
         for namespace in result:
-            GeneralAlba.execute_alba_cli_action(backend_name, 'delete-namespace', [namespace['name']], False)
-        result = GeneralAlba.execute_alba_cli_action(backend_name, 'list-namespaces')
+            GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'delete-namespace', [namespace['name']], False)
+        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'list-namespaces')
         assert len(result) == 0, "Expected no namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name, len(result))
 
     @staticmethod

@@ -21,7 +21,6 @@ from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
-from ci.tests.general.general_vpool import GeneralVPool
 from nose.plugins.skip import SkipTest
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
@@ -33,32 +32,6 @@ class TestSanity(object):
     Sanity check testsuite
     """
     tests_to_run = General.get_tests_to_run(General.get_test_level())
-
-    ######################
-    # SETUP AND TEARDOWN #
-    ######################
-
-    @staticmethod
-    def setup():
-        """
-        Make necessary changes before being able to run the tests
-        :return: None
-        """
-        print "Setup called " + __name__
-        GeneralAlba.add_alba_backend()
-        GeneralVPool.add_vpool()
-
-    @staticmethod
-    def teardown():
-        """
-        Removal actions of possible things left over after the test-run
-        :return: None
-        """
-        vpool_name = General.get_config().get("vpool", "name")
-        vpool = GeneralVPool.get_vpool_by_name(vpool_name)
-        if vpool is not None:
-            GeneralVPool.remove_vpool(vpool)
-        GeneralAlba.unclaim_disks_and_remove_alba_backend()
 
     #########
     # TESTS #
@@ -292,13 +265,14 @@ class TestSanity(object):
                               tests_to_run=TestSanity.tests_to_run)
 
         backend_name = General.get_config().get("backend", "name")
-        backend_type = General.get_config().get('backend', 'type')
-        assert backend_type in GeneralBackend.get_valid_backendtypes(), "Please fill out a valid backend type in autotest.cfg file"
-        backend = GeneralBackend.get_backend_by_name_and_type(backend_name, backend_type)
-        if backend:
-            alba_backend = GeneralAlba.get_alba_backend(backend['alba_backend_guid'])
-            GeneralAlba.unclaim_disks(alba_backend)
-            GeneralAlba.remove_alba_backend(backend['alba_backend_guid'])
+        backend = GeneralBackend.get_by_name(backend_name)
+        if not backend:
+            raise ValueError('Perhaps we should always make sure there is an ALBA backend')
+        if backend and backend.alba_backend is None:
+            raise ValueError('Backend with name {0} is not an ALBA backend'.format(backend_name))
+
+        GeneralAlba.unclaim_disks(backend.alba_backend)
+        GeneralAlba.remove_alba_backend(backend.alba_backend)
 
         issues_found = ''
         backends_present_on_env = GeneralBackend.get_backends()

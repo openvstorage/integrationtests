@@ -17,7 +17,9 @@ A general class dedicated to Management Center logic
 """
 
 from ci.tests.general.general import General
+from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.tests.general.connection import Connection
+from ovs.dal.lists.mgmtcenterlist import MgmtCenterList
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.hypervisor.factory import Factory
 from ovs.extensions.os.os import OSManager
@@ -30,6 +32,14 @@ class GeneralManagementCenter(object):
     A general class dedicated to Management Center logic
     """
     api = Connection()
+
+    @staticmethod
+    def get_mgmt_centers():
+        """
+        Retrieve all Management Center
+        :return: Data-object Mgmt Center lists
+        """
+        return MgmtCenterList.get_mgmtcenters()
 
     @staticmethod
     def is_devstack_installed():
@@ -79,7 +89,7 @@ class GeneralManagementCenter(object):
         :return: None
         """
         autotest_config = General.get_config()
-        management_centers = GeneralManagementCenter.api.get_components('mgmtcenters')
+        management_centers = GeneralManagementCenter.get_mgmt_centers()
         if len(management_centers) == 0 and GeneralManagementCenter.is_devstack_installed():
             mgmtcenter = GeneralManagementCenter.create_mgmt_center(name=autotest_config.get("mgmtcenter", "name"),
                                                                     username=autotest_config.get("mgmtcenter", "username"),
@@ -87,51 +97,50 @@ class GeneralManagementCenter(object):
                                                                     ip=autotest_config.get('mgmtcenter', 'ip'),
                                                                     center_type=autotest_config.get('mgmtcenter', 'type'),
                                                                     port=autotest_config.get('mgmtcenter', 'port'))
-            for physical_machine in GeneralManagementCenter.api.get_components('pmachines'):
-                GeneralManagementCenter.configure_pmachine_with_mgmtcenter(pmachine_guid=physical_machine['guid'],
-                                                                           mgmtcenter_guid=mgmtcenter['guid'])
+            for physical_machine in GeneralPMachine.get_pmachines():
+                GeneralManagementCenter.configure_pmachine_with_mgmtcenter(pmachine=physical_machine,
+                                                                           mgmtcenter=mgmtcenter)
 
     @staticmethod
-    def remove_mgmt_center(mgmtcenter_guid):
+    def remove_mgmt_center(mgmtcenter):
         """
         Remove a management center
-        :param mgmtcenter_guid: Guid of the management center
+        :param mgmtcenter: Management Center
         :return: None
         """
-        management_center = GeneralManagementCenter.api.fetch('mgmtcenters', mgmtcenter_guid)
-        for pmachine_guid in management_center['pmachines_guids']:
-            GeneralManagementCenter.unconfigure_pmachine_with_mgmtcenter(pmachine_guid=pmachine_guid,
-                                                                         mgmtcenter_guid=mgmtcenter_guid)
-        GeneralManagementCenter.api.remove('mgmtcenters', mgmtcenter_guid)
+        for pmachine in mgmtcenter.pmachines:
+            GeneralManagementCenter.unconfigure_pmachine_with_mgmtcenter(pmachine=pmachine,
+                                                                         mgmtcenter=mgmtcenter)
+        GeneralManagementCenter.api.remove('mgmtcenters', mgmtcenter.guid)
 
     @staticmethod
-    def configure_pmachine_with_mgmtcenter(pmachine_guid, mgmtcenter_guid):
+    def configure_pmachine_with_mgmtcenter(pmachine, mgmtcenter):
         """
         Configure the management center on the physical machine
-        :param pmachine_guid: Guid of the physical machine
-        :param mgmtcenter_guid: Guid of the management center
+        :param pmachine: Physical machine
+        :param mgmtcenter: Management center
         :return: None
         """
-        MgmtCenterController.configure_host(pmachine_guid, mgmtcenter_guid, True)
+        MgmtCenterController.configure_host(pmachine, mgmtcenter, True)
 
     @staticmethod
-    def unconfigure_pmachine_with_mgmtcenter(pmachine_guid, mgmtcenter_guid):
+    def unconfigure_pmachine_with_mgmtcenter(pmachine, mgmtcenter):
         """
         Unconfigure the management center on the physical machine
-        :param pmachine_guid: Guid of the physical machine
-        :param mgmtcenter_guid: Guid of the management center
+        :param pmachine: Physical machine
+        :param mgmtcenter: Management center
         :return: None
         """
-        MgmtCenterController.unconfigure_host(pmachine_guid, mgmtcenter_guid, True)
+        MgmtCenterController.unconfigure_host(pmachine, mgmtcenter, True)
 
     @staticmethod
-    def is_host_configured(pmachine_guid):
+    def is_host_configured(pmachine):
         """
         Verify if the pmachine has been configured
-        :param pmachine_guid: Guid of the physical machine
+        :param pmachine: Physical machine
         :return: None
         """
-        return MgmtCenterController.is_host_configured(pmachine_guid)
+        return MgmtCenterController.is_host_configured(pmachine.guid)
 
     @staticmethod
     def test_connection(mgmtcenter_guid):

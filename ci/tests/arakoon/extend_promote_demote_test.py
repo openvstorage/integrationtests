@@ -32,10 +32,7 @@ Arakoon testsuite
 import os
 import hashlib
 from ci.tests.general.general import General
-from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_arakoon import GeneralArakoon
-from ci.tests.general.general_backend import GeneralBackend
-from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.logHandler import LogHandler
@@ -51,89 +48,10 @@ class TestArakoon(object):
     """
     Arakoon testsuite
     """
-    TEST_CLEANUP = ['/var/tmp/arakoon/OVS*', '/etc/init/ovs-arakoon-OVS_*',
-                    '/var/log/arakoon/ar_00*', '/var/log/arakoon/OVS_*',
-                    '/var/tmp/arakoon/ar_00*']
-    KEY_CLEANUP = ['ar_0001',
-                   'OVS_3671-single-node-cluster',
-                   'OVS_3671-multi-node-cluster']
-
     tests_to_run = General.get_tests_to_run(General.get_test_level())
 
     logger = LogHandler.get('arakoon', name='setup')
     logger.logger.propagate = False
-
-    ######################
-    # SETUP AND TEARDOWN #
-    ######################
-
-    @staticmethod
-    def setup():
-        """
-        Make necessary changes before being able to run the tests
-        :return: None
-        """
-        TestArakoon.logger.info('setup alba backend')
-
-        autotest_config = General.get_config()
-        backend_name = autotest_config.get('backend', 'name')
-        backend_type = autotest_config.get('backend', 'type')
-        if GeneralBackend.is_backend_present(backend_name, backend_type):
-            backend = GeneralBackend.get_backend_by_name_and_type(backend_name, backend_type)
-            GeneralAlba.remove_alba_backend(backend['alba_backend_guid'])
-
-        master_ips = [sr.ip for sr in GeneralStorageRouter.get_masters()]
-        for ip in master_ips:
-            cmd = 'status ovs-scheduled-tasks'
-            output = General.execute_command_on_node(ip, cmd)
-            if 'running' in output:
-                cmd = 'stop ovs-scheduled-tasks'
-                General.execute_command_on_node(ip, cmd)
-
-        storagerouters = GeneralStorageRouter.get_storage_routers()
-        for sr in storagerouters:
-            root_client = SSHClient(sr, username='root')
-            GeneralDisk.add_db_role(sr)
-
-            for location in TestArakoon.TEST_CLEANUP:
-                root_client.run('rm -rf {0}'.format(location))
-
-        GeneralAlba.model_alba_backend(backend_name)
-        TestArakoon.logger.info('running voldrv arakoon checkup ...')
-        GeneralArakoon.manual_voldrv_arakoon_checkup()
-
-        TestArakoon.logger.info('validating arakoon config files on all nodes ...')
-        pmachines = TestArakoon.get_cluster_pmachines([sr.ip for sr in storagerouters])
-        TestArakoon.validate_arakoon_config_files(pmachines)
-
-    @staticmethod
-    def teardown():
-        """
-        Removal actions of possible things left over after the test-run
-        :return: None
-        """
-        autotest_config = General.get_config()
-        backend_name = autotest_config.get('backend', 'name')
-        backend_type = autotest_config.get('backend', 'type')
-        if GeneralBackend.is_backend_present(backend_name, backend_type):
-            backend = GeneralBackend.get_backend_by_name_and_type(backend_name, backend_type)
-            GeneralAlba.remove_alba_backend(backend['alba_backend_guid'])
-
-        master_ips = [sr.ip for sr in GeneralStorageRouter.get_masters()]
-        for ip in master_ips:
-            cmd = 'status ovs-scheduled-tasks'
-            output = General.execute_command_on_node(ip, cmd)
-            if 'stop/waiting' in output:
-                cmd = 'start ovs-scheduled-tasks'
-                General.execute_command_on_node(ip, cmd)
-
-            for location in TestArakoon.TEST_CLEANUP:
-                cmd = 'rm -rf {0}'.format(location)
-                General.execute_command_on_node(ip, cmd)
-
-        for key in TestArakoon.KEY_CLEANUP:
-            if EtcdConfiguration.exists('{0}/{1}'.format(ArakoonInstaller.ETCD_CONFIG_ROOT, key), raw = True):
-                EtcdConfiguration.delete('{0}/{1}'.format(ArakoonInstaller.ETCD_CONFIG_ROOT, key))
 
     ####################
     # HELPER FUNCTIONS #

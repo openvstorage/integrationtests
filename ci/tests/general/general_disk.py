@@ -18,6 +18,10 @@ A general class dedicated to Physical Disk logic
 
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
+from ovs.dal.hybrids.disk import Disk
+from ovs.dal.hybrids.diskpartition import DiskPartition
+from ovs.dal.lists.disklist import DiskList
+from ovs.dal.lists.diskpartitionlist import DiskPartitionList
 
 
 class GeneralDisk(object):
@@ -27,11 +31,62 @@ class GeneralDisk(object):
     api = Connection()
 
     @staticmethod
+    def get_disk(guid):
+        """
+        Retrieve a Disk
+        :param guid: Guid of the Disk
+        :return: Disk DAL object
+        """
+        return Disk(guid)
+
+    @staticmethod
+    def get_disks():
+        """
+        Retrieve all physical disks
+        :return: Data-object Disk list
+        """
+        return DiskList.get_disks()
+
+    @staticmethod
+    def get_disk_by_devicename(storagerouter, device_name):
+        """
+        Retrieve a disk based on its devicename
+        :param storagerouter: Storage Router of the disk
+        :param device_name: Device name of the disk
+        :return: Disk DAL object
+        """
+        if device_name.startswith('/dev/'):
+            device_name = device_name.replace('/dev/', '')
+
+        for disk in GeneralDisk.get_disks():
+            if disk.name == device_name and disk.storagerouter == storagerouter:
+                return disk
+        raise ValueError('No disk found with devicename {0}'.format(device_name))
+
+    @staticmethod
+    def get_disk_partition(guid):
+        """
+        Retrieve a Disk Partition
+        :param guid: Guid of the Disk Partition
+        :return: Disk Partition DAL object
+        """
+        return DiskPartition(guid)
+
+    @staticmethod
+    def get_disk_partitions():
+        """
+        Retrieve all physical disk partitions
+        :return: Data-object DiskPartition list
+        """
+        return DiskPartitionList.get_partitions()
+
+    @staticmethod
     def get_unused_disks():
         """
         Retrieve all disks not in use
         :return: List of disks not being used
         """
+        # @TODO: Make this call possible on all nodes, not only on node executing the tests
         all_disks = General.execute_command("""fdisk -l 2>/dev/null| awk '/Disk \/.*:/ {gsub(":","",$s);print $2}'""")[0].splitlines()
         out = General.execute_command("df -h | awk '{print $1}'")[0]
 
@@ -67,47 +122,45 @@ class GeneralDisk(object):
         return hdds, ssds
 
     @staticmethod
-    def configure_disk(storagerouter_guid, disk_guid, partition_guid, offset, size, roles):
+    def configure_disk(storagerouter, disk, offset, size, roles, partition=None):
         """
         Configure a disk
-        :param storagerouter_guid: Guid of the Storage Router
-        :param disk_guid: Guid of the disk to configure
-        :param partition_guid: Guid of a partition in the disk
+        :param storagerouter: Storage Router
+        :param disk: Disk to configure
+        :param partition: Partition on the disk
         :param offset: Offset of the partition
         :param size: Size of the partition
         :param roles: Roles to assign to the partition
         :return: None
         """
         GeneralDisk.api.execute_post_action(component='storagerouters',
-                                            guid=storagerouter_guid,
+                                            guid=storagerouter.guid,
                                             action='configure_disk',
-                                            data={'disk_guid': disk_guid,
+                                            data={'disk_guid': disk.guid,
                                                   'offset': offset,
                                                   'size': size,
                                                   'roles': roles,
-                                                  'partition_guid': partition_guid},
+                                                  'partition_guid': None if partition is None else partition.guid},
                                             wait=True,
                                             timeout=300)
 
     @staticmethod
-    def append_disk_role(partition_guid, roles_to_add):
+    def append_disk_role(partition, roles_to_add):
         """
         Configure a disk
-        :param partition_guid: Guid of the disk partition
+        :param partition: Disk partition
         :param roles_to_add: Roles to add to the disk
         :return: None
         """
-        partition = GeneralDisk.api.fetch('diskpartitions', partition_guid)
-        roles = list() if not partition['roles'] else partition['roles']
+        roles = partition.roles
         for role in roles_to_add:
             if role not in roles:
                 roles.append(role)
-        disk = GeneralDisk.api.fetch('disks', partition['disk_guid'])
-        GeneralDisk.configure_disk(storagerouter_guid=disk['storagerouter_guid'],
-                                   disk_guid=partition['disk_guid'],
-                                   partition_guid=partition['guid'],
-                                   offset=partition['offset'],
-                                   size=partition['size'],
+        GeneralDisk.configure_disk(storagerouter=partition.disk.storagerouter,
+                                   disk=partition.disk,
+                                   partition=partition,
+                                   offset=partition.offset,
+                                   size=partition.size,
                                    roles=roles)
 
     @staticmethod
@@ -117,34 +170,30 @@ class GeneralDisk(object):
         :param storagerouter: Storage Router
         :return: None
         """
-        for partition in GeneralDisk.api.get_components('diskpartitions'):
-            if partition['mountpoint'] in ['/'] or partition['folder'] in ['/mnt/storage']:
-                disk = GeneralDisk.api.fetch('disks', partition['disk_guid'])
-                if disk['storagerouter_guid'] == storagerouter.guid:
-                    GeneralDisk.append_disk_role(partition['guid'], ['DB'])
+        for partition in GeneralDisk.get_disk_partitions():
+            if partition.mountpoint == '/' or partition.folder == '/mnt/storage':
+                if partition.disk.storagerouter == storagerouter:
+                    GeneralDisk.append_disk_role(partition, ['DB'])
                     break
 
     @staticmethod
-    def partition_disk(disk_guid):
+    def partition_disk(disk):
         """
         Partition a disk
-        :param disk_guid: Guid of the disk
+        :param disk: Disk DAL object
         :return: None
         """
-        disk = GeneralDisk.api.fetch('disks', disk_guid)
-        if len(disk['partitions_guids']) != 0:
-            return disk['partitions_guids'][0]
+        if len(disk.partitions) != 0:
+            return disk.partitions[0]
 
-        GeneralDisk.configure_disk(storagerouter_guid=disk['storagerouter_guid'],
-                                   disk_guid=disk['guid'],
-                                   partition_guid=None,
+        GeneralDisk.configure_disk(storagerouter=disk.storagerouter,
+                                   disk=disk,
                                    offset=0,
-                                   size=disk['size'],
+                                   size=disk.size,
                                    roles=[])
-        disk = GeneralDisk.api.fetch('disks', disk_guid)
-        partition_guids = disk['partitions_guids']
-        assert len(partition_guids) >= 1, "Partitioning failed for disk:\n {0} ".format(disk)
-        return partition_guids[0]
+        disk = GeneralDisk.get_disk(guid=disk.guid)
+        assert len(disk.partitions) >= 1, "Partitioning failed for disk:\n {0} ".format(disk.name)
+        return disk.partitions[0]
 
     @staticmethod
     def add_read_write_scrub_roles(storagerouter):
@@ -153,32 +202,32 @@ class GeneralDisk(object):
         :param storagerouter: Storage Router
         :return: None
         """
-        disks = GeneralDisk.api.get_components('disks')
+        disks = GeneralDisk.get_disks()
 
         partition_roles = dict()
         if len(disks) == 1:
             disk = disks[0]
-            if not disk['partitions_guids']:
-                partition_roles[GeneralDisk.partition_disk(disk['guid'])] = ['READ', 'WRITE', 'SCRUB']
+            if len(disk.partitions) == 0:
+                partition_roles[GeneralDisk.partition_disk(disk)] = ['READ', 'WRITE', 'SCRUB']
         elif len(disks) > 1:
-            disks_to_partition = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter.guid and
-                                  not disk['partitions_guids'] and disk['is_ssd']]
+            disks_to_partition = [disk for disk in disks if disk.storagerouter == storagerouter and
+                                  not disk.partitions_guids and disk.is_ssd]
             for disk in disks_to_partition:
-                GeneralDisk.partition_disk(disk['guid'])
+                GeneralDisk.partition_disk(disk)
 
-            disks = GeneralDisk.api.get_components('disks')
-            hdds = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter.guid and not disk['is_ssd']]
-            ssds = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter.guid and disk['is_ssd']]
+            disks = GeneralDisk.get_disks()
+            hdds = [disk for disk in disks if disk.storagerouter == storagerouter and disk.is_ssd is False]
+            ssds = [disk for disk in disks if disk.storagerouter == storagerouter and disk.is_ssd is True]
 
             if len(ssds) == 0:
-                partition_roles[hdds[0]['partitions_guids'][0]] = ['READ']
-                partition_roles[hdds[1]['partitions_guids'][0]] = ['WRITE', 'SCRUB']
+                partition_roles[hdds[0].partitions[0]] = ['READ']
+                partition_roles[hdds[1].partitions[0]] = ['WRITE', 'SCRUB']
             elif len(ssds) == 1:
-                partition_roles[hdds[0]['partitions_guids'][0]] = ['READ', 'SCRUB']
-                partition_roles[ssds[0]['partitions_guids'][0]] = ['WRITE']
+                partition_roles[hdds[0].partitions[0]] = ['READ', 'SCRUB']
+                partition_roles[ssds[0].partitions[0]] = ['WRITE']
             elif len(ssds) >= 2:
-                partition_roles[ssds[0]['partitions_guids'][0]] = ['READ', 'SCRUB']
-                partition_roles[ssds[1]['partitions_guids'][0]] = ['WRITE']
+                partition_roles[ssds[0].partitions[0]] = ['READ', 'SCRUB']
+                partition_roles[ssds[1].partitions[0]] = ['WRITE']
 
-        for guid, roles in partition_roles.iteritems():
-            GeneralDisk.append_disk_role(guid, roles)
+        for partition, roles in partition_roles.iteritems():
+            GeneralDisk.append_disk_role(partition, roles)
