@@ -12,4 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import general
+from ci.tests.general.general import General
+
+
+def setup():
+    """
+    Setup for System package, will be executed when any test in this package is being executed
+    Make necessary changes before being able to run the tests
+    :return: None
+    """
+    print "setup called " + __name__
+    General.cleanup()
+
+
+def teardown():
+    """
+    Teardown for System package, will be executed when all started tests in this package have ended
+    Removal actions of possible things left over after the test-run
+    :return: None
+    """
+    pass

@@ -12,43 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import urllib2
-import urllib
-import json
+"""
+Connection class
+"""
+
 import os
+import re
+import json
 import time
+import urllib
+import urllib2
+from ci.tests.general.general import General
+from ovs.lib.helpers.toolbox import Toolbox
+from requests.packages.urllib3 import disable_warnings
+from requests.packages.urllib3.exceptions import InsecurePlatformWarning
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from requests.packages.urllib3.exceptions import SNIMissingWarning
 
-from ci.tests.general.general import test_config
 
-
-class Connection:
-    connection = None
+class Connection(object):
+    """
+    API class
+    """
     TOKEN_CACHE_FILENAME = '/tmp/at_token_cache'
+    disable_warnings(InsecurePlatformWarning)
+    disable_warnings(InsecureRequestWarning)
+    disable_warnings(SNIMissingWarning)
 
-    @staticmethod
-    def get_connection(ip='', username='', password='', use_config=True):
-        if Connection.connection:
-            if (not ip and not username and not password) or Connection.connection.get_ip() == ip:
-                return Connection.connection
-        else:
-            if use_config:
-                if not ip:
-                    ip = test_config.get('main', 'grid_ip')
-                    assert ip, "Please specify a valid ip in autotests.cfg for grid_ip"
-                if not username:
-                    username = test_config.get('main', 'username')
-                    assert username, "Please specify a valid username in autotests.cfg for username"
-                if not password:
-                    password = test_config.get('main', 'password')
-                    assert password, "Please specify a valid password in autotests.cfg for password"
-            Connection.connection = Connection(ip, username, password)
+    def __init__(self, ip=None, username=None, password=None):
+        if ip is None:
+            ip = General.get_config().get('main', 'grid_ip')
+            assert ip, "Please specify a valid ip in autotests.cfg for grid_ip"
+        if username is None:
+            username = General.get_config().get('main', 'username')
+            assert username, "Please specify a valid username in autotests.cfg"
+        if password is None:
+            password = General.get_config().get('main', 'password')
+            assert password, "Please specify a valid password in autotests.cfg"
 
-        if not Connection.connection.is_authenticated():
-            Connection.connection.authenticate()
-
-        return Connection.connection
-
-    def __init__(self, ip='', username='', password=''):
         self.ip = ip
         self.username = username
         self.password = password
@@ -64,46 +65,23 @@ class Connection:
             self.token = ''
             self.authenticate()
 
-    def get_username(self):
-        return self.username
-
-    def set_username(self, username):
-        assert isinstance(username, str), 'Username must be a string'
-        self.username = username
-
-    username = property(get_username, set_username)
-
-    def get_password(self):
-        return self.password
-
-    def set_password(self, password):
-        assert isinstance(password, str), 'Password must be a string'
-        self.password = password
-
-    password = property(get_password, set_password)
-
-    def get_ip(self):
-        return self.ip
-
-    def set_ip(self, ip):
-        assert isinstance(ip, str), 'IP address must be a string'
-        self.ip = ip
-
-    ip = property(get_ip, set_ip)
-
-    def is_authenticated(self):
-        return 'Authorization' in self.headers.keys()
+        if 'Authorization' not in self.headers.keys():
+            self.authenticate()
 
     def authenticate(self):
+        """
+        Authenticates the connections
+        :return: None
+        """
         if 'Authorization' in self.headers.keys():
             self.headers.pop('Authorization')
 
-        auth_url = 'https://{0}/api/oauth2/token/'.format(self.get_ip())
+        auth_url = 'https://{0}/api/oauth2/token/'.format(self.ip)
 
         request = urllib2.Request(auth_url,
                                   data=urllib.urlencode({'grant_type': 'password',
-                                                         'username': self.get_username(),
-                                                         'password': self.get_password()}),
+                                                         'username': self.username,
+                                                         'password': self.password}),
                                   headers=self.headers)
         response = urllib2.urlopen(request).read()
 
@@ -112,102 +90,98 @@ class Connection:
         with open(self.TOKEN_CACHE_FILENAME, 'w') as token_cache_file:
             token_cache_file.write(self.token)
 
-    def get_active_tasks(self):
-        base_url = 'https://{0}/api/{{0}}'.format(self.get_ip())
-        request = urllib2.Request(base_url.format('tasks/'), None, headers=self.headers)
-        response = urllib2.urlopen(request).read()
-
-        all_tasks = json.loads(response)
-        tasks = list()
-        tasks.extend(x for x in all_tasks['active'].values() if x)
-        tasks.extend(x for x in all_tasks['scheduled'].values() if x)
-        tasks.extend(x for x in all_tasks['reserved'].values() if x)
-
-        return tasks
-
     def list(self, component):
-        base_url = 'https://{0}/api/{{0}}'.format(self.get_ip())
-        request = urllib2.Request(base_url.format(component + '/'), None, headers=self.headers)
+        """
+        List all components
+        :param component: Component to list
+        :return: List of component guids
+        """
+        base_url = 'https://{0}/api/{1}/'.format(self.ip, component)
+        request = urllib2.Request(base_url, None, headers=self.headers)
         response = urllib2.urlopen(request).read()
-        result = json.loads(response)
-
-        return result['data']
+        return json.loads(response)['data']
 
     def fetch(self, component, guid):
-        base_url = 'https://{0}/api/{{0}}/'.format(self.get_ip())
-        request = urllib2.Request(base_url.format(component + '/' + guid), None, headers=self.headers)
+        """
+        Retrieve information about specific component
+        :param component: Component type to retrieve
+        :param guid: Guid of the component
+        :return: Information about component
+        """
+        base_url = 'https://{0}/api/{1}/{2}/'.format(self.ip, component, guid)
+        request = urllib2.Request(base_url, None, headers=self.headers)
         response = urllib2.urlopen(request).read()
-        result = json.loads(response)
-
-        return result
+        return json.loads(response)
 
     def add(self, component, data):
-        base_url = 'https://{0}/api/{1}/'.format(self.get_ip(), component)
-        print 'data: {0}'.format(data)
+        """
+        Add a new component
+        :param component: Component type to add
+        :param data: Data for the new component
+        :return: The new component
+        """
+        base_url = 'https://{0}/api/{1}/'.format(self.ip, component)
         request = urllib2.Request(base_url, json.dumps(data), headers=self.headers)
         request.add_header('Content-Type', 'application/json')
         response = urllib2.urlopen(request).read()
-        result = json.loads(response)
-
-        return result
+        return json.loads(response)
 
     def remove(self, component, guid):
-        base_url = 'https://{0}/api/{{0}}/'.format(self.get_ip())
-        request = urllib2.Request(base_url.format(component + '/' + guid), None, headers=self.headers)
+        """
+        Remove a component
+        :param component: Component type to remove
+        :param guid: Guid of the component
+        :return: None
+        """
+        base_url = 'https://{0}/api/{1}/{2}/'.format(self.ip, component, guid)
+        request = urllib2.Request(base_url, None, headers=self.headers)
         request.get_method = lambda: 'DELETE'
         response = urllib2.urlopen(request).read()
-        if response:
-            result = json.loads(response)
-        else:
-            result = ''
+        return json.loads(response) if response else ''
 
-        return result
+    def execute_get_action(self, component, guid, action, **kwargs):
+        """
+        Execute a GET action ((Can be determined by the @link() decorator in the API classes)
+        :param component: Component to execute an action on
+        :param guid: Guid of the component
+        :param action: Action to perform
+        :return: Output of the action
+        """
+        base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.ip, component, guid, action)
+        request = urllib2.Request(base_url, None, headers=self.headers)
+        response = urllib2.urlopen(request).read()
+        task_id = json.loads(response)
 
-    def execute_action(self, component, guid, action, data):
-        base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.get_ip(), component, guid, action)
-        print 'url: {0}'.format(base_url)
-        print 'data: {0}'.format(data)
+        if kwargs.get('wait') is True and re.match(Toolbox.regex_guid, task_id):
+            return self.wait_for_task(task_id=task_id, timeout=kwargs.get('timeout'))
+        return task_id
+
+    def execute_post_action(self, component, guid, action, data, **kwargs):
+        """
+        Execute a POST action (Can be determined by the @action() decorator in the API classes)
+        :param component: Component (eg: vpools, storagerouters, ...)
+        :param guid: Guid of the component to execute an action on
+        :param action: Action to perform (eg: add_vpool)
+        :param data: Data required for the POST action
+        :return: Celery task ID
+        """
+        base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.ip, component, guid, action)
         request = urllib2.Request(base_url, json.dumps(data), headers=self.headers)
         request.add_header('Content-Type', 'application/json')
         response = urllib2.urlopen(request).read()
-        result = json.loads(response)
+        task_id = json.loads(response)
 
-        return result
-
-    def get_component_by_name(self, module, name):
-
-        return self.get_components_with_attribute(module, 'name', name)
-
-    def get_components_with_attribute(self, module, attribute, value, single=False):
-        result = list()
-        components = self.list(module)
-        for guid in components:
-            component = self.fetch(module, guid)
-            attr = component[attribute]
-            if (type(attr) == list and value in attr) or (type(attr) == unicode and value == attr):
-                if result and single:
-                    raise RuntimeError('Multiple results found for component: {0}'.format(module))
-                result.append(component)
-
-        if result:
-            if single:
-                return result[0]
-            else:
-                return result
-        else:
-            return None
-
-    def get_component_with_attribute(self, module, attribute, value):
-        return self.get_components_with_attribute(module, attribute, value, True)
-
-    def get_components(self, module):
-        result = list()
-        for guid in self.list(module):
-            result.append(self.fetch(module, guid))
-
-        return result
+        if kwargs.get('wait') is True and re.match(Toolbox.regex_guid, task_id):
+            return self.wait_for_task(task_id=task_id, timeout=kwargs.get('timeout'))
+        return task_id
 
     def wait_for_task(self, task_id, timeout=None):
+        """
+        Wait for a celery task to end
+        :param task_id: Celery task ID to wait for
+        :param timeout: Maximum time in seconds to wait for the task to return
+        :return: Tuple containing a boolean if the task was successful or not and the result of the task
+        """
         start = time.time()
         task_metadata = {'ready': False}
         while task_metadata['ready'] is False:

@@ -16,26 +16,30 @@
 Contains the loghandler module
 """
 
+import os
 import inspect
 import logging
-import os
-from ci.tests.general.general import test_config
+from ci.tests.general.general import General
+
 
 def _ignore_formatting_errors():
     """
     Decorator to ignore formatting errors during logging
     """
-    def wrap(f):
+    def wrap(outer_function):
         """
         Wrapper function
+        :param outer_function: Function to wrap
         """
         def new_function(self, msg, *args, **kwargs):
             """
             Wrapped function
+            :param self: Logger instance
+            :param msg: Message
             """
             try:
                 msg = str(msg)
-                return f(self, msg, *args, **kwargs)
+                return outer_function(self, msg, *args, **kwargs)
             except TypeError as exception:
                 too_many = 'not all arguments converted during string formatting' in str(exception)
                 not_enough = 'not enough arguments for format string' in str(exception)
@@ -43,11 +47,11 @@ def _ignore_formatting_errors():
                     msg = msg.replace('%', '%%')
                     msg = msg % args
                     msg = msg.replace('%%', '%')
-                    return f(self, msg, *[], **kwargs)
+                    return outer_function(self, msg, *[], **kwargs)
                 raise
 
-        new_function.__name__ = f.__name__
-        new_function.__module__ = f.__module__
+        new_function.__name__ = outer_function.__name__
+        new_function.__module__ = outer_function.__module__
         return new_function
     return wrap
 
@@ -56,7 +60,6 @@ class LogHandler(object):
     """
     Log handler
     """
-
     cache = {}
     targets = {'api': 'api',
                'arakoon': 'arakoon',
@@ -68,8 +71,7 @@ class LogHandler(object):
                'mgmtcenter': 'mgmtcenter',
                'sanity': 'sanity',
                'validation': 'validation',
-               'vpool': 'vpool',
-               }
+               'vpool': 'vpool'}
 
     def __init__(self, source, name=None):
         """
@@ -80,7 +82,7 @@ class LogHandler(object):
             raise RuntimeError('Cannot invoke instance from outside this class. Please use LogHandler.get(source, name=None) instead')
 
         if name is None:
-            name = test_config.get('logger', 'default_name')
+            name = General.get_config().get('logger', 'default_name')
 
         log_filename = LogHandler.load_path(source)
 
@@ -90,17 +92,21 @@ class LogHandler(object):
 
         self.logger = logging.getLogger(name)
         self.logger.propagate = True
-        self.logger.setLevel(getattr(logging, test_config.get('logger', 'level')))
+        self.logger.setLevel(getattr(logging, General.get_config().get('logger', 'level')))
         self.logger.addHandler(handler)
 
     @staticmethod
     def load_path(source):
-        log_path = test_config.get('logger', 'path')
+        """
+        Retrieve the absolute path for the logfile
+        :param source: Source for the logfile
+        :return: Absolute path to logfile
+        """
+        log_path = General.get_config().get('logger', 'path')
         if not os.path.exists(log_path):
             os.mkdir(log_path)
-        log_filename = '{0}/{1}.log'.format(log_path,
-            LogHandler.targets[source] if source in LogHandler.targets else test_config.get('logger', 'default_file')
-        )
+        file_name = LogHandler.targets[source] if source in LogHandler.targets else General.get_config().get('logger', 'default_file')
+        log_filename = '{0}/{1}.log'.format(log_path, file_name)
         if not os.path.exists(log_filename):
             open(log_filename, 'a').close()
             os.chmod(log_filename, 0o666)
@@ -108,6 +114,12 @@ class LogHandler(object):
 
     @staticmethod
     def get(source, name=None):
+        """
+        Retrieve a LogHandler object
+        :param source: Source of LogHandler
+        :param name: Name used in logging
+        :return: LogHandler object
+        """
         key = '{0}_{1}'.format(source, name)
         if key not in LogHandler.cache:
             logger = LogHandler(source, name)
@@ -116,7 +128,10 @@ class LogHandler(object):
 
     @_ignore_formatting_errors()
     def info(self, msg, *args, **kwargs):
-        """ Info """
+        """
+        Info
+        :param msg: Message to log
+        """
         if 'print_msg' in kwargs:
             del kwargs['print_msg']
             print msg
@@ -124,7 +139,10 @@ class LogHandler(object):
 
     @_ignore_formatting_errors()
     def error(self, msg, *args, **kwargs):
-        """ Error """
+        """
+        Error
+        :param msg: Message to log
+        """
         if 'print_msg' in kwargs:
             del kwargs['print_msg']
             print msg
@@ -132,7 +150,10 @@ class LogHandler(object):
 
     @_ignore_formatting_errors()
     def debug(self, msg, *args, **kwargs):
-        """ Debug """
+        """
+        Debug
+        :param msg: Message to log
+        """
         if 'print_msg' in kwargs:
             del kwargs['print_msg']
             print msg
@@ -140,7 +161,10 @@ class LogHandler(object):
 
     @_ignore_formatting_errors()
     def warning(self, msg, *args, **kwargs):
-        """ Warning """
+        """
+        Warning
+        :param msg: Message to log
+        """
         if 'print_msg' in kwargs:
             del kwargs['print_msg']
             print msg
@@ -148,7 +172,10 @@ class LogHandler(object):
 
     @_ignore_formatting_errors()
     def log(self, msg, *args, **kwargs):
-        """ Log """
+        """
+        Log
+        :param msg: Message to log
+        """
         if 'print_msg' in kwargs:
             del kwargs['print_msg']
             print msg
@@ -156,7 +183,10 @@ class LogHandler(object):
 
     @_ignore_formatting_errors()
     def critical(self, msg, *args, **kwargs):
-        """ Critical """
+        """
+        Critical
+        :param msg: Message to log
+        """
         if 'print_msg' in kwargs:
             del kwargs['print_msg']
             print msg
@@ -164,7 +194,10 @@ class LogHandler(object):
 
     @_ignore_formatting_errors()
     def exception(self, msg, *args, **kwargs):
-        """ Exception """
+        """
+        Exception
+        :param msg: Message to log
+        """
         if 'print_msg' in kwargs:
             del kwargs['print_msg']
             print msg

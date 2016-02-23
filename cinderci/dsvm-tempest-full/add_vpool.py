@@ -1,7 +1,3 @@
-import sys
-sys.path.append('/opt/OpenvStorage')
-
-
 from subprocess import check_output
 from ovs.extensions.generic.system import System
 from ovs.dal.hybrids.mgmtcenter import MgmtCenter
@@ -48,7 +44,6 @@ add_vpool_params = {'storagerouter_ip':IP,
                     'mountpoint_writecaches':['/mnt/cache2'],
                     'mountpoint_foc':'/mnt/cache1',
                     'storage_ip':'127.0.0.1',
-                    'vrouter_port':12326,
                     'integratemgmt':True,
                     'connection_backend': {},
                     'connection_password':'',
