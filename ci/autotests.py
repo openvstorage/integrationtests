@@ -31,9 +31,15 @@ from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
 
+at_config = General.get_config()
 TESTRAIL_STATUS_ID_PASSED = '1'
 TESTRAIL_STATUS_ID_BLOCKED = '2'
 TESTRAIL_STATUS_ID_FAILED = '5'
+TESTRAIL_FOLDER = at_config.get(section="main", option="output_folder")
+TESTRAIL_KEY = at_config.get(section="testrail", option="key")
+TESTRAIL_PROJECT = at_config.get(section="testrail", option="test_project")
+TESTRAIL_QUALITYLEVEL = at_config.get(section="main", option="qualitylevel")
+TESTRAIL_SERVER = at_config.get(section="testrail", option="server")
 
 BLOCKED_MESSAGE = "BLOCKED"
 
@@ -43,29 +49,32 @@ class TestRunnerOutputFormat(object):
     Enumerator
     """
     CONSOLE = 'CONSOLE'
-    LOGGER = 'LOGGER'
     XML = 'XML'
     TESTRAIL = 'TESTRAIL'
 
 
-def get_option(section, option):
-    if General.get_config().has_option(section, option):
-        return General.get_config().get(section, option)
-    else:
-        # @todo: add interactive part to ask for required parameters when run from cmd line
-        return ""
+def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/var/tmp',
+        project_name='Open vStorage Engineering', always_die=False, qualitylevel='', existing_plan_id="",
+        interactive=True):
+    """
+    Run single, multiple or all test cases:
+    - single: - string: 'gui'
+    - multiple - list: ['gui', 'sanity']
+    - all - None value or empty list
 
-TESTRAIL_FOLDER = General.get_config().get(section="main", option="output_folder")
-TESTRAIL_KEY = General.get_config().get(section="testrail", option="key")
-TESTRAIL_PROJECT = General.get_config().get(section="testrail", option="test_project")
-TESTRAIL_QUALITYLEVEL = General.get_config().get(section="main", option="qualitylevel")
-TESTRAIL_SERVER = General.get_config().get(section="testrail", option="server")
-
-
-def _validate_run_parameters(tests=None, output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/var/tmp',
-                             project_name='', qualitylevel='', always_die=False, existing_plan_id=None,
-                             interactive=False):
-
+    output format:
+    - TESTRAIL requires credentials to testrail
+    - CONSOLE|XML can be used to run tests locally
+    :param tests: Tests to execute
+    :param output_format: Format for output  CONSOLE, XML, TESTRAIL
+    :param output_folder: Folder where results file will be stored
+    :param project_name: Name of testrail project
+    :param always_die: Die on 1st test that fails
+    :param qualitylevel: Quality level of setup where tests are executed
+    :param existing_plan_id: Plan ID for testrail
+    :param interactive: Run interactively
+    :return: None
+    """
     if str(output_format) not in ['CONSOLE', 'XML', 'TESTRAIL']:
         if interactive:
             output_format = _check_input(predicate=lambda x: getattr(TestRunnerOutputFormat, x, False),
@@ -91,171 +100,78 @@ def _validate_run_parameters(tests=None, output_format=TestRunnerOutputFormat.CO
 
     version = _get_ovs_version()
 
-    if output_format in TestRunnerOutputFormat.TESTRAIL:
-
-        arguments = _parse_args(suite_name='test_results', output_format=output_format, output_folder=output_folder,
-                                always_die=always_die, testrail_url=TESTRAIL_SERVER, testrail_key=TESTRAIL_KEY,
-                                project_name=project_name, quality_level=qualitylevel, version=version,
-                                existing_plan_id=existing_plan_id)
-    else:
-        arguments = _parse_args(suite_name='test_results', output_format=output_format, output_folder=output_folder,
-                                always_die=always_die, project_name=project_name, quality_level=qualitylevel,
-                                version=version, existing_plan_id=existing_plan_id)
-
-    if tests:
-        if type(tests) == list:
-            tests_to_run = ','.join(map(_convert_test_spec, tests))
-            arguments.append('--tests')
-        else:
-            tests_to_run = _convert_test_spec(tests)
-        arguments.append(tests_to_run)
-
-    return arguments
-
-
-def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/var/tmp',
-        project_name='Open vStorage Engineering', always_die=False, qualitylevel='', existing_plan_id="",
-        interactive=True):
-
-    """
-    Run single, multiple or all testcases:
-        - single: - string: 'gui'
-        - multiple - list: ['gui', 'sanity']
-        - all - None value or empty list
-
-        output format:
-        - TESTRAIL requires credentials to testrail
-        - CONSOLE|XML can be used to run tests locally
-    """
-    arguments = _validate_run_parameters(tests, output_format, output_folder, project_name, qualitylevel,
-                                         always_die, existing_plan_id, interactive)
-
-    _run_tests(arguments)
-
-
-def pushToTestrail(project_name, _, output_folder, version=None, filename="", milestone="", comment=""):
-    """
-    Push xml file with test results to Testrail
-    """
-
-    if not filename:
-        def is_folder(path):
-            return os.path.exists(path) and os.path.isdir(path)
-
-        if not is_folder(output_folder):
-            output_folder = _check_input(predicate=is_folder(output_folder),
-                                         msg='Incorrect output_folder: {0}'.format(output_folder))
-
-        result_files = _get_testresult_files(output_folder)
-        if not result_files:
-            print "\nNo test_results files were found in {0}".format(output_folder)
-            return
-
-        else:
-            files_to_ask_range = list(range(len(result_files)))
-            files_to_ask = zip(files_to_ask_range, result_files)
-            filename_index = eval(_check_input(predicate=lambda x: eval(x) in files_to_ask_range,
-                                               msg="Please choose results file \n" + "\n".join(
-                                                   map(lambda x: str(x[0]) + "->" + str(x[1]), files_to_ask)) + ":\n"))
-        filename = os.path.join(output_folder, result_files[filename_index])
-
-    if not version:
-        version = _get_ovs_version()
-
-    url = _push_to_testrail(filename=filename, milestone=milestone, project_name=project_name, version=version,
-                            plan_comment=comment)
-    if url:
-        print "\n" + url
-
-    return url
-
-
-def _convert_test_spec(test_spec):
-    """
-    When the test_spec is of the format top level_package.sub_package, then the test_spec needs to
-    be converted to top level_package/sub_package or no tests are picked up.
-    """
-    test_spec_parts = test_spec.split('.')
-    test_spec_path = os.path.join(General.TESTS_DIR, *test_spec_parts)
-
-    if os.path.isdir(test_spec_path):
-        return test_spec.replace('.', '/')
-    else:
-        return test_spec
-
-
-def _parse_args(suite_name, output_format, output_folder, always_die, testrail_url=None,
-                testrail_key=None, project_name=None, quality_level=None, version=None, existing_plan_id=""):
-    """
-    Parse arguments in the format expected by nose
-    """
     # Default arguments. First argument is a dummy as it is stripped within nose.
     arguments = ['', '--where', General.TESTS_DIR, '--verbosity', '3']
-    if always_die:
+    if always_die is True:
         arguments.append('-x')
-    if output_format == TestRunnerOutputFormat.XML:
+
+    if output_format in (TestRunnerOutputFormat.XML, TestRunnerOutputFormat.TESTRAIL):
+        testrail_ip = ''
+        testrail_key = ''
+        testrail_title = ''
+        testrail_project = ''
+        testrail_description = ''
         if not output_folder:
-            raise AttributeError("No output folder for the XML result files specified")
+            raise AttributeError("No output folder for the {0} result files specified".format(output_format))
         if not os.path.exists(output_folder):
             raise AttributeError("Given output folder doesn't exist. Please create it first!")
-        arguments.append('--with-xunit_testrail')
-        arguments.append('--xunit_file2')
-        arguments.append(os.path.join(output_folder, '%s.xml' % (suite_name + str(time.time()))))
-        arguments.append('--testrail-ip')
-        arguments.append("")
-        arguments.append('--testrail-key')
-        arguments.append("")
-        arguments.append('--project-name')
-        arguments.append("")
-        arguments.append('--push-name')
-        arguments.append("")
-        arguments.append('--description')
-        arguments.append("")
-    elif output_format == TestRunnerOutputFormat.TESTRAIL:
-        if not output_folder:
-            raise AttributeError("No output folder for the XML result files specified")
-        if not os.path.exists(output_folder):
-            raise AttributeError("Given output folder doesn't exist. Please create it first!")
-        if not testrail_url:
-            raise AttributeError("No testrail ip specified")
-        if not testrail_key:
-            raise AttributeError("No testrail key specified")
-        if not project_name:
-            raise AttributeError("No testrail project name specified")
-        if not quality_level:
-            raise AttributeError("No quality_level specified")
-        if not version:
-            raise AttributeError("No version specified")
+
+        if output_format == TestRunnerOutputFormat.TESTRAIL:
+            if not TESTRAIL_SERVER:
+                raise AttributeError("No testrail ip specified")
+            if not TESTRAIL_KEY:
+                raise AttributeError("No testrail key specified")
+            if not project_name:
+                raise AttributeError("No testrail project name specified")
+            if not qualitylevel:
+                raise AttributeError("No quality_level specified")
+            if not version:
+                raise AttributeError("No version specified")
+
+            testrail_ip = TESTRAIL_SERVER
+            testrail_key = TESTRAIL_KEY
+            testrail_title = version + "__" + qualitylevel + "__" + GeneralPMachine.get_hypervisor_type()
+            testrail_project = project_name
+            testrail_description = _get_description()
 
         arguments.append('--with-xunit_testrail')
         arguments.append('--xunit_file2')
-        arguments.append(os.path.join(output_folder, '%s.xml' % (suite_name + str(time.time()))))
+        arguments.append(os.path.join(output_folder, 'test_results{0}.xml'.format(time.time())))
         arguments.append('--testrail-ip')
-        arguments.append(testrail_url)
+        arguments.append(testrail_ip)
         arguments.append('--testrail-key')
         arguments.append(testrail_key)
         arguments.append('--project-name')
-        arguments.append(project_name)
+        arguments.append(testrail_project)
         arguments.append('--push-name')
-        arguments.append(version + "__" + quality_level + "__" + GeneralPMachine.get_hypervisor_type())
+        arguments.append(testrail_title)
         arguments.append('--description')
-        arguments.append(_get_description())
+        arguments.append(testrail_description)
         arguments.append('--plan-id')
         arguments.append(existing_plan_id)
 
-    return arguments
+    if tests:
+        if type(tests) != list:
+            tests = [tests]
+        tests_to_run = []
+        for test_spec in tests:
+            test_spec_parts = test_spec.split('.')
+            test_spec_path = os.path.join(General.TESTS_DIR, *test_spec_parts)
+            if os.path.isdir(test_spec_path):
+                tests_to_run.append(test_spec.replace('.', '/'))
+            else:
+                tests_to_run.append(test_spec)
 
+        arguments.append('--tests')
+        arguments.append(','.join(tests_to_run))
 
-def _run_tests(arguments):
-    """
-    Run the tests
-    """
     nose.run(argv=arguments, addplugins=[xunit_testrail.xunit_testrail()])
 
 
 def list_tests(args=None):
     """
     Lists all the tests that nose detects under TESTS_DIR
+    :param args: Extra arguments for listing tests
     """
     if not args:
         arguments = ['--where', General.TESTS_DIR, '--verbosity', '3', '--collect-only', '--with-testEnum']
@@ -273,14 +189,306 @@ def list_tests(args=None):
     finally:
         sys.stdout = old_stdout
 
-    all_cases = fake_stdout.getvalue().split()
-    return all_cases
+    return fake_stdout.getvalue().split()
 
+
+def push_to_testrail(project_name, output_folder, version=None, filename="", milestone="", comment=""):
+    """
+    Push xml file with test results to Testrail
+    :param project_name: Name of testrail project
+    :param output_folder: Output folder containing the results in XML format
+    :param version: Version
+    :param filename: File name of results
+    :param milestone: Milestone in testrail
+    :param comment: Extra comment
+    :return: Testrail URL
+    """
+    def _get_textual_values(seconds):
+        if not seconds:
+            return "%2i %5s, %2i %7s, %2i %7s\n" % (0, 'hours', 0, 'minutes', 0, 'seconds')
+        hours = seconds / 60 / 60
+        rest = seconds % (60 * 60)
+        minutes = rest / 60
+        hours_text = 'hour' if hours == 1 else 'hours'
+        minutes_text = 'minute' if minutes == 1 else 'minutes'
+        seconds_text = 'second' if rest == 1 else 'seconds'
+        return "%2i %5s, %2i %7s, %2i %7s\n" % (hours, hours_text, minutes, minutes_text, rest, seconds_text)
+
+    if not filename:
+        if not (os.path.exists(output_folder) and os.path.isdir(output_folder)):
+            output_folder = _check_input(predicate=(os.path.exists(output_folder) and os.path.isdir(output_folder)),
+                                         msg='Incorrect output_folder: {0}'.format(output_folder))
+
+        result_files = [f for f in os.listdir(output_folder) if ".xml" in f]
+        result_files.sort(reverse=True)
+
+        if not result_files:
+            print "\nNo test_results files were found in {0}".format(output_folder)
+            return
+        else:
+            files_to_ask_range = list(range(len(result_files)))
+            files_to_ask = zip(files_to_ask_range, result_files)
+            filename_index = eval(_check_input(predicate=lambda x: eval(x) in files_to_ask_range,
+                                               msg="Please choose results file \n" + "\n".join(
+                                                   map(lambda x: str(x[0]) + "->" + str(x[1]), files_to_ask)) + ":\n"))
+        filename = os.path.join(output_folder, result_files[filename_index])
+
+    if not version:
+        version = _get_ovs_version()
+
+    test_result_file = filename
+    if not os.path.exists(test_result_file):
+        raise Exception("Test result file {0} was not found on system".format(test_result_file))
+    if not os.path.isfile(test_result_file):
+        raise Exception("{0} is not a valid file".format(test_result_file))
+
+    testrail_api = testrailapi.TestrailApi(TESTRAIL_SERVER, key=TESTRAIL_KEY)
+    project = testrail_api.get_project_by_name(project_name)
+    project_id = project['id']
+
+    milestone_id = None
+    if milestone:
+        milestone = testrail_api.get_milestone_by_name(project_id, milestone)
+        milestone_id = milestone['id']
+
+    today = datetime.datetime.today()
+    date = today.strftime('%a %b %d %H:%M:%S')
+    name = '%s_%s' % (version, date)
+
+    project_mapping_file = os.path.join(General.CONFIG_DIR, "project_testsuite_mapping.cfg")
+    project_map = ConfigParser.ConfigParser()
+    project_map.read(project_mapping_file)
+
+    if not project_map.has_section(project_name):
+        raise Exception(
+            "Config file {0} does not contain section for specified project {1}".format(project_mapping_file,
+                                                                                        project_name))
+
+    error_messages = []
+
+    xmlfile = minidom.parse(test_result_file).childNodes[0]
+    duration_suite_map = {}
+    for child in xmlfile.childNodes:
+        suite = child.getAttribute('classname').split('.')[-2]
+        if suite == '<nose':
+            continue
+
+        if suite not in duration_suite_map:
+            duration_suite_map[suite] = 0
+        duration_suite_map[suite] += int(child.getAttribute('time'))
+
+    durations = ''
+    for key in sorted(duration_suite_map.keys()):
+        durations += "%30s: " % key + _get_textual_values(duration_suite_map[key])
+
+    durations += '\n%30s: ' % 'Total Duration' + _get_textual_values(sum(duration_suite_map.values()))
+
+    added_suites = []
+    plan_id = None
+    suite_to_run = {}
+    case_name_to_test_id = {}
+
+    # Retrieve test cases from xml file
+    all_cases = {}
+    ran_cases = {}
+    suite_name = ''
+    suite_id = ''
+    suite_name_to_id = {}
+    section_name_to_id = {}
+
+    all_sections = {}
+
+    for child in xmlfile.childNodes:
+        classname = child.getAttribute('classname')
+        if classname.startswith(('<nose', 'nose', '&lt;nose')):
+            continue
+
+        option = classname.split('.')[-3]
+
+        if child.childNodes and child.childNodes[0].getAttribute('type') in ['nose.plugins.skip.SkipTest', 'unittest.case.SkipTest'] and \
+           child.childNodes[0].getAttribute('message') != BLOCKED_MESSAGE:
+            continue
+        case_name = child.getAttribute('name')
+        match = re.search("c\d+_(.+)", case_name)
+        case_name = match.groups()[0] if match else case_name
+
+        previous_suite_name = suite_name
+        suite_name = project_map.get(project_name, option).split(';')[0]
+        section_names = project_map.get(project_name, option).split(';')[1].split(',')
+        section_name = section_names[-1]
+
+        if suite_name != previous_suite_name:
+            suite = testrail_api.get_suite_by_name(project_id, suite_name)
+            suite_id = suite['id']
+            suite_name_to_id[suite_name] = suite_id
+            all_cases[suite_name] = testrail_api.get_cases(project_id, suite['id'])
+
+        section = testrail_api.get_section_by_name(project_id, suite['id'], section_name)
+
+        if suite['id'] not in all_sections:
+            all_sections[suite['id']] = testrail_api.get_sections(project_id, suite['id'])
+        section_id = section['id']
+
+        if suite_id in section_name_to_id:
+            section_name_to_id[suite_id][section_name] = section_id
+        else:
+            section_name_to_id[suite_id] = {section_name: section_id}
+        case_id = [case for case in all_cases[suite_name] if case['section_id'] == section_id and case['title'] == case_name]
+        if not case_id:
+            new_case = testrail_api.add_case(section_id=section_id, title=case_name)
+            all_cases[suite_name].append(new_case)
+
+        ran_cases[suite_name] = ran_cases[suite_name].add(case_name) or ran_cases[suite_name] if ran_cases.get(suite_name) else set([case_name])
+
+    testcase_ids_to_select = []
+
+    for child in xmlfile.childNodes:
+        classname = child.getAttribute('classname')
+
+        if classname.startswith(('<nose', 'nose')):
+            if child.childNodes[0].childNodes and child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
+                error_messages.append(child.childNodes[0].childNodes[0].data)
+            else:
+                error_messages.append(child.childNodes[0].getAttribute('message'))
+            continue
+
+        suite = classname.split('.')[-3]
+
+        is_blocked = False
+
+        if child.childNodes and "SkipTest" in child.childNodes[0].getAttribute('type'):
+            if child.childNodes[0].getAttribute('message') == BLOCKED_MESSAGE:
+                is_blocked = True
+            else:
+                continue
+
+        if not project_map.has_option(project_name, suite):
+            raise Exception("Testsuite '%s' is not configured for project '%s' in '%s'" % (suite, project_name,
+                                                                                           project_mapping_file))
+
+        full_name = project_map.get(project_name, suite)
+        suite_name = full_name.split(';')[0]
+        create_run = False
+        if suite_name not in added_suites:
+            create_run = True
+            if suite_name not in suite_name_to_id:
+                continue
+            added_suites.append(suite_name)
+            testcase_ids_to_select = [case['id'] for case in all_cases[suite_name] if case['title'] in ran_cases[suite_name]]
+
+        case_name = child.getAttribute('name')
+
+        if plan_id is None:
+            create_run = False
+            description = _get_description(plan_comment=comment, durations=durations)
+            plan_id = testrail_api.add_plan(project_id, name, description, milestone_id or None)['id']
+            entry = testrail_api.add_plan_entry(plan_id, suite_name_to_id[suite_name], suite_name, include_all=False,
+                                                case_ids=testcase_ids_to_select)
+            run_id = entry['runs'][0]['id']
+            suite_to_run[suite_name] = run_id
+
+        if create_run:
+            entry = testrail_api.add_plan_entry(plan_id, suite_name_to_id[suite_name], suite_name, include_all=False,
+                                                case_ids=testcase_ids_to_select)
+            run_id = entry['runs'][0]['id']
+            suite_to_run[suite_name] = run_id
+
+        run_id = suite_to_run[suite_name]
+        if case_name not in case_name_to_test_id:
+            all_tests_for_run = testrail_api.get_tests(run_id=run_id)
+            for test in all_tests_for_run:
+                case_name_to_test_id[test['title'] + str(run_id)] = test['id']
+
+        test_id = case_name_to_test_id[case_name + str(run_id)]
+
+        comment = ''
+        if not child.childNodes:
+            status_id = TESTRAIL_STATUS_ID_PASSED
+        elif child.childNodes[0].getAttribute('type') in ['nose.plugins.skip.SkipTest', 'unittest.case.SkipTest']:
+            if is_blocked:
+                status_id = TESTRAIL_STATUS_ID_BLOCKED
+                if child.childNodes[0].childNodes and \
+                   child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
+                    comment = child.childNodes[0].childNodes[0].data
+            else:
+                continue
+        else:
+            status_id = TESTRAIL_STATUS_ID_FAILED
+            if child.childNodes[0].childNodes and \
+               child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
+                comment = child.childNodes[0].childNodes[0].data
+            else:
+                comment = child.childNodes[0].getAttribute('message')
+        elapsed = int(child.getAttribute('time'))
+        if elapsed == 0:
+            elapsed = 1
+        testrail_api.add_result(test_id=test_id, status_id=status_id, comment=comment, version=version,
+                                elapsed='%ss' % elapsed, custom_fields={'custom_hypervisor': GeneralPMachine.get_hypervisor_type()})
+
+    xmlfile.unlink()
+    del xmlfile
+
+    if error_messages:
+        print "\nSome testsuites failed to start because an error occurred during setup:\n{0}".format(error_messages)
+
+    url = None
+    if plan_id:
+        url = "http://%s/index.php?/plans/view/%s" % (TESTRAIL_SERVER, plan_id)
+        print "\n" + url
+
+    return url
+
+
+##################
+# HELPER FUNCTIONS
+##################
 
 def _get_description(plan_comment="", durations=""):
     """
     Generate description for pushing to Testrail
     """
+    child_process = subprocess.Popen(args="dmidecode | grep -A 12 'Base Board Information'",
+                                     shell=True,
+                                     stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+    sysinfo, _ = child_process.communicate()
+    if child_process.returncode != 0:
+        sysinfo = "NO MOTHERBOARD INFORMATION FOUND"
+
+    child_process = subprocess.Popen(args="lshw -short",
+                                     shell=True,
+                                     stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+    lshwinfo, _ = child_process.communicate()
+    if child_process.returncode != 0:
+        lshwinfo = "NO HARDWARE INFORMATION FOUND"
+
+    diskinfo = ''
+    meminfo = []
+    cpuinfo = []
+    for line in lshwinfo.splitlines():
+        if line.find("disk") >= 0:
+            if line.find('DVD-ROM') >= 0 or line.find('CD-ROM') >= 0:
+                continue
+            l = line.split()
+            l.pop(2)
+            l.pop(0)
+            for part in l:
+                diskinfo += '%13s' % part
+            diskinfo += '\n'
+        elif line.find('System Memory') >= 0 or line.find("System memory") >= 0:
+            l = line.split()
+            index = l.index('memory') + 1
+            for item in l[index:]:
+                meminfo.append(item)
+        elif line.find('processor') >= 0 and line.find('CPU [empty]') == -1:
+            l = line.split()
+            index = l.index('processor') + 1
+            cinfo = " ".join(l[index:])
+            cpuinfo.append(cinfo)
+    hardware_info = "### " + sysinfo + '\n### Disk Information\n' + diskinfo + '\n### Processor Information\n' + '* ' + '\n* '.join(cpuinfo) + '\n### Memory Information\n' + '* ' + ' '.join(meminfo)
     description = ""
     node_ips = ""
     for ip in GeneralPMachine.get_all_ips():
@@ -288,7 +496,7 @@ def _get_description(plan_comment="", durations=""):
     for item, value in (("ip", "%s" % node_ips),
                         ("testsuite", durations),
                         ("Hypervisor", GeneralPMachine.get_hypervisor_type()),
-                        ("hardware", _get_hardware_info()),
+                        ("hardware", hardware_info),
                         ("package", _get_package_info()),
                         ("Comment ", ('*' * 40 + "\n" + plan_comment) if plan_comment else '')):
         description += "# %s INFO \n%s\n" % (item.upper(), value)
@@ -323,67 +531,6 @@ def _get_ovs_version():
     return re.split("\s*", main_pkg[0])[1]
 
 
-def _get_testresult_files(folder):
-    """
-    List all xml results files in folder
-    """
-    xml_files = [folder for folder in os.listdir(folder) if ".xml" in folder]
-    xml_files.sort(reverse=True)
-
-    return xml_files
-
-
-def _get_hardware_info():
-    """
-    Get hardware info for env
-    """
-    child_process = subprocess.Popen("dmidecode | grep -A 12 'Base Board Information'", shell=True,
-                                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    (sysinfo, _error) = child_process.communicate()
-
-    exitcode = child_process.returncode
-    if exitcode != 0:
-        sysinfo = "NO MOTHERBOARD INFORMATION FOUND"
-
-    child_process = subprocess.Popen("lshw -short", shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE)
-
-    (lshwinfo, _error) = child_process.communicate()
-    exitcode = child_process.returncode
-
-    if exitcode != 0:
-        lshwinfo = "NO HARDWARE INFORMATION FOUND"
-    else:
-        lshwinfo = lshwinfo.split('\n')
-
-    diskinfo = ''
-    meminfo = []
-    cpuinfo = []
-    for line in lshwinfo:
-        if line.find("disk") >= 0:
-            if line.find('DVD-ROM') >= 0 or line.find('CD-ROM') >= 0:
-                continue
-            l = line.split()
-            l.pop(2)
-            l.pop(0)
-            for part in l:
-                diskinfo += '%13s' % part
-            diskinfo += '\n'
-        elif line.find('System Memory') >= 0 or line.find("System memory") >= 0:
-            l = line.split()
-            index = l.index('memory') + 1
-            for item in l[index:]:
-                meminfo.append(item)
-        elif line.find('processor') >= 0 and line.find('CPU [empty]') == -1:
-            l = line.split()
-            index = l.index('processor') + 1
-            cinfo = " ".join(l[index:])
-            cpuinfo.append(cinfo)
-    return "### " + sysinfo + '\n### Disk Information\n' + diskinfo + '\n### Processor Information\n' +\
-           '* ' + '\n* '.join(cpuinfo) + '\n### Memory Information\n' + '* ' + ' '.join(meminfo)
-
-
 def _get_package_info():
     """
     Retrieve package information for installation
@@ -395,247 +542,3 @@ def _get_package_info():
 
     (output, _error) = child_process.communicate()
     return output
-
-
-def _get_durations(xml_file):
-    """
-    Extract test durations from xml file
-    """
-
-    def parse_to_readable_form(test_durations):
-        def get_textual_values(seconds):
-            if not seconds:
-                return "%2i %5s, %2i %7s, %2i %7s\n" % (0, 'hours', 0, 'minutes', 0, 'seconds')
-            hours = seconds / 60 / 60
-            rest = seconds % (60 * 60)
-            minutes = rest / 60
-            hours_text = 'hour' if hours == 1 else 'hours'
-            minutes_text = 'minute' if minutes == 1 else 'minutes'
-            seconds_text = 'second' if rest == 1 else 'seconds'
-            return "%2i %5s, %2i %7s, %2i %7s\n" % (hours, hours_text, minutes, minutes_text, rest, seconds_text)
-
-        dur = ''
-        for key in sorted(test_durations.keys()):
-            dur += "%30s: " % key + get_textual_values(test_durations[key])
-
-        dur += '\n%30s: ' % 'Total Duration' + get_textual_values(sum(test_durations.values()))
-        return dur
-
-    durations = {}
-    for child in xml_file.childNodes:
-        suite = child.getAttribute('classname').split('.')[-2]
-        if suite == '<nose':
-            continue
-
-        if suite not in durations:
-            durations[suite] = 0
-        durations[suite] += int(child.getAttribute('time'))
-    return parse_to_readable_form(durations)
-
-
-def _get_cases(xml_file, testrail_api, project_ini, project_name, project_id):
-    """
-    Retrieve test cases from xml file
-    """
-    all_cases = {}
-    ran_cases = {}
-    suite_name = ''
-    suite_id = ''
-    suite_name_to_id = {}
-    section_name_to_id = {}
-
-    all_sections = {}
-
-    for child in xml_file.childNodes:
-        classname = child.getAttribute('classname')
-        if classname.startswith(('<nose', 'nose', '&lt;nose')):
-            continue
-
-        option = classname.split('.')[-2]
-
-        if child.childNodes and child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest' and \
-           child.childNodes[0].getAttribute('message') != BLOCKED_MESSAGE:
-            continue
-        case_name = child.getAttribute('name')
-        match = re.search("c\d+_(.+)", case_name)
-        case_name = match.groups()[0] if match else case_name
-
-        previous_suite_name = suite_name
-        suite_name = project_ini.get(project_name, option).split(';')[0]
-        section_names = project_ini.get(project_name, option).split(';')[1].split(',')
-        section_name = section_names[-1]
-
-        if suite_name != previous_suite_name:
-            suite = testrail_api.get_suite_by_name(project_id, suite_name)
-            suite_id = suite['id']
-            suite_name_to_id[suite_name] = suite_id
-            all_cases[suite_name] = testrail_api.get_cases(project_id, suite['id'])
-
-        section = testrail_api.get_section_by_name(project_id, suite['id'], section_name)
-
-        if suite['id'] not in all_sections:
-            all_sections[suite['id']] = testrail_api.get_sections(project_id, suite['id'])
-        section_id = section['id']
-
-        if suite_id in section_name_to_id:
-            section_name_to_id[suite_id][section_name] = section_id
-        else:
-            section_name_to_id[suite_id] = {section_name: section_id}
-        case_id = [case for case in all_cases[suite_name] if
-                   case['section_id'] == section_id and case['title'] == case_name]
-        if not case_id:
-            new_case = testrail_api.add_case(section_id=section_id, title=case_name)
-            all_cases[suite_name].append(new_case)
-
-        ran_cases[suite_name] = ran_cases[suite_name].add(case_name) or \
-            ran_cases[suite_name] if ran_cases.get(suite_name) else set([case_name])
-
-    return all_cases, ran_cases, suite_name_to_id, section_name_to_id
-
-
-def _push_to_testrail(filename, milestone, project_name, version, plan_comment):
-    """
-    Push xml file to Testrail
-    """
-    test_result_file = filename
-    if not os.path.exists(test_result_file):
-        raise Exception("Test result file {0} was not found on system".format(test_result_file))
-    if not os.path.isfile(test_result_file):
-        raise Exception("{0} is not a valid file".format(test_result_file))
-
-    testrail_api = testrailapi.TestrailApi(TESTRAIL_SERVER, key=TESTRAIL_KEY)
-    project = testrail_api.get_project_by_name(project_name)
-    project_id = project['id']
-
-    milestone_id = None
-    if milestone:
-        milestone = testrail_api.get_milestone_by_name(project_id, milestone)
-        milestone_id = milestone['id']
-
-    today = datetime.datetime.today()
-    date = today.strftime('%a %b %d %H:%M:%S')
-    name = '%s_%s' % (version, date)
-
-    project_mapping_file = os.path.join(General.CONFIG_DIR, "project_testsuite_mapping.cfg")
-    project_map = ConfigParser.ConfigParser()
-    project_map.read(project_mapping_file)
-
-    if not project_map.has_section(project_name):
-        raise Exception(
-            "Config file {0} does not contain section for specified project {0}".format(project_mapping_file,
-                                                                                        project_name))
-
-    error_messages = []
-
-    xmlfile = minidom.parse(test_result_file).childNodes[0]
-    durations = _get_durations(xmlfile)
-    added_suites = []
-    plan_id = None
-    suite_to_run = {}
-    case_name_to_test_id = {}
-
-    all_cases, ran_cases, suite_name_to_id, section_name_to_id = _get_cases(xml_file=xmlfile, testrail_api=testrail_api,
-                                                                            project_ini=project_map,
-                                                                            project_name=project_name,
-                                                                            project_id=project_id)
-    testcase_ids_to_select = []
-
-    def add_plan():
-        description = _get_description(plan_comment=plan_comment, durations=durations)
-        this_plan_id = testrail_api.add_plan(project_id, name, description, milestone_id or None)['id']
-        return this_plan_id
-
-    for child in xmlfile.childNodes:
-        classname = child.getAttribute('classname')
-
-        if classname.startswith(('<nose', 'nose')):
-            if child.childNodes[0].childNodes and \
-                    child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
-                error_messages.append(child.childNodes[0].childNodes[0].data)
-            else:
-                error_messages.append(child.childNodes[0].getAttribute('message'))
-            continue
-
-        suite = classname.split('.')[-2]
-
-        is_blocked = False
-
-        if child.childNodes and "SkipTest" in child.childNodes[0].getAttribute('type'):
-            if child.childNodes[0].getAttribute('message') == BLOCKED_MESSAGE:
-                is_blocked = True
-            else:
-                continue
-
-        if not project_map.has_option(project_name, suite):
-            raise Exception("Testsuite '%s' is not configured for project '%s' in '%s'" % (suite, project_name,
-                                                                                           project_mapping_file))
-
-        full_name = project_map.get(project_name, suite)
-        suite_name = full_name.split(';')[0]
-        create_run = False
-        if suite_name not in added_suites:
-            create_run = True
-            if suite_name not in suite_name_to_id:
-                continue
-            added_suites.append(suite_name)
-            testcase_ids_to_select = [case['id'] for case in all_cases[suite_name] if case['title'] in
-                                      ran_cases[suite_name]]
-
-        case_name = child.getAttribute('name')
-
-        if plan_id is None:
-            create_run = False
-            plan_id = add_plan()
-
-            entry = testrail_api.add_plan_entry(plan_id, suite_name_to_id[suite_name], suite_name, include_all=False,
-                                                case_ids=testcase_ids_to_select)
-            run_id = entry['runs'][0]['id']
-            suite_to_run[suite_name] = run_id
-
-        if create_run:
-            entry = testrail_api.add_plan_entry(plan_id, suite_name_to_id[suite_name], suite_name, include_all=False,
-                                                case_ids=testcase_ids_to_select)
-            run_id = entry['runs'][0]['id']
-            suite_to_run[suite_name] = run_id
-
-        run_id = suite_to_run[suite_name]
-        if case_name not in case_name_to_test_id:
-            all_tests_for_run = testrail_api.get_tests(run_id=run_id)
-            for test in all_tests_for_run:
-                case_name_to_test_id[test['title'] + str(run_id)] = test['id']
-
-        test_id = case_name_to_test_id[case_name + str(run_id)]
-
-        comment = ''
-        if not child.childNodes:
-            status_id = TESTRAIL_STATUS_ID_PASSED
-        elif child.childNodes[0].getAttribute('type') == 'nose.plugins.skip.SkipTest':
-            if is_blocked:
-                status_id = TESTRAIL_STATUS_ID_BLOCKED
-                if child.childNodes[0].childNodes and \
-                   child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
-                    comment = child.childNodes[0].childNodes[0].data
-            else:
-                continue
-        else:
-            status_id = TESTRAIL_STATUS_ID_FAILED
-            if child.childNodes[0].childNodes and \
-               child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
-                comment = child.childNodes[0].childNodes[0].data
-            else:
-                comment = child.childNodes[0].getAttribute('message')
-        elapsed = int(child.getAttribute('time'))
-        if elapsed == 0:
-            elapsed = 1
-        testrail_api.add_result(test_id=test_id, status_id=status_id, comment=comment, version=version,
-                                elapsed='%ss' % elapsed, custom_fields={'custom_hypervisor': GeneralPMachine.get_hypervisor_type()})
-
-    xmlfile.unlink()
-    del xmlfile
-
-    if error_messages:
-        print "\nSome testsuites failed to start because an error occurred during setup:\n{0}".format(error_messages)
-
-    if not plan_id:
-        return False
-    return "http://%s/index.php?/plans/view/%s" % (TESTRAIL_SERVER, plan_id)
