@@ -86,7 +86,8 @@ class GeneralVPool(object):
             required_params['distributed_mountpoint'] = (str, None)
 
         Toolbox.verify_required_params(required_params=required_params,
-                                       actual_params=vpool_parameters)
+                                       actual_params=vpool_parameters,
+                                       exact_match=True)
 
         if storagerouters is None:
             storagerouters = [GeneralStorageRouter.get_local_storagerouter()]
