@@ -129,8 +129,7 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
     """
     arguments = _validate_run_parameters(tests, output_format, output_folder, project_name, qualitylevel,
                                          always_die, existing_plan_id, interactive)
-
-    _run_tests(arguments)
+    nose.run(argv=arguments, addplugins=[xunit_testrail.xunit_testrail()])
 
 
 def pushToTestrail(project_name, _, output_folder, version=None, filename="", milestone="", comment=""):
@@ -244,13 +243,6 @@ def _parse_args(suite_name, output_format, output_folder, always_die, testrail_u
         arguments.append(existing_plan_id)
 
     return arguments
-
-
-def _run_tests(arguments):
-    """
-    Run the tests
-    """
-    nose.run(argv=arguments, addplugins=[xunit_testrail.xunit_testrail()])
 
 
 def list_tests(args=None):
