@@ -155,75 +155,29 @@ def _run_deploy_ovs(hv_ip, hv_password, sdk, cli, vifs):
 def _create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, vpool_name, backend_name,
                          cinder_type, grid_ip, test_project, testrail_server, testrail_key, output_folder, ql):
 
-    return '''cat << EOF > /opt/OpenvStorage/ci/config/autotest.cfg
-[main]
-testlevel = 0
-hypervisorinfo = {vmware_info}
-os = {os_name}
-template_server = {template_server}
-username = admin
-password = admin
-screen_capture = {screen_capture}
-cleanup = True
-grid_ip = {grid_ip}
-vpool_name = {vpool_name}
-output_folder = {output_folder}
-qualitylevel = {qualitylevel}
-
-[vpool]
-name                 = autotest-vpool
-type                 = alba
-alba_connection_host =
-alba_connection_port = 443
-alba_connection_user =
-alba_connection_pass =
-readcache_size       = 10
-writecache_size      = 10
-integrate_mgmt       = True
-storage_ip           = 127.0.0.1
-config_params        = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128, "dtl_target": ""}}
-
-[vpool2]
-name                 = localvp
-type                 = local
-alba_connection_host =
-alba_connection_port = 443
-alba_connection_user =
-alba_connection_pass =
-readcache_size       = 10
-writecache_size      = 10
-integrate_mgmt       = True
-storage_ip           = 127.0.0.1
-config_params        = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "dedupe", "cache_strategy": "on_read", "write_buffer": 128, "dtl_target": ""}}
-
-[backend]
-name = marie
-type = alba
-nr_of_disks_to_claim = 3
-type_of_disks_to_claim = SATA
-
-[openstack]
-cinder_type = {cinder_type}
-
-[testrail]
-key = {testrail_key}
-server = {testrail_server}
-test_project = {test_project}
-
-[mgmtcenter]
-name = hmc
-username = admin
-password = rooter
-type = OPENSTACK
-port = 443
-ip = {grid_ip}
-
-[logger]
-default_name = autotest
-default_file = main.log
-level = INFO
-path = /var/log/ovs/autotests
-EOF
+    return '''import ConfigParser
+Config = ConfigParser.ConfigParser()
+Config.read('/opt/OpenvStorage/ci/config/autotest.cfg')
+Config.set('main','hypervisorinfo','{vmware_info}')
+Config.set('main','os','{os_name}')
+Config.set('main','template_server','{template_server}')
+Config.set('main','username','admin')
+Config.set('main','password','admin')
+Config.set('main','grid_ip','{grid_ip}')
+Config.set('main','output_folder','{output_folder}')
+Config.set('main','qualitylevel','{qualitylevel}')
+Config.set('main','screen_capture','{screen_capture}')
+Config.set('vpool','name','{vpool_name}')
+Config.set('openstack','cinder_type','{cinder_type}')
+Config.set('backend','name','{backend_name}')
+Config.set('testrail','key','{testrail_key}')
+Config.set('testrail','server','{testrail_server}')
+Config.set('testrail','test_project','{test_project}')
+Config.set('mgmtcenter','username','admin')
+Config.set('mgmtcenter','password','rooter')
+Config.set('mgmtcenter','ip','{grid_ip}')
+with open('/opt/OpenvStorage/ci/config/autotest.cfg', 'w') as configfile:
+    Config.write(configfile)
 '''.format(os_name=os_name,
            vmware_info=vmware_info,
            template_server=template_server,
@@ -467,7 +421,9 @@ def run_autotests(node_ip, vmware_info='', dc='', capture_screen=False, test_pla
                                output_folder=output_folder,
                                ql=ql)
 
-    q.tools.installerci._run_command(cmd, node_ip, "root", UBUNTU_PASSWORD, buffered=True)
+    cfgcmd = '''ipython 2>&1 -c "{0}"'''.format(cmd)
+
+    q.tools.installerci._run_command(cfgcmd, node_ip, "root", UBUNTU_PASSWORD, buffered=True)
 
     cmd = '''source /etc/profile.d/ovs.sh
 pkill Xvfb
