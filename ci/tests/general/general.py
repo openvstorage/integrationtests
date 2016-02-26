@@ -368,3 +368,57 @@ class General(object):
         config.set(section="main", option="password", value=password)
         General.save_config(config)
         return True
+
+    @staticmethod
+    def filter_files(files, extensions, exclude_dirs=None, include_dirs=None, exclude_files=None, include_files=None):
+        """
+        Recursively get all files in root_folder
+        :param files: Files to filter
+        :param extensions: File extensions to add to the filter
+        :param exclude_dirs: Files to exclude from filter
+        :param include_dirs: Files to include in filter
+        :param exclude_files: Files to exclude even though they match extensions and/or are part of include_dirs
+        :param include_files: Files to include even though they don't match extensions and/or are part of exclude_dirs
+        :return: List of files
+        """
+        filtered_files = []
+        for file_name in files:
+            # Verify include files
+            if file_name in include_files:
+                filtered_files.append(file_name)
+                continue
+
+            # Verify exclude files
+            if file_name in exclude_files:
+                continue
+
+            # Verify extension
+            valid_extension = False
+            for extension in extensions:
+                if file_name.endswith(extension):
+                    valid_extension = True
+                    break
+            if valid_extension is False:
+                continue
+
+            # Verify include directories
+            file_included = False
+            for include_dir in include_dirs:
+                if file_name.startswith(include_dir):
+                    filtered_files.append(file_name)
+                    file_included = True
+                    break
+            if file_included is True:
+                continue
+
+            # Verify exclude directories
+            file_excluded = False
+            for exclude_dir in exclude_dirs:
+                if file_name.startswith(exclude_dir):
+                    file_excluded = True
+                    break
+            if file_excluded is True:
+                continue
+
+            filtered_files.append(file_name)
+        return filtered_files
