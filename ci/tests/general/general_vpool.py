@@ -16,6 +16,7 @@
 A general class dedicated to vPool logic
 """
 
+import json
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
 from ci.tests.general.general_arakoon import GeneralArakoon
@@ -67,6 +68,7 @@ class GeneralVPool(object):
                            'config_params': (dict, {'dtl_mode': (str, StorageDriverClient.VPOOL_DTL_MODE_MAP.keys()),
                                                     'sco_size': (int, StorageDriverClient.TLOG_MULTIPLIER_MAP.keys()),
                                                     'dedupe_mode': (str, StorageDriverClient.VPOOL_DEDUPE_MAP.keys()),
+                                                    'cluster_size': (int, StorageDriverClient.CLUSTER_SIZES),
                                                     'write_buffer': (int, {'min': 128, 'max': 10240}),
                                                     'dtl_transport': (str, StorageDriverClient.VPOOL_DTL_TRANSPORT_MAP.keys()),
                                                     'cache_strategy': (str, StorageDriverClient.VPOOL_CACHE_MAP.keys())})}
@@ -171,6 +173,7 @@ class GeneralVPool(object):
         :return: Dictionary with default settings
         """
         test_config = General.get_config()
+        config_params = json.loads(test_config.get('vpool', 'config_params'))
         vpool_type = kwargs.get('type', test_config.get('vpool', 'type'))
         vpool_params = {'type': vpool_type,
                         'vpool_name': kwargs.get('name', test_config.get('vpool', 'name')),
@@ -179,12 +182,13 @@ class GeneralVPool(object):
                         'readcache_size': kwargs.get('readcache_size', test_config.getint('vpool', 'readcache_size')),
                         'writecache_size': kwargs.get('writecache_size', test_config.getint('vpool', 'writecache_size')),
                         'connection_backend': {},
-                        'config_params': {'dtl_mode': kwargs.get('dtl_mode', 'a_sync'),
-                                          'sco_size': kwargs.get('sco_size', 4),
-                                          'dedupe_mode': kwargs.get('dedupe_mode', 'dedupe'),
-                                          'write_buffer': kwargs.get('write_buffer', 128),
-                                          'dtl_transport': kwargs.get('dtl_transport', 'tcp'),
-                                          'cache_strategy': kwargs.get('cache_strategy', 'on_read')}}
+                        'config_params': {'dtl_mode': kwargs.get('dtl_mode', config_params.get('dtl_mode', 'a_sync')),
+                                          'sco_size': kwargs.get('sco_size', config_params.get('sco_size', 4)),
+                                          'dedupe_mode': kwargs.get('dedupe_mode', config_params.get('dedupe_mode', 'dedupe')),
+                                          'cluster_size': kwargs.get('cluster_size', config_params.get('cluster_size', 4)),
+                                          'write_buffer': kwargs.get('write_buffer', config_params.get('write_buffer', 128)),
+                                          'dtl_transport': kwargs.get('dtl_transport', config_params.get('dtl_transport', 'tcp')),
+                                          'cache_strategy': kwargs.get('cache_strategy', config_params.get('cache_strategy', 'on_read'))}}
         if extend is False and vpool_type not in ['local', 'distributed']:
             vpool_params['connection_host'] = kwargs.get('alba_connection_host', test_config.get('vpool', 'alba_connection_host'))
             vpool_params['connection_port'] = kwargs.get('alba_connection_port', test_config.getint('vpool', 'alba_connection_port'))
