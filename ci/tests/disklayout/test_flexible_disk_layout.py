@@ -15,7 +15,6 @@
 """
 Flexible disk layout testsuite
 """
-
 import logging
 from ci.tests.general.general import General
 from ci.tests.general.general_disk import GeneralDisk
@@ -62,8 +61,7 @@ class TestFlexibleDiskLayout(object):
         General.check_prereqs(testcase_number=1,
                               tests_to_run=TestFlexibleDiskLayout.tests_to_run)
         if TestFlexibleDiskLayout.continue_testing.state is False:
-            raise SkipTest()
-
+            raise SkipTest('Test suite signaled to stop')
         GeneralStorageRouter.sync_with_reality()
 
         physical_disks = dict()
@@ -123,7 +121,7 @@ class TestFlexibleDiskLayout(object):
         General.check_prereqs(testcase_number=2,
                               tests_to_run=TestFlexibleDiskLayout.tests_to_run)
         if TestFlexibleDiskLayout.continue_testing.state is False:
-            raise SkipTest()
+            raise SkipTest('Test suite signaled to stop')
 
         my_sr = GeneralStorageRouter.get_local_storagerouter()
 

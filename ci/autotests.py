@@ -35,6 +35,7 @@ at_config = General.get_config()
 TESTRAIL_STATUS_ID_PASSED = '1'
 TESTRAIL_STATUS_ID_BLOCKED = '2'
 TESTRAIL_STATUS_ID_FAILED = '5'
+TESTRAIL_STATUS_ID_SKIPPED = '11'
 TESTRAIL_FOLDER = at_config.get(section="main", option="output_folder")
 TESTRAIL_KEY = at_config.get(section="testrail", option="key")
 TESTRAIL_PROJECT = at_config.get(section="testrail", option="test_project")
@@ -165,7 +166,7 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
         arguments.append('--tests')
         arguments.append(','.join(tests_to_run))
 
-    nose.run(argv=arguments, addplugins=[xunit_testrail.xunit_testrail()])
+    nose.run(argv=arguments, addplugins=[xunit_testrail.XunitTestrail()])
 
 
 def list_tests(args=None):
@@ -359,8 +360,6 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
         if child.childNodes and "SkipTest" in child.childNodes[0].getAttribute('type'):
             if child.childNodes[0].getAttribute('message') == BLOCKED_MESSAGE:
                 is_blocked = True
-            else:
-                continue
 
         if not project_map.has_option(project_name, suite):
             raise Exception("Testsuite '%s' is not configured for project '%s' in '%s'" % (suite, project_name,
@@ -407,11 +406,11 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
         elif child.childNodes[0].getAttribute('type') in ['nose.plugins.skip.SkipTest', 'unittest.case.SkipTest']:
             if is_blocked:
                 status_id = TESTRAIL_STATUS_ID_BLOCKED
-                if child.childNodes[0].childNodes and \
-                   child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
-                    comment = child.childNodes[0].childNodes[0].data
             else:
-                continue
+                status_id = TESTRAIL_STATUS_ID_SKIPPED
+            if child.childNodes[0].childNodes and \
+               child.childNodes[0].childNodes[0].nodeType == minidom.DocumentType.CDATA_SECTION_NODE:
+                comment = child.childNodes[0].childNodes[0].data
         else:
             status_id = TESTRAIL_STATUS_ID_FAILED
             if child.childNodes[0].childNodes and \

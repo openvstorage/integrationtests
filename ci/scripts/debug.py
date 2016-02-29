@@ -76,7 +76,8 @@ class NamedPipe(object):
         else:
             l = int(txt)
             data = self.inp.read(l)
-            if len(data) < l: self.inp.close()
+            if len(data) < l:
+                self.inp.close()
             return cPickle.loads(data)  # Convert back to python object.
 
     def close(self):
@@ -98,15 +99,15 @@ class NamedPipe(object):
 def remote_debug(sig, frame):
     """Handler to allow process to be remotely debugged."""
 
-    def _raiseEx(ex):
+    def _raise_exception(ex):
         """Raise specified exception in the remote process"""
-        _raiseEx.ex = ex
+        _raise_exception.ex = ex
 
-    _raiseEx.ex = None
+    _raise_exception.ex = None
 
     try:
         # Provide some useful functions.
-        locs = {'_raiseEx': _raiseEx, 'frame': frame}
+        locs = {'_raiseEx': _raise_exception, 'frame': frame}
         locs.update(frame.f_locals)  # Unless shadowed.
         globs = frame.f_globals
 
@@ -120,7 +121,7 @@ def remote_debug(sig, frame):
                  ''.join(traceback.format_stack(frame)) + ">>> ")
 
         try:
-            while pipe.is_open() and _raiseEx.ex is None:
+            while pipe.is_open() and _raise_exception.ex is None:
                 line = pipe.get()
                 if line is None: continue  # EOF
                 txt += line
@@ -148,7 +149,8 @@ def remote_debug(sig, frame):
     except Exception:  # Don't allow debug exceptions to propogate to real program.
         traceback.print_exc()
 
-    if _raiseEx.ex is not None: raise _raiseEx.ex
+    if _raise_exception.ex is not None:
+        raise _raise_exception.ex
 
 
 def debug_process(pid):

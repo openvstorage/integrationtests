@@ -65,7 +65,6 @@ import ConfigParser
 from time import time
 from xml.sax import saxutils
 from StringIO import StringIO
-
 from ci.scripts import testrailapi
 from nose.exc import SkipTest
 from nose.loader import TestLoader
@@ -148,7 +147,10 @@ def name_to_testrail_format(test_name):
 def format_durations(dur):
     if not dur:
         return ""
-    nice_time = lambda x: str(datetime.timedelta(seconds=int(x)))
+
+    def nice_time(x):
+        return str(datetime.timedelta(seconds=int(x)))
+
     splits = dur.split("|")
     if len(splits) == 3:
         return "Past Runs Avg: " + nice_time(splits[2]) + " Min: " + nice_time(splits[0]) +\
@@ -179,7 +181,7 @@ class Tee(object):
         return False
 
 
-class xunit_testrail(Plugin):
+class XunitTestrail(Plugin):
     """This plugin provides test results in the standard XUnit XML format."""
     name = 'xunit_testrail'
     score = 2000
@@ -370,7 +372,7 @@ class xunit_testrail(Plugin):
         pass
 
     def beforeTest(self, _):
-        log.info('beforeTest...')
+        log.info('before_test...')
         """Initializes a timer before starting a test."""
         self._timer = time()
         self._start_capture()
@@ -383,7 +385,7 @@ class xunit_testrail(Plugin):
             sys.stdout, sys.stderr = self._capture_stack.pop()
 
     def afterTest(self, _):
-        log.info('afterTest...')
+        log.info('after_test...')
         self._end_capture()
         self._currentStdout = None
         self._currentStderr = None
