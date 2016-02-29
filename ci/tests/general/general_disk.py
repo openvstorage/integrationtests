@@ -202,6 +202,7 @@ class GeneralDisk(object):
         :param storagerouter: Storage Router
         :return: None
         """
+        # @TODO: Remove this function and create much more generic functions which allow us much more configurability
         disks = GeneralDisk.get_disks()
 
         partition_roles = dict()
@@ -216,13 +217,17 @@ class GeneralDisk(object):
                 GeneralDisk.partition_disk(disk)
 
             disks = GeneralDisk.get_disks()
-            hdds = [disk for disk in disks if disk.storagerouter == storagerouter and disk.is_ssd is False]
-            ssds = [disk for disk in disks if disk.storagerouter == storagerouter and disk.is_ssd is True]
+            hdds = [disk for disk in disks if disk.storagerouter == storagerouter and disk.is_ssd is False and disk.partitions_guids]
+            ssds = [disk for disk in disks if disk.storagerouter == storagerouter and disk.is_ssd is True and disk.partitions_guids]
 
             if len(ssds) == 0:
+                if len(hdds) < 2:
+                    raise ValueError('Insufficient hard disks found on storagerouter {0}. Expected 2'.format(storagerouter.name))
                 partition_roles[hdds[0].partitions[0]] = ['READ']
                 partition_roles[hdds[1].partitions[0]] = ['WRITE', 'SCRUB']
             elif len(ssds) == 1:
+                if len(hdds) < 1:
+                    raise ValueError('Insufficient hard disks found on storagerouter {0}. Expected 1'.format(storagerouter.name))
                 partition_roles[hdds[0].partitions[0]] = ['READ', 'SCRUB']
                 partition_roles[ssds[0].partitions[0]] = ['WRITE']
             elif len(ssds) >= 2:
