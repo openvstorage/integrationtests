@@ -50,7 +50,7 @@ class TestSanity(object):
 
         env_ips = GeneralPMachine.get_all_ips()
         if len(env_ips) == 1:
-            raise SkipTest()
+            raise SkipTest('Environment has only 1 node')
 
         for env_ip_connecting_from in env_ips:
             out = General.execute_command_on_node(env_ip_connecting_from, "cat ~/.ssh/known_hosts")
@@ -181,7 +181,7 @@ class TestSanity(object):
 
         backends_present_on_env = GeneralBackend.get_backends()
         if len(backends_present_on_env) == 0:
-            raise SkipTest()
+            raise SkipTest('No backend present at the time of the test')
 
         backend_name = General.get_config().get("backend", "name")
         backend = GeneralBackend.get_by_name(name=backend_name)
@@ -199,7 +199,7 @@ class TestSanity(object):
 
         backends_present_on_env = GeneralBackend.get_backends()
         if len(backends_present_on_env) == 0:
-            raise SkipTest()
+            raise SkipTest('No backend present at the time of the test')
 
         # TODO: more than 1 backends present
         # TODO: different backends not just alba
@@ -231,7 +231,7 @@ class TestSanity(object):
 
         backends_present_on_env = GeneralBackend.get_backends()
         if len(backends_present_on_env) == 0:
-            raise SkipTest()
+            raise SkipTest('No backend present at the time of the test')
 
         issues_found = ''
 

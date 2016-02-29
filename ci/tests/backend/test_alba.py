@@ -20,6 +20,11 @@ import time
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
+from ovs.dal.hybrids.albanode import AlbaNode
+from ovs.dal.hybrids.albaasd import AlbaASD
+from ovs.dal.hybrids.albabackend import AlbaBackend
+from ovs.dal.hybrids.backend import Backend
+from ovs.dal.lists.backendtypelist import BackendTypeList
 from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.albaasd import AlbaASD
 from ovs.dal.hybrids.albabackend import AlbaBackend

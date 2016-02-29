@@ -41,7 +41,7 @@ class TestMgmtCenter(object):
                               tests_to_run=TestMgmtCenter.tests_to_run)
 
         if GeneralManagementCenter.is_devstack_installed() is False:
-            raise SkipTest
+            raise SkipTest('No devstack/openstack present')
 
         management_centers = GeneralManagementCenter.get_mgmt_centers()
         issues_found = ""
@@ -62,7 +62,7 @@ class TestMgmtCenter(object):
                               tests_to_run=TestMgmtCenter.tests_to_run)
 
         if GeneralManagementCenter.is_devstack_installed() is False:
-            raise SkipTest
+            raise SkipTest('No devstack/openstack present')
 
         management_centers = GeneralManagementCenter.get_mgmt_centers()
         issues_found = ""
@@ -82,7 +82,7 @@ class TestMgmtCenter(object):
                               tests_to_run=TestMgmtCenter.tests_to_run)
 
         if GeneralManagementCenter.is_devstack_installed() is False:
-            raise SkipTest
+            raise SkipTest('No devstack/openstack present')
 
         management_centers = GeneralManagementCenter.get_mgmt_centers()
         issues_found = ""
@@ -103,7 +103,7 @@ class TestMgmtCenter(object):
                               tests_to_run=TestMgmtCenter.tests_to_run)
 
         if GeneralManagementCenter.is_devstack_installed() is False:
-            raise SkipTest
+            raise SkipTest('No devstack/openstack present')
 
         management_centers = GeneralManagementCenter.get_mgmt_centers()
         issues_found = ""

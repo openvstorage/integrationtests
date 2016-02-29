@@ -36,24 +36,24 @@ class TestEnum(Plugin):
         Plugin.configure(self, options, conf)
         self.config = conf
 
-    def startTest(self, test):
+    def start_test(self, test):
         testinfo = test.address()
         import os
 
         os.write(1, str(testinfo) + "\n")
-        testName = '%s:%s' % (testinfo[1], testinfo[2])
-        if testName not in self._tests:
-            self._tests.append(testName)
+        test_name = '%s:%s' % (testinfo[1], testinfo[2])
+        if test_name not in self._tests:
+            self._tests.append(test_name)
         return None
 
-    def setOutputStream(self, stream):
+    def set_output_stream(self, stream):
         class DummyStream(object):
             writeln = flush = write = lambda self, *args: None
 
         return DummyStream()
 
     def finalize(self, result):
-        for testName in self._tests:
-            print testName
+        for test_name in self._tests:
+            print test_name
         return None
 

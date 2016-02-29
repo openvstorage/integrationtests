@@ -42,7 +42,7 @@ class TestExtended(object):
 
         rebooted_host = os.environ.get('POST_REBOOT_HOST')
         if not rebooted_host:
-            raise SkipTest()
+            raise SkipTest('Test not setup to run')
 
         print "Post reboot check node {0}\n".format(rebooted_host)
 

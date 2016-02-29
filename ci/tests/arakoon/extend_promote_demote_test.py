@@ -247,7 +247,7 @@ class TestArakoon(object):
 
         storagerouters = GeneralStorageRouter.get_storage_routers()
         if not len(storagerouters) >= 3:
-            raise SkipTest()
+            raise SkipTest('Environment has only {0} node(s)'.format(len(storagerouters)))
 
         node_ips = [sr.ip for sr in storagerouters]
         node_ips.sort()
@@ -318,7 +318,7 @@ class TestArakoon(object):
 
         storagerouters = GeneralStorageRouter.get_storage_routers()
         if not len(storagerouters) >= 2:
-            raise SkipTest()
+            raise SkipTest('Environment has only {0} node(s)'.format(len(storagerouters)))
 
         pmachines = TestArakoon.get_cluster_pmachines([sr.ip for sr in storagerouters])
         TestArakoon.validate_arakoon_config_files(pmachines)
@@ -333,7 +333,7 @@ class TestArakoon(object):
 
         storagerouters = GeneralStorageRouter.get_storage_routers()
         if not len(storagerouters) >= 4:
-            raise SkipTest()
+            raise SkipTest('Environment has only {0} node(s)'.format(len(storagerouters)))
 
         pmachines = TestArakoon.get_cluster_pmachines([sr.ip for sr in storagerouters])
         TestArakoon.validate_arakoon_config_files(pmachines)
@@ -405,7 +405,7 @@ class TestArakoon(object):
         first_ip = node_ips[0]
 
         if len(node_ips) < 2:
-            raise SkipTest()
+            raise SkipTest('Environment has only {0} node(s)'.format(len(node_ips)))
 
         cluster_name = 'OVS_3671-multi-node-cluster'
         cluster_basedir = '/var/tmp'
