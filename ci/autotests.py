@@ -210,6 +210,7 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
         hours = seconds / 60 / 60
         rest = seconds % (60 * 60)
         minutes = rest / 60
+        rest %= 60
         hours_text = 'hour' if hours == 1 else 'hours'
         minutes_text = 'minute' if minutes == 1 else 'minutes'
         seconds_text = 'second' if rest == 1 else 'seconds'
@@ -226,12 +227,12 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
         if not result_files:
             print "\nNo test_results files were found in {0}".format(output_folder)
             return
-        else:
-            files_to_ask_range = list(range(len(result_files)))
-            files_to_ask = zip(files_to_ask_range, result_files)
-            filename_index = eval(_check_input(predicate=lambda x: eval(x) in files_to_ask_range,
-                                               msg="Please choose results file \n" + "\n".join(
-                                                   map(lambda x: str(x[0]) + "->" + str(x[1]), files_to_ask)) + ":\n"))
+
+        files_to_ask_range = list(range(len(result_files)))
+        files_to_ask = zip(files_to_ask_range, result_files)
+        filename_index = eval(_check_input(predicate=lambda x: eval(x) in files_to_ask_range,
+                                           msg="Please choose results file \n" + "\n".join(
+                                               map(lambda x: str(x[0]) + "->" + str(x[1]), files_to_ask)) + ":\n"))
         filename = os.path.join(output_folder, result_files[filename_index])
 
     if not version:
@@ -271,7 +272,7 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
     duration_suite_map = {}
     for child in xmlfile.childNodes:
         suite = child.getAttribute('classname').split('.')[-2]
-        if suite == '<nose':
+        if suite == '<nose' or suite.startswith('ContextSuite'):
             continue
 
         if suite not in duration_suite_map:
