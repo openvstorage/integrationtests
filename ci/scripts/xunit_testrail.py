@@ -443,7 +443,7 @@ class XunitTestrail(Plugin):
             if self.fullsuite_name != suite_name:
                 is_new_entry_to_be_created = True
 
-            all_tests = [test_case for case in TestLoader().loadTestsFromDir(os.path.dirname(inspect.getfile(test.context))) for test_case in case._tests]
+            all_tests = [test_case for test_case in TestLoader().loadTestsFromTestClass(test.context)._tests]
             all_testnames = [name_to_testrail_format(test_case.id().split('.')[-1]) for test_case in all_tests]
 
             self.fullsuite_name = suite_name
