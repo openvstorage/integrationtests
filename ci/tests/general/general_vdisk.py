@@ -65,16 +65,23 @@ class GeneralVDisk(object):
                                                         vdisk_name=name if name is not None else uuid.uuid4())
         if root_client is None:
             root_client = SSHClient('127.0.0.1', username='root')
-        root_client.run('truncate -s {0}G {1}'.format(size, location))
 
-        if loop_device is not None:
-            root_client.run('losetup /dev/{0} {1}'.format(loop_device, location))
-            root_client.dir_create('/mnt/{0}'.format(loop_device))
-            root_client.run('parted /dev/{0} mklabel gpt'.format(loop_device))
-            root_client.run('parted -a optimal /dev/{0} mkpart primary ext4 0% 100%'.format(loop_device))
-            root_client.run('partprobe')
-            root_client.run('mkfs.ext4 /dev/{0}'.format(loop_device))
-            root_client.run('mount -t ext4 /dev/{0} /mnt/{0}'.format(loop_device))
+        try:
+            if loop_device is not None:
+                root_client.run('truncate -s {0}G {1}'.format(size, location))
+                root_client.run('losetup /dev/{0} {1}'.format(loop_device, location))
+                root_client.dir_create('/mnt/{0}'.format(loop_device))
+                root_client.run('parted /dev/{0} mklabel gpt'.format(loop_device))
+                root_client.run('parted -a optimal /dev/{0} mkpart primary ext4 0% 100%'.format(loop_device))
+                root_client.run('partprobe | true')
+                root_client.run('mkfs.ext4 /dev/{0}'.format(loop_device))
+                root_client.run('mount -t ext4 /dev/{0} /mnt/{0}'.format(loop_device))
+        except Exception as ex:
+            cmd = """
+                umount /mnt/{0};
+                losetup -d /dev/{0};
+                rm {1}""".format(loop_device, location)
+            print root_client.run(cmd)
 
         vdisk = None
         if wait is True:
@@ -222,3 +229,27 @@ class GeneralVDisk(object):
         else:
             raise RuntimeError('Invalid hypervisor type specified: {0}'.format(hv_type))
         return location
+
+    @staticmethod
+    def get_config_params(vdisk_guid):
+        """
+        :param vdisk_guid: Guid of vdisk to retrieve config params from
+        :return: {} containing config params
+        """
+        task_id = GeneralVDisk.api.execute_get_action('vdisks', vdisk_guid, 'get_config_params')
+        if task_id:
+            return GeneralVDisk.api.wait_for_task(task_id)[1]
+        return {}
+
+    @staticmethod
+    def set_config_params(vdisk_guid, params):
+        """
+        Set specific vdisk params
+        :param vdisk_guid: Guid of vdisk to set config params
+        :param params: params to set
+        :return:
+        """
+        task_id = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk_guid, action='set_config_params', data=params)
+        if task_id:
+            return GeneralVDisk.api.wait_for_task(task_id)[1]
+        return {}

@@ -35,10 +35,6 @@ class TestVDisk(object):
     assert vpool_name, 'vPool name required in autotest.cfg file'
     tests_to_run = General.get_tests_to_run(General.get_test_level())
 
-    #########
-    # TESTS #
-    #########
-
     @staticmethod
     def ovs_3700_validate_test():
         """
@@ -89,3 +85,35 @@ class TestVDisk(object):
                                    loop_device=loop)
 
         assert post_scrubber_logsize > pre_scrubber_logsize, "Scrubber actions where not logged!"
+
+    @staticmethod
+    def ovs_3756_metadata_size_test():
+        """
+        Validate get/set metadata cache size for a vdisk
+        """
+
+        DEFAULT_METADATA_CACHE_SIZE = 8192 * 256 * 24
+
+        loop = 'loop0'
+        vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
+        vdisk = GeneralVDisk.create_volume(size=2,
+                                           vpool=vpool,
+                                           name='ovs-3756-disk',
+                                           loop_device=loop,
+                                           wait=True)
+
+        config_params = GeneralVDisk.get_config_params(vdisk.guid)
+        print '1a'
+        print config_params
+        assert 'metadata_cache_size' in config_params, 'Missing parameter in vdisk config_params: metadata_cache_size'
+
+        value_to_verify = 60000000
+        config_params['metadata_cache_size'] = value_to_verify
+        GeneralVDisk.set_config_params(vdisk.guid, {'new_config_params': config_params})
+
+        config_params = GeneralVDisk.get_config_params(vdisk.guid)
+        print '1b'
+        print config_params
+        actual_value = config_params['metadata_cache_size']
+        assert config_params['metadata_cache_size'] == value_to_verify,\
+            'Value after set/get differs, actual: {0}, expected: {1}'.format(actual_value, value_to_verify)
