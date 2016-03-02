@@ -128,19 +128,24 @@ class GeneralVDisk(object):
                 raise RuntimeError('Disk {0} was not deleted from model after {1} seconds'.format(volume_name, timeout))
 
     @staticmethod
-    def write_to_volume(vdisk, vpool, count=1024, bs='1M', input_type='random', root_client=None):
+    def write_to_volume(vdisk=None, vpool=None, location=None, count=1024, bs='1M', input_type='random', root_client=None):
         """
         Write some data to a file
         :param vdisk: Virtual disk to write on
         :param vpool: vPool which hosts the Virtual Disk
+        :param location: Absolute path to file
         :param count: amount of blocks to write
         :param bs: Size of the blocks to write
         :param input_type: Type of input (null, zero, random)
         :param root_client: SSHClient object
         :return: None
         """
-        location = GeneralVDisk.get_filesystem_location(vpool=vpool,
-                                                        vdisk_name=vdisk.name)
+        if location is None and (vdisk is None or vpool is None):
+            raise ValueError('vDisk and vPool must be provided if no location has been provided')
+
+        if location is None:
+            location = GeneralVDisk.get_filesystem_location(vpool=vpool,
+                                                            vdisk_name=vdisk.name)
         if root_client is None:
             root_client = SSHClient('127.0.0.1', username='root')
 

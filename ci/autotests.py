@@ -156,12 +156,17 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
             tests = [tests]
         tests_to_run = []
         for test_spec in tests:
+            test_spec = test_spec.replace(':', '.')
             test_spec_parts = test_spec.split('.')
-            test_spec_path = os.path.join(General.TESTS_DIR, *test_spec_parts)
-            if os.path.isdir(test_spec_path):
-                tests_to_run.append(test_spec.replace('.', '/'))
-            else:
-                tests_to_run.append(test_spec)
+            if len(test_spec_parts) < 2 or test_spec_parts[0] != 'ci' or test_spec_parts[1] != 'tests':
+                raise ValueError('When specifying a testdirectory, testmodule, testclass or testcase, the name needs to start with "ci.tests"')
+            if len(test_spec_parts) >= 5 and not test_spec_parts[4].startswith('Test'):
+                raise ValueError('Expected a class name starting with "Test"')
+
+            if len(test_spec_parts) >= 5:
+                test_spec = '{0}:{1}'.format('.'.join(test_spec_parts[:4]), '.'.join(test_spec_parts[4:]))
+
+            tests_to_run.append(test_spec)
 
         arguments.append('--tests')
         arguments.append(','.join(tests_to_run))

@@ -19,6 +19,7 @@ import logging
 from ci.tests.general.general import General
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
+from ci.tests.general.general_vdisk import GeneralVDisk
 from nose.plugins.skip import SkipTest
 from ovs.extensions.generic.sshclient import SSHClient
 
@@ -181,9 +182,10 @@ class TestFlexibleDiskLayout(object):
         General.execute_command_on_node(my_sr.ip, cmd)
 
         # wipe partition table to be able to reuse this disk in another test
-        cmd = 'dd if=/dev/zero of={0} bs=1M count=64'.format(disk.path)
-        General.execute_command_on_node(my_sr.ip, cmd)
-
+        GeneralVDisk.write_to_volume(location=disk.path,
+                                     count=64,
+                                     bs='1M',
+                                     input_type='zero')
         GeneralStorageRouter.sync_with_reality()
 
         # verify partition no longer exists in ovs model
