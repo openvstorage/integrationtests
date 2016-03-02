@@ -18,6 +18,8 @@ A general class dedicated to general logic
 
 import os
 import re
+import grp
+import pwd
 import sys
 import shutil
 import logging
@@ -422,3 +424,28 @@ class General(object):
 
             filtered_files.append(file_name)
         return filtered_files
+
+    @staticmethod
+    def get_owner_group_for_path(path, root_client=None):
+        """
+        Retrieve the owner and group name for the specified path
+        :param path: Path to retrieve information about
+        :param root_client: SSHClient object
+        :return: Owner and group information
+        """
+        if root_client is None:
+            root_client = SSHClient(endpoint='127.0.0.1', username='root')
+        if not root_client.file_exists(filename=path) and not root_client.dir_exists(directory=path):
+            raise ValueError('The specified path is not a file nor a directory')
+
+        stat_info = os.stat(path)
+        uid = stat_info.st_uid
+        gid = stat_info.st_gid
+
+        user = pwd.getpwuid(uid)[0]
+        group = grp.getgrgid(gid)[0]
+
+        return {'user': {'id': uid,
+                         'name': user},
+                'group': {'id': gid,
+                          'name': group}}

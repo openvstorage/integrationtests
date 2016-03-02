@@ -16,7 +16,6 @@
 Sanity check testsuite
 """
 
-import re
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
@@ -309,100 +308,3 @@ class TestSanity(object):
                     issues_found += "File {0} still present after backend {1} removal on node {2}\n".format(file_to_check, backend_name, node_ip)
 
         assert issues_found == '', "Following issues where found with the backend:\n{0}".format(issues_found)
-
-    @staticmethod
-    def check_license_headers_test():
-        """
-        Check license headers
-        """
-        license_header = re.compile('Copyright 201[4-9] iNuron NV')
-        license_to_check = ['',
-                            'Licensed under the Open vStorage Modified Apache License (the "License");',
-                            'you may not use this file except in compliance with the License.',
-                            'You may obtain a copy of the License at',
-                            '',
-                            '    http://www.openvstorage.org/license',
-                            '',
-                            'Unless required by applicable law or agreed to in writing, software',
-                            'distributed under the License is distributed on an "AS IS" BASIS,',
-                            'WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.',
-                            'See the License for the specific language governing permissions and',
-                            'limitations under the License.']
-
-        exclude_dirs = ['/opt/OpenvStorage/config/templates/cinder-unit-tests/',
-                        '/opt/OpenvStorage/config/templates/cinder-volume-driver/',
-                        '/opt/OpenvStorage/webapps/frontend/css/',
-                        '/opt/OpenvStorage/webapps/frontend/lib/',
-                        '/opt/OpenvStorage/ovs/extensions/db/arakoon/arakoon/arakoon/',
-                        '/opt/OpenvStorage/ovs/extensions/db/arakoon/pyrakoon/pyrakoon/']
-        include_dirs = ['/opt/OpenvStorage/webapps/frontend/lib/ovs/']
-        exclude_files = ['/opt/OpenvStorage/ovs/extensions/generic/fakesleep.py']
-        include_files = ['/opt/OpenvStorage/webapps/frontend/css/ovs.css']
-        extension_comments_map = {'.py': ['#'],
-                                  '.js': ['//'],
-                                  '.html': ['<!--', '-->'],
-                                  '.css': ['/*', '*', '*/']}
-
-        storagerouters = GeneralStorageRouter.get_storage_routers()
-        files_with_diff_licenses = {}
-        for storagerouter in storagerouters:
-            root_client = SSHClient(storagerouter, username='root')
-            files_with_diff_licenses[storagerouter.guid] = []
-            for root_folder in ['/opt/OpenvStorage', '/opt/asd-manager']:
-                if not root_client.dir_exists(root_folder):
-                    raise ValueError('Root folder {0} does not exist'.format(root_folder))
-
-                unfiltered_files = root_client.file_list(directory=root_folder,
-                                                         abs_path=True,
-                                                         recursive=True)
-                filtered_files = General.filter_files(files=unfiltered_files,
-                                                      extensions=extension_comments_map.keys(),
-                                                      exclude_dirs=exclude_dirs,
-                                                      include_dirs=include_dirs,
-                                                      exclude_files=exclude_files,
-                                                      include_files=include_files)
-                for file_name in filtered_files:
-                    # Read file
-                    with open(file_name, 'r') as utf_file:
-                        data = utf_file.read().decode("utf-8-sig").encode("utf-8")
-                        lines_to_check = data.splitlines()
-
-                    # Check relevant comment type for current file
-                    comments = []
-                    for extension, cmts in extension_comments_map.iteritems():
-                        if file_name.endswith(extension):
-                            comments = cmts
-                            break
-                    if len(comments) == 0:
-                        raise ValueError('Something must have gone wrong filtering the files, because file {0} does not have a correct extension'.format(file_name))
-
-                    # Search license header
-                    index = 0
-                    lic_header_found = False
-                    for index, line in enumerate(lines_to_check):
-                        for comment in comments:
-                            line = line.replace(comment, '', 1)
-                        if re.match(license_header, line.strip()):
-                            lic_header_found = True
-                            break
-
-                    # License header not found, continuing
-                    if lic_header_found is False:
-                        files_with_diff_licenses[storagerouter.guid].append(file_name)
-                        continue
-
-                    # License header found, checking rest of license
-                    index += 1
-                    for license_line in license_to_check:
-                        line_to_check = lines_to_check[index]
-                        for comment in comments:
-                            line_to_check = line_to_check.replace(comment, '', 1)
-                        if license_line.strip() == line_to_check.strip():
-                            index += 1
-                            continue
-
-                        files_with_diff_licenses[storagerouter.guid].append(file_name)
-                        break
-
-        for storagerouter in storagerouters:
-            assert len(files_with_diff_licenses[storagerouter.guid]) == 0, 'Following files were found with different licenses:\n - {0}'.format('\n - '.join(files_with_diff_licenses[storagerouter.guid]))
