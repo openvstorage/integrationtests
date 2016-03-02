@@ -415,17 +415,17 @@ class GeneralVPool(object):
         """
         Check if everything related to a vPool has been cleaned up on the storagerouters provided
         vpool_info should be a dictionary containing:
-            * type
-            * guid
-            * files
-            * directories
-            * name (optional)
-            * vpool (optional)
+            - type
+            - guid
+            - files
+            - directories
+            - name (optional)
+            - vpool (optional)
             If vpool is provided:
-                * storagerouters need to be provided, because on these Storage Routers, we check whether the vPool has been cleaned up
+                - storagerouters need to be provided, because on these Storage Routers, we check whether the vPool has been cleaned up
             If name is provided:
-                * If storagerouters is NOT provided, all Storage Routers will be checked for a correct vPool removal
-                * If storagerouters is provided, only these Storage Routers will be checked for a correct vPool removal
+                - If storagerouters is NOT provided, all Storage Routers will be checked for a correct vPool removal
+                - If storagerouters is provided, only these Storage Routers will be checked for a correct vPool removal
 
         :param vpool_info: Information about the vPool
         :param storagerouters: Storage Routers to check if vPool has been cleaned up

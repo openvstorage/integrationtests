@@ -59,13 +59,13 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
         interactive=True):
     """
     Run single, multiple or all test cases:
-    - single: - string: 'gui'
-    - multiple - list: ['gui', 'sanity']
-    - all - None value or empty list
+        - single: - string: 'gui'
+        - multiple - list: ['gui', 'sanity']
+        - all - None value or empty list
 
     output format:
-    - TESTRAIL requires credentials to testrail
-    - CONSOLE|XML can be used to run tests locally
+        - TESTRAIL requires credentials to testrail
+        - CONSOLE|XML can be used to run tests locally
     :param tests: Tests to execute
     :param output_format: Format for output  CONSOLE, XML, TESTRAIL
     :param output_folder: Folder where results file will be stored

@@ -20,10 +20,10 @@ import urllib2
 class TestrailApi:
     """
     Testrail API class
-    - on init will load all existing projects
-    - projects / suites / sections are not mutable via this class so are assumed to be present
-      this allows more control on testrail
-    - testcases can be added dynamically to an already existing project/suite/(sub)section combo
+        - on init will load all existing projects
+        - projects / suites / sections are not mutable via this class so are assumed to be present
+          this allows more control on testrail
+        - testcases can be added dynamically to an already existing project/suite/(sub)section combo
     """
 
     def __init__(self, server, user=None, password=None, key=None):

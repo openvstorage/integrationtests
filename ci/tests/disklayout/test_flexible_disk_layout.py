@@ -112,11 +112,11 @@ class TestFlexibleDiskLayout(object):
     def fdl_0002_add_remove_partition_with_role_and_crosscheck_model_test():
         """
         FDL-0002 - create/remove disk partition using full disk and verify ovs model
-        - look for an unused disk
-        - add a partition using full disk and assign a DB role to the partition
-        - validate ovs model is correctly updated with DB role
-        - cleanup that partition
-        - verify ovs model is correctly updated
+            - look for an unused disk
+            - add a partition using full disk and assign a DB role to the partition
+            - validate ovs model is correctly updated with DB role
+            - cleanup that partition
+            - verify ovs model is correctly updated
         """
         General.check_prereqs(testcase_number=2,
                               tests_to_run=TestFlexibleDiskLayout.tests_to_run)
