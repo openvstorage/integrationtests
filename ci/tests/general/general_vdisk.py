@@ -235,25 +235,29 @@ class GeneralVDisk(object):
         return location
 
     @staticmethod
-    def get_config_params(vdisk_guid):
+    def get_config_params(vdisk):
         """
-        :param vdisk_guid: Guid of vdisk to retrieve config params from
+        :param vdisk: vdisk to retrieve config params from
         :return: {} containing config params
         """
-        task_id = GeneralVDisk.api.execute_get_action('vdisks', vdisk_guid, 'get_config_params')
-        if task_id:
-            return GeneralVDisk.api.wait_for_task(task_id)[1]
-        return {}
+        status, params = GeneralVDisk.api.execute_get_action('vdisks', vdisk.guid, 'get_config_params', wait=True)
+        assert status is True,\
+            'Retrieving config params failed: {0} for vdisk: {1} - {2}'.format(status, vdisk.name, params)
+
+        assert 'metadata_cache_size' in params,\
+            'Missing metadata_cache_size in vdisk config_params: {0}'.format(params)
+
+        return params
 
     @staticmethod
-    def set_config_params(vdisk_guid, params):
+    def set_config_params(vdisk, params):
         """
         Set specific vdisk params
-        :param vdisk_guid: Guid of vdisk to set config params
+        :param vdisk: vdisk to set config params on
         :param params: params to set
         :return:
         """
-        task_id = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk_guid, action='set_config_params', data=params)
-        if task_id:
-            return GeneralVDisk.api.wait_for_task(task_id)[1]
-        return {}
+        status, _ = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
+                                                         action='set_config_params', data=params, wait=True)
+        assert status is True,\
+            'Retrieving config params failed: {0} for vdisk: {1} - {2}'.format(status, vdisk.name, params)

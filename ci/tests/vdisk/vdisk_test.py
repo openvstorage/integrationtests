@@ -96,24 +96,22 @@ class TestVDisk(object):
         default_metadata_cache_size = 8192 * metadata_cache_page_size
 
         disk_name = 'ovs-3756-disk'
-
-        def validate_setting_cache_value(vdisk_guid, value_to_verify):
-            disk_config_params = GeneralVDisk.get_config_params(vdisk_guid)
-            disk_config_params['metadata_cache_size'] = value_to_verify
-            disk_config_params['write_buffer'] = int(disk_config_params['write_buffer'])
-            GeneralVDisk.set_config_params(vdisk_guid, {'new_config_params': disk_config_params})
-
-            disk_config_params = GeneralVDisk.get_config_params(vdisk_guid)
-            actual_value = disk_config_params['metadata_cache_size']
-            assert disk_config_params['metadata_cache_size'] == value_to_verify,\
-                'Value after set/get differs, actual: {0}, expected: {1}'.format(actual_value, value_to_verify)
-
         loop = 'loop0'
         vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
         vdisk = GeneralVDisk.create_volume(size=2, vpool=vpool, name=disk_name, loop_device=loop, wait=True)
 
-        config_params = GeneralVDisk.get_config_params(vdisk.guid)
-        assert 'metadata_cache_size' in config_params, 'Missing parameter in vdisk config_params: metadata_cache_size'
+        def validate_setting_cache_value(value_to_verify):
+            disk_config_params = GeneralVDisk.get_config_params(vdisk)
+            disk_config_params['metadata_cache_size'] = value_to_verify
+            disk_config_params['write_buffer'] = int(disk_config_params['write_buffer'])
+
+            GeneralVDisk.set_config_params(vdisk, {'new_config_params': disk_config_params})
+            GeneralVDisk.get_config_params(vdisk)
+            actual_value = disk_config_params['metadata_cache_size']
+            assert actual_value == value_to_verify,\
+                'Value after set/get differs, actual: {0}, expected: {1}'.format(actual_value, value_to_verify)
+
+        config_params = GeneralVDisk.get_config_params(vdisk)
 
         # validate default metadata cache as it was not set explicitly
         default_implicit_value = config_params['metadata_cache_size']
@@ -121,12 +119,12 @@ class TestVDisk(object):
             'Expected default cache size: {0}, got {1}'.format(default_metadata_cache_size, default_implicit_value)
 
         # verify set/get of specific value - larger than default
-        validate_setting_cache_value(vdisk.guid, 10000 * metadata_cache_page_size)
+        validate_setting_cache_value(10000 * metadata_cache_page_size)
 
         # verify set/get of specific value - default value
-        validate_setting_cache_value(vdisk.guid, default_metadata_cache_size)
+        validate_setting_cache_value(default_metadata_cache_size)
 
         # verify set/get of specific value - smaller than default value
-        validate_setting_cache_value(vdisk.guid, 100 * metadata_cache_page_size)
+        validate_setting_cache_value(100 * metadata_cache_page_size)
 
         GeneralVDisk.delete_volume(vdisk=vdisk, vpool=vpool, loop_device=loop, wait=True)
