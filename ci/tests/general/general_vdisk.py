@@ -108,11 +108,11 @@ class GeneralVDisk(object):
         if root_client is None:
             root_client = SSHClient('127.0.0.1', username='root')
 
-        root_client.file_delete(location)
         if loop_device is not None:
             root_client.run('umount /dev/{0}'.format(loop_device))
             root_client.run('losetup -d /dev/{0}'.format(loop_device))
             root_client.dir_delete('/mnt/{0}'.format(loop_device))
+        root_client.file_delete(location)
 
         if wait is True:
             counter = 0
