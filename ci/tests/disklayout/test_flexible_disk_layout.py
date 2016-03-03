@@ -185,7 +185,8 @@ class TestFlexibleDiskLayout(object):
         GeneralVDisk.write_to_volume(location=disk.path,
                                      count=64,
                                      bs='1M',
-                                     input_type='zero')
+                                     input_type='zero',
+                                     is_symlink=True)
         GeneralStorageRouter.sync_with_reality()
 
         # verify partition no longer exists in ovs model

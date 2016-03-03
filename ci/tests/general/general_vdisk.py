@@ -128,7 +128,7 @@ class GeneralVDisk(object):
                 raise RuntimeError('Disk {0} was not deleted from model after {1} seconds'.format(volume_name, timeout))
 
     @staticmethod
-    def write_to_volume(vdisk=None, vpool=None, location=None, count=1024, bs='1M', input_type='random', root_client=None):
+    def write_to_volume(vdisk=None, vpool=None, location=None, count=1024, bs='1M', input_type='random', root_client=None, is_symlink=False):
         """
         Write some data to a file
         :param vdisk: Virtual disk to write on
@@ -151,8 +151,11 @@ class GeneralVDisk(object):
 
         if input_type not in ('null', 'zero', 'random'):
             raise ValueError('Invalid input type provided')
-        if not root_client.file_exists(location):
-            raise ValueError('File {0} does not exist on Storage Router {1}'.format(location, root_client.ip))
+        if is_symlink:
+            print "Writing to {0}".format(root_client.file_read_link(location))
+        else:
+            if not root_client.file_exists(location):
+                raise ValueError('File {0} does not exist on Storage Router {1}'.format(location, root_client.ip))
         if not isinstance(count, int) or count < 1:
             raise ValueError('Count must be an integer > 0')
         root_client.run('dd if=/dev/{0} of={1} bs={2} count={3}'.format(input_type, location, bs, count))
