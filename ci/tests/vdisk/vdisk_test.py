@@ -103,10 +103,9 @@ class TestVDisk(object):
         def validate_setting_cache_value(value_to_verify):
             disk_config_params = GeneralVDisk.get_config_params(vdisk)
             disk_config_params['metadata_cache_size'] = value_to_verify
-            disk_config_params['write_buffer'] = int(disk_config_params['write_buffer'])
 
             GeneralVDisk.set_config_params(vdisk, {'new_config_params': disk_config_params})
-            GeneralVDisk.get_config_params(vdisk)
+            disk_config_params = GeneralVDisk.get_config_params(vdisk)
             actual_value = disk_config_params['metadata_cache_size']
             assert actual_value == value_to_verify,\
                 'Value after set/get differs, actual: {0}, expected: {1}'.format(actual_value, value_to_verify)
