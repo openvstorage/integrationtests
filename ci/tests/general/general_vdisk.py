@@ -17,12 +17,12 @@ A general class dedicated to vDisk logic
 """
 
 import os
-import json
 import time
 import uuid
 import random
 import string
 from ci.tests.general.connection import Connection
+from ci.tests.general.general import General
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.extensions.generic.sshclient import SSHClient
 from subprocess import CalledProcessError
@@ -163,9 +163,7 @@ class GeneralVDisk(object):
 
         if input_type not in ('null', 'zero', 'random'):
             raise ValueError('Invalid input type provided')
-        command = """import os, json
-print json.dumps(os.path.islink('{0}'))""".format(location)
-        if json.loads(root_client.run('python -c """{0}"""'.format(command))):
+        if General.check_file_is_link(location, root_client.ip, root_client.username, root_client.password):
             print "Writing to {0}".format(root_client.file_read_link(location))
         else:
             if not root_client.file_exists(location):
