@@ -45,7 +45,6 @@ class TestFlexibleDiskLayout(object):
     """
     Flexible disk layout testsuite
     """
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
     continue_testing = ContinueTesting()
 
     logger = logging.getLogger('test_flexible_disk_layout')
@@ -59,8 +58,6 @@ class TestFlexibleDiskLayout(object):
         """
         FDL-0001 - disks in ovs model should match actual physical disk configuration
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestFlexibleDiskLayout.tests_to_run)
         if TestFlexibleDiskLayout.continue_testing.state is False:
             raise SkipTest('Test suite signaled to stop')
         GeneralStorageRouter.sync_with_reality()
@@ -119,8 +116,6 @@ class TestFlexibleDiskLayout(object):
             - cleanup that partition
             - verify ovs model is correctly updated
         """
-        General.check_prereqs(testcase_number=2,
-                              tests_to_run=TestFlexibleDiskLayout.tests_to_run)
         if TestFlexibleDiskLayout.continue_testing.state is False:
             raise SkipTest('Test suite signaled to stop')
 

@@ -20,12 +20,11 @@ import time
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
+from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.albanode import AlbaNode
 from ovs.dal.hybrids.albaasd import AlbaASD
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.backend import Backend
-from ovs.dal.lists.backendtypelist import BackendTypeList
-from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.albaasd import AlbaASD
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.albanode import AlbaNode
@@ -40,8 +39,6 @@ class TestALBA(object):
     """
     logger = LogHandler.get('backend', name='alba')
     logger.logger.propagate = False
-
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
 
     autotest_config = General.get_config()
     backend_name = autotest_config.get('backend', 'name')
@@ -123,8 +120,6 @@ class TestALBA(object):
         """
         Create a backend and verify its status
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestALBA.tests_to_run)
         backend = GeneralBackend.get_by_name(TestALBA.backend_name)
         if backend is None:
             alba_backend = GeneralAlba.add_alba_backend(TestALBA.backend_name)
@@ -137,8 +132,6 @@ class TestALBA(object):
         """
         Add and remove a preset without compression and encryption
         """
-        General.check_prereqs(testcase_number=2,
-                              tests_to_run=TestALBA.tests_to_run)
         compression = 'none'
         encryption = 'none'
         name = 'be_preset_02'
@@ -150,8 +143,6 @@ class TestALBA(object):
         """
         Add and remove a preset with compression and without encryption
         """
-        General.check_prereqs(testcase_number=3,
-                              tests_to_run=TestALBA.tests_to_run)
         name = 'be_preset_03'
         compression = 'bz2'
         encryption = 'none'
@@ -163,8 +154,6 @@ class TestALBA(object):
         """
         Validate a preset
         """
-        General.check_prereqs(testcase_number=4,
-                              tests_to_run=TestALBA.tests_to_run)
         compression = 'none'
         encryption = 'none'
         name_prefix = 'be_preset_04'
@@ -178,8 +167,6 @@ class TestALBA(object):
         """
         Add and remove a preset without compression and with encryption
         """
-        General.check_prereqs(testcase_number=5,
-                              tests_to_run=TestALBA.tests_to_run)
         name = 'be_preset_05'
         compression = 'none'
         encryption = 'aes-cbc-256'
@@ -191,8 +178,6 @@ class TestALBA(object):
         """
         Add and remove a preset with compression and encryption
         """
-        General.check_prereqs(testcase_number=6,
-                              tests_to_run=TestALBA.tests_to_run)
         name = 'be_preset_06a'
         compression = 'bz2'
         encryption = 'aes-cbc-256'
@@ -209,8 +194,6 @@ class TestALBA(object):
         Add, update and remove a preset
         Validation for OVS-3187 - edit policy of preset
         """
-        General.check_prereqs(testcase_number=7,
-                              tests_to_run=TestALBA.tests_to_run)
         backend = GeneralBackend.get_by_name(TestALBA.backend_name)
 
         timeout = 120
@@ -266,9 +249,6 @@ class TestALBA(object):
         """
         Adds and removes a preset with encryption to an existing alba backend
         """
-        General.check_prereqs(testcase_number=8,
-                              tests_to_run=TestALBA.tests_to_run)
-
         name = 'ovs-3490'
         backend = GeneralBackend.get_by_name(TestALBA.backend_name)
         policies = [[1, 1, 1, 2]]
@@ -287,9 +267,6 @@ class TestALBA(object):
         Create an albanode with an asd statistics part set to empty dictionary
         Assert code does not raise
         """
-        General.check_prereqs(testcase_number=9,
-                              tests_to_run=TestALBA.tests_to_run)
-
         an = AlbaNode()
         an.password = 'rooter'
         an.node_id = 'ovs3769an'

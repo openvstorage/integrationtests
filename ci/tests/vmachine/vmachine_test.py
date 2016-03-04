@@ -26,20 +26,11 @@ class TestVMachine(object):
     """
     Virtual Machine testsuite
     """
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
-
-    #########
-    # TESTS #
-    #########
-
     @staticmethod
     def vms_with_fio_test():
         """
         Test virtual machines with FIO
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestVMachine.tests_to_run)
-
         timeout = 30
         timer_step = 5
         nr_of_disks = 10

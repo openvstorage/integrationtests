@@ -31,20 +31,11 @@ class TestSanity(object):
     """
     Sanity check testsuite
     """
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
-
-    #########
-    # TESTS #
-    #########
-
     @staticmethod
     def ssh_check_test():
         """
         Verify SSH keys
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestSanity.tests_to_run)
-
         issues_found = ''
 
         env_ips = GeneralPMachine.get_all_ips()
@@ -65,9 +56,6 @@ class TestSanity(object):
         """
         Verify some services
         """
-        General.check_prereqs(testcase_number=2,
-                              tests_to_run=TestSanity.tests_to_run)
-
         # get env ips
         env_ips = GeneralPMachine.get_all_ips()
         non_running_services = []
@@ -88,9 +76,6 @@ class TestSanity(object):
         """
         Verify some system services
         """
-        General.check_prereqs(testcase_number=3,
-                              tests_to_run=TestSanity.tests_to_run)
-
         services_to_commands = {
             "nginx": """ps -efx|grep nginx|grep -v grep""",
             "rabbitmq-server": """ps -ef|grep rabbitmq-|grep -v grep""",
@@ -126,9 +111,6 @@ class TestSanity(object):
         """
         Verify some configuration files
         """
-        General.check_prereqs(testcase_number=4,
-                              tests_to_run=TestSanity.tests_to_run)
-
         issues_found = ''
 
         etcd_keys = {
@@ -157,9 +139,6 @@ class TestSanity(object):
         """
         Verify some configuration files in json format
         """
-        General.check_prereqs(testcase_number=5,
-                              tests_to_run=TestSanity.tests_to_run)
-
         issues_found = ''
 
         srs = GeneralStorageRouter.get_storage_routers()
@@ -175,9 +154,6 @@ class TestSanity(object):
         """
         Verify ALBA backend
         """
-        General.check_prereqs(testcase_number=6,
-                              tests_to_run=TestSanity.tests_to_run)
-
         backends_present_on_env = GeneralBackend.get_backends()
         if len(backends_present_on_env) == 0:
             raise SkipTest('No backend present at the time of the test')
@@ -193,9 +169,6 @@ class TestSanity(object):
         """
         Verify ALBA backend related services
         """
-        General.check_prereqs(testcase_number=7,
-                              tests_to_run=TestSanity.tests_to_run)
-
         backends_present_on_env = GeneralBackend.get_backends()
         if len(backends_present_on_env) == 0:
             raise SkipTest('No backend present at the time of the test')
@@ -225,9 +198,6 @@ class TestSanity(object):
         """
         Verify ALBA backend related files
         """
-        General.check_prereqs(testcase_number=8,
-                              tests_to_run=TestSanity.tests_to_run)
-
         backends_present_on_env = GeneralBackend.get_backends()
         if len(backends_present_on_env) == 0:
             raise SkipTest('No backend present at the time of the test')
@@ -261,9 +231,6 @@ class TestSanity(object):
         """
         Verify backend was removed properly
         """
-        General.check_prereqs(testcase_number=10,
-                              tests_to_run=TestSanity.tests_to_run)
-
         backend_name = General.get_config().get("backend", "name")
         backend = GeneralBackend.get_by_name(backend_name)
         if not backend:

@@ -48,8 +48,6 @@ class TestArakoon(object):
     """
     Arakoon testsuite
     """
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
-
     logger = LogHandler.get('arakoon', name='setup')
     logger.logger.propagate = False
 
@@ -242,9 +240,6 @@ class TestArakoon(object):
         """
         Validate extending and shrinking of arakoon clusters
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestArakoon.tests_to_run)
-
         storagerouters = GeneralStorageRouter.get_storage_routers()
         if not len(storagerouters) >= 3:
             raise SkipTest('Environment has only {0} node(s)'.format(len(storagerouters)))
@@ -313,9 +308,6 @@ class TestArakoon(object):
         """
         Arakoon cluster validation
         """
-        General.check_prereqs(testcase_number=2,
-                              tests_to_run=TestArakoon.tests_to_run)
-
         storagerouters = GeneralStorageRouter.get_storage_routers()
         if not len(storagerouters) >= 2:
             raise SkipTest('Environment has only {0} node(s)'.format(len(storagerouters)))
@@ -328,9 +320,6 @@ class TestArakoon(object):
         """
         Arakoon config validation of a 4 node cluster
         """
-        General.check_prereqs(testcase_number=3,
-                              tests_to_run=TestArakoon.tests_to_run)
-
         storagerouters = GeneralStorageRouter.get_storage_routers()
         if not len(storagerouters) >= 4:
             raise SkipTest('Environment has only {0} node(s)'.format(len(storagerouters)))
@@ -343,9 +332,6 @@ class TestArakoon(object):
         """
         Validate arakoon archiving on extending a cluster with already existing data
         """
-        General.check_prereqs(testcase_number=4,
-                              tests_to_run=TestArakoon.tests_to_run)
-
         node_ips = [sr.ip for sr in GeneralStorageRouter.get_storage_routers()]
         node_ips.sort()
 
@@ -397,9 +383,6 @@ class TestArakoon(object):
         """
         Validate arakoon archiving when creating and extending an arakoon cluster
         """
-        General.check_prereqs(testcase_number=5,
-                              tests_to_run=TestArakoon.tests_to_run)
-
         node_ips = [sr.ip for sr in GeneralStorageRouter.get_storage_routers()]
         node_ips.sort()
         first_ip = node_ips[0]
