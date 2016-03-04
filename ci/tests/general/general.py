@@ -27,6 +27,7 @@ import subprocess
 import ConfigParser
 from ci.scripts import debug
 from nose.plugins.skip import SkipTest
+from ovs.extensions.generic.remote import Remote
 from ovs.extensions.generic.sshclient import SSHClient
 
 
@@ -96,6 +97,20 @@ class General(object):
         """
         cl = SSHClient(host, username='root', password=password)
         return cl.run(command)
+
+    @staticmethod
+    def check_file_is_link(file_path, host, username=None, password=None):
+        """
+        Check if a file on a node is a symlink
+        :param host: Host node to check file system
+        :param file_path: File to check eg. '/dev/disk/by-id/wwn-0x500003941b780823'
+        :param password: Password used to login on host
+        :return: Boolean
+        """
+        if username is None:
+            username = 'root'
+        with Remote(host, [os], username=username, password=password, strict_host_key_checking=False) as remote:
+            return remote.os.path.islink(file_path)
 
     @staticmethod
     def check_prereqs(testcase_number, tests_to_run):
