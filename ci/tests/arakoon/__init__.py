@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Init for Arakoon testsuite
+"""
+
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_arakoon import GeneralArakoon
