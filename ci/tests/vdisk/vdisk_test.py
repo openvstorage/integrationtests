@@ -127,3 +127,18 @@ class TestVDisk(object):
         validate_setting_cache_value(100 * metadata_cache_page_size)
 
         GeneralVDisk.delete_volume(vdisk=vdisk, vpool=vpool, loop_device=loop, wait=True)
+
+    @staticmethod
+    def ovs_3791_validate_backend_sync_test():
+        """
+        Validate vdisk backend sync method
+        :return:
+        """
+        disk_name = 'ovs-3791-disk'
+        loop = 'loop0'
+        vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
+        vdisk = GeneralVDisk.create_volume(size=2, vpool=vpool, name=disk_name, loop_device=loop, wait=True)
+        tlog_name = GeneralVDisk.schedule_backend_sync(vdisk)
+        assert tlog_name[:5] == 'tlog_' and len(tlog_name) == 41,\
+            'Unexpected result: {0} does not match tlog type'.format(tlog_name)
+
