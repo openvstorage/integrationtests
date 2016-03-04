@@ -25,6 +25,7 @@ import string
 from ci.tests.general.connection import Connection
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.extensions.generic.sshclient import SSHClient
+from subprocess import CalledProcessError
 
 
 class GeneralVDisk(object):
@@ -66,16 +67,26 @@ class GeneralVDisk(object):
                                                         vdisk_name=name if name is not None else uuid.uuid4())
         if root_client is None:
             root_client = SSHClient('127.0.0.1', username='root')
-        root_client.run('truncate -s {0}G {1}'.format(size, location))
 
-        if loop_device is not None:
-            root_client.run('losetup /dev/{0} {1}'.format(loop_device, location))
-            root_client.dir_create('/mnt/{0}'.format(loop_device))
-            root_client.run('parted /dev/{0} mklabel gpt'.format(loop_device))
-            root_client.run('parted -a optimal /dev/{0} mkpart primary ext4 0% 100%'.format(loop_device))
-            root_client.run('partprobe')
-            root_client.run('mkfs.ext4 /dev/{0}'.format(loop_device))
-            root_client.run('mount -t ext4 /dev/{0} /mnt/{0}'.format(loop_device))
+        try:
+            if loop_device is not None:
+                root_client.run('umount /mnt/{0} | echo true'.format(loop_device))
+                root_client.run('losetup -d /dev/{0} | echo true'.format(loop_device))
+                root_client.run('truncate -s {0}G {1}'.format(size, location))
+                root_client.run('losetup /dev/{0} {1}'.format(loop_device, location))
+                root_client.dir_create('/mnt/{0}'.format(loop_device))
+                root_client.run('parted /dev/{0} mklabel gpt'.format(loop_device))
+                root_client.run('parted -a optimal /dev/{0} mkpart primary ext4 0% 100%'.format(loop_device))
+                root_client.run('partprobe; echo true')
+                root_client.run('mkfs.ext4 /dev/{0}'.format(loop_device))
+                root_client.run('mount -t ext4 /dev/{0} /mnt/{0}'.format(loop_device))
+        except CalledProcessError as cpe:
+            cmd = """
+                umount /mnt/{0};
+                losetup -d /dev/{0};
+                rm {1}""".format(loop_device, location)
+            root_client.run(cmd)
+            raise
 
         vdisk = None
         if wait is True:
@@ -233,3 +244,31 @@ print json.dumps(os.path.islink('{0}'))""".format(location)
         else:
             raise RuntimeError('Invalid hypervisor type specified: {0}'.format(hv_type))
         return location
+
+    @staticmethod
+    def get_config_params(vdisk):
+        """
+        :param vdisk: vdisk to retrieve config params from
+        :return: {} containing config params
+        """
+        status, params = GeneralVDisk.api.execute_get_action('vdisks', vdisk.guid, 'get_config_params', wait=True)
+        assert status is True,\
+            'Retrieving config params failed: {0} for vdisk: {1} - {2}'.format(status, vdisk.name, params)
+
+        assert 'metadata_cache_size' in params,\
+            'Missing metadata_cache_size in vdisk config_params: {0}'.format(params)
+
+        return params
+
+    @staticmethod
+    def set_config_params(vdisk, params):
+        """
+        Set specific vdisk params
+        :param vdisk: vdisk to set config params on
+        :param params: params to set
+        :return:
+        """
+        status, _ = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
+                                                         action='set_config_params', data=params, wait=True)
+        assert status is True,\
+            'Retrieving config params failed: {0} for vdisk: {1} - {2}'.format(status, vdisk.name, params)

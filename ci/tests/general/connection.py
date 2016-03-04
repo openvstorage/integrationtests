@@ -168,7 +168,11 @@ class Connection(object):
         base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.ip, component, guid, action)
         request = urllib2.Request(base_url, json.dumps(data), headers=self.headers)
         request.add_header('Content-Type', 'application/json')
-        response = urllib2.urlopen(request).read()
+        try:
+            response = urllib2.urlopen(request).read()
+        except urllib2.HTTPError, error:
+            print error.read()
+            raise
         task_id = json.loads(response)
 
         if kwargs.get('wait') is True and re.match(Toolbox.regex_guid, task_id):
