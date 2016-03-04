@@ -71,6 +71,7 @@ class GeneralVDisk(object):
             if loop_device is not None:
                 root_client.run('umount /mnt/{0} | echo true'.format(loop_device))
                 root_client.run('losetup -d /dev/{0} | echo true'.format(loop_device))
+                root_client.run('rm {0} | echo true'.format(location))
                 root_client.run('truncate -s {0}G {1}'.format(size, location))
                 root_client.run('losetup /dev/{0} {1}'.format(loop_device, location))
                 root_client.dir_create('/mnt/{0}'.format(loop_device))
@@ -79,7 +80,7 @@ class GeneralVDisk(object):
                 root_client.run('partprobe; echo true')
                 root_client.run('mkfs.ext4 /dev/{0}'.format(loop_device))
                 root_client.run('mount -t ext4 /dev/{0} /mnt/{0}'.format(loop_device))
-        except CalledProcessError as cpe:
+        except CalledProcessError as _:
             cmd = """
                 umount /mnt/{0};
                 losetup -d /dev/{0};
@@ -139,7 +140,8 @@ class GeneralVDisk(object):
                 raise RuntimeError('Disk {0} was not deleted from model after {1} seconds'.format(volume_name, timeout))
 
     @staticmethod
-    def write_to_volume(vdisk=None, vpool=None, location=None, count=1024, bs='1M', input_type='random', root_client=None):
+    def write_to_volume(vdisk=None, vpool=None, location=None, count=1024, bs='1M', input_type='random',
+                        root_client=None):
         """
         Write some data to a file
         :param vdisk: Virtual disk to write on
@@ -266,3 +268,16 @@ class GeneralVDisk(object):
                                                          action='set_config_params', data=params, wait=True)
         assert status is True,\
             'Retrieving config params failed: {0} for vdisk: {1} - {2}'.format(status, vdisk.name, params)
+
+    @staticmethod
+    def schedule_backend_sync(vdisk):
+        """
+        Schedule backend sync for vdisk
+        :param vdisk: vdisk to schedule backend sync to
+        :return: TLogName associated with the data sent off to the backend
+        """
+        status, tlog_name = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
+                                                                 action='schedule_backend_sync', data={}, wait=True)
+        assert status is True,\
+            'Schedule backend sync failed for vdisk: {0}'.format(vdisk.name)
+        return tlog_name
