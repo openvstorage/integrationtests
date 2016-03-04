@@ -132,7 +132,6 @@ class TestVDisk(object):
     def ovs_3791_validate_backend_sync_test():
         """
         Validate vdisk backend sync method
-        :return:
         """
         disk_name = 'ovs-3791-disk'
         loop = 'loop0'
@@ -142,3 +141,4 @@ class TestVDisk(object):
         assert tlog_name[:5] == 'tlog_' and len(tlog_name) == 41,\
             'Unexpected result: {0} does not match tlog type'.format(tlog_name)
 
+        GeneralVDisk.delete_volume(vdisk, vpool, loop)
