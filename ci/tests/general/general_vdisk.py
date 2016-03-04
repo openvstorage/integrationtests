@@ -17,6 +17,7 @@ A general class dedicated to vDisk logic
 """
 
 import os
+import json
 import time
 import uuid
 import random
@@ -128,7 +129,7 @@ class GeneralVDisk(object):
                 raise RuntimeError('Disk {0} was not deleted from model after {1} seconds'.format(volume_name, timeout))
 
     @staticmethod
-    def write_to_volume(vdisk=None, vpool=None, location=None, count=1024, bs='1M', input_type='random', root_client=None, is_symlink=False):
+    def write_to_volume(vdisk=None, vpool=None, location=None, count=1024, bs='1M', input_type='random', root_client=None):
         """
         Write some data to a file
         :param vdisk: Virtual disk to write on
@@ -151,7 +152,9 @@ class GeneralVDisk(object):
 
         if input_type not in ('null', 'zero', 'random'):
             raise ValueError('Invalid input type provided')
-        if is_symlink:
+        command = """import os, json
+print json.dumps(os.path.islink('{0}'))""".format(location)
+        if json.loads(root_client.run('python -c """{0}"""'.format(command))):
             print "Writing to {0}".format(root_client.file_read_link(location))
         else:
             if not root_client.file_exists(location):
