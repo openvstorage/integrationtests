@@ -250,3 +250,5 @@ class TestVPool(object):
         assert 'filesystem' in sdc.configuration, 'Filesystem section missing in storagedriver configuration!'
         assert 'fs_enable_shm_interface' in sdc.configuration['filesystem'], 'No fs_enable_shm_interface entry found'
         assert sdc.configuration['filesystem']['fs_enable_shm_interface'] == 1, 'SHM server not enabled'
+
+        GeneralVPool.remove_vpool(vpool)
