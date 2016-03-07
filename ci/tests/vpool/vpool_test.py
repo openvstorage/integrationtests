@@ -70,6 +70,7 @@ class TestVPool(object):
         backend_type = vpool.backend_type.code
         files = GeneralVPool.get_related_files(vpool)
         directories = GeneralVPool.get_related_directories(vpool)
+        storagerouters = GeneralVPool.get_vpool_storage_routers(vpool)
 
         # Remove vPool and validate removal
         GeneralVPool.remove_vpool(vpool=vpool)
@@ -79,7 +80,8 @@ class TestVPool(object):
                                                      'name': name,
                                                      'type': backend_type,
                                                      'files': files,
-                                                     'directories': directories})
+                                                     'directories': directories},
+                                         storagerouters=storagerouters)
 
     @staticmethod
     def add_remove_distributed_vpool_test():
@@ -128,6 +130,7 @@ class TestVPool(object):
         backend_type = vpool.backend_type.code
         files = GeneralVPool.get_related_files(vpool)
         directories = GeneralVPool.get_related_directories(vpool)
+        storagerouters = GeneralVPool.get_vpool_storage_routers(vpool)
 
         # Remove vPool and validate removal
         GeneralVPool.remove_vpool(vpool=vpool)
@@ -137,7 +140,9 @@ class TestVPool(object):
                                                      'name': name,
                                                      'type': backend_type,
                                                      'files': files,
-                                                     'directories': directories})
+                                                     'directories': directories},
+                                         storagerouters=storagerouters)
+        GeneralDisk.unpartition_disk(disk)
 
     @staticmethod
     def ovs_2263_verify_alba_namespace_cleanup_test():
@@ -230,7 +235,7 @@ class TestVPool(object):
             pid_after = GeneralService.get_service_pid(name=service_name,
                                                        client=root_client)
 
-            if pid_before != pid_after:
+            if pid_before == pid_after:
                 errors.append('Kill command did not work on service {0}'.format(service_name))
 
         GeneralVPool.remove_vpool(vpool)

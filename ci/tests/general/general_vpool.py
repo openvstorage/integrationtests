@@ -480,7 +480,7 @@ class GeneralVPool(object):
 
             # Check MDS services
             mds_services = GeneralService.get_services_by_name('MetadataServer')
-            assert len([mds_service for mds_service in mds_services if mds_service.service.storagerouter_guid == storagerouter.guid]) == 0, 'There are still MDS services present for Storage Router {0}'.format(storagerouter.ip)
+            assert len([mds_service for mds_service in mds_services if mds_service.storagerouter_guid == storagerouter.guid]) == 0, 'There are still MDS services present for Storage Router {0}'.format(storagerouter.ip)
 
             # Check services
             root_client = SSHClient(storagerouter, username='root')
@@ -546,3 +546,19 @@ class GeneralVPool(object):
         mountpoint = '/mnt/{0}'.format(vpool.name)
         if mountpoint in General.get_mountpoints(root_client):
             root_client.run('umount {0}'.format(mountpoint))
+
+    @staticmethod
+    def get_vpool_storage_routers(vpool):
+        """
+        Return a list of storage routers that the vpool is present on
+        :param vpool: Vpool to check
+        :return: List of storage router objects
+        """
+        result = []
+        storagerouters = GeneralStorageRouter.get_storage_routers()
+        for storagerouter in storagerouters:
+            if vpool.guid in storagerouter.vpools_guids:
+                result.append(storagerouter)
+
+        return result
+

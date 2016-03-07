@@ -16,12 +16,15 @@
 A general class dedicated to Physical Disk logic
 """
 
+import time
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
+from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ovs.dal.hybrids.disk import Disk
 from ovs.dal.hybrids.diskpartition import DiskPartition
 from ovs.dal.lists.disklist import DiskList
 from ovs.dal.lists.diskpartitionlist import DiskPartitionList
+from ovs.extensions.generic.sshclient import SSHClient
 
 
 class GeneralDisk(object):
@@ -194,6 +197,32 @@ class GeneralDisk(object):
         disk = GeneralDisk.get_disk(guid=disk.guid)
         assert len(disk.partitions) >= 1, "Partitioning failed for disk:\n {0} ".format(disk.name)
         return disk.partitions[0]
+
+    @staticmethod
+    def unpartition_disk(disk, wait=True):
+        """
+        Return disk to RAW state
+        :param disk: Disk DAL object
+        :return: None
+        """
+        if len(disk.partitions) == 0:
+            pass
+
+        root_client = SSHClient(disk.storagerouter.ip, username='root')
+        for partition in disk.partitions:
+            root_client.run("umount {0}".format(partition.mountpoint))
+        root_client.run("parted -s /dev/{0} mklabel gpt".format(disk.name))
+        GeneralStorageRouter.sync_with_reality(disk.storagerouter)
+        counter = 0
+        timeout = 60
+        while counter < timeout:
+            time.sleep(1)
+            disk = GeneralDisk.get_disk(guid=disk.guid)
+            if len(disk.partitions) == 0:
+                break
+            counter += 1
+        if counter == timeout:
+            raise RuntimeError('Removing partitions failed for disk:\n {0} '.format(disk.name))
 
     @staticmethod
     def add_read_write_scrub_roles(storagerouter):

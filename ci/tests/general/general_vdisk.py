@@ -81,6 +81,8 @@ class GeneralVDisk(object):
                 root_client.run('partprobe; echo true')
                 root_client.run('mkfs.ext4 /dev/{0}'.format(loop_device))
                 root_client.run('mount -t ext4 /dev/{0} /mnt/{0}'.format(loop_device))
+            else:
+                root_client.run('truncate -s {0}G {1}'.format(size, location))
         except CalledProcessError as _:
             cmd = """
                 umount /mnt/{0};
@@ -172,7 +174,7 @@ class GeneralVDisk(object):
                 raise ValueError('File {0} does not exist on Storage Router {1}'.format(location, root_client.ip))
         if not isinstance(count, int) or count < 1:
             raise ValueError('Count must be an integer > 0')
-        root_client.run('dd if=/dev/{0} of={1} bs={2} count={3}'.format(input_type, location, bs, count))
+        root_client.run('dd conv=notrunc if=/dev/{0} of={1} bs={2} count={3}'.format(input_type, location, bs, count))
 
     @staticmethod
     def create_snapshot(vdisk, snapshot_name, timestamp=None, consistent=False, automatic=True, sticky=False):
