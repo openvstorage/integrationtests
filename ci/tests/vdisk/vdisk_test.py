@@ -48,41 +48,24 @@ class TestVDisk(object):
 
         loop = 'loop0'
         vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
-        vdisk = GeneralVDisk.create_volume(size=2,
-                                           vpool=vpool,
-                                           name='ovs-3700-disk',
-                                           loop_device=loop,
-                                           wait=True)
+        vdisk = GeneralVDisk.create_volume(size=2, vpool=vpool, name='ovs-3700-disk', loop_device=loop, wait=True)
 
-        count = 2
-        GeneralVDisk.create_snapshot(vdisk=vdisk,
-                                     snapshot_name='snap0')
-        for x in xrange(count):
-            GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, x),
-                                            size=512)
+        GeneralVDisk.create_snapshot(vdisk=vdisk, snapshot_name='snap0')
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '1'), size=512)
 
-        GeneralVDisk.create_snapshot(vdisk=vdisk,
-                                     snapshot_name='snap1')
-        for x in xrange(count):
-            GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, x),
-                                            size=512)
+        GeneralVDisk.create_snapshot(vdisk=vdisk, snapshot_name='snap1')
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '2'), size=512)
 
-        GeneralVDisk.delete_snapshot(disk=vdisk,
-                                     snapshot_name='snap1')
+        GeneralVDisk.delete_snapshot(disk=vdisk, snapshot_name='snap1')
 
-        for x in xrange(count):
-            GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, x),
-                                            size=512)
-        GeneralVDisk.create_snapshot(vdisk=vdisk,
-                                     snapshot_name='snap2')
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '3'), size=512)
+        GeneralVDisk.create_snapshot(vdisk=vdisk, snapshot_name='snap2')
 
         pre_scrubber_logsize = _get_scrubber_log_size()
         ScheduledTaskController.gather_scrub_work()
         post_scrubber_logsize = _get_scrubber_log_size()
 
-        GeneralVDisk.delete_volume(vdisk=vdisk,
-                                   vpool=vpool,
-                                   loop_device=loop)
+        GeneralVDisk.delete_volume(vdisk=vdisk, vpool=vpool, loop_device=loop)
 
         assert post_scrubber_logsize > pre_scrubber_logsize, "Scrubber actions where not logged!"
 
@@ -140,5 +123,32 @@ class TestVDisk(object):
         tlog_name = GeneralVDisk.schedule_backend_sync(vdisk)
         assert tlog_name[:5] == 'tlog_' and len(tlog_name) == 41,\
             'Unexpected result: {0} does not match tlog type'.format(tlog_name)
+
+        GeneralVDisk.create_snapshot(vdisk=vdisk, snapshot_name='snap0')
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '1'), size=512)
+        GeneralVDisk.create_snapshot(vdisk=vdisk, snapshot_name='snap1')
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '2'), size=512)
+
+        tlog_name = GeneralVDisk.schedule_backend_sync(vdisk)
+
+        timeout = 300
+        status = False
+        while timeout > 0:
+            status = GeneralVDisk.is_volume_synced_up_to_snapshot(vdisk=vdisk, snapshot_id='snap1')
+            print 'sync up to snapshot: {0}'.format(status)
+            if status is True:
+                break
+            timeout -= 1
+        assert status is True, 'Snapshot not synced to backend within 5 minutes'
+
+        status = False
+        timeout = 300
+        while timeout > 0:
+            status = GeneralVDisk.is_volume_synced_up_to_tlog(vdisk=vdisk, tlog_name=tlog_name)
+            print 'sync up to tlog: {0}'.format(status)
+            if status is True:
+                break
+            timeout -= 1
+        assert status is True, 'Tlog not synced to backend within 5 minutes'
 
         GeneralVDisk.delete_volume(vdisk, vpool, loop)
