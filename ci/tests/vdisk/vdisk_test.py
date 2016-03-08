@@ -120,9 +120,6 @@ class TestVDisk(object):
         loop = 'loop0'
         vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
         vdisk = GeneralVDisk.create_volume(size=2, vpool=vpool, name=disk_name, loop_device=loop, wait=True)
-        tlog_name = GeneralVDisk.schedule_backend_sync(vdisk)
-        assert tlog_name[:5] == 'tlog_' and len(tlog_name) == 41,\
-            'Unexpected result: {0} does not match tlog type'.format(tlog_name)
 
         GeneralVDisk.create_snapshot(vdisk=vdisk, snapshot_name='snap0')
         GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '1'), size=512)
@@ -130,6 +127,8 @@ class TestVDisk(object):
         GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '2'), size=512)
 
         tlog_name = GeneralVDisk.schedule_backend_sync(vdisk)
+        assert tlog_name[:5] == 'tlog_' and len(tlog_name) == 41,\
+            'Unexpected result: {0} does not match tlog type'.format(tlog_name)
 
         timeout = 300
         status = False
