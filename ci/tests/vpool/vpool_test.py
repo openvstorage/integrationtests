@@ -20,6 +20,7 @@ import time
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
+from ci.tests.general.connection import Connection
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
@@ -28,6 +29,7 @@ from ci.tests.general.general_vpool import GeneralVPool
 from nose.plugins.skip import SkipTest
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.storageserver.storagedriver import StorageDriverConfiguration
+
 
 class TestVPool(object):
     """
@@ -70,7 +72,7 @@ class TestVPool(object):
         backend_type = vpool.backend_type.code
         files = GeneralVPool.get_related_files(vpool)
         directories = GeneralVPool.get_related_directories(vpool)
-        storagerouters = GeneralVPool.get_vpool_storage_routers(vpool)
+        storagerouters = [sd.storagerouter for sd in vpool.storagedrivers]
 
         # Remove vPool and validate removal
         GeneralVPool.remove_vpool(vpool=vpool)
@@ -130,7 +132,7 @@ class TestVPool(object):
         backend_type = vpool.backend_type.code
         files = GeneralVPool.get_related_files(vpool)
         directories = GeneralVPool.get_related_directories(vpool)
-        storagerouters = GeneralVPool.get_vpool_storage_routers(vpool)
+        storagerouters = [sd.storagerouter for sd in vpool.storagedrivers]
 
         # Remove vPool and validate removal
         GeneralVPool.remove_vpool(vpool=vpool)
@@ -238,6 +240,8 @@ class TestVPool(object):
             if pid_before == pid_after:
                 errors.append('Kill command did not work on service {0}'.format(service_name))
 
+        # reinitialising connection because of services restart
+        GeneralVPool.api.authenticate()
         GeneralVPool.remove_vpool(vpool)
 
         assert len(errors) == 0, "Following issues where found with the services:\n - {0}".format('\n - '.join(errors))

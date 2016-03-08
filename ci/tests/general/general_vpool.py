@@ -546,19 +546,3 @@ class GeneralVPool(object):
         mountpoint = '/mnt/{0}'.format(vpool.name)
         if mountpoint in General.get_mountpoints(root_client):
             root_client.run('umount {0}'.format(mountpoint))
-
-    @staticmethod
-    def get_vpool_storage_routers(vpool):
-        """
-        Return a list of storage routers that the vpool is present on
-        :param vpool: Vpool to check
-        :return: List of storage router objects
-        """
-        result = []
-        storagerouters = GeneralStorageRouter.get_storage_routers()
-        for storagerouter in storagerouters:
-            if vpool.guid in storagerouter.vpools_guids:
-                result.append(storagerouter)
-
-        return result
-
