@@ -289,7 +289,7 @@ class GeneralVDisk(object):
     @staticmethod
     def is_volume_synced_up_to_tlog(vdisk, tlog_name):
         """
-        Verify is volume is synced to backend up to a specific tlog
+        Verify if volume is synced to backend up to a specific tlog
         :param vdisk: vdisk to verify
         :param tlog_name: tlog_name to verify
         """
@@ -304,9 +304,9 @@ class GeneralVDisk(object):
     @staticmethod
     def is_volume_synced_up_to_snapshot(vdisk, snapshot_id):
         """
-        Verify is volume is synced to backend up to a specific tlog
+        Verify if volume is synced to backend up to a specific snapshot
         :param vdisk: vdisk to verify
-        :param: snapshot_id: snapshot_id to verify
+        :param snapshot_id: snapshot_id to verify
         """
         status, result = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
                                                               action='is_volume_synced_up_to_snapshot',
