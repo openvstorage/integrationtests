@@ -253,7 +253,7 @@ class GeneralVPool(object):
         return all_directories
 
     @staticmethod
-    def check_vpool_sanity(vpool, expected_settings):
+    def validate_vpool_sanity(vpool, expected_settings):
         """
         Check if all requirements are met for a healthy vPool
         :param vpool: vPool to check sanity for

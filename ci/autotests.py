@@ -174,28 +174,38 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
     nose.run(argv=arguments, addplugins=[xunit_testrail.XunitTestrail()])
 
 
-def list_tests(args=None):
+def list_tests(args=None, with_plugin=False):
     """
     Lists all the tests that nose detects under TESTS_DIR
     :param args: Extra arguments for listing tests
+    :param with_plugin: Use the --with-testEnum plugin
     """
     if not args:
-        arguments = ['--where', General.TESTS_DIR, '--verbosity', '3', '--collect-only', '--with-testEnum']
+        arguments = ['--where', General.TESTS_DIR, '--verbosity', '3', '--collect-only']
     else:
-        arguments = args + ['--collect-only', '--with-testEnum']
+        arguments = args + ['--collect-only']
 
-    fake_stdout = StringIO.StringIO()
-    old_stdout = sys.stdout
-    sys.stdout = fake_stdout
+    if with_plugin is True:
+        arguments.append('--with-testEnum')
 
-    try:
-        nose.run(argv=arguments, addplugins=[testEnum.TestEnum()])
-    except Exception:
-        raise
-    finally:
-        sys.stdout = old_stdout
+        fake_stdout = StringIO.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = fake_stdout
 
-    return fake_stdout.getvalue().split()
+        try:
+            nose.run(argv=arguments, addplugins=[testEnum.TestEnum()])
+        except Exception:
+            raise
+        finally:
+            sys.stdout = old_stdout
+
+        return fake_stdout.getvalue().split()
+
+    testcases = []
+    for line in General.execute_command(command='nosetests {0}'.format(' '.join(arguments)))[1].splitlines():
+        if line.startswith('ci.tests'):
+            testcases.append(line.split(' ... ')[0])
+    return testcases
 
 
 def push_to_testrail(project_name, output_folder, version=None, filename="", milestone="", comment=""):

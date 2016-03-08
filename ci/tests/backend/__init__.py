@@ -34,15 +34,9 @@ def setup():
     assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
 
     my_sr = GeneralStorageRouter.get_local_storagerouter()
-    GeneralDisk.add_db_role(my_sr)
-    backend = GeneralBackend.get_by_name(backend_name)
-    if backend is None:
-        alba_backend = GeneralAlba.add_alba_backend(backend_name)
-    else:
-        alba_backend = backend.alba_backend
-    nr_disks_to_claim = autotest_config.getint('backend', 'nr_of_disks_to_claim')
-    type_of_disk_to_claim = autotest_config.get('backend', 'type_of_disks_to_claim')
-    GeneralAlba.claim_disks(alba_backend, nr_disks_to_claim, type_of_disk_to_claim)
+    if GeneralStorageRouter.has_role(storagerouter=my_sr,
+                                     role='DB') is False:
+        GeneralDisk.add_db_role(my_sr)
 
 
 def teardown():

@@ -82,8 +82,8 @@ class General(object):
 
         if not wait:
             return child_process.pid
-        (out, error) = child_process.communicate()
-        return out, error
+        out, error = child_process.communicate()
+        return out, error, child_process.returncode
 
     @staticmethod
     def execute_command_on_node(host, command, password=None):
@@ -103,6 +103,7 @@ class General(object):
         Check if a file on a node is a symlink
         :param host: Host node to check file system
         :param file_path: File to check eg. '/dev/disk/by-id/wwn-0x500003941b780823'
+        :param username: Username used to login on host
         :param password: Password used to login on host
         :return: Boolean
         """

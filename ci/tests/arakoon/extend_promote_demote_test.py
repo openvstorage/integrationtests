@@ -102,11 +102,11 @@ class TestArakoon(object):
         :param dir_present: Directory structure presence expectancy
         :return: True if correct
         """
-        log_dir = ArakoonInstaller.ARAKOON_LOG_DIR.format(cluster_name)
-        tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format('/var/tmp', cluster_name)
-        home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format('/var/tmp', cluster_name)
+        log_dir = GeneralArakoon.LOG_DIR.format(cluster_name)
+        tlog_dir = GeneralArakoon.TLOG_DIR.format('/var/tmp', cluster_name)
+        home_dir = GeneralArakoon.HOME_DIR.format('/var/tmp', cluster_name)
 
-        key_exists = EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(cluster_name), raw = True)
+        key_exists = EtcdConfiguration.exists(GeneralArakoon.ETCD_CONFIG_KEY.format(cluster_name), raw = True)
         assert key_exists is etcd_present, "Arakoon configuration in Etcd was {0}expected".format('' if etcd_present else 'not ')
         for directory in [tlog_dir, home_dir, log_dir]:
             assert client.dir_exists(directory) is dir_present, "Arakoon directory {0} was {1}expected".format(directory, '' if dir_present else 'not ')
@@ -141,14 +141,14 @@ class TestArakoon(object):
             configs_to_check = []
             matrix[ip] = dict()
             if config:
-                if EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(config), raw = True):
-                    configs_to_check = [ArakoonInstaller.ETCD_CONFIG_KEY.format(config)]
+                if EtcdConfiguration.exists(GeneralArakoon.ETCD_CONFIG_KEY.format(config), raw = True):
+                    configs_to_check = [GeneralArakoon.ETCD_CONFIG_KEY.format(config)]
             else:
-                gen = EtcdConfiguration.list(ArakoonInstaller.ETCD_CONFIG_ROOT)
+                gen = EtcdConfiguration.list(GeneralArakoon.ETCD_CONFIG_ROOT)
                 for entry in gen:
                     if 'nsm_' not in entry:
-                        if EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(config), raw = True):
-                            configs_to_check.append(ArakoonInstaller.ETCD_CONFIG_KEY.format(entry))
+                        if EtcdConfiguration.exists(GeneralArakoon.ETCD_CONFIG_KEY.format(config), raw = True):
+                            configs_to_check.append(GeneralArakoon.ETCD_CONFIG_KEY.format(entry))
             for config_name in configs_to_check:
                 config_contents = EtcdConfiguration.get(configs_to_check[0], raw = True)
                 matrix[ip][config_name] = hashlib.md5(config_contents).hexdigest()

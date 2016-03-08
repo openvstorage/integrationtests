@@ -23,7 +23,6 @@ from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
-from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.extensions.generic.sshclient import SSHClient
 
@@ -90,5 +89,5 @@ def teardown():
             root_client.run('rm -rf {0}'.format(location))
 
     for key in KEY_CLEANUP:
-        if EtcdConfiguration.exists('{0}/{1}'.format(ArakoonInstaller.ETCD_CONFIG_ROOT, key), raw = True):
-            EtcdConfiguration.delete('{0}/{1}'.format(ArakoonInstaller.ETCD_CONFIG_ROOT, key))
+        if EtcdConfiguration.exists('{0}/{1}'.format(GeneralArakoon.ETCD_CONFIG_ROOT, key), raw = True):
+            EtcdConfiguration.delete('{0}/{1}'.format(GeneralArakoon.ETCD_CONFIG_ROOT, key))

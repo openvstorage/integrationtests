@@ -28,6 +28,14 @@ class GeneralArakoon(object):
     """
     A general class dedicated to Arakoon logic
     """
+    LOG_DIR = ArakoonInstaller.ARAKOON_LOG_DIR
+    BASE_DIR = ArakoonInstaller.ARAKOON_BASE_DIR
+    HOME_DIR = ArakoonInstaller.ARAKOON_HOME_DIR
+    TLOG_DIR = ArakoonInstaller.ARAKOON_TLOG_DIR
+    ETCD_CONFIG_KEY = ArakoonInstaller.ETCD_CONFIG_KEY
+    ETCD_CONFIG_PATH = ArakoonInstaller.ETCD_CONFIG_PATH
+    ETCD_CONFIG_ROOT = ArakoonInstaller.ETCD_CONFIG_ROOT
+
     @staticmethod
     def get_config(cluster_name):
         """
@@ -35,7 +43,7 @@ class GeneralArakoon(object):
         :param cluster_name: Name of the cluster
         :return: RawConfigParser object
         """
-        etcd_key = ArakoonInstaller.ETCD_CONFIG_KEY.format(cluster_name)
+        etcd_key = GeneralArakoon.ETCD_CONFIG_KEY.format(cluster_name)
         if not EtcdConfiguration.exists(etcd_key, raw=True):
             raise ValueError('Unknown arakoon cluster_name {0} provided'.format(cluster_name))
 
@@ -51,7 +59,7 @@ class GeneralArakoon(object):
         :param cluster_name: Name of the arakoon cluster
         :return: None
         """
-        etcd_key = ArakoonInstaller.ETCD_CONFIG_KEY.format(cluster_name)
+        etcd_key = GeneralArakoon.ETCD_CONFIG_KEY.format(cluster_name)
         if EtcdConfiguration.exists(etcd_key, raw=True):
             EtcdConfiguration.delete(os.path.dirname(etcd_key))
 

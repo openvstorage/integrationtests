@@ -42,7 +42,7 @@ class TestVMachine(object):
             GeneralVMachine.logger.info("Starting RAW disk creation")
             template_folder = GeneralVMachine.template_target_folder
             image_name = GeneralVMachine.template_image
-            out, err = General.execute_command('qemu-img convert -O raw {0}{1} /mnt/{2}/{3}.raw'.format(template_folder, image_name, vpool_name, disk_name))
+            out, err, _ = General.execute_command('qemu-img convert -O raw {0}{1} /mnt/{2}/{3}.raw'.format(template_folder, image_name, vpool_name, disk_name))
             if err:
                 GeneralVMachine.logger.error("Error while creating raw disk: {0}".format(err))
 
@@ -53,9 +53,9 @@ class TestVMachine(object):
             machine_name = "machine-{0}".format(vm_number)
             disk_name = "disk-{0}".format(vm_number)
             GeneralVMachine.logger.info("Starting vmachine creation from RAW disk")
-            out, err = General.execute_command('virt-install --connect qemu:///system -n {0} -r 512 --disk /mnt/{1}/{2}.raw,'
-                                               'device=disk --noautoconsole --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,'
-                                               'model=e1000 --import'.format(machine_name, vpool_name, disk_name))
+            out, err, _ = General.execute_command('virt-install --connect qemu:///system -n {0} -r 512 --disk /mnt/{1}/{2}.raw,'
+                                                  'device=disk --noautoconsole --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,'
+                                                  'model=e1000 --import'.format(machine_name, vpool_name, disk_name))
             if err:
                 GeneralVMachine.logger.error("Error while creating vmachine: {0}".format(err))
 
@@ -79,10 +79,10 @@ class TestVMachine(object):
         for vm_number in range(nr_of_disks):
             vmachine_name = "machine-{0}".format(vm_number)
             GeneralVMachine.logger.info("Removing {0} vmachine".format(vmachine_name))
-            out, err = General.execute_command('virsh destroy {0}'.format(vmachine_name))
+            out, err, _ = General.execute_command('virsh destroy {0}'.format(vmachine_name))
             if err:
                 GeneralVMachine.logger.error("Error while stopping vmachine: {0}".format(err))
-            out, err = General.execute_command('virsh undefine {0}'.format(vmachine_name))
+            out, err, _ = General.execute_command('virsh undefine {0}'.format(vmachine_name))
             if err:
                 GeneralVMachine.logger.error("Error while removing vmachine: {0}".format(err))
 
@@ -98,7 +98,7 @@ class TestVMachine(object):
         assert len(vms) == 0, "Still some machines left on the vpool after waiting for {0} seconds: {1}".format(timeout, [vm.name for vm in vms])
 
         GeneralVMachine.logger.info("Removing vpool vdisks from {0} vpool".format(vpool_name))
-        out, err = General.execute_command("rm -rf /mnt/{0}/*.raw".format(vpool_name))
+        out, err, _ = General.execute_command("rm -rf /mnt/{0}/*.raw".format(vpool_name))
         if err:
             GeneralVMachine.logger.error("Error while removing vdisks: {0}".format(err))
 

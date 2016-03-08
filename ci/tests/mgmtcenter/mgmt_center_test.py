@@ -38,7 +38,7 @@ class TestMgmtCenter(object):
         issues_found = ""
 
         for mgmtcenter in management_centers:
-            out, err = General.execute_command("ping {0} -c 1".format(mgmtcenter.ip))
+            out, err, _ = General.execute_command("ping {0} -c 1".format(mgmtcenter.ip))
             if "Destination Host Unreachable" in out:
                 issues_found += "Management center {0} with ip {1}\n".format(mgmtcenter.name, mgmtcenter.ip)
 
