@@ -285,3 +285,33 @@ class GeneralVDisk(object):
         assert status is True,\
             'Schedule backend sync failed for vdisk: {0}'.format(vdisk.name)
         return tlog_name
+
+    @staticmethod
+    def is_volume_synced_up_to_tlog(vdisk, tlog_name):
+        """
+        Verify if volume is synced to backend up to a specific tlog
+        :param vdisk: vdisk to verify
+        :param tlog_name: tlog_name to verify
+        """
+        status, result = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
+                                                              action='is_volume_synced_up_to_tlog',
+                                                              data={'tlog_name': tlog_name}, wait=True)
+        assert status is True,\
+            'is_volume_synced_up_to_tlog failed for vdisk: {0}'.format(vdisk.name)
+
+        return result
+
+    @staticmethod
+    def is_volume_synced_up_to_snapshot(vdisk, snapshot_id):
+        """
+        Verify if volume is synced to backend up to a specific snapshot
+        :param vdisk: vdisk to verify
+        :param snapshot_id: snapshot_id to verify
+        """
+        status, result = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
+                                                              action='is_volume_synced_up_to_snapshot',
+                                                              data={'snapshot_id': str(snapshot_id)}, wait=True)
+        assert status is True,\
+            'is_volume_synced_up_to_snapshot failed for vdisk: {0}'.format(vdisk.name)
+
+        return result
