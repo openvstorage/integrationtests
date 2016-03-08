@@ -22,6 +22,7 @@ import uuid
 import random
 import string
 from ci.tests.general.connection import Connection
+from ci.tests.general.general import General
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.extensions.generic.sshclient import SSHClient
 from subprocess import CalledProcessError
@@ -164,8 +165,11 @@ class GeneralVDisk(object):
 
         if input_type not in ('null', 'zero', 'random'):
             raise ValueError('Invalid input type provided')
-        if not root_client.file_exists(location):
-            raise ValueError('File {0} does not exist on Storage Router {1}'.format(location, root_client.ip))
+        if General.check_file_is_link(location, root_client.ip, root_client.username, root_client.password):
+            print "Writing to {0}".format(root_client.file_read_link(location))
+        else:
+            if not root_client.file_exists(location):
+                raise ValueError('File {0} does not exist on Storage Router {1}'.format(location, root_client.ip))
         if not isinstance(count, int) or count < 1:
             raise ValueError('Count must be an integer > 0')
         root_client.run('dd if=/dev/{0} of={1} bs={2} count={3}'.format(input_type, location, bs, count))
@@ -281,3 +285,33 @@ class GeneralVDisk(object):
         assert status is True,\
             'Schedule backend sync failed for vdisk: {0}'.format(vdisk.name)
         return tlog_name
+
+    @staticmethod
+    def is_volume_synced_up_to_tlog(vdisk, tlog_name):
+        """
+        Verify if volume is synced to backend up to a specific tlog
+        :param vdisk: vdisk to verify
+        :param tlog_name: tlog_name to verify
+        """
+        status, result = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
+                                                              action='is_volume_synced_up_to_tlog',
+                                                              data={'tlog_name': tlog_name}, wait=True)
+        assert status is True,\
+            'is_volume_synced_up_to_tlog failed for vdisk: {0}'.format(vdisk.name)
+
+        return result
+
+    @staticmethod
+    def is_volume_synced_up_to_snapshot(vdisk, snapshot_id):
+        """
+        Verify if volume is synced to backend up to a specific snapshot
+        :param vdisk: vdisk to verify
+        :param snapshot_id: snapshot_id to verify
+        """
+        status, result = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
+                                                              action='is_volume_synced_up_to_snapshot',
+                                                              data={'snapshot_id': str(snapshot_id)}, wait=True)
+        assert status is True,\
+            'is_volume_synced_up_to_snapshot failed for vdisk: {0}'.format(vdisk.name)
+
+        return result

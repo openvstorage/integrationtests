@@ -27,7 +27,7 @@ from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
 from nose.plugins.skip import SkipTest
 from ovs.extensions.generic.sshclient import SSHClient
-
+from ovs.extensions.storageserver.storagedriver import StorageDriverConfiguration
 
 class TestVPool(object):
     """
@@ -236,3 +236,19 @@ class TestVPool(object):
         GeneralVPool.remove_vpool(vpool)
 
         assert len(errors) == 0, "Following issues where found with the services:\n - {0}".format('\n - '.join(errors))
+
+    @staticmethod
+    def ovs_4184_validate_shm_server_enabled_by_default_test():
+        vpool = GeneralVPool.get_vpool_by_name(General.get_config().get('vpool', 'name'))
+        if vpool is None:
+            vpool = GeneralVPool.add_vpool()
+
+        assert vpool.storagedrivers, 'No storagedrivers configured for vpool: '.format(vpool.name)
+
+        sdc = StorageDriverConfiguration('storagedriver', vpool.guid, vpool.storagedrivers[0].storagedriver_id)
+        sdc.load()
+        assert 'filesystem' in sdc.configuration, 'Filesystem section missing in storagedriver configuration!'
+        assert 'fs_enable_shm_interface' in sdc.configuration['filesystem'], 'No fs_enable_shm_interface entry found'
+        assert sdc.configuration['filesystem']['fs_enable_shm_interface'] == 1, 'SHM server not enabled'
+
+        GeneralVPool.remove_vpool(vpool)
