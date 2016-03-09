@@ -357,14 +357,14 @@ class GeneralAlba(object):
         for preset in alba_backend.presets:
             if 'policy_metadata' not in preset:
                 raise ValueError('Preset information does not contain policy_metadata')
-            if preset_available is True:
-                break
             for policy, policy_info in preset['policy_metadata'].iteritems():
                 if 'is_available' not in policy_info:
                     raise ValueError('Policy information does not contain is_available')
                 if policy_info['is_available'] is True:
                     preset_available = True
                     break
+            if preset_available is True:
+                break
         if preset_available is False:  # At least 1 preset must be available
             raise ValueError('No preset available for backend {0}'.format(alba_backend.backend.name))
 
