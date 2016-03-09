@@ -17,12 +17,8 @@ Sanity check testsuite
 """
 
 from ci.tests.general.general import General
-from ci.tests.general.general_alba import GeneralAlba
-from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
-from nose.plugins.skip import SkipTest
-from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.extensions.generic.sshclient import SSHClient
 
@@ -31,43 +27,27 @@ class TestSanity(object):
     """
     Sanity check testsuite
     """
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
-
-    #########
-    # TESTS #
-    #########
-
     @staticmethod
     def ssh_check_test():
         """
         Verify SSH keys
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestSanity.tests_to_run)
-
-        issues_found = ''
-
+        issues_found = []
         env_ips = GeneralPMachine.get_all_ips()
-        if len(env_ips) == 1:
-            raise SkipTest('Environment has only 1 node')
-
         for env_ip_connecting_from in env_ips:
             out = General.execute_command_on_node(env_ip_connecting_from, "cat ~/.ssh/known_hosts")
             for env_ip_connecting_to in env_ips:
                 if env_ip_connecting_from != env_ip_connecting_to:
                     if env_ip_connecting_to not in out:
-                        issues_found += "Host key verification not found between {0} and {1}\n".format(env_ip_connecting_from, env_ip_connecting_to)
+                        issues_found.append('Host key verification not found between {0} and {1}'.format(env_ip_connecting_from, env_ip_connecting_to))
 
-        assert issues_found == '', 'Following issues where found:\n{0}'.format(issues_found)
+        assert len(issues_found) == 0, 'Following issues where found:\n - {0}'.format('\n - '.join(issues_found))
 
     @staticmethod
     def services_check_test():
         """
         Verify some services
         """
-        General.check_prereqs(testcase_number=2,
-                              tests_to_run=TestSanity.tests_to_run)
-
         # get env ips
         env_ips = GeneralPMachine.get_all_ips()
         non_running_services = []
@@ -88,9 +68,6 @@ class TestSanity(object):
         """
         Verify some system services
         """
-        General.check_prereqs(testcase_number=3,
-                              tests_to_run=TestSanity.tests_to_run)
-
         services_to_commands = {
             "nginx": """ps -efx|grep nginx|grep -v grep""",
             "rabbitmq-server": """ps -ef|grep rabbitmq-|grep -v grep""",
@@ -126,9 +103,6 @@ class TestSanity(object):
         """
         Verify some configuration files
         """
-        General.check_prereqs(testcase_number=4,
-                              tests_to_run=TestSanity.tests_to_run)
-
         issues_found = ''
 
         etcd_keys = {
@@ -157,9 +131,6 @@ class TestSanity(object):
         """
         Verify some configuration files in json format
         """
-        General.check_prereqs(testcase_number=5,
-                              tests_to_run=TestSanity.tests_to_run)
-
         issues_found = ''
 
         srs = GeneralStorageRouter.get_storage_routers()
@@ -169,142 +140,3 @@ class TestSanity(object):
                 issues_found += "Setup not completed for node {0}\n".format(sr.name)
 
         assert issues_found == '', "Found the following issues while checking for the setupcompleted:{0}\n".format(issues_found)
-
-    @staticmethod
-    def check_model_test():
-        """
-        Verify ALBA backend
-        """
-        General.check_prereqs(testcase_number=6,
-                              tests_to_run=TestSanity.tests_to_run)
-
-        backends_present_on_env = GeneralBackend.get_backends()
-        if len(backends_present_on_env) == 0:
-            raise SkipTest('No backend present at the time of the test')
-
-        backend_name = General.get_config().get("backend", "name")
-        backend = GeneralBackend.get_by_name(name=backend_name)
-        assert backend, "Test backend: not found in model"
-        assert backend.backend_type.code == 'alba', "Backend: {0} not of type alba but of type: {1}".format(backend.name, backend.backend_type.code)
-        assert backend.status == 'RUNNING', "Backend: {0} in state: {1}, expected state: running".format(backend.name, backend.status)
-
-    @staticmethod
-    def check_backend_services_test():
-        """
-        Verify ALBA backend related services
-        """
-        General.check_prereqs(testcase_number=7,
-                              tests_to_run=TestSanity.tests_to_run)
-
-        backends_present_on_env = GeneralBackend.get_backends()
-        if len(backends_present_on_env) == 0:
-            raise SkipTest('No backend present at the time of the test')
-
-        # TODO: more than 1 backends present
-        # TODO: different backends not just alba
-        issues_found = ''
-
-        my_backend_name = backends_present_on_env[0].name
-        backend_services = ["ovs-alba-maintenance_{0}".format(my_backend_name),
-                            "ovs-arakoon-{0}-abm".format(my_backend_name),
-                            "ovs-arakoon-{0}-nsm_0".format(my_backend_name)]
-
-        out, err = General.execute_command("initctl list | grep ovs-*")
-        statuses = out.splitlines()
-
-        for status_line in statuses:
-            for service_to_check in backend_services:
-                if service_to_check in status_line:
-                    if "running" not in status_line:
-                        issues_found += "Backend service {0} not running.Has following status:{1}\n ".format(service_to_check, status_line)
-
-        assert issues_found == '', "Found the following issues while checking for the config files:{0}\n".format(issues_found)
-
-    @staticmethod
-    def check_backend_files_test():
-        """
-        Verify ALBA backend related files
-        """
-        General.check_prereqs(testcase_number=8,
-                              tests_to_run=TestSanity.tests_to_run)
-
-        backends_present_on_env = GeneralBackend.get_backends()
-        if len(backends_present_on_env) == 0:
-            raise SkipTest('No backend present at the time of the test')
-
-        issues_found = ''
-
-        my_backend_name = backends_present_on_env[0].name
-        files_to_check = ["ovs/arakoon/{0}-abm/config".format(my_backend_name),
-                          "ovs/arakoon/{0}-nsm_0/config".format(my_backend_name)]
-
-        # check single or multi-node setup
-        env_ips = GeneralPMachine.get_all_ips()
-        if len(env_ips) == 1:
-            # check files
-            for file_to_check in files_to_check:
-                out, err = General.execute_command('etcdctl ls --recursive /ovs | grep {0}'.format(file_to_check))
-                if len(err):
-                    issues_found += "Error executing command to get {0} info:{1}\n".format(file_to_check, err)
-                else:
-                    if len(out) == 0:
-                        issues_found += "Couldn't find {0}\n".format(file_to_check)
-            # check cluster arakoon master
-            out, err = General.execute_command("arakoon --who-master -config {0}".format(ArakoonInstaller.ETCD_CONFIG_PATH.format('ovsdb')))
-            if len(out) == 0:
-                issues_found += "No arakoon master found in config files\n"
-        # @TODO: check to see multi node setup
-        assert issues_found == '', "Found the following issues while checking for the config files:{0}\n".format(issues_found)
-
-    @staticmethod
-    def check_backend_removal_test():
-        """
-        Verify backend was removed properly
-        """
-        General.check_prereqs(testcase_number=10,
-                              tests_to_run=TestSanity.tests_to_run)
-
-        backend_name = General.get_config().get("backend", "name")
-        backend = GeneralBackend.get_by_name(backend_name)
-        if not backend:
-            raise ValueError('Perhaps we should always make sure there is an ALBA backend')
-        if backend and backend.alba_backend is None:
-            raise ValueError('Backend with name {0} is not an ALBA backend'.format(backend_name))
-
-        GeneralAlba.unclaim_disks(backend.alba_backend)
-        GeneralAlba.remove_alba_backend(backend.alba_backend)
-
-        issues_found = ''
-        backends_present_on_env = GeneralBackend.get_backends()
-        for backend in backends_present_on_env:
-            if backend.name == backend_name:
-                issues_found += 'Backend {0} still present in the model with status {1}\n'.format(backend_name, backend.status)
-
-        backend_services = ["ovs-alba-rebalancer_{0}".format(backend_name),
-                            "ovs-alba-maintenance_{0}".format(backend_name),
-                            "ovs-arakoon-{0}-abm".format(backend_name),
-                            "ovs-arakoon-{0}-nsm_0".format(backend_name)]
-
-        out, err = General.execute_command("initctl list | grep ovs-*")
-        statuses = out.splitlines()
-
-        for status_line in statuses:
-            for service_to_check in backend_services:
-                if service_to_check in status_line:
-                    issues_found += "Backend service {0} still present.Has following status:{1}\n ".format(service_to_check, status_line)
-
-        files_to_check = ["/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg".format(backend_name),
-                          "/opt/OpenvStorage/config/arakoon/{0}-nsm_0/{0}-nsm_0.cfg".format(backend_name),
-                          "/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-rebalancer.json".format(backend_name),
-                          "/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-maintenance.json".format(backend_name)]
-
-        # Check single or multi-node setup
-        env_ips = GeneralPMachine.get_all_ips()
-        ssh_pass = General.get_config().get('mgmtcenter', 'password')
-        for node_ip in env_ips:
-            client = SSHClient(node_ip, username='root', password=ssh_pass)
-            for file_to_check in files_to_check:
-                if client.file_exists(file_to_check):
-                    issues_found += "File {0} still present after backend {1} removal on node {2}\n".format(file_to_check, backend_name, node_ip)
-
-        assert issues_found == '', "Following issues where found with the backend:\n{0}".format(issues_found)

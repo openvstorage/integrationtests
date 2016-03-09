@@ -20,12 +20,11 @@ import time
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
+from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.albanode import AlbaNode
 from ovs.dal.hybrids.albaasd import AlbaASD
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.backend import Backend
-from ovs.dal.lists.backendtypelist import BackendTypeList
-from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.albaasd import AlbaASD
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.albanode import AlbaNode
@@ -41,11 +40,8 @@ class TestALBA(object):
     logger = LogHandler.get('backend', name='alba')
     logger.logger.propagate = False
 
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
-
     autotest_config = General.get_config()
     backend_name = autotest_config.get('backend', 'name')
-    assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
 
     ####################
     # HELPER FUNCTIONS #
@@ -119,26 +115,41 @@ class TestALBA(object):
     #########
 
     @staticmethod
-    def be_0001_add_and_verify_backend_is_running_test():
+    def be_0001_add_and_remove_backend_test():
         """
-        Create a backend and verify its status
+        Create an ALBA backend and verify its status
+        Validate services, etcd, arakoon without claiming disks
+        Claim some disks and validate whether backend can be used for storing objects in namespaces
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestALBA.tests_to_run)
         backend = GeneralBackend.get_by_name(TestALBA.backend_name)
-        if backend is None:
-            alba_backend = GeneralAlba.add_alba_backend(TestALBA.backend_name)
-        else:
-            alba_backend = backend.alba_backend
-        GeneralAlba.wait_for_alba_backend_status(alba_backend)
+        if backend is not None:
+            raise ValueError('A backend has already been deployed, cannot execute test')
+
+        alba_backend = GeneralAlba.add_alba_backend(TestALBA.backend_name)
+        GeneralAlba.validate_alba_backend_sanity_without_claimed_disks(alba_backend=alba_backend)
+
+        GeneralAlba.claim_disks(alba_backend, 3, 'SATA')
+        GeneralAlba.validate_alba_backend_sanity_with_claimed_disks(alba_backend=alba_backend)
+
+        guid = alba_backend.guid
+        name = TestALBA.backend_name
+        service_names = GeneralAlba.get_maintenance_services_for_alba_backend(alba_backend=alba_backend)
+
+        GeneralAlba.unclaim_disks(alba_backend)
+        GeneralAlba.remove_alba_backend(alba_backend)
+        GeneralAlba.validate_alba_backend_removal(alba_backend_info={'name': name,
+                                                                     'guid': guid,
+                                                                     'maintenance_service_names': service_names})
 
     @staticmethod
     def be_0002_add_remove_preset_no_compression_no_encryption_test():
         """
         Add and remove a preset without compression and encryption
         """
-        General.check_prereqs(testcase_number=2,
-                              tests_to_run=TestALBA.tests_to_run)
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        if backend is None:
+            GeneralAlba.add_alba_backend(TestALBA.backend_name)
+
         compression = 'none'
         encryption = 'none'
         name = 'be_preset_02'
@@ -150,8 +161,10 @@ class TestALBA(object):
         """
         Add and remove a preset with compression and without encryption
         """
-        General.check_prereqs(testcase_number=3,
-                              tests_to_run=TestALBA.tests_to_run)
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        if backend is None:
+            GeneralAlba.add_alba_backend(TestALBA.backend_name)
+
         name = 'be_preset_03'
         compression = 'bz2'
         encryption = 'none'
@@ -163,8 +176,10 @@ class TestALBA(object):
         """
         Validate a preset
         """
-        General.check_prereqs(testcase_number=4,
-                              tests_to_run=TestALBA.tests_to_run)
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        if backend is None:
+            GeneralAlba.add_alba_backend(TestALBA.backend_name)
+
         compression = 'none'
         encryption = 'none'
         name_prefix = 'be_preset_04'
@@ -178,8 +193,10 @@ class TestALBA(object):
         """
         Add and remove a preset without compression and with encryption
         """
-        General.check_prereqs(testcase_number=5,
-                              tests_to_run=TestALBA.tests_to_run)
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        if backend is None:
+            GeneralAlba.add_alba_backend(TestALBA.backend_name)
+
         name = 'be_preset_05'
         compression = 'none'
         encryption = 'aes-cbc-256'
@@ -191,8 +208,10 @@ class TestALBA(object):
         """
         Add and remove a preset with compression and encryption
         """
-        General.check_prereqs(testcase_number=6,
-                              tests_to_run=TestALBA.tests_to_run)
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        if backend is None:
+            GeneralAlba.add_alba_backend(TestALBA.backend_name)
+
         name = 'be_preset_06a'
         compression = 'bz2'
         encryption = 'aes-cbc-256'
@@ -209,11 +228,15 @@ class TestALBA(object):
         Add, update and remove a preset
         Validation for OVS-3187 - edit policy of preset
         """
-        General.check_prereqs(testcase_number=7,
-                              tests_to_run=TestALBA.tests_to_run)
         backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        if backend is None:
+            alba_backend = GeneralAlba.add_alba_backend(TestALBA.backend_name)
+        else:
+            alba_backend = backend.alba_backend
 
-        timeout = 120
+        GeneralAlba.claim_disks(alba_backend=alba_backend, nr_of_disks=3, disk_type='SATA')
+
+        timeout = 300
         preset_name = 'be_preset_0007'
         namespace_name = 'be_0007_ns'
         compression = 'none'
@@ -222,29 +245,22 @@ class TestALBA(object):
         new_policy = [[2, 2, 3, 3]]
 
         TestALBA.add_validate_remove_preset(preset_name, compression, encryption, org_policy, remove_when_finished=False)
-        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'list-namespaces')
+        result = GeneralAlba.list_alba_namespaces(alba_backend=alba_backend,
+                                                  name=namespace_name)
 
         for namespace in result:
-            if namespace['name'] == namespace_name:
-                GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'delete-namespace', [namespace_name], False)
-        GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'create-namespace', [namespace_name, preset_name], False)
+            GeneralAlba.execute_alba_cli_action(alba_backend, 'delete-namespace', [namespace['name']], False)
+        GeneralAlba.execute_alba_cli_action(alba_backend, 'create-namespace', [namespace_name, preset_name], False)
 
-        # @TODO: remove next deliver messages command when http://jira.cloudfounders.com/browse/OVS-3580 is fixed
-        # command is necessary after namespace create to allow object upload to be distributed to all disks according
-        # to policy
-        GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'deliver-messages', [], False)
+        GeneralAlba.upload_file(alba_backend=alba_backend, namespace_name=namespace_name, file_size=1024 * 1024)
 
-        GeneralAlba.upload_file(backend.alba_backend, namespace_name, 1024 * 1024)
-
-        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'show-namespace', [namespace_name])['bucket_count']
-
+        result = GeneralAlba.execute_alba_cli_action(alba_backend, 'show-namespace', [namespace_name])['bucket_count']
         assert len(result) == 1, "Only one policy should be present, found: {0}".format(result)
-        GeneralAlba.is_bucket_count_valid_with_policy(result, org_policy)
 
         # update and verify policies for preset
-        GeneralAlba.update_preset(backend.alba_backend, preset_name, new_policy)
+        GeneralAlba.update_preset(alba_backend, preset_name, new_policy)
 
-        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'show-namespace', [namespace_name])['bucket_count']
+        result = GeneralAlba.execute_alba_cli_action(alba_backend, 'show-namespace', [namespace_name])['bucket_count']
         assert len(result) == 1, "Expected 1 policy, but got: {0}".format(result)
 
         object_has_new_policy = False
@@ -253,24 +269,24 @@ class TestALBA(object):
                 object_has_new_policy = True
                 break
             time.sleep(1)
-            result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'show-namespace', [namespace_name])['bucket_count']
+            result = GeneralAlba.execute_alba_cli_action(alba_backend, 'show-namespace', [namespace_name])['bucket_count']
 
-        assert object_has_new_policy, "Object was not rewritten within {0} seconds: {1}".format(timeout, result)
+        assert object_has_new_policy is True, "Object was not rewritten within {0} seconds: {1}".format(timeout, result)
 
         # cleanup
-        GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'delete-namespace', [namespace_name], False)
-        GeneralAlba.remove_preset(backend.alba_backend, preset_name)
+        GeneralAlba.execute_alba_cli_action(alba_backend, 'delete-namespace', [namespace_name], False)
+        GeneralAlba.remove_preset(alba_backend, preset_name)
 
     @staticmethod
     def ovs_3490_add_remove_preset_test():
         """
         Adds and removes a preset with encryption to an existing alba backend
         """
-        General.check_prereqs(testcase_number=8,
-                              tests_to_run=TestALBA.tests_to_run)
+        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        if backend is None:
+            backend = GeneralAlba.add_alba_backend(TestALBA.backend_name).backend
 
         name = 'ovs-3490'
-        backend = GeneralBackend.get_by_name(TestALBA.backend_name)
         policies = [[1, 1, 1, 2]]
         compression = 'none'
         encryption = 'aes-cbc-256'
@@ -287,9 +303,6 @@ class TestALBA(object):
         Create an albanode with an asd statistics part set to empty dictionary
         Assert code does not raise
         """
-        General.check_prereqs(testcase_number=9,
-                              tests_to_run=TestALBA.tests_to_run)
-
         an = AlbaNode()
         an.password = 'rooter'
         an.node_id = 'ovs3769an'
@@ -339,6 +352,8 @@ class TestALBA(object):
         policies = [[1, 1, 1, 2]]
 
         backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        if backend is None:
+            backend = GeneralAlba.add_alba_backend(TestALBA.backend_name).backend
         GeneralAlba.add_preset(backend.alba_backend, preset_name, policies, compression, encryption)
 
         for x in range(nr_of_disks_to_create):
@@ -377,6 +392,8 @@ class TestALBA(object):
             return result
 
         backend = GeneralBackend.get_by_name(TestALBA.backend_name)
+        if backend is None:
+            backend = GeneralAlba.add_alba_backend(TestALBA.backend_name).backend
         name = backend.alba_backend.name
 
         alba_node_ips = [node.ip for node in GeneralAlba.get_alba_nodes()]

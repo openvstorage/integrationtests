@@ -16,6 +16,7 @@
 vPool testsuite
 """
 
+import re
 import time
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
@@ -61,8 +62,8 @@ class TestVPool(object):
         # Add vPool and validate health
         vpool = GeneralVPool.add_vpool(vpool_parameters=vpool_params)
         assert vpool is not None, 'vPool {0} was not created'.format(vpool_name)
-        GeneralVPool.check_vpool_sanity(vpool=vpool,
-                                        expected_settings=vpool_params)
+        GeneralVPool.validate_vpool_sanity(vpool=vpool,
+                                           expected_settings=vpool_params)
 
         # Retrieve vPool information before removal
         guid = vpool.guid
@@ -119,8 +120,8 @@ class TestVPool(object):
         # Add vPool and validate health
         vpool = GeneralVPool.add_vpool(vpool_parameters=vpool_params)
         assert vpool is not None, 'vPool {0} was not created'.format(vpool_name)
-        GeneralVPool.check_vpool_sanity(vpool=vpool,
-                                        expected_settings=vpool_params)
+        GeneralVPool.validate_vpool_sanity(vpool=vpool,
+                                           expected_settings=vpool_params)
 
         # Retrieve vPool information before removal
         guid = vpool.guid
@@ -154,9 +155,12 @@ class TestVPool(object):
         no_namespaces = 3
         backend_name = General.get_config().get('backend', 'name')
         backend = GeneralBackend.get_by_name(name=backend_name)
+        namespace_name = 'autotest-ns_'
+        namespace_name_regex = re.compile('$autotest-ns_.*')
         for nmspc_index in range(no_namespaces):
-            GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'create-namespace', ['autotest-ns_{0}'.format(nmspc_index), 'default'], False)
-        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'list-namespaces')
+            GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'create-namespace', ['{0}{1}'.format(namespace_name, nmspc_index), 'default'], False)
+        result = GeneralAlba.list_alba_namespaces(alba_backend=backend.alba_backend,
+                                                  name=namespace_name_regex)
         assert len(result) == no_namespaces, "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name, len(result))
 
         # Create a vPool and create volumes on it
@@ -171,7 +175,7 @@ class TestVPool(object):
             vdisks.append(GeneralVDisk.create_volume(size=10,
                                                      vpool=vpool,
                                                      root_client=root_client))
-        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'list-namespaces')
+        result = GeneralAlba.list_alba_namespaces(alba_backend=backend.alba_backend)
         assert len(result) == 2 * no_namespaces + 1, "Expected {0} namespaces present on the {1} backend, found {2}".format(2 * no_namespaces + 1, backend_name, len(result))
 
         # Remove files and vPool
@@ -187,11 +191,13 @@ class TestVPool(object):
         GeneralVPool.remove_vpool(vpool)
 
         # Verify amount of namespaces
-        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'list-namespaces')
+        result = GeneralAlba.list_alba_namespaces(alba_backend=backend.alba_backend,
+                                                  name=namespace_name_regex)
         assert len(result) == no_namespaces, "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name, len(result))
         for namespace in result:
             GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'delete-namespace', [namespace['name']], False)
-        result = GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'list-namespaces')
+        result = GeneralAlba.list_alba_namespaces(alba_backend=backend.alba_backend,
+                                                  name=namespace_name_regex)
         assert len(result) == 0, "Expected no namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name, len(result))
 
     @staticmethod

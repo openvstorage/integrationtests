@@ -17,7 +17,6 @@ A general class dedicated to general logic
 """
 
 import os
-import re
 import grp
 import pwd
 import sys
@@ -83,8 +82,8 @@ class General(object):
 
         if not wait:
             return child_process.pid
-        (out, error) = child_process.communicate()
-        return out, error
+        out, error = child_process.communicate()
+        return out, error, child_process.returncode
 
     @staticmethod
     def execute_command_on_node(host, command, password=None):
@@ -104,6 +103,7 @@ class General(object):
         Check if a file on a node is a symlink
         :param host: Host node to check file system
         :param file_path: File to check eg. '/dev/disk/by-id/wwn-0x500003941b780823'
+        :param username: Username used to login on host
         :param password: Password used to login on host
         :return: Boolean
         """
@@ -126,32 +126,6 @@ class General(object):
         """
         if 0 not in tests_to_run and testcase_number not in tests_to_run:
             raise SkipTest('Test number {0} not in the list of running tests.'.format(testcase_number))
-
-    @staticmethod
-    def get_tests_to_run(test_level):
-        """
-        Retrieves the tests to be executed in the testsuite (from autotest config file)
-        :param test_level: Test level
-        :return: List of numbers of tests to be executed
-        """
-        tests = test_level
-        tests_to_run = []
-        if tests:
-            for number in tests.split(','):
-                if not number.find('-') >= 0:
-                    tests_to_run.append(int(number))
-                else:
-                    numbers = number.split('-')
-                    if int(numbers[0]) > int(numbers[1]):
-                        swap_number = numbers[0]
-                        numbers[0] = numbers[1]
-                        numbers[1] = swap_number
-
-                    tests_to_run.append(int(numbers[0]))
-                    for k in range(int(numbers[0]) + 1, int(numbers[1]) + 1):
-                        tests_to_run.append(k)
-
-        return sorted(list(set(tests_to_run)))
 
     @staticmethod
     def cleanup():
@@ -260,29 +234,6 @@ class General(object):
             if mp and not mp.startswith('/dev') and not mp.startswith('/proc') and not mp.startswith('/sys') and not mp.startswith('/run') and not mp.startswith('/mnt/alba-asd') and mp != '/':
                 mountpoints.append(mp)
         return mountpoints
-
-    @staticmethod
-    def get_test_level():
-        """
-        Read test level from config file
-        """
-        return General.get_config().get(section='main', option='testlevel')
-
-    @staticmethod
-    def set_test_level(test_level):
-        """
-        Set test level : 1,2,3,8-12,15
-        :param test_level: Tests to execute
-        """
-        testlevel_regex = "^([0-9]|[1-9][0-9])([,-]([1-9]|[1-9][0-9])){0,}$"
-        if not re.match(testlevel_regex, test_level):
-            print('Wrong testlevel specified\neg: 1,2,3,8-12,15')
-            return False
-
-        config = General.get_config()
-        config.set(section='main', option='testlevel', value=test_level)
-        General.save_config(config)
-        return True
 
     @staticmethod
     def list_os():

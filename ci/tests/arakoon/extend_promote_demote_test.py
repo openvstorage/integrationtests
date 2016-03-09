@@ -48,8 +48,6 @@ class TestArakoon(object):
     """
     Arakoon testsuite
     """
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
-
     logger = LogHandler.get('arakoon', name='setup')
     logger.logger.propagate = False
 
@@ -104,11 +102,11 @@ class TestArakoon(object):
         :param dir_present: Directory structure presence expectancy
         :return: True if correct
         """
-        log_dir = ArakoonInstaller.ARAKOON_LOG_DIR.format(cluster_name)
-        tlog_dir = ArakoonInstaller.ARAKOON_TLOG_DIR.format('/var/tmp', cluster_name)
-        home_dir = ArakoonInstaller.ARAKOON_HOME_DIR.format('/var/tmp', cluster_name)
+        log_dir = GeneralArakoon.LOG_DIR.format(cluster_name)
+        tlog_dir = GeneralArakoon.TLOG_DIR.format('/var/tmp', cluster_name)
+        home_dir = GeneralArakoon.HOME_DIR.format('/var/tmp', cluster_name)
 
-        key_exists = EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(cluster_name), raw = True)
+        key_exists = EtcdConfiguration.exists(GeneralArakoon.ETCD_CONFIG_KEY.format(cluster_name), raw = True)
         assert key_exists is etcd_present, "Arakoon configuration in Etcd was {0}expected".format('' if etcd_present else 'not ')
         for directory in [tlog_dir, home_dir, log_dir]:
             assert client.dir_exists(directory) is dir_present, "Arakoon directory {0} was {1}expected".format(directory, '' if dir_present else 'not ')
@@ -143,14 +141,14 @@ class TestArakoon(object):
             configs_to_check = []
             matrix[ip] = dict()
             if config:
-                if EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(config), raw = True):
-                    configs_to_check = [ArakoonInstaller.ETCD_CONFIG_KEY.format(config)]
+                if EtcdConfiguration.exists(GeneralArakoon.ETCD_CONFIG_KEY.format(config), raw = True):
+                    configs_to_check = [GeneralArakoon.ETCD_CONFIG_KEY.format(config)]
             else:
-                gen = EtcdConfiguration.list(ArakoonInstaller.ETCD_CONFIG_ROOT)
+                gen = EtcdConfiguration.list(GeneralArakoon.ETCD_CONFIG_ROOT)
                 for entry in gen:
                     if 'nsm_' not in entry:
-                        if EtcdConfiguration.exists(ArakoonInstaller.ETCD_CONFIG_KEY.format(config), raw = True):
-                            configs_to_check.append(ArakoonInstaller.ETCD_CONFIG_KEY.format(entry))
+                        if EtcdConfiguration.exists(GeneralArakoon.ETCD_CONFIG_KEY.format(config), raw = True):
+                            configs_to_check.append(GeneralArakoon.ETCD_CONFIG_KEY.format(entry))
             for config_name in configs_to_check:
                 config_contents = EtcdConfiguration.get(configs_to_check[0], raw = True)
                 matrix[ip][config_name] = hashlib.md5(config_contents).hexdigest()
@@ -242,9 +240,6 @@ class TestArakoon(object):
         """
         Validate extending and shrinking of arakoon clusters
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestArakoon.tests_to_run)
-
         storagerouters = GeneralStorageRouter.get_storage_routers()
         if not len(storagerouters) >= 3:
             raise SkipTest('Environment has only {0} node(s)'.format(len(storagerouters)))
@@ -313,9 +308,6 @@ class TestArakoon(object):
         """
         Arakoon cluster validation
         """
-        General.check_prereqs(testcase_number=2,
-                              tests_to_run=TestArakoon.tests_to_run)
-
         storagerouters = GeneralStorageRouter.get_storage_routers()
         if not len(storagerouters) >= 2:
             raise SkipTest('Environment has only {0} node(s)'.format(len(storagerouters)))
@@ -328,9 +320,6 @@ class TestArakoon(object):
         """
         Arakoon config validation of a 4 node cluster
         """
-        General.check_prereqs(testcase_number=3,
-                              tests_to_run=TestArakoon.tests_to_run)
-
         storagerouters = GeneralStorageRouter.get_storage_routers()
         if not len(storagerouters) >= 4:
             raise SkipTest('Environment has only {0} node(s)'.format(len(storagerouters)))
@@ -343,9 +332,6 @@ class TestArakoon(object):
         """
         Validate arakoon archiving on extending a cluster with already existing data
         """
-        General.check_prereqs(testcase_number=4,
-                              tests_to_run=TestArakoon.tests_to_run)
-
         node_ips = [sr.ip for sr in GeneralStorageRouter.get_storage_routers()]
         node_ips.sort()
 
@@ -397,9 +383,6 @@ class TestArakoon(object):
         """
         Validate arakoon archiving when creating and extending an arakoon cluster
         """
-        General.check_prereqs(testcase_number=5,
-                              tests_to_run=TestArakoon.tests_to_run)
-
         node_ips = [sr.ip for sr in GeneralStorageRouter.get_storage_routers()]
         node_ips.sort()
         first_ip = node_ips[0]

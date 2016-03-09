@@ -26,20 +26,11 @@ class TestMgmtCenter(object):
     """
     Management center testsuite
     """
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
-
-    #########
-    # TESTS #
-    #########
-
     @staticmethod
     def check_reachability_test():
         """
         Verify the management center is reachable
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestMgmtCenter.tests_to_run)
-
         if GeneralManagementCenter.is_devstack_installed() is False:
             raise SkipTest('No devstack/openstack present')
 
@@ -47,7 +38,7 @@ class TestMgmtCenter(object):
         issues_found = ""
 
         for mgmtcenter in management_centers:
-            out, err = General.execute_command("ping {0} -c 1".format(mgmtcenter.ip))
+            out, err, _ = General.execute_command("ping {0} -c 1".format(mgmtcenter.ip))
             if "Destination Host Unreachable" in out:
                 issues_found += "Management center {0} with ip {1}\n".format(mgmtcenter.name, mgmtcenter.ip)
 
@@ -58,9 +49,6 @@ class TestMgmtCenter(object):
         """
         Verify the management center connectivity
         """
-        General.check_prereqs(testcase_number=2,
-                              tests_to_run=TestMgmtCenter.tests_to_run)
-
         if GeneralManagementCenter.is_devstack_installed() is False:
             raise SkipTest('No devstack/openstack present')
 
@@ -78,9 +66,6 @@ class TestMgmtCenter(object):
         """
         Verify if the management center has been configured correctly
         """
-        General.check_prereqs(testcase_number=3,
-                              tests_to_run=TestMgmtCenter.tests_to_run)
-
         if GeneralManagementCenter.is_devstack_installed() is False:
             raise SkipTest('No devstack/openstack present')
 
@@ -99,9 +84,6 @@ class TestMgmtCenter(object):
         """
         Verify if the management center has been un-configured correctly
         """
-        General.check_prereqs(testcase_number=4,
-                              tests_to_run=TestMgmtCenter.tests_to_run)
-
         if GeneralManagementCenter.is_devstack_installed() is False:
             raise SkipTest('No devstack/openstack present')
 

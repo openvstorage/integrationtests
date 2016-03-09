@@ -33,20 +33,11 @@ class TestAfterCare(object):
     """
     Testsuite to check stuff after tests have been executed
     """
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
-
-    #########
-    # TESTS #
-    #########
-
     @staticmethod
     def ovs_2053_check_for_alba_warnings_test():
         """
         Check ALBA warning presence
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestAfterCare.tests_to_run)
-
         out = General.execute_command_on_node('127.0.0.1', 'grep "warning: syncfs" /var/log/upstart/*-asd-*.log | wc -l')
         assert out == '0', \
             "syncfs warnings detected in asd logs\n:{0}".format(out.splitlines())
@@ -56,9 +47,6 @@ class TestAfterCare(object):
         """
         Verify lock errors
         """
-        General.check_prereqs(testcase_number=2,
-                              tests_to_run=TestAfterCare.tests_to_run)
-
         errorlist = ""
         command = "grep -C 1 'Could not acquire lock' /var/log/ovs/lib.log"
         gridips = GeneralPMachine.get_all_ips()
@@ -75,9 +63,6 @@ class TestAfterCare(object):
         """
         Verify MDS presence after vpool removal
         """
-        General.check_prereqs(testcase_number=3,
-                              tests_to_run=TestAfterCare.tests_to_run)
-
         vpools = GeneralVPool.get_vpools()
         vpool_names = [vpool.name for vpool in vpools]
         command = "find /mnt -name '*mds*'"
