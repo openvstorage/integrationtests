@@ -199,17 +199,13 @@ class GeneralDisk(object):
         return disk.partitions[0]
 
     @staticmethod
-    def unpartition_disk(disk=None, partitions=None, wait=True):
+    def unpartition_disk(disk, partitions=None, wait=True):
         """
         Return disk to RAW state
         :param disk: Disk DAL object
         :param partitions: Partitions DAL object list
         :return: None
         """
-        if disk is None and partitions is None:
-            return
-        if disk is None:
-            disk = partitions[0].disk
         if partitions is None:
             partitions = disk.partitions
         if len(disk.partitions) == 0:
@@ -217,7 +213,7 @@ class GeneralDisk(object):
 
         root_client = SSHClient(disk.storagerouter, username='root')
         for partition in partitions:
-            GeneralDisk.unmount_partition(root_client, partition)
+            General.unmount_partition(root_client, partition)
         root_client.run("parted -s /dev/{0} mklabel gpt".format(disk.name))
         GeneralStorageRouter.sync_with_reality(disk.storagerouter)
         counter = 0
@@ -230,22 +226,6 @@ class GeneralDisk(object):
             counter += 1
         if counter == timeout:
             raise RuntimeError('Removing partitions failed for disk:\n {0} '.format(disk.name))
-
-    @staticmethod
-    def unmount_partition(root_client, partition):
-        """
-        Unmount a partition
-        :param root_client: ssh-connection
-        :param partition: Partition Dal object
-        :return: None
-        """
-        mounted = False
-        out = root_client.run('mount -l')
-        for line in out.splitlines():
-            if partition.mountpoint in line:
-                mounted = True
-        if mounted:
-            root_client.run("umount {0}".format(partition.mountpoint))
 
     @staticmethod
     def add_read_write_scrub_roles(storagerouter):

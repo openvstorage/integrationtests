@@ -262,6 +262,19 @@ class General(object):
         return mountpoints
 
     @staticmethod
+    def unmount_partition(root_client, partition):
+        """
+        Unmount a partition
+        :param root_client: ssh-connection
+        :param partition: Partition Dal object
+        :return: None
+        """
+        client_mountpoints = General.get_mountpoints(root_client)
+        for mountpoint in client_mountpoints:
+            if partition.mountpoint in mountpoint:
+                root_client.run("umount {0}".format(partition.mountpoint))
+
+    @staticmethod
     def get_test_level():
         """
         Read test level from config file
