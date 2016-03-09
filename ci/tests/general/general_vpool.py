@@ -480,7 +480,7 @@ class GeneralVPool(object):
 
             # Check MDS services
             mds_services = GeneralService.get_services_by_name('MetadataServer')
-            assert len([mds_service for mds_service in mds_services if mds_service.service.storagerouter_guid == storagerouter.guid]) == 0, 'There are still MDS services present for Storage Router {0}'.format(storagerouter.ip)
+            assert len([mds_service for mds_service in mds_services if mds_service.storagerouter_guid == storagerouter.guid]) == 0, 'There are still MDS services present for Storage Router {0}'.format(storagerouter.ip)
 
             # Check services
             root_client = SSHClient(storagerouter, username='root')
