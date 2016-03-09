@@ -26,20 +26,11 @@ class TestExtended(object):
     """
     Extended testsuite
     """
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
-
-    #########
-    # TESTS #
-    #########
-
     @staticmethod
     def post_reboot_checks_test():
         """
         Perform service checks after reboot
         """
-        General.check_prereqs(testcase_number=1,
-                              tests_to_run=TestExtended.tests_to_run)
-
         rebooted_host = os.environ.get('POST_REBOOT_HOST')
         if not rebooted_host:
             raise SkipTest('Test not setup to run')

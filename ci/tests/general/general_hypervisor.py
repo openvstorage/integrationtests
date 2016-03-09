@@ -428,7 +428,7 @@ class Kvm(object):
             cmd = cmd.format(name=name,
                              bootdisk_path=bootdisk_path,
                              ram=ram)
-            out, error = General.execute_command(cmd)
+            out, error, _ = General.execute_command(cmd)
             logging.log(1, 'cmd: ---')
             logging.log(1, cmd)
             logging.log(1, 'stdout: ---')

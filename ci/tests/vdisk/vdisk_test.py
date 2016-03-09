@@ -33,7 +33,6 @@ class TestVDisk(object):
 
     vpool_name = General.get_config().get("vpool", "name")
     assert vpool_name, 'vPool name required in autotest.cfg file'
-    tests_to_run = General.get_tests_to_run(General.get_test_level())
 
     @staticmethod
     def ovs_3700_validate_test():
@@ -74,7 +73,6 @@ class TestVDisk(object):
         """
         Validate get/set metadata cache size for a vdisk
         """
-
         metadata_cache_page_size = 256 * 24
         default_metadata_cache_size = 8192 * metadata_cache_page_size
 
@@ -83,7 +81,7 @@ class TestVDisk(object):
         vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
         vdisk = GeneralVDisk.create_volume(size=2, vpool=vpool, name=disk_name, loop_device=loop, wait=True)
 
-        def validate_setting_cache_value(value_to_verify):
+        def _validate_setting_cache_value(value_to_verify):
             disk_config_params = GeneralVDisk.get_config_params(vdisk)
             disk_config_params['metadata_cache_size'] = value_to_verify
 
@@ -101,13 +99,13 @@ class TestVDisk(object):
             'Expected default cache size: {0}, got {1}'.format(default_metadata_cache_size, default_implicit_value)
 
         # verify set/get of specific value - larger than default
-        validate_setting_cache_value(10000 * metadata_cache_page_size)
+        _validate_setting_cache_value(10000 * metadata_cache_page_size)
 
         # verify set/get of specific value - default value
-        validate_setting_cache_value(default_metadata_cache_size)
+        _validate_setting_cache_value(default_metadata_cache_size)
 
         # verify set/get of specific value - smaller than default value
-        validate_setting_cache_value(100 * metadata_cache_page_size)
+        _validate_setting_cache_value(100 * metadata_cache_page_size)
 
         GeneralVDisk.delete_volume(vdisk=vdisk, vpool=vpool, loop_device=loop, wait=True)
 

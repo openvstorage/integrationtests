@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Init for vMachine testsuite
+"""
+
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
@@ -32,7 +36,7 @@ def setup():
 
     # Download the template
     cmd = '[ -d {0} ] && echo "Dir exists" || echo "Dir does not exists"'.format(GeneralVMachine.template_target_folder)
-    out, err = General.execute_command(cmd)
+    out, err, _ = General.execute_command(cmd)
     if err:
         GeneralVMachine.logger.error("Error while executing command {1}: {0}".format(err, cmd))
     if 'not' not in out:
@@ -46,10 +50,10 @@ def setup():
         server_location = 'http://sso-qpackages-loch.cloudfounders.com/templates/openvstorage'
 
     GeneralVMachine.logger.info("Getting template from {0}".format(server_location))
-    out, err = General.execute_command('wget -P {0} {1}{2}{3}'.format(GeneralVMachine.template_target_folder, server_location, '/fio_debian/', GeneralVMachine.template_image))
+    out, err, _ = General.execute_command('wget -P {0} {1}{2}{3}'.format(GeneralVMachine.template_target_folder, server_location, '/fio_debian/', GeneralVMachine.template_image))
     if err:
         GeneralVMachine.logger.error("Error while downloading template: {0}".format(err))
-    out, err = General.execute_command('chown root {0}{1}'.format(GeneralVMachine.template_target_folder, GeneralVMachine.template_image))
+    out, err, _ = General.execute_command('chown root {0}{1}'.format(GeneralVMachine.template_target_folder, GeneralVMachine.template_image))
     if err:
         GeneralVMachine.logger.error("Error while changing user owner to root for template: {0}".format(err))
 
