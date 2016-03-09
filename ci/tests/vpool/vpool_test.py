@@ -240,8 +240,6 @@ class TestVPool(object):
             if pid_before == pid_after:
                 errors.append('Kill command did not work on service {0}'.format(service_name))
 
-        # reinitialising connection because of services restart
-        GeneralVPool.api.authenticate()
         GeneralVPool.remove_vpool(vpool)
 
         assert len(errors) == 0, "Following issues where found with the services:\n - {0}".format('\n - '.join(errors))

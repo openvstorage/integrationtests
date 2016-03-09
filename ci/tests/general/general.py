@@ -271,7 +271,7 @@ class General(object):
         """
         client_mountpoints = General.get_mountpoints(root_client)
         for mountpoint in client_mountpoints:
-            if partition.mountpoint in mountpoint:
+            if partition.mountpoint == mountpoint:
                 root_client.run("umount {0}".format(partition.mountpoint))
 
     @staticmethod

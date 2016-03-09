@@ -208,6 +208,10 @@ class GeneralDisk(object):
         """
         if partitions is None:
             partitions = disk.partitions
+        else:
+            for partition in partitions:
+                if partition not in disk.partitions:
+                    raise RuntimeError('Partition {0} does not belong to disk {1}'.format(partition.mountpoint, disk.name))
         if len(disk.partitions) == 0:
             return
 
