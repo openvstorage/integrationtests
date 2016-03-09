@@ -21,7 +21,6 @@ import time
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
-from ci.tests.general.connection import Connection
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
