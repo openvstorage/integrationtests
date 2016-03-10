@@ -162,7 +162,7 @@ class TestVPool(object):
         backend_name = General.get_config().get('backend', 'name')
         backend = GeneralBackend.get_by_name(name=backend_name)
         namespace_name = 'autotest-ns_'
-        namespace_name_regex = re.compile('$autotest-ns_.*')
+        namespace_name_regex = re.compile('^autotest-ns_\d$')
         for nmspc_index in range(no_namespaces):
             GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'create-namespace', ['{0}{1}'.format(namespace_name, nmspc_index), 'default'], False)
         result = GeneralAlba.list_alba_namespaces(alba_backend=backend.alba_backend,
