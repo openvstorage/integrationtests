@@ -28,7 +28,6 @@ from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
 from nose.plugins.skip import SkipTest
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.extensions.storageserver.storagedriver import StorageDriverConfiguration
 
 
 class TestVPool(object):
@@ -40,7 +39,7 @@ class TestVPool(object):
     #########
 
     @staticmethod
-    def add_vpool_test():
+    def add_remove_alba_vpool_test():
         """
         Create a vPool using default values (from autotest.cfg)
         If a vPool with name already exists, remove it and create a new vPool
@@ -105,6 +104,9 @@ class TestVPool(object):
         disk = GeneralDisk.get_disk_by_devicename(storagerouter=local_sr,
                                                   device_name=unused_disk)
         partition = GeneralDisk.partition_disk(disk=disk)
+        if partition.mountpoint is None:
+            GeneralDisk.configure_disk(storagerouter=local_sr, disk=disk, offset=0, size=disk.size, roles=[], partition=partition)
+            partition.discard()  # Re-initializes the object
 
         # Mount the unused disk
         vpool_name = 'autotest-distr-vpool'
@@ -232,6 +234,9 @@ class TestVPool(object):
 
             pid_before = GeneralService.get_service_pid(name=service_name,
                                                         client=root_client)
+            if pid_before == -1:
+                errors.append('Service {0} has unknown PID before being killed'.format(service_name))
+                continue
             GeneralService.kill_service(name=service_name,
                                         client=root_client)
             time.sleep(5)
@@ -241,26 +246,12 @@ class TestVPool(object):
                 continue
             pid_after = GeneralService.get_service_pid(name=service_name,
                                                        client=root_client)
-
+            if pid_after == -1:
+                errors.append('Service {0} has unknown PID after being killed'.format(service_name))
+                continue
             if pid_before == pid_after:
                 errors.append('Kill command did not work on service {0}'.format(service_name))
 
         GeneralVPool.remove_vpool(vpool)
 
-        assert len(errors) == 0, "Following issues where found with the services:\n - {0}".format('\n - '.join(errors))
-
-    @staticmethod
-    def ovs_4184_validate_shm_server_enabled_by_default_test():
-        vpool = GeneralVPool.get_vpool_by_name(General.get_config().get('vpool', 'name'))
-        if vpool is None:
-            vpool = GeneralVPool.add_vpool()
-
-        assert vpool.storagedrivers, 'No storagedrivers configured for vpool: '.format(vpool.name)
-
-        sdc = StorageDriverConfiguration('storagedriver', vpool.guid, vpool.storagedrivers[0].storagedriver_id)
-        sdc.load()
-        assert 'filesystem' in sdc.configuration, 'Filesystem section missing in storagedriver configuration!'
-        assert 'fs_enable_shm_interface' in sdc.configuration['filesystem'], 'No fs_enable_shm_interface entry found'
-        assert sdc.configuration['filesystem']['fs_enable_shm_interface'] == 1, 'SHM server not enabled'
-
-        GeneralVPool.remove_vpool(vpool)
+        assert len(errors) == 0, "Following issues were found with the services:\n - {0}".format('\n - '.join(errors))

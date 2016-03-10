@@ -41,7 +41,7 @@ class TestSanity(object):
                     if env_ip_connecting_to not in out:
                         issues_found.append('Host key verification not found between {0} and {1}'.format(env_ip_connecting_from, env_ip_connecting_to))
 
-        assert len(issues_found) == 0, 'Following issues where found:\n - {0}'.format('\n - '.join(issues_found))
+        assert len(issues_found) == 0, 'Following issues were found:\n - {0}'.format('\n - '.join(issues_found))
 
     @staticmethod
     def services_check_test():

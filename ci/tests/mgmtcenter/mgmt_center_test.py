@@ -77,7 +77,7 @@ class TestMgmtCenter(object):
                 if not GeneralManagementCenter.is_host_configured(physical_machine):
                     issues_found += "Mgmtcenter {0} has an unconfigured pmachine with guid {1}\n".format(mgmtcenter.name, physical_machine.guid)
 
-        assert issues_found == "", "Following pmachines where not configured with their management center:\n{0}".format(issues_found)
+        assert issues_found == "", "Following pmachines were not configured with their management center:\n{0}".format(issues_found)
 
     @staticmethod
     def check_unconfigured_management_center_test():
@@ -97,4 +97,4 @@ class TestMgmtCenter(object):
                     issues_found += "Machine {0} is still configured with {1} management center".format(physical_machine.name, mgmtcenter.name)
                 GeneralManagementCenter.configure_pmachine_with_mgmtcenter(physical_machine, mgmtcenter)
 
-        assert issues_found == "", "Following pmachines where still configured with their management center:\n{0}".format(issues_found)
+        assert issues_found == "", "Following pmachines were still configured with their management center:\n{0}".format(issues_found)
