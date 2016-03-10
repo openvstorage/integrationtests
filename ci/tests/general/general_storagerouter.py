@@ -159,18 +159,27 @@ class GeneralStorageRouter(object):
         return metadata
 
     @staticmethod
-    def has_role(storagerouter, role):
+    def has_roles(storagerouter, roles):
         """
         Check if the Storage Driver has the requested role
         :param storagerouter: Storage Router to check for role existence
-        :param role: Role to check
+        :param roles: Roles to check
         :return: True or False
         """
-        if role not in DiskPartition.ROLES:
-            raise ValueError('Role should be 1 of the following:\n - {0}'.format('\n - '.join(DiskPartition.ROLES)))
+        if type(roles) in (str, basestring, unicode):
+            roles = [roles]
+        elif not isinstance(roles, list):
+            raise ValueError('Roles should either be a string or a list of roles')
+
+        for role in roles:
+            if role not in DiskPartition.ROLES:
+                raise ValueError('Role should be 1 of the following:\n - {0}'.format('\n - '.join(DiskPartition.ROLES)))
 
         storagerouter.invalidate_dynamics('partition_config')
         for known_role in DiskPartition.ROLES:
             assert known_role in storagerouter.partition_config, 'Role {0} is not defined in Storage Router {1} its partition config'.format(known_role, storagerouter.name)
 
-        return len(storagerouter.partition_config[role]) > 0
+        roles_found = True
+        for role in roles:
+            roles_found &= len(storagerouter.partition_config[role]) > 0
+        return roles_found

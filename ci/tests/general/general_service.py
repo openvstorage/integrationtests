@@ -116,10 +116,7 @@ class GeneralService(object):
         :param client: SSHClient object
         :return: PID
         """
-        pid = ServiceManager.get_service_pid(name, client)
-        if pid == -1:
-            raise RuntimeError('Failed to retrieve a valid PID for service {0} on {1}'.format(name, client.ip))
-        return pid
+        return ServiceManager.get_service_pid(name, client)
 
     @staticmethod
     def kill_service(name, client):
@@ -129,4 +126,6 @@ class GeneralService(object):
         :param client: SSHClient object
         :return: None
         """
-        client.run('kill -9 {0}'.format(GeneralService.get_service_pid(name, client)))
+        pid = GeneralService.get_service_pid(name, client)
+        if pid != -1:
+            client.run('kill -9 {0}'.format(pid))

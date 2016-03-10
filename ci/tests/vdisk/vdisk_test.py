@@ -66,7 +66,7 @@ class TestVDisk(object):
 
         GeneralVDisk.delete_volume(vdisk=vdisk, vpool=vpool, loop_device=loop)
 
-        assert post_scrubber_logsize > pre_scrubber_logsize, "Scrubber actions where not logged!"
+        assert post_scrubber_logsize > pre_scrubber_logsize, "Scrubber actions were not logged!"
 
     @staticmethod
     def ovs_3756_metadata_size_test():

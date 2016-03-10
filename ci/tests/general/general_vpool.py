@@ -16,6 +16,7 @@
 A general class dedicated to vPool logic
 """
 
+import copy
 import json
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
@@ -273,7 +274,7 @@ class GeneralVPool(object):
         assert vpool.rdma_enabled == rdma_enabled, 'RDMA enabled setting is incorrect'
 
         # Verify vPool Storage Driver configuration
-        expected_vpool_config = expected_settings['config_params']
+        expected_vpool_config = copy.deepcopy(expected_settings['config_params'])
         for key, value in vpool_config.iteritems():
             if key == 'dtl_enabled' or key == 'tlog_multiplier':
                 continue
@@ -284,10 +285,69 @@ class GeneralVPool(object):
                 raise ValueError('vPool does not have expected configuration {0} for key {1}'.format(expected_vpool_config[key], key))
             expected_vpool_config.pop(key)
 
-        for key in expected_vpool_config.iterkeys():
-            raise ValueError('Actual vPool configuration does not contain key {0}'.format(key))
+        if len(expected_vpool_config) > 0:
+            raise ValueError('Actual vPool configuration does not contain keys: {0}'.format(', '.join(expected_vpool_config.keys())))
 
         # Prepare some fields to check
+        config = expected_settings['config_params']
+        dtl_mode = config['dtl_mode']
+        sco_size = config['sco_size']
+        dedupe_mode = config['dedupe_mode']
+        cluster_size = config['cluster_size']
+        write_buffer = config['write_buffer']
+        dtl_transport = config['dtl_transport']
+        cache_strategy = config['cache_strategy']
+        # @TODO: Add more validations for other expected settings (instead of None)
+        expected_config = {'content_addressed_cache': {'clustercache_mount_points': None,
+                                                       'read_cache_serialization_path': u'/var/rsp/{0}'.format(vpool.name)},
+                           'distributed_lock_store': {'dls_arakoon_cluster_id': None,
+                                                      'dls_arakoon_cluster_nodes': None,
+                                                      'dls_type': u'Arakoon'},
+                           'distributed_transaction_log': {'dtl_path': None,
+                                                           'dtl_transport': dtl_transport.upper()},
+                           'event_publisher': {'events_amqp_routing_key': u'volumerouter',
+                                               'events_amqp_uris': None},
+                           'file_driver': {'fd_cache_path': None,
+                                           'fd_extent_cache_capacity': u'1024',
+                                           'fd_namespace': None},
+                           'filesystem': {'fs_dtl_config_mode': u'Automatic',
+                                          'fs_dtl_mode': u'{0}'.format(StorageDriverClient.VPOOL_DTL_MODE_MAP[dtl_mode]),
+                                          'fs_enable_shm_interface': 1,
+                                          'fs_file_event_rules': None,
+                                          'fs_metadata_backend_arakoon_cluster_nodes': None,
+                                          'fs_metadata_backend_mds_nodes': None,
+                                          'fs_metadata_backend_type': u'MDS',
+                                          'fs_raw_disk_suffix': None,
+                                          'fs_virtual_disk_format': None},
+                           'metadata_server': {'mds_nodes': None},
+                           'scocache': {'backoff_gap': u'2GB',
+                                        'scocache_mount_points': None,
+                                        'trigger_gap': u'1GB'},
+                           'threadpool_component': {'num_threads': 16},
+                           'volume_manager': {'clean_interval': 1,
+                                              'default_cluster_size': 1024 * cluster_size,
+                                              'dtl_throttle_usecs': 4000,
+                                              'metadata_path': None,
+                                              'non_disposable_scos_factor': float(write_buffer) / StorageDriverClient.TLOG_MULTIPLIER_MAP[sco_size] / sco_size,
+                                              'number_of_scos_in_tlog': StorageDriverClient.TLOG_MULTIPLIER_MAP[sco_size],
+                                              'read_cache_default_behaviour': StorageDriverClient.VPOOL_CACHE_MAP[cache_strategy],
+                                              'read_cache_default_mode': StorageDriverClient.VPOOL_DEDUPE_MAP[dedupe_mode],
+                                              'tlog_path': None},
+                           'volume_registry': {'vregistry_arakoon_cluster_id': u'voldrv',
+                                               'vregistry_arakoon_cluster_nodes': None},
+                           'volume_router': {'vrouter_backend_sync_timeout_ms': 5000,
+                                             'vrouter_file_read_threshold': 1024,
+                                             'vrouter_file_write_threshold': 1024,
+                                             'vrouter_id': None,
+                                             'vrouter_max_workers': 16,
+                                             'vrouter_migrate_timeout_ms': 5000,
+                                             'vrouter_min_workers': 4,
+                                             'vrouter_redirect_timeout_ms': u'5000',
+                                             'vrouter_routing_retries': 10,
+                                             'vrouter_sco_multiplier': 1024,
+                                             'vrouter_volume_read_threshold': 1024,
+                                             'vrouter_volume_write_threshold': 1024},
+                           'volume_router_cluster': {'vrouter_cluster_id': None}}
         vpool_services = {'all': ['ovs-watcher-volumedriver',
                                   'ovs-dtl_{0}'.format(vpool.name),
                                   'ovs-volumedriver_{0}'.format(vpool.name),
@@ -298,20 +358,6 @@ class GeneralVPool(object):
                          'READ': ['None'],
                          'WRITE': ['FD', 'DTL', 'SCO'],
                          'SCRUB': ['None']}
-        expected_config_sections = ['content_addressed_cache',
-                                    'distributed_lock_store',
-                                    'volume_manager',
-                                    'filesystem',
-                                    'threadpool_component',
-                                    'distributed_transaction_log',
-                                    'metadata_server',
-                                    'scocache',
-                                    'file_driver',
-                                    'volume_registry',
-                                    'volume_router_cluster',
-                                    'volume_router',
-                                    'backend_connection_manager',
-                                    'event_publisher']
 
         if backend_type == 'alba':
             required = {'name': (str, None),
@@ -327,6 +373,14 @@ class GeneralVPool(object):
                                            actual_params=vpool.metadata)
             vpool_services['all'].append("ovs-albaproxy_{0}".format(vpool.name))
             sd_partitions['WRITE'].append('FCACHE')
+            expected_config['backend_connection_manager'] = {'alba_connection_host': None,
+                                                             'alba_connection_port': None,
+                                                             'alba_connection_preset': None,
+                                                             'alba_connection_timeout': 15,
+                                                             'backend_type': u'{0}'.format(vpool.backend_type.code.upper())}
+        elif backend_type == 'distributed':
+            expected_config['backend_connection_manager'] = {'backend_type': u'LOCAL',
+                                                             'local_connection_path': u'{0}'.format(expected_settings['distributed_mountpoint'])}
 
         assert EtcdConfiguration.exists('/ovs/arakoon/voldrv/config', raw=True), 'Volumedriver arakoon does not exist'
 
@@ -335,14 +389,25 @@ class GeneralVPool(object):
         voldrv_config = GeneralArakoon.get_config('voldrv')
         all_files = GeneralVPool.get_related_files(vpool=vpool)
         all_directories = GeneralVPool.get_related_directories(vpool=vpool)
+
         for storagedriver in vpool.storagedrivers:
             storagerouter = storagedriver.storagerouter
             root_client = SSHClient(storagerouter, username='root')
 
             assert EtcdConfiguration.exists('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id), raw=True), 'vPool config not found in etcd'
             current_config_sections = set([item for item in EtcdConfiguration.list('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id))])
-            assert not current_config_sections.difference(set(expected_config_sections)), 'New section appeared in the storage driver config in etcd'
-            assert not set(expected_config_sections).difference(current_config_sections), 'Config section expected for storage driver, but not found in etcd'
+            assert not current_config_sections.difference(set(expected_config.keys())), 'New section appeared in the storage driver config in etcd'
+            assert not set(expected_config.keys()).difference(current_config_sections), 'Config section expected for storage driver, but not found in etcd'
+
+            for key, values in expected_config.iteritems():
+                current_config = EtcdConfiguration.get('/ovs/vpools/{0}/hosts/{1}/config/{2}'.format(vpool.guid, storagedriver.storagedriver_id, key))
+                assert set(current_config.keys()).union(set(values.keys())) == set(values.keys()), 'Not all expected keys match for key "{0}" on Storage Driver {1}'.format(key, storagedriver.name)
+
+                for sub_key, value in current_config.iteritems():
+                    expected_value = values[sub_key]
+                    if expected_value is None:
+                        continue
+                    assert value == expected_value, 'Key: {0} - Sub key: {1} - Value: {2} - Expected value: {3}'.format(key, sub_key, value, expected_value)
 
             # Check services
             if storagerouter.node_type == 'MASTER':

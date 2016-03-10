@@ -101,8 +101,10 @@ class GeneralAlba(object):
         assert name, "Please fill out a valid backend name in autotest.cfg file"
 
         my_sr = GeneralStorageRouter.get_local_storagerouter()
-        GeneralDisk.add_db_role(my_sr)
-        GeneralDisk.add_read_write_scrub_roles(my_sr)
+        if GeneralStorageRouter.has_roles(storagerouter=my_sr, roles='DB') is False:
+            GeneralDisk.add_db_role(my_sr)
+        if GeneralStorageRouter.has_roles(storagerouter=my_sr, roles=['READ', 'SCRUB', 'WRITE']) is False:
+            GeneralDisk.add_read_write_scrub_roles(my_sr)
         backend = GeneralBackend.get_by_name(name)
         if not backend:
             alba_backend = GeneralAlba.add_alba_backend(name)
@@ -144,7 +146,7 @@ class GeneralAlba(object):
             if exit_code != 0:
                 print 'Exit code: {0}'.format(exit_code)
                 print 'Error thrown: {0}'.format(error)
-                raise
+                raise RuntimeError('ALBA command failed with exitcode {0} and error {1}'.format(exit_code, error))
             if json_output is True:
                 return json.loads(output)['result']
             return output
@@ -258,7 +260,7 @@ class GeneralAlba(object):
 
         # Validate ABM and NSM services
         storagerouters = GeneralStorageRouter.get_storage_routers()
-        storagerouters_with_db_role = [sr for sr in storagerouters if GeneralStorageRouter.has_role(storagerouter=sr, role='DB') is True and sr.node_type == 'MASTER']
+        storagerouters_with_db_role = [sr for sr in storagerouters if GeneralStorageRouter.has_roles(storagerouter=sr, roles='DB') is True and sr.node_type == 'MASTER']
 
         assert len(alba_backend.abm_services) == len(storagerouters_with_db_role), 'Not enough ABM services found'
         assert len(alba_backend.nsm_services) == len(storagerouters_with_db_role), 'Not enough NSM services found'

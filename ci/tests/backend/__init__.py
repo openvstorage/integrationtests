@@ -34,8 +34,7 @@ def setup():
     assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
 
     my_sr = GeneralStorageRouter.get_local_storagerouter()
-    if GeneralStorageRouter.has_role(storagerouter=my_sr,
-                                     role='DB') is False:
+    if GeneralStorageRouter.has_roles(storagerouter=my_sr, roles='DB') is False:
         GeneralDisk.add_db_role(my_sr)
 
 
