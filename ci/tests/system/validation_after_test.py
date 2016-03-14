@@ -132,9 +132,15 @@ class TestAfterCare(object):
                         msg='Logrotate on Storage Router {0} does not include {1}'.format(storagerouter.name, logrotate_include_dir))
             assert_true(expr='/usr/sbin/logrotate /etc/logrotate.conf' in root_client.file_read(filename=logrotate_cron_file).splitlines(),
                         msg='Logrotate will not be executed on Storage Router {0}'.format(storagerouter.name))
-            assert_equal(first=expected_logrotate_content,
-                         second=root_client.file_read(filename=logrotate_ovs_file),
-                         msg='Logrotate contents does not match expected contents on Storage Router {0}'.format(storagerouter.name))
+            actual_file_contents = root_client.file_read(filename=logrotate_ovs_file)
+            if actual_file_contents.endswith('\n'):
+                assert_equal(first=expected_logrotate_content,
+                             second=actual_file_contents,
+                             msg='Logrotate contents does not match expected contents on Storage Router {0}'.format(storagerouter.name))
+            else:
+                assert_equal(first=expected_logrotate_content[:-1],
+                             second=actual_file_contents,
+                             msg='Logrotate contents does not match expected contents on Storage Router {0}'.format(storagerouter.name))
 
         # Create custom logrotate file for testing purposes
         custom_logrotate_cfg_file = '/opt/OpenvStorage/ci/logrotate-conf'
