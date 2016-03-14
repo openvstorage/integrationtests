@@ -152,7 +152,7 @@ class GeneralAlba(object):
             return output
         except (ValueError, RuntimeError):
             print "Command {0} failed:\nOutput: {1}".format(cmd, output)
-            raise
+            raise RuntimeError("Command {0} failed:\nOutput: {1}".format(cmd, output))
 
     @staticmethod
     def add_preset(alba_backend, name, policies=None, compression='none', encryption='none'):
@@ -325,7 +325,7 @@ class GeneralAlba(object):
         # @TODO: Add validation for config values
 
         # Validate maintenance agents
-        actual_amount_agents = len([key for key in alba_nodes[0].client.list_maintenance_services() if not key.startswith('_')])
+        actual_amount_agents = len([key for client in [alba_node.client.list_maintenance_services() for alba_node in alba_nodes] for key in client.iterkeys() if not key.startswith('_')])
         expected_amount_agents = EtcdConfiguration.get('/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend.guid))
         assert actual_amount_agents == expected_amount_agents, 'Amount of maintenance agents is incorrect. Found {0} - Expected {1}'.format(actual_amount_agents, expected_amount_agents)
 
