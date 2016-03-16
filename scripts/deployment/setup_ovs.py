@@ -248,7 +248,7 @@ python /opt/qbase5/utils/ubuntu_autoinstall.py -M {public_mac_address}
     q.clients.ssh.waitForConnection(pub_ip, "root", UBUNTU_PASSWORD, times=60)
 
 
-def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip):
+def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd=''):
     """
     Handle OVS setup
     :param pub_ip: Public IP
@@ -294,6 +294,13 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip):
         child.sendline(UBUNTU_PASSWORD)
         child.expect('Select the public ip address of')
     _pick_option(child, pub_ip)
+
+    # external etcd cluster
+    child.expect('Use an external Etcd cluster')
+    child.sendline("")
+
+    # @todo: add logic to use specific ext_etcd config
+
     # 5 minutes to partition disks
     child.timeout = 300
 
@@ -856,12 +863,116 @@ start ovs-beaver
 """
     print remote_con.process.execute(upstart_cmd, dieOnNonZeroExitCode=False)
 
+
+def _setup_etcd(node_ip, external_etcd_cluster):
+    etcd_params = external_etcd_cluster.split(':')
+    print etcd_params
+    assert len(etcd_params) == 2 or len(etcd_params) == 4, \
+        "Please specify mandatory name, ip, or both optional ports"
+    etcd_cluster_name = etcd_cluster_ip = ''
+    etcd_server_port = etcd_client_port = None
+    if len(etcd_params) == 2:
+        etcd_cluster_name = etcd_params[0]
+        etcd_cluster_ip = etcd_params[1]
+    elif len(etcd_params) == 4:
+        etcd_cluster_name = etcd_params[0]
+        etcd_cluster_ip = etcd_params[1]
+        etcd_server_port = etcd_params[2]
+        etcd_client_port = etcd_params[3]
+
+    assert q.system.net.pingMachine(etcd_cluster_ip), "Invalid Etcd cluster ip or unreachable"
+    assert etcd_cluster_name.isalnum() and len(etcd_cluster_name) >= 3,\
+        'Etcd cluster name is required with minimum length of 3 characters'
+    etcd_server_port = int(etcd_server_port) if etcd_server_port else 2370
+    etcd_client_port = int(etcd_client_port) if etcd_client_port else 2369
+
+    assert (isinstance(etcd_server_port, int) and (1024 < etcd_server_port <= 65535)),\
+        "Etcd service port should be an integer between 1025 and 65535"
+    assert (isinstance(etcd_client_port, int) and (1024 < etcd_client_port <= 65535)),\
+        "Etcd service port should be an integer between 1025 and 65535"
+
+    cmd = '''
+from ovs.extensions.db.etcd.installer import EtcdInstaller
+from ovs.extensions.db.etcd.configuration import EtcdConfiguration
+from ovs.extensions.generic.sshclient import SSHClient
+
+client = SSHClient('{1}', username='root')
+
+EtcdInstaller.create_cluster('{0}', '{1}', server_port={2}, client_port={3})
+EtcdInstaller.start('{0}', client)'''.format(etcd_cluster_name, etcd_cluster_ip, etcd_server_port, etcd_client_port)
+
+    print cmd
+    cfgcmd = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
+ipython 2>&1 -c "{0}"'''.format(cmd)
+
+    remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
+    print remote_con.process.execute(cfgcmd)
+
+    cmd = """
+etcdctl mkdir /ovs/framework/stores
+etcdctl mkdir /ovs/arakoon"""
+    print remote_con.process.execute(cmd)
+
+    return etcd_cluster_ip, etcd_client_port
+
+
+def _setup_external_arakoon_cluster(node_ip, arakoon_config, client_ip='127.0.0.1', client_port=2379):
+    config_params = arakoon_config.split(':')
+    cluster_name = ip = base_dir = ''
+    plugins = None
+    if len(config_params) >= 3:
+        cluster_name = config_params[0]
+        ip = config_params[1]
+        base_dir = config_params[2]
+    elif len(config_params) == 4:
+        plugins = config_params[3]
+
+    assert cluster_name.isalnum() and len(cluster_name) >= 3, "Arakoon cluster name should be at least 3 characters"
+    assert q.system.net.pingMachine(ip), "Invalid Etcd cluster ip or unreachable"
+
+    etcd_config = 'etcd://{0}:{1}/ovs/arakoon/'.format(client_ip, client_port) + '{0}/config'
+    cmd = '''
+from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
+current_etcd_value = ArakoonInstaller.get_etcd_config_path()
+current_ssh_user = ArakoonInstaller.get_default_sshclient_user()
+ArakoonInstaller.set_etcd_config_path('{0}')
+ArakoonInstaller.set_default_sshclient_user('root')
+ArakoonInstaller.create_cluster('{1}', '{2}', '{3}', '{4}', locked=False)
+ArakoonInstaller.set_etcd_config_path(current_etcd_value)
+ArakoonInstaller.set_default_sshclient_user(current_ssh_user)
+
+client = SSHClient('{2}', username='root')
+ArakoonInstaller.start('{1}', client)
+'''.format(etcd_config, cluster_name, ip, base_dir, plugins if plugins else '')
+
+    cfgcmd = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
+ipython 2>&1 -c "{0}"'''.format(cmd)
+    print cmd
+    remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
+    print remote_con.process.execute(cfgcmd)
+
+
+def deploy_external_cluster(node_ip, external_etcd_cluster, ovsdb_arakoon_config=None, voldrv_arakoon_config=None,
+                            abm_arakoon_config=None, nsm_arakoon_config=None):
+    client_ip, client_port = _setup_etcd(node_ip, external_etcd_cluster)
+
+    if ovsdb_arakoon_config:
+        _setup_external_arakoon_cluster(node_ip, ovsdb_arakoon_config, client_ip, client_port)
+    if voldrv_arakoon_config:
+        _setup_external_arakoon_cluster(node_ip, voldrv_arakoon_config, client_ip, client_port)
+    if abm_arakoon_config:
+        _setup_external_arakoon_cluster(node_ip, abm_arakoon_config, client_ip, client_port)
+    if nsm_arakoon_config:
+        _setup_external_arakoon_cluster(node_ip, nsm_arakoon_config, client_ip, client_port)
+
+
 if __name__ == '__main__':
     dns = ''
     gateway = ''
     public_network = ''
     storage_nic_mac = ''
-    options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:h:E:H:M:S:s:N')
+    external_etcd = ''
+    options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:h:E:H:M:S:s:N:ext_etcd')
     for opt, arg in options:
         if opt == '-e':
             hypervisor_ip = arg
@@ -896,6 +1007,9 @@ if __name__ == '__main__':
             storage_ip_last_octet = arg
         if opt == '-N':
             install_ovsvsa = False
+        if opt == '-ext_etcd':
+            external_etcd = arg
+
     assert q.system.net.pingMachine(hypervisor_ip), "Invalid ip given or unreachable"
     hypervisor_password = hypervisor_password or "R00t3r123"
     hypervisor_login = "root"
@@ -916,11 +1030,14 @@ if __name__ == '__main__':
                               host_name=hostname,
                               extra_pkgs=extra_packages,
                               storage_ip_last_part=storage_ip_last_octet)
+
     _handle_ovs_setup(pub_ip=public_ip,
                       ql=qualitylevel,
                       cluster=cluster_name,
                       hv_type=hypervisor_type,
-                      hv_ip=hypervisor_ip)
+                      hv_ip=hypervisor_ip,
+                      ext_etcd=external_etcd)
+
     # TODO: remove this if when OVS-3984 is resolved
     if hypervisor_type == "KVM":
         con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
