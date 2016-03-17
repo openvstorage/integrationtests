@@ -866,7 +866,6 @@ start ovs-beaver
 
 def _setup_etcd(node_ip, external_etcd_cluster):
     etcd_params = external_etcd_cluster.split(':')
-    print etcd_params
     assert len(etcd_params) == 2 or len(etcd_params) == 4, \
         "Please specify mandatory name, ip, or both optional ports"
     etcd_cluster_name = etcd_cluster_ip = ''
@@ -883,8 +882,8 @@ def _setup_etcd(node_ip, external_etcd_cluster):
     assert q.system.net.pingMachine(etcd_cluster_ip), "Invalid Etcd cluster ip or unreachable"
     assert etcd_cluster_name.isalnum() and len(etcd_cluster_name) >= 3,\
         'Etcd cluster name is required with minimum length of 3 characters'
-    etcd_server_port = int(etcd_server_port) if etcd_server_port else 2370
-    etcd_client_port = int(etcd_client_port) if etcd_client_port else 2369
+    etcd_server_port = int(etcd_server_port) if etcd_server_port else 2380
+    etcd_client_port = int(etcd_client_port) if etcd_client_port else 2379
 
     assert (isinstance(etcd_server_port, int) and (1024 < etcd_server_port <= 65535)),\
         "Etcd service port should be an integer between 1025 and 65535"
@@ -901,19 +900,17 @@ client = SSHClient('{1}', username='root')
 EtcdInstaller.create_cluster('{0}', '{1}', server_port={2}, client_port={3})
 EtcdInstaller.start('{0}', client)'''.format(etcd_cluster_name, etcd_cluster_ip, etcd_server_port, etcd_client_port)
 
-    print cmd
     cfgcmd = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
 ipython 2>&1 -c "{0}"'''.format(cmd)
 
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     print remote_con.process.execute(cfgcmd)
 
-    cmd = """
-etcdctl mkdir /ovs/framework/stores
-etcdctl mkdir /ovs/arakoon"""
-    print remote_con.process.execute(cmd)
+    cmd = "etcdctl member list | awk '{print $2}' | cut -f2 -d="
 
-    return etcd_cluster_ip, etcd_client_port
+    exitcode, etcd_cluster_name = remote_con.process.execute(cmd)
+
+    return etcd_cluster_name, etcd_cluster_ip, etcd_client_port
 
 
 def _setup_external_arakoon_cluster(node_ip, arakoon_config, client_ip='127.0.0.1', client_port=2379):
@@ -933,13 +930,15 @@ def _setup_external_arakoon_cluster(node_ip, arakoon_config, client_ip='127.0.0.
     etcd_config = 'etcd://{0}:{1}/ovs/arakoon/'.format(client_ip, client_port) + '{0}/config'
     cmd = '''
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
-current_etcd_value = ArakoonInstaller.get_etcd_config_path()
-current_ssh_user = ArakoonInstaller.get_default_sshclient_user()
-ArakoonInstaller.set_etcd_config_path('{0}')
-ArakoonInstaller.set_default_sshclient_user('root')
+from ovs.extensions.generic.sshclient import SSHClient
+
+current_etcd_value = ArakoonInstaller.ETCD_CONFIG_PATH
+current_ssh_user = ArakoonInstaller.SSHCLIENT_USER
+ArakoonInstaller.ETCD_CONFIG_PATH = '{0}'
+ArakoonInstaller.SSHCLIENT_USER = 'root'
 ArakoonInstaller.create_cluster('{1}', '{2}', '{3}', '{4}', locked=False)
-ArakoonInstaller.set_etcd_config_path(current_etcd_value)
-ArakoonInstaller.set_default_sshclient_user(current_ssh_user)
+ArakoonInstaller.ETCD_CONFIG_PATH = current_etcd_value
+ArakoonInstaller.SSHCLIENT_USER = current_ssh_user
 
 client = SSHClient('{2}', username='root')
 ArakoonInstaller.start('{1}', client)
@@ -954,7 +953,7 @@ ipython 2>&1 -c "{0}"'''.format(cmd)
 
 def deploy_external_cluster(node_ip, external_etcd_cluster, ovsdb_arakoon_config=None, voldrv_arakoon_config=None,
                             abm_arakoon_config=None, nsm_arakoon_config=None):
-    client_ip, client_port = _setup_etcd(node_ip, external_etcd_cluster)
+    etcd_cluster_name, client_ip, client_port = _setup_etcd(node_ip, external_etcd_cluster)
 
     if ovsdb_arakoon_config:
         _setup_external_arakoon_cluster(node_ip, ovsdb_arakoon_config, client_ip, client_port)
