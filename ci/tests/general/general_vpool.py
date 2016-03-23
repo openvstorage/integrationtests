@@ -381,6 +381,9 @@ class GeneralVPool(object):
         elif backend_type == 'distributed':
             expected_config['backend_connection_manager'] = {'backend_type': u'LOCAL',
                                                              'local_connection_path': u'{0}'.format(expected_settings['distributed_mountpoint'])}
+        expected_config['backend_connection_manager'].update({'backend_interface_retries_on_error': 5,
+                                                              'backend_interface_retry_interval_secs': 1,
+                                                              'backend_interface_retry_backoff_multiplier': 2.0})
 
         assert EtcdConfiguration.exists('/ovs/arakoon/voldrv/config', raw=True), 'Volumedriver arakoon does not exist'
 
