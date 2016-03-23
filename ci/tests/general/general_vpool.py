@@ -298,7 +298,10 @@ class GeneralVPool(object):
         dtl_transport = config['dtl_transport']
         cache_strategy = config['cache_strategy']
         # @TODO: Add more validations for other expected settings (instead of None)
-        expected_config = {'content_addressed_cache': {'clustercache_mount_points': None,
+        expected_config = {'backend_connection_manager': {'backend_interface_retries_on_error': 5,
+                                                          'backend_interface_retry_interval_secs': 1,
+                                                          'backend_interface_retry_backoff_multiplier': 2.0},
+                           'content_addressed_cache': {'clustercache_mount_points': None,
                                                        'read_cache_serialization_path': u'/var/rsp/{0}'.format(vpool.name)},
                            'distributed_lock_store': {'dls_arakoon_cluster_id': None,
                                                       'dls_arakoon_cluster_nodes': None,
@@ -373,17 +376,14 @@ class GeneralVPool(object):
                                            actual_params=vpool.metadata)
             vpool_services['all'].append("ovs-albaproxy_{0}".format(vpool.name))
             sd_partitions['WRITE'].append('FCACHE')
-            expected_config['backend_connection_manager'] = {'alba_connection_host': None,
-                                                             'alba_connection_port': None,
-                                                             'alba_connection_preset': None,
-                                                             'alba_connection_timeout': 15,
-                                                             'backend_type': u'{0}'.format(vpool.backend_type.code.upper())}
+            expected_config['backend_connection_manager'].update({'alba_connection_host': None,
+                                                                  'alba_connection_port': None,
+                                                                  'alba_connection_preset': None,
+                                                                  'alba_connection_timeout': 15,
+                                                                  'backend_type': u'{0}'.format(vpool.backend_type.code.upper())})
         elif backend_type == 'distributed':
-            expected_config['backend_connection_manager'] = {'backend_type': u'LOCAL',
-                                                             'local_connection_path': u'{0}'.format(expected_settings['distributed_mountpoint'])}
-        expected_config['backend_connection_manager'].update({'backend_interface_retries_on_error': 5,
-                                                              'backend_interface_retry_interval_secs': 1,
-                                                              'backend_interface_retry_backoff_multiplier': 2.0})
+            expected_config['backend_connection_manager'].update({'backend_type': u'LOCAL',
+                                                                  'local_connection_path': u'{0}'.format(expected_settings['distributed_mountpoint'])})
 
         assert EtcdConfiguration.exists('/ovs/arakoon/voldrv/config', raw=True), 'Volumedriver arakoon does not exist'
 
