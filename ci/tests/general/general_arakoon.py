@@ -64,9 +64,9 @@ class GeneralArakoon(object):
             EtcdConfiguration.delete(os.path.dirname(etcd_key))
 
     @staticmethod
-    def manual_voldrv_arakoon_checkup():
+    def voldrv_arakoon_checkup():
         """
         Execute the scheduled task voldrv arakoon checkup
         :return: None
         """
-        StorageDriverController.manual_voldrv_arakoon_checkup()  # No API available
+        StorageDriverController.scheduled_voldrv_arakoon_checkup()  # No API available
