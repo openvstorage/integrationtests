@@ -142,7 +142,8 @@ class TestAfterCare(object):
         custom_logrotate_file1 = '{0}/logrotate_test_file1.log'.format(custom_logrotate_dir)
         custom_logrotate_file2 = '{0}/logrotate_test_file2.log'.format(custom_logrotate_dir)
         custom_logrotate_content = logrotate_content.format(custom_logrotate_file1, custom_logrotate_file2)
-        root_client = SSHClient(endpoint=storagerouters[0], username='root')
+        local_sr = GeneralStorageRouter.get_local_storagerouter()
+        root_client = SSHClient(endpoint=local_sr, username='root')
         root_client.file_write(filename=custom_logrotate_cfg_file, contents=custom_logrotate_content)
 
         # No logfile present --> logrotate should fail
