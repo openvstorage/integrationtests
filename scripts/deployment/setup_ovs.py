@@ -899,6 +899,7 @@ client = SSHClient('{1}', username='root')
 
 EtcdInstaller.create_cluster('{0}', '{1}', server_port={2}, client_port={3})
 EtcdInstaller.start('{0}', client)'''.format(etcd_cluster_name, etcd_cluster_ip, etcd_server_port, etcd_client_port)
+    print cmd
 
     cfgcmd = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
 ipython 2>&1 -c "{0}"'''.format(cmd)
@@ -913,7 +914,7 @@ ipython 2>&1 -c "{0}"'''.format(cmd)
     return etcd_cluster_name, etcd_cluster_ip, etcd_client_port
 
 
-def _setup_external_arakoon_cluster(node_ip, arakoon_config, client_ip='127.0.0.1', client_port=2379):
+def _setup_external_arakoon_cluster(node_ip, arakoon_config, cluster_type, client_ip='127.0.0.1', client_port=2379):
     config_params = arakoon_config.split(':')
     cluster_name = ip = base_dir = ''
     plugins = None
@@ -936,17 +937,17 @@ current_etcd_value = ArakoonInstaller.ETCD_CONFIG_PATH
 current_ssh_user = ArakoonInstaller.SSHCLIENT_USER
 ArakoonInstaller.ETCD_CONFIG_PATH = '{0}'
 ArakoonInstaller.SSHCLIENT_USER = 'root'
-ArakoonInstaller.create_cluster('{1}', '{2}', '{3}', '{4}', locked=False)
+ArakoonInstaller.create_cluster('{1}', '{2}', '{3}', '{4}', '{5}', internal=False)
 ArakoonInstaller.ETCD_CONFIG_PATH = current_etcd_value
 ArakoonInstaller.SSHCLIENT_USER = current_ssh_user
 
-client = SSHClient('{2}', username='root')
+client = SSHClient('{3}', username='root')
 ArakoonInstaller.start('{1}', client)
-'''.format(etcd_config, cluster_name, ip, base_dir, plugins if plugins else '')
+'''.format(etcd_config, cluster_name, cluster_type, ip, base_dir, plugins if plugins else '')
+    print cmd
 
     cfgcmd = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
 ipython 2>&1 -c "{0}"'''.format(cmd)
-    print cmd
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     print remote_con.process.execute(cfgcmd)
 
@@ -956,13 +957,13 @@ def deploy_external_cluster(node_ip, external_etcd_cluster, ovsdb_arakoon_config
     etcd_cluster_name, client_ip, client_port = _setup_etcd(node_ip, external_etcd_cluster)
 
     if ovsdb_arakoon_config:
-        _setup_external_arakoon_cluster(node_ip, ovsdb_arakoon_config, client_ip, client_port)
+        _setup_external_arakoon_cluster(node_ip, ovsdb_arakoon_config, 'FWK', client_ip, client_port)
     if voldrv_arakoon_config:
-        _setup_external_arakoon_cluster(node_ip, voldrv_arakoon_config, client_ip, client_port)
+        _setup_external_arakoon_cluster(node_ip, voldrv_arakoon_config, 'SD', client_ip, client_port)
     if abm_arakoon_config:
-        _setup_external_arakoon_cluster(node_ip, abm_arakoon_config, client_ip, client_port)
+        _setup_external_arakoon_cluster(node_ip, abm_arakoon_config, 'ABM', client_ip, client_port)
     if nsm_arakoon_config:
-        _setup_external_arakoon_cluster(node_ip, nsm_arakoon_config, client_ip, client_port)
+        _setup_external_arakoon_cluster(node_ip, nsm_arakoon_config, 'NSM', client_ip, client_port)
 
 
 if __name__ == '__main__':
