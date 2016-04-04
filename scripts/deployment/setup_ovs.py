@@ -916,34 +916,48 @@ ipython 2>&1 -c "{0}"'''.format(cmd)
 
 def _setup_external_arakoon_cluster(node_ip, arakoon_config, cluster_type, client_ip='127.0.0.1', client_port=2379):
     config_params = arakoon_config.split(':')
-    cluster_name = ip = base_dir = ''
-    plugins = None
+    plugins = []
     if len(config_params) >= 3:
         cluster_name = config_params[0]
         ip = config_params[1]
         base_dir = config_params[2]
-    elif len(config_params) == 4:
-        plugins = config_params[3]
+    else:
+        raise RuntimeError('Please specify at least: cluster_name, ip and base_dir')
+
+    if len(config_params) == 4:
+        plugins.append(config_params[3])
 
     assert cluster_name.isalnum() and len(cluster_name) >= 3, "Arakoon cluster name should be at least 3 characters"
     assert q.system.net.pingMachine(ip), "Invalid Etcd cluster ip or unreachable"
 
+    # @todo: remove locked=False when OVS-4437 is fixed
     etcd_config = 'etcd://{0}:{1}/ovs/arakoon/'.format(client_ip, client_port) + '{0}/config'
     cmd = '''
+from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.generic.sshclient import SSHClient
 
 current_etcd_value = ArakoonInstaller.ETCD_CONFIG_PATH
 current_ssh_user = ArakoonInstaller.SSHCLIENT_USER
+
+cluster_type = '{2}'
+plugins = {5}
+
+if cluster_type == ServiceType.ARAKOON_CLUSTER_TYPES.ABM:
+    plugins.append('albamgr_plugin')
+
+if cluster_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
+    plugins.append('nsm_host_plugin')
+
 ArakoonInstaller.ETCD_CONFIG_PATH = '{0}'
 ArakoonInstaller.SSHCLIENT_USER = 'root'
-ArakoonInstaller.create_cluster('{1}', '{2}', '{3}', '{4}', '{5}', internal=False)
+ArakoonInstaller.create_cluster('{1}', '{2}', '{3}', '{4}', plugins=plugins, locked=False, internal=False)
 ArakoonInstaller.ETCD_CONFIG_PATH = current_etcd_value
 ArakoonInstaller.SSHCLIENT_USER = current_ssh_user
 
 client = SSHClient('{3}', username='root')
 ArakoonInstaller.start('{1}', client)
-'''.format(etcd_config, cluster_name, cluster_type, ip, base_dir, plugins if plugins else '')
+'''.format(etcd_config, cluster_name, cluster_type, ip, base_dir, plugins)
     print cmd
 
     cfgcmd = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
