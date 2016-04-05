@@ -1,10 +1,10 @@
-# Copyright 2014 iNuron NV
+# Copyright 2016 iNuron NV
 #
-# Licensed under the Open vStorage Modified Apache License (the "License");
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.openvstorage.org/license
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -142,7 +142,8 @@ class TestAfterCare(object):
         custom_logrotate_file1 = '{0}/logrotate_test_file1.log'.format(custom_logrotate_dir)
         custom_logrotate_file2 = '{0}/logrotate_test_file2.log'.format(custom_logrotate_dir)
         custom_logrotate_content = logrotate_content.format(custom_logrotate_file1, custom_logrotate_file2)
-        root_client = SSHClient(endpoint=storagerouters[0], username='root')
+        local_sr = GeneralStorageRouter.get_local_storagerouter()
+        root_client = SSHClient(endpoint=local_sr, username='root')
         root_client.file_write(filename=custom_logrotate_cfg_file, contents=custom_logrotate_content)
 
         # No logfile present --> logrotate should fail
@@ -254,11 +255,11 @@ class TestAfterCare(object):
         """
         license_header = re.compile('Copyright 201[4-9] iNuron NV')
         license_to_check = ['',
-                            'Licensed under the Open vStorage Modified Apache License (the "License");',
+                            'Licensed under the Apache License, Version 2.0 (the "License");',
                             'you may not use this file except in compliance with the License.',
                             'You may obtain a copy of the License at',
                             '',
-                            '    http://www.openvstorage.org/license',
+                            '    http://www.apache.org/licenses/LICENSE-2.0',
                             '',
                             'Unless required by applicable law or agreed to in writing, software',
                             'distributed under the License is distributed on an "AS IS" BASIS,',
