@@ -936,11 +936,19 @@ def _setup_external_arakoon_cluster(node_ip, arakoon_config, cluster_type, clien
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.services.service import ServiceManager
+
+import subprocess
 
 current_etcd_value = ArakoonInstaller.ETCD_CONFIG_PATH
 current_ssh_user = ArakoonInstaller.SSHCLIENT_USER
 
+ARAKOON_PLUGIN_DIR = '/usr/lib/alba'
+
+base_dir = '{4}'
+cluster_name = '{1}'
 cluster_type = '{2}'
+ip = '{3}'
 plugins = {5}
 
 if cluster_type == ServiceType.ARAKOON_CLUSTER_TYPES.ABM:
@@ -951,12 +959,20 @@ if cluster_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
 
 ArakoonInstaller.ETCD_CONFIG_PATH = '{0}'
 ArakoonInstaller.SSHCLIENT_USER = 'root'
-ArakoonInstaller.create_cluster('{1}', '{2}', '{3}', '{4}', plugins=plugins, locked=False, internal=False)
+ArakoonInstaller.create_cluster(cluster_name, cluster_type, ip, base_dir, plugins=plugins, locked=False, internal=False)
 ArakoonInstaller.ETCD_CONFIG_PATH = current_etcd_value
 ArakoonInstaller.SSHCLIENT_USER = current_ssh_user
 
-client = SSHClient('{3}', username='root')
-ArakoonInstaller.start('{1}', client)
+client = SSHClient(ip, username='root')
+
+base_dir = '' if base_dir == '/' else base_dir
+db_dir = base_dir + 'arakoon/' + cluster_name + '/db'
+for plugin in plugins:
+    cmd = '[ ! -f ' + db_dir + '/' + plugin + '.cmxs ] && ln -s ' + ARAKOON_PLUGIN_DIR + '/' + plugin + '.cmxs ' + db_dir + ' || echo True'
+    subprocess.check_output(cmd, shell=True)
+
+ServiceManager.start_service('arakoon-' + cluster_name, client=client)
+
 '''.format(etcd_config, cluster_name, cluster_type, ip, base_dir, plugins)
     print cmd
 
@@ -964,7 +980,6 @@ ArakoonInstaller.start('{1}', client)
 ipython 2>&1 -c "{0}"'''.format(cmd)
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     print remote_con.process.execute(cfgcmd)
-
 
 def deploy_external_cluster(node_ip, external_etcd_cluster, ovsdb_arakoon_config=None, voldrv_arakoon_config=None,
                             abm_arakoon_config=None, nsm_arakoon_config=None):
