@@ -176,12 +176,12 @@ class Vmware(object):
         os_info = General.get_os_info(os_name)
         bootdisk_path_remote = os_info['bootdisk_location']
 
-        os.mkdir(os.path.join(self.mountpoint, name))
+        os.mkdir('/'.join([self.mountpoint, name]))
 
         disk_name = "bootdisk.vmdk"
         disk_name_flat = "bootdisk-flat.vmdk"
-        bootdisk_path = os.path.join(self.mountpoint, name, disk_name)
-        bootdisk_flat_path = os.path.join(self.mountpoint, name, disk_name_flat)
+        bootdisk_path = '/'.join([self.mountpoint, name, disk_name])
+        bootdisk_flat_path = '/'.join([self.mountpoint, name, disk_name_flat])
 
         template_server = General.get_template_server()
         bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote + disk_name)
@@ -281,7 +281,7 @@ class Vmware(object):
         backing = sdk_client.factory.create('ns0:VirtualDiskFlatVer2BackingInfo')
         backing.diskMode = 'persistent'
         backing.fileName = '[{datastore}] {fileName}'.format(datastore=datastore.info.name,
-                                                             fileName=os.path.join(vm_dir_name, disk_name))
+                                                             fileName='/'.join([vm_dir_name, disk_name]))
 
         device = sdk_client.factory.create('ns0:VirtualDisk')
         device.controllerKey = virt_ide_controller.key
@@ -404,14 +404,14 @@ class Kvm(object):
         os_name = General.get_os()
         bootdisk_path_remote = General.get_os_info(os_name + '_small' if small else os_name)['bootdisk_location']
 
-        vm_path = os.path.join(self.mountpoint, name)
+        vm_path = '/'.join([self.mountpoint, name])
         if not os.path.exists(vm_path):
             os.mkdir(vm_path)
 
         if small:
-            bootdisk_path = os.path.join(self.mountpoint, name, "bootdiskfast.raw")
+            bootdisk_path = '/'.join([self.mountpoint, name, "bootdiskfast.raw"])
         else:
-            bootdisk_path = os.path.join(self.mountpoint, name, "bootdisk.raw")
+            bootdisk_path = '/'.join([self.mountpoint, name, "bootdisk.raw"])
         if not os.path.exists(bootdisk_path):
             template_server = General.get_template_server()
             bootdisk_url = urlparse.urljoin(template_server, bootdisk_path_remote)

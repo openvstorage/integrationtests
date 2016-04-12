@@ -137,7 +137,7 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
 
         arguments.append('--with-xunit_testrail')
         arguments.append('--xunit_file2')
-        arguments.append(os.path.join(output_folder, 'test_results{0}.xml'.format(time.time())))
+        arguments.append('/'.join([output_folder, 'test_results{0}.xml'.format(time.time())]))
         arguments.append('--testrail-ip')
         arguments.append(testrail_ip)
         arguments.append('--testrail-key')
@@ -248,7 +248,7 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
         filename_index = eval(_check_input(predicate=lambda x: eval(x) in files_to_ask_range,
                                            msg="Please choose results file \n" + "\n".join(
                                                map(lambda x: str(x[0]) + "->" + str(x[1]), files_to_ask)) + ":\n"))
-        filename = os.path.join(output_folder, result_files[filename_index])
+        filename = '/'.join([output_folder, result_files[filename_index]])
 
     if not version:
         version = _get_ovs_version()
@@ -272,7 +272,7 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
     date = today.strftime('%a %b %d %H:%M:%S')
     name = '%s_%s' % (version, date)
 
-    project_mapping_file = os.path.join(General.CONFIG_DIR, "project_testsuite_mapping.cfg")
+    project_mapping_file = '/'.join([General.CONFIG_DIR, "project_testsuite_mapping.cfg"])
     project_map = ConfigParser.ConfigParser()
     project_map.read(project_mapping_file)
 

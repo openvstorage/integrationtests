@@ -240,9 +240,9 @@ class GeneralVDisk(object):
         """
         hv_type = vpool.storagedrivers[0].storagerouter.pmachine.hvtype
         if hv_type == 'VMWARE':
-            location = os.path.join('/mnt/{0}'.format(vpool.name), "{0}-flat.vmdk".format(vdisk_name))
+            location = '/'.join(['/mnt/{0}'.format(vpool.name), "{0}-flat.vmdk".format(vdisk_name)])
         elif hv_type == 'KVM':
-            location = os.path.join('/mnt/{0}'.format(vpool.name), "{0}.raw".format(vdisk_name))
+            location = '/'.join(['/mnt/{0}'.format(vpool.name), "{0}.raw".format(vdisk_name)])
         else:
             raise RuntimeError('Invalid hypervisor type specified: {0}'.format(hv_type))
         return location
