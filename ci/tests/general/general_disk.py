@@ -174,7 +174,7 @@ class GeneralDisk(object):
         :return: None
         """
         for partition in GeneralDisk.get_disk_partitions():
-            if partition.mountpoint == '/' or partition.folder == '/mnt/storage':
+            if partition.mountpoint in ['/', '/boot'] or partition.folder == '/mnt/storage':
                 if partition.disk.storagerouter == storagerouter:
                     GeneralDisk.append_disk_role(partition, ['DB'])
                     break
