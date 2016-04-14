@@ -59,7 +59,8 @@ class GeneralVPool(object):
         """
         if storagerouters is None:
             storagerouters = [GeneralStorageRouter.get_local_storagerouter()]
-
+        if vpool_parameters is None:
+            vpool_parameters = {}
         if not isinstance(storagerouters, list) or len(storagerouters) == 0:
             raise ValueError('Storage Routers should be a list and contain at least 1 element to add a vPool on')
 
