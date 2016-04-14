@@ -45,70 +45,42 @@ class GeneralVPool(object):
     api = Connection()
 
     @staticmethod
-    def add_vpool(vpool_parameters=None, extend=False, storagerouters=None):
+    def add_vpool(vpool_parameters=None, storagerouters=None):
         """
         Create a vPool based on the kwargs provided or default parameters found in the autotest.cfg
         :param vpool_parameters: Parameters to be used for vPool creation
-        :param extend: Boolean indicating this is to extend an existing vPool or create a new vPool
+        :type vpool_parameters: dict
+
         :param storagerouters: Guids of the Storage Routers on which to create and extend this vPool
+        :type storagerouters: list
+
         :return: Created or extended vPool
+        :rtype: VPool
         """
-        if vpool_parameters is None:
-            vpool_parameters = GeneralVPool.get_add_vpool_params(extend=extend)
-
-        if 'type' not in vpool_parameters:
-            raise ValueError('"Type" is a required keyword in the set of vpool parameters')
-
-        required_params = {'type': (str, ['local', 'distributed', 'alba', 'ceph_s3', 'amazon_s3', 'swift_s3']),
-                           'storage_ip': (str, Toolbox.regex_ip),
-                           'vpool_name': (str, Toolbox.regex_vpool),
-                           'integratemgmt': (bool, None),
-                           'readcache_size': (int, {'min': 1, 'max': 10240}),
-                           'writecache_size': (int, {'min': 1, 'max': 10240}),
-                           'connection_backend': (dict, None),
-                           'config_params': (dict, {'dtl_mode': (str, StorageDriverClient.VPOOL_DTL_MODE_MAP.keys()),
-                                                    'sco_size': (int, StorageDriverClient.TLOG_MULTIPLIER_MAP.keys()),
-                                                    'dedupe_mode': (str, StorageDriverClient.VPOOL_DEDUPE_MAP.keys()),
-                                                    'cluster_size': (int, StorageDriverClient.CLUSTER_SIZES),
-                                                    'write_buffer': (int, {'min': 128, 'max': 10240}),
-                                                    'dtl_transport': (str, StorageDriverClient.VPOOL_DTL_TRANSPORT_MAP.keys()),
-                                                    'cache_strategy': (str, StorageDriverClient.VPOOL_CACHE_MAP.keys())})}
-
-        vpool_type = vpool_parameters['type']
-        if extend is False and vpool_type not in ['local', 'distributed']:
-            required_params['connection_host'] = (str, Toolbox.regex_ip, False)
-            required_params['connection_port'] = (int, {'min': 1, 'max': 65535})
-            required_params['connection_username'] = (str, None)
-            required_params['connection_password'] = (str, None)
-
-        if vpool_type == 'alba':
-            required_params['connection_backend'] = (dict, {'backend': (str, Toolbox.regex_guid),
-                                                            'metadata': (str, Toolbox.regex_preset)})
-
-        if vpool_type == 'distributed':
-            required_params['distributed_mountpoint'] = (str, None)
-
-        Toolbox.verify_required_params(required_params=required_params,
-                                       actual_params=vpool_parameters,
-                                       exact_match=True)
-
         if storagerouters is None:
             storagerouters = [GeneralStorageRouter.get_local_storagerouter()]
+        if vpool_parameters is None:
+            vpool_parameters = {}
+        if not isinstance(storagerouters, list) or len(storagerouters) == 0:
+            raise ValueError('Storage Routers should be a list and contain at least 1 element to add a vPool on')
 
-        for sr in storagerouters:
+        vpool_name = None
+        storagerouter_param_map = dict((sr, GeneralVPool.get_add_vpool_params(storagerouter=sr, **vpool_parameters)) for sr in storagerouters)
+        for index, sr in enumerate(storagerouters):
+            vpool_name = storagerouter_param_map[sr]['vpool_name']
             task_result = GeneralVPool.api.execute_post_action(component='storagerouters',
                                                                guid=sr.guid,
                                                                action='add_vpool',
-                                                               data={'call_parameters': vpool_parameters},
+                                                               data={'call_parameters': storagerouter_param_map[sr]},
                                                                wait=True,
                                                                timeout=500)
             if task_result[0] is not True:
-                raise RuntimeError('vPool was not {0} successfully'.format('extended' if extend is True else 'created'))
+                raise RuntimeError('vPool was not {0} successfully: {1}'.format('extended' if index > 0 else 'created', task_result[1]))
 
-        vpool = GeneralVPool.get_vpool_by_name(vpool_parameters['vpool_name'])
+        vpool = GeneralVPool.get_vpool_by_name(vpool_name)
         if vpool is None:
-            raise RuntimeError('vPool with name {0} could not be found in model'.format(vpool_parameters['vpool_name']))
-        return vpool
+            raise RuntimeError('vPool with name {0} could not be found in model'.format(vpool_name))
+        return vpool, storagerouter_param_map
 
     @staticmethod
     def remove_vpool(vpool):
@@ -167,22 +139,25 @@ class GeneralVPool(object):
         return VPoolList.get_vpools()
 
     @staticmethod
-    def get_add_vpool_params(extend=False, **kwargs):
+    def get_add_vpool_params(storagerouter, **kwargs):
         """
         Retrieve the default configuration settings to create a vPool
-        :param extend: Retrieve config for extending a vPool
+        :param storagerouter: Storage Router on which to add or extend the vPool
+        :type storagerouter: StorageRouter
+
         :return: Dictionary with default settings
+        :rtype: dict
         """
         test_config = General.get_config()
         config_params = json.loads(test_config.get('vpool', 'config_params'))
         vpool_type = kwargs.get('type', test_config.get('vpool', 'type'))
         vpool_params = {'type': vpool_type,
-                        'vpool_name': kwargs.get('name', test_config.get('vpool', 'name')),
+                        'vpool_name': kwargs.get('vpool_name', test_config.get('vpool', 'name')),
                         'storage_ip': kwargs.get('storage_ip', test_config.get('vpool', 'storage_ip')),
                         'integratemgmt': kwargs.get('integrate_mgmt', test_config.getboolean('vpool', 'integrate_mgmt')),
                         'readcache_size': kwargs.get('readcache_size', test_config.getint('vpool', 'readcache_size')),
                         'writecache_size': kwargs.get('writecache_size', test_config.getint('vpool', 'writecache_size')),
-                        'connection_backend': {},
+                        'storagerouter_ip': storagerouter.ip,
                         'config_params': {'dtl_mode': kwargs.get('dtl_mode', config_params.get('dtl_mode', 'a_sync')),
                                           'sco_size': kwargs.get('sco_size', config_params.get('sco_size', 4)),
                                           'dedupe_mode': kwargs.get('dedupe_mode', config_params.get('dedupe_mode', 'dedupe')),
@@ -190,17 +165,19 @@ class GeneralVPool(object):
                                           'write_buffer': kwargs.get('write_buffer', config_params.get('write_buffer', 128)),
                                           'dtl_transport': kwargs.get('dtl_transport', config_params.get('dtl_transport', 'tcp')),
                                           'cache_strategy': kwargs.get('cache_strategy', config_params.get('cache_strategy', 'on_read'))}}
-        if extend is False and vpool_type not in ['local', 'distributed']:
-            vpool_params['connection_host'] = kwargs.get('alba_connection_host', test_config.get('vpool', 'alba_connection_host'))
-            vpool_params['connection_port'] = kwargs.get('alba_connection_port', test_config.getint('vpool', 'alba_connection_port'))
-            vpool_params['connection_password'] = kwargs.get('alba_connection_user', test_config.get('vpool', 'alba_connection_user'))
-            vpool_params['connection_username'] = kwargs.get('alba_connection_pass', test_config.get('vpool', 'alba_connection_pass'))
-        if vpool_type == 'alba':
-            backend = BackendList.get_by_name(kwargs.get('backend_name', test_config.get('backend', 'name')))
-            if backend is not None:
-                vpool_params['connection_backend'] = {'backend': backend.alba_backend_guid,
-                                                      'metadata': kwargs.get('preset_name', 'default')}
-        if vpool_type == 'distributed':
+        if vpool_type not in ['local', 'distributed']:
+            vpool_params['backend_connection_info'] = {'host': kwargs.get('alba_connection_host', test_config.get('vpool', 'alba_connection_host')),
+                                                       'port': kwargs.get('alba_connection_port', test_config.getint('vpool', 'alba_connection_port')),
+                                                       'username': kwargs.get('alba_connection_user', test_config.get('vpool', 'alba_connection_user')),
+                                                       'password': kwargs.get('alba_connection_pass', test_config.get('vpool', 'alba_connection_pass'))}
+            if vpool_type == 'alba':
+                backend = BackendList.get_by_name(kwargs.get('backend_name', test_config.get('backend', 'name')))
+                if backend is not None:
+                    vpool_params['fragment_cache_on_read'] = kwargs.get('fragment_cache_on_read', test_config.getboolean('vpool', 'fragment_cache_on_read'))
+                    vpool_params['fragment_cache_on_write'] = kwargs.get('fragment_cache_on_write', test_config.getboolean('vpool', 'fragment_cache_on_write'))
+                    vpool_params['backend_connection_info']['backend'] = {'backend': backend.alba_backend_guid,
+                                                                          'metadata': 'default'}
+        elif vpool_type == 'distributed':
             vpool_params['distributed_mountpoint'] = kwargs.get('distributed_mountpoint', '/tmp')
         return vpool_params
 
@@ -254,17 +231,25 @@ class GeneralVPool(object):
         return all_directories
 
     @staticmethod
-    def validate_vpool_sanity(vpool, expected_settings):
+    def validate_vpool_sanity(expected_settings):
         """
         Check if all requirements are met for a healthy vPool
-        :param vpool: vPool to check sanity for
         :param expected_settings: Parameters used to create a vPool, which will be verified
+        :type expected_settings: dict
+
         :return: None
         """
-        mountpoint = '/mnt/{0}'.format(vpool.name)
-        vpool_name = expected_settings['vpool_name']
-        backend_type = expected_settings['type']
-        rdma_enabled = expected_settings['config_params']['dtl_transport'] == StorageDriverClient.FRAMEWORK_DTL_TRANSPORT_RSOCKET
+        if not isinstance(expected_settings, dict) or len(expected_settings) == 0:
+            raise ValueError('Cannot validate vpool when no settings are passed')
+
+        generic_settings = expected_settings.values()[0]
+        vpool_name = generic_settings['vpool_name']
+        mountpoint = '/mnt/{0}'.format(vpool_name)
+        backend_type = generic_settings['type']
+        rdma_enabled = generic_settings['config_params']['dtl_transport'] == StorageDriverClient.FRAMEWORK_DTL_TRANSPORT_RSOCKET
+
+        vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
+        assert vpool is not None, 'Could not find vPool with name {0}'.format(vpool_name)
         vpool_config = GeneralVPool.get_configuration(vpool)
 
         # Verify some basic vPool attributes
@@ -272,9 +257,10 @@ class GeneralVPool(object):
         assert vpool.backend_type.code == backend_type, 'Expected backend type {0}'.format(backend_type)
         assert vpool.status == VPool.STATUSES.RUNNING, 'vPool does not have RUNNING status'
         assert vpool.rdma_enabled == rdma_enabled, 'RDMA enabled setting is incorrect'
+        assert set(expected_settings.keys()) == set([sd.storagerouter for sd in vpool.storagedrivers]), "vPool storagerouters don't match the expected Storage Routers"
 
         # Verify vPool Storage Driver configuration
-        expected_vpool_config = copy.deepcopy(expected_settings['config_params'])
+        expected_vpool_config = copy.deepcopy(generic_settings['config_params'])
         for key, value in vpool_config.iteritems():
             if key == 'dtl_enabled' or key == 'tlog_multiplier':
                 continue
@@ -289,7 +275,7 @@ class GeneralVPool(object):
             raise ValueError('Actual vPool configuration does not contain keys: {0}'.format(', '.join(expected_vpool_config.keys())))
 
         # Prepare some fields to check
-        config = expected_settings['config_params']
+        config = generic_settings['config_params']
         dtl_mode = config['dtl_mode']
         sco_size = config['sco_size']
         dedupe_mode = config['dedupe_mode']
@@ -363,15 +349,22 @@ class GeneralVPool(object):
                          'SCRUB': ['None']}
 
         if backend_type == 'alba':
-            required = {'name': (str, None),
-                        'preset': (str, None),
-                        'metadata': (dict, None),
-                        'backend_guid': (str, Toolbox.regex_guid),
-                        'backend_info': (dict, {'policies': (list, None),
-                                                'sco_size': (float, None),
-                                                'frag_size': (float, None),
-                                                'total_size': (float, None),
-                                                'nsm_partition_guids': (list, Toolbox.regex_guid)})}
+            backend_metadata = {'name': (str, None),
+                                'preset': (str, Toolbox.regex_preset),
+                                'backend_guid': (str, Toolbox.regex_guid),
+                                'arakoon_config': (dict, None),
+                                'connection': (dict, {'host': (str, Toolbox.regex_ip, False),
+                                                      'port': (int, {'min': 1, 'max': 65535}),
+                                                      'client_id': (str, Toolbox.regex_guid),
+                                                      'client_secret': (str, None),
+                                                      'local': (bool, None)}),
+                                'backend_info': (dict, {'policies': (list, None),
+                                                        'sco_size': (float, None),
+                                                        'frag_size': (float, None),
+                                                        'total_size': (float, None),
+                                                        'nsm_partition_guids': (list, Toolbox.regex_guid)})}
+            required = {'backend': (dict, backend_metadata),
+                        'backend_aa': (dict, backend_metadata, False)}
             Toolbox.verify_required_params(required_params=required,
                                            actual_params=vpool.metadata)
             vpool_services['all'].append("ovs-albaproxy_{0}".format(vpool.name))
@@ -383,7 +376,7 @@ class GeneralVPool(object):
                                                                   'backend_type': u'{0}'.format(vpool.backend_type.code.upper())})
         elif backend_type == 'distributed':
             expected_config['backend_connection_manager'].update({'backend_type': u'LOCAL',
-                                                                  'local_connection_path': u'{0}'.format(expected_settings['distributed_mountpoint'])})
+                                                                  'local_connection_path': u'{0}'.format(generic_settings['distributed_mountpoint'])})
 
         assert EtcdConfiguration.exists('/ovs/arakoon/voldrv/config', raw=True), 'Volumedriver arakoon does not exist'
 
