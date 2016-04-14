@@ -80,9 +80,9 @@ CONTROL_CHARACTERS = re.compile(r"[\000-\010\013\014\016-\037]")
 
 CRASH_FILE_LOG = "/var/log/testrunner_crash"
 
-AUTOTEST_DIR = os.path.join(os.sep, "opt", "OpenvStorage", "ci")
-TESTS_DIR = os.path.join(AUTOTEST_DIR, "tests")
-CONFIG_DIR = os.path.join(AUTOTEST_DIR, "config")
+AUTOTEST_DIR = "/opt/OpenvStorage/ci"
+TESTS_DIR = '/'.join([AUTOTEST_DIR, "tests"])
+CONFIG_DIR = '/'.join([AUTOTEST_DIR, "config"])
 
 
 def xml_safe(value):
@@ -300,7 +300,7 @@ class XunitTestrail(Plugin):
         self.config = config
         self.error_report_file = open(options.xunit_file2, 'w')
 
-        project_mapping = os.path.join(CONFIG_DIR, "project_testsuite_mapping.cfg")
+        project_mapping = '/'.join([CONFIG_DIR, "project_testsuite_mapping.cfg"])
         self.projectIni.read(project_mapping)
         self.testrailIp = options.testrailIp
         if self.testrailIp:

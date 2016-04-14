@@ -34,12 +34,12 @@ class General(object):
     """
     A general class dedicated to general logic
     """
-    AUTOTEST_DIR = os.path.join(os.sep, "opt", "OpenvStorage", "ci")
-    CONFIG_DIR = os.path.join(AUTOTEST_DIR, "config")
-    TESTS_DIR = os.path.join(AUTOTEST_DIR, "tests")
+    AUTOTEST_DIR = "/opt/OpenvStorage/ci"
+    CONFIG_DIR = '/'.join([AUTOTEST_DIR, "config"])
+    TESTS_DIR = '/'.join([AUTOTEST_DIR, "tests"])
 
-    AUTOTEST_CFG_FILE = os.path.join(CONFIG_DIR, "autotest.cfg")
-    OS_MAPPING_CFG_FILE = os.path.join(CONFIG_DIR, "os_mapping.cfg")
+    AUTOTEST_CFG_FILE = '/'.join([CONFIG_DIR, "autotest.cfg"])
+    OS_MAPPING_CFG_FILE = '/'.join([CONFIG_DIR, "os_mapping.cfg"])
 
     logging.getLogger("paramiko").setLevel(logging.WARNING)
 
@@ -173,7 +173,7 @@ class General(object):
                     if os.path.exists(mountpoint):
                         for d in os.listdir(mountpoint):
                             if d.startswith(machine_name):
-                                p = os.path.join(mountpoint, d)
+                                p = '/'.join([mountpoint, d])
                                 if os.path.isdir(p):
                                     logging.log(1, "removing tree: {0}".format(p))
                                     shutil.rmtree(p)
@@ -182,11 +182,11 @@ class General(object):
                                     if os.path.isfile(p):
                                         os.remove(p)
                         for mac in env_macs:
-                            mac_path = os.path.join(mountpoint, mac)
+                            mac_path = '/'.join([mountpoint, mac])
                             if os.path.exists(mac_path):
                                 for f in os.listdir(mac_path):
                                     logging.log(1, "removing file: {0}".format(f))
-                                    os.remove(os.path.join(mac_path, f))
+                                    os.remove('/'.join([mac_path, f]))
 
                 # remove existing disks
                 vdisks = GeneralVDisk.get_vdisks()

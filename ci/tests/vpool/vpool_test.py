@@ -46,24 +46,16 @@ class TestVPool(object):
         Validate the newly created vPool is correctly running
         Remove the newly created vPool and validate everything related to the vPool has been cleaned up
         """
-        vpool_params = GeneralVPool.get_add_vpool_params()
-        vpool_name = vpool_params['vpool_name']
-        if vpool_name is None or len(vpool_name) < 3:
-            raise RuntimeError('Invalid vPool name provided in autotest.cfg')
-
-        # Remove vPool if 1 already exists
+        # Raise if vPool already exists
+        vpool_name = 'add-delete-alba-vpool'
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
         if vpool is not None:
-            GeneralVPool.remove_vpool(vpool=vpool)
-            vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
-            if vpool is not None:
-                raise RuntimeError('vPool with name "{0}" still exists'.format(vpool_name))
+            raise RuntimeError('vPool with name "{0}" still exists'.format(vpool_name))
 
         # Add vPool and validate health
-        vpool = GeneralVPool.add_vpool(vpool_parameters=vpool_params)
+        vpool, vpool_params = GeneralVPool.add_vpool(vpool_parameters={'vpool_name': vpool_name})
         assert vpool is not None, 'vPool {0} was not created'.format(vpool_name)
-        GeneralVPool.validate_vpool_sanity(vpool=vpool,
-                                           expected_settings=vpool_params)
+        GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
 
         # Retrieve vPool information before removal
         guid = vpool.guid
@@ -95,6 +87,12 @@ class TestVPool(object):
         if len(unused_disks) == 0:
             raise SkipTest('No available disks found to mount locally for the distributed backend')
 
+        # Raise if vPool already exists
+        vpool_name = 'add-remove-distr-vpool'
+        vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
+        if vpool is not None:
+            raise RuntimeError('vPool with name "{0}" still exists'.format(vpool_name))
+
         unused_disk = unused_disks[0]
         if not unused_disk.startswith('/dev/'):
             raise ValueError('Unused disk must be absolute path')
@@ -104,29 +102,18 @@ class TestVPool(object):
         disk = GeneralDisk.get_disk_by_devicename(storagerouter=local_sr,
                                                   device_name=unused_disk)
         partition = GeneralDisk.partition_disk(disk=disk)
+
+        # Mount the unused disk
         if partition.mountpoint is None:
             GeneralDisk.configure_disk(storagerouter=local_sr, disk=disk, offset=0, size=disk.size, roles=[], partition=partition)
             partition.discard()  # Re-initializes the object
 
-        # Mount the unused disk
-        vpool_name = 'autotest-distr-vpool'
-        vpool_params = GeneralVPool.get_add_vpool_params(name=vpool_name,
-                                                         type='distributed',
-                                                         distributed_mountpoint=partition.mountpoint)
-
-        # Remove vPool if 1 already exists
-        vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
-        if vpool is not None:
-            GeneralVPool.remove_vpool(vpool=vpool)
-            vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
-            if vpool is not None:
-                raise RuntimeError('vPool with name "{0}" still exists'.format(vpool_name))
-
         # Add vPool and validate health
-        vpool = GeneralVPool.add_vpool(vpool_parameters=vpool_params)
+        vpool, vpool_params = GeneralVPool.add_vpool(vpool_parameters={'vpool_name': vpool_name,
+                                                                       'type': 'distributed',
+                                                                       'distributed_mountpoint': partition.mountpoint})
         assert vpool is not None, 'vPool {0} was not created'.format(vpool_name)
-        GeneralVPool.validate_vpool_sanity(vpool=vpool,
-                                           expected_settings=vpool_params)
+        GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
 
         # Retrieve vPool information before removal
         guid = vpool.guid
@@ -172,7 +159,7 @@ class TestVPool(object):
         assert len(result) == no_namespaces, "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name, len(result))
 
         # Create a vPool and create volumes on it
-        vpool = GeneralVPool.add_vpool()
+        vpool, _ = GeneralVPool.add_vpool()
         root_client = SSHClient(GeneralStorageRouter.get_local_storagerouter(), username='root')
         if vpool.storagedrivers[0].storagerouter.pmachine.hvtype == 'VMWARE':
             GeneralVPool.mount_vpool(vpool=vpool,
@@ -218,7 +205,7 @@ class TestVPool(object):
         # @TODO 2: Make test smarter to test all required services on all node types
         vpool = GeneralVPool.get_vpool_by_name(General.get_config().get('vpool', 'name'))
         if vpool is None:
-            vpool = GeneralVPool.add_vpool()
+            vpool, _ = GeneralVPool.add_vpool()
 
         errors = []
         root_client = SSHClient(GeneralStorageRouter.get_local_storagerouter(), username='root')

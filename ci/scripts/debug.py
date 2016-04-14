@@ -29,7 +29,7 @@ import tempfile
 
 def pipename(pid):
     """Return name of pipe to use"""
-    return os.path.join(tempfile.gettempdir(), 'debug-%d' % pid)
+    return '/'.join([tempfile.gettempdir(), 'debug-%d' % pid])
 
 
 class NamedPipe(object):
