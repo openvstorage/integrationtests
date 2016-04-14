@@ -83,8 +83,7 @@ class GeneralAlba(object):
         :param alba_backend: ALBA backend
         :return: Configuration string
         """
-        backend_name = alba_backend.abm_services[0].service.name if alba_backend.abm_services else alba_backend.name + '-abm'
-        return '--config etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(backend_name)
+        return '--config etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name)
 
     @staticmethod
     def prepare_alba_backend(name=None):
