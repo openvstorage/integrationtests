@@ -173,11 +173,20 @@ class GeneralDisk(object):
         :param storagerouter: Storage Router
         :return: None
         """
+        role_added = False
         for partition in GeneralDisk.get_disk_partitions():
-            if partition.mountpoint in ['/', '/boot'] or partition.folder == '/mnt/storage':
+            if partition.mountpoint == '/' or partition.folder == '/mnt/storage':
                 if partition.disk.storagerouter == storagerouter:
                     GeneralDisk.append_disk_role(partition, ['DB'])
+                    role_added = True
                     break
+        # LVM partition present on the / mountpoint
+        if role_added is False:
+            for partition in GeneralDisk.get_disk_partitions():
+                if '/mnt/ssd' in partition.mountpoint:
+                    if partition.disk.storagerouter == storagerouter:
+                        GeneralDisk.append_disk_role(partition, ['DB'])
+                        break
 
     @staticmethod
     def partition_disk(disk):
