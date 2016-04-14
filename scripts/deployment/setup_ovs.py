@@ -258,6 +258,7 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd=''):
     :param hv_ip: Hypervisor IP
     :return: None
     """
+    _ = ext_etcd
     integrate_papertrail(pub_ip)
 
     remote_con = q.remote.system.connect(pub_ip, "root", UBUNTU_PASSWORD)
@@ -894,11 +895,15 @@ def _setup_etcd(node_ip, external_etcd_cluster):
 from ovs.extensions.db.etcd.installer import EtcdInstaller
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.generic.system import System
 
 client = SSHClient('{1}', username='root')
+machine_id = System.get_my_machine_id(client)
 
 EtcdInstaller.create_cluster('{0}', '{1}', server_port={2}, client_port={3})
-EtcdInstaller.start('{0}', client)'''.format(etcd_cluster_name, etcd_cluster_ip, etcd_server_port, etcd_client_port)
+EtcdConfiguration.initialize(external_etcd='{4}')
+EtcdConfiguration.initialize_host(machine_id)
+'''.format(etcd_cluster_name, etcd_cluster_ip, etcd_server_port, etcd_client_port, external_etcd_cluster)
     print cmd
 
     cfgcmd = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
@@ -906,19 +911,14 @@ ipython 2>&1 -c "{0}"'''.format(cmd)
 
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     print remote_con.process.execute(cfgcmd)
-
-    cmd = "etcdctl member list | awk '{print $2}' | cut -f2 -d="
-
-    exitcode, etcd_cluster_name = remote_con.process.execute(cmd)
-
-    return etcd_cluster_name, etcd_cluster_ip, etcd_client_port
+    return etcd_cluster_ip, etcd_client_port
 
 
 def _setup_external_arakoon_cluster(node_ip, arakoon_config, cluster_type, client_ip='127.0.0.1', client_port=2379):
     config_params = arakoon_config.split(':')
     plugins = []
     if len(config_params) >= 3:
-        cluster_name = config_params[0]
+        clustername = config_params[0]
         ip = config_params[1]
         base_dir = config_params[2]
     else:
@@ -927,7 +927,7 @@ def _setup_external_arakoon_cluster(node_ip, arakoon_config, cluster_type, clien
     if len(config_params) == 4:
         plugins.append(config_params[3])
 
-    assert cluster_name.isalnum() and len(cluster_name) >= 3, "Arakoon cluster name should be at least 3 characters"
+    assert clustername.isalnum() and len(clustername) >= 3, "Arakoon cluster name should be at least 3 characters"
     assert q.system.net.pingMachine(ip), "Invalid Etcd cluster ip or unreachable"
 
     # @todo: remove locked=False when OVS-4437 is fixed
@@ -981,9 +981,20 @@ ipython 2>&1 -c "{0}"'''.format(cmd)
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     print remote_con.process.execute(cfgcmd)
 
+
 def deploy_external_cluster(node_ip, external_etcd_cluster, ovsdb_arakoon_config=None, voldrv_arakoon_config=None,
                             abm_arakoon_config=None, nsm_arakoon_config=None):
-    etcd_cluster_name, client_ip, client_port = _setup_etcd(node_ip, external_etcd_cluster)
+    """
+    Deploy externally managed arakoon clusters
+    :param node_ip: IP to deploy the clusters on
+    :param external_etcd_cluster: Externally ETCD URL to retrieve information from
+    :param ovsdb_arakoon_config: ovsdb arakoon cluster information
+    :param voldrv_arakoon_config: voldrv arakoon cluster information
+    :param abm_arakoon_config: abm arakoon cluster information
+    :param nsm_arakoon_config: nsm arakoon cluster information
+    :return:
+    """
+    client_ip, client_port = _setup_etcd(node_ip, external_etcd_cluster)
 
     if ovsdb_arakoon_config:
         _setup_external_arakoon_cluster(node_ip, ovsdb_arakoon_config, 'FWK', client_ip, client_port)
