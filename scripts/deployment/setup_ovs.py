@@ -248,7 +248,7 @@ python /opt/qbase5/utils/ubuntu_autoinstall.py -M {public_mac_address}
     q.clients.ssh.waitForConnection(pub_ip, "root", UBUNTU_PASSWORD, times=60)
 
 
-def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd=''):
+def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch=''):
     """
     Handle OVS setup
     :param pub_ip: Public IP
@@ -256,10 +256,10 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd=''):
     :param cluster: Cluster name
     :param hv_type: Hypervisor type
     :param hv_ip: Hypervisor IP
+    :param ext_etcd='': External etcd cluster
+    :param branch: specific branch to use as extra patch on top of official branches
     :return: None
     """
-    _ = ext_etcd
-    integrate_papertrail(pub_ip)
 
     remote_con = q.remote.system.connect(pub_ip, "root", UBUNTU_PASSWORD)
     remote_con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
@@ -278,8 +278,20 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd=''):
             remote_con.process.execute("mdadm --stop {}".format(md), dieOnNonZeroExitCode=False)
             for d in o.splitlines():
                 remote_con.process.execute("mdadm --zero-superblock {}".format(d), dieOnNonZeroExitCode=False)
+
+    if branch != '':
+        repo_map = {'framework': {'config': '/opt/OpenvStorage/config',
+                                  'ovs': '/opt/OpenvStorage/ovs',
+                                  'webapps': '/opt/OpenvStorage/webapps'},
+                    'framework-alba-plugin': {'ovs': '/opt/OpenvStorage/ovs',
+                                              'webapps': '/opt/OpenvStorage/webapps'},
+                    'alba-asdmanager': {'config': '/opt/asd-manager/config',
+                                        'source': '/opt/asd-manager/source'}
+                    }
+        _patch_code_with(branch, repo_map, remote_con)
+
     child = pexpect.spawn('ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{0}'.format(pub_ip))
-    child.timeout = 300
+    child.timeout = 30
     child.logfile = sys.stdout
     child.expect('password:')
     child.sendline(UBUNTU_PASSWORD)
@@ -290,17 +302,11 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd=''):
         _pick_option(child, "Create a new cluster", use_select=False)
         child.expect('Please enter the cluster name')
         child.sendline(cluster)
-    idx = child.expect(['Select the public ip address of', 'Password:'])
+    idx = child.expect(['Select the public IP address of', 'Password:'])
     if idx == 1:
         child.sendline(UBUNTU_PASSWORD)
-        child.expect('Select the public ip address of')
+        child.expect('Select the public IP address of')
     _pick_option(child, pub_ip)
-
-    # external etcd cluster
-    child.expect('Use an external Etcd cluster')
-    child.sendline("")
-
-    # @todo: add logic to use specific ext_etcd config
 
     # 5 minutes to partition disks
     child.timeout = 300
@@ -309,7 +315,22 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd=''):
     while provide_root_pwds:
         idx = child.expect(["Which type of hypervisor is this Grid Storage Router",
                             "Which type of hypervisor is this Storage Router backing",
-                            "Password:"])
+                            "Password:",
+                            "Use an external Etcd cluster"])
+        if idx == 3:
+            if not ext_etcd:
+                child.sendline("")
+            else:
+                child.sendline("y")
+                if ':' in ext_etcd:
+                    etcd_ip = ext_etcd.split(':')[0]
+                    etcd_port = ext_etcd.split(':')[1]
+                    child.sendline(etcd_ip)
+                    child.sendline(etcd_port)
+                else:
+                    child.sendline(ext_etcd)
+                    child.sendline("")
+            print "external etcd: {0}".format(ext_etcd)
         if idx == 2:
             child.sendline(UBUNTU_PASSWORD)
         else:
@@ -362,20 +383,42 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd=''):
         raise
 
 
+def _patch_code_with(branch, repo_map, remote_con):
+
+    remote_con.process.execute("apt-get install -y git")
+    url = 'https://github.com/openvstorage/{0}.git'
+
+    for repo in repo_map.iterkeys():
+        print remote_con.process.execute("cd /tmp; rm -rf /tmp/{0}".format(repo) + "; git clone " + url.format(repo))
+        exitcode, output = remote_con.process.execute("cd /tmp/{0}; git checkout {1} ".format(repo, branch)
+                                                      , dieOnNonZeroExitCode=False)
+        if exitcode == 0:
+            for source_path in repo_map[repo]:
+                cmd = "cd /tmp/{0}; cp -R {1}/* {2}".format(repo, source_path, repo_map[repo][source_path])
+                print cmd
+                print remote_con.process.execute(cmd)
+        else:
+            print 'Specific branch: {0} does not exist, target dir will not be overwritten'.format(branch)
+
+
 #############################
 # FUNCTIONS USED BY JENKINS #
 #############################
 
-
-def install_autotests(node_ip):
+def install_autotests(node_ip, patch_branch=''):
     """
     Install the autotest package on node with IP
     :param node_ip: IP of node
+    :param patch_branch: code branch to apply as patch on target
     :return: None
     """
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     remote_con.process.execute("apt-get update")
     remote_con.process.execute("apt-get install unzip openvstorage-test -y --force-yes")
+
+    if patch_branch != '':
+        repo_map = {'integrationtests': {'ci': '/opt/OpenvStorage/ci'}}
+        _patch_code_with(patch_branch, repo_map, remote_con)
 
 
 def run_autotests(node_ip, vmware_info='', dc='', capture_screen=False, test_plan='', reboot_test=False,
@@ -620,7 +663,7 @@ restart mysql
 def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node_ip,
                             ql, cluster, domain_name_system, pub_network, pub_netmask, gw, host_name,
                             storage_ip_last_part=None, with_devstack=False, fixed_range=None, fixed_range_size=None,
-                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0"):
+                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0", branch=''):
     """
     Install an additional node
     :param hv_type: Hypervisor type
@@ -643,6 +686,7 @@ def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node
     :param branch_name: Branch name
     :param tag_name: Tag name
     :param flat_interface: Flat interface
+    :param branch: patch_branch
     :return: None
     """
     # check connectivity
@@ -672,7 +716,8 @@ def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node
                       ql=ql,
                       cluster=cluster,
                       hv_type=hv_type,
-                      hv_ip=hv_ip)
+                      hv_ip=hv_ip,
+                      branch=branch)
 
 
 def integrate_papertrail(ip):
@@ -911,7 +956,12 @@ ipython 2>&1 -c "{0}"'''.format(cmd)
 
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     print remote_con.process.execute(cfgcmd)
-    return etcd_cluster_ip, etcd_client_port
+
+    cmd = "etcdctl member list | awk '{print $2}' | cut -f2 -d="
+
+    exitcode, etcd_cluster_name = remote_con.process.execute(cmd)
+
+    return etcd_cluster_name, etcd_cluster_ip, etcd_client_port
 
 
 def _setup_external_arakoon_cluster(node_ip, arakoon_config, cluster_type, client_ip='127.0.0.1', client_port=2379):
@@ -981,7 +1031,6 @@ ipython 2>&1 -c "{0}"'''.format(cmd)
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     print remote_con.process.execute(cfgcmd)
 
-
 def deploy_external_cluster(node_ip, external_etcd_cluster, ovsdb_arakoon_config=None, voldrv_arakoon_config=None,
                             abm_arakoon_config=None, nsm_arakoon_config=None):
     """
@@ -1012,7 +1061,8 @@ if __name__ == '__main__':
     public_network = ''
     storage_nic_mac = ''
     external_etcd = ''
-    options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:h:E:H:M:S:s:N:ext_etcd')
+    patch_branch = ''
+    options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:h:E:H:M:S:s:x:b:N')
     for opt, arg in options:
         if opt == '-e':
             hypervisor_ip = arg
@@ -1045,10 +1095,12 @@ if __name__ == '__main__':
             connection_host = arg
         if opt == '-s':
             storage_ip_last_octet = arg
+        if opt == '-x':
+            external_etcd = arg
+        if opt == '-b':
+            patch_branch = arg
         if opt == '-N':
             install_ovsvsa = False
-        if opt == '-ext_etcd':
-            external_etcd = arg
 
     assert q.system.net.pingMachine(hypervisor_ip), "Invalid ip given or unreachable"
     hypervisor_password = hypervisor_password or "R00t3r123"
@@ -1076,7 +1128,8 @@ if __name__ == '__main__':
                       cluster=cluster_name,
                       hv_type=hypervisor_type,
                       hv_ip=hypervisor_ip,
-                      ext_etcd=external_etcd)
+                      ext_etcd=external_etcd,
+                      branch=patch_branch)
 
     # TODO: remove this if when OVS-3984 is resolved
     if hypervisor_type == "KVM":
