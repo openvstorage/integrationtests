@@ -390,9 +390,8 @@ def _patch_code_with(branch, repo_map, remote_con):
 
     for repo in repo_map.iterkeys():
         print remote_con.process.execute("cd /tmp; rm -rf /tmp/{0}".format(repo) + "; git clone " + url.format(repo))
-        exitcode, output = remote_con.process.execute("cd /tmp/{0}; git checkout {1} ".format(repo, branch)
-                                                      , dieOnNonZeroExitCode=False)
-        if exitcode == 0:
+        exit_code, _ = remote_con.process.execute("cd /tmp/{0}; git checkout {1} ".format(repo, branch), dieOnNonZeroExitCode=False)
+        if exit_code == 0:
             for source_path in repo_map[repo]:
                 cmd = "cd /tmp/{0}; cp -R {1}/* {2}".format(repo, source_path, repo_map[repo][source_path])
                 print cmd
@@ -956,12 +955,7 @@ ipython 2>&1 -c "{0}"'''.format(cmd)
 
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     print remote_con.process.execute(cfgcmd)
-
-    cmd = "etcdctl member list | awk '{print $2}' | cut -f2 -d="
-
-    exitcode, etcd_cluster_name = remote_con.process.execute(cmd)
-
-    return etcd_cluster_name, etcd_cluster_ip, etcd_client_port
+    return etcd_cluster_ip, etcd_client_port
 
 
 def _setup_external_arakoon_cluster(node_ip, arakoon_config, cluster_type, client_ip='127.0.0.1', client_port=2379):
@@ -1023,13 +1017,14 @@ for plugin in plugins:
 
 ServiceManager.start_service('arakoon-' + cluster_name, client=client)
 
-'''.format(etcd_config, cluster_name, cluster_type, ip, base_dir, plugins)
+'''.format(etcd_config, clustername, cluster_type, ip, base_dir, plugins)
     print cmd
 
     cfgcmd = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
 ipython 2>&1 -c "{0}"'''.format(cmd)
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     print remote_con.process.execute(cfgcmd)
+
 
 def deploy_external_cluster(node_ip, external_etcd_cluster, ovsdb_arakoon_config=None, voldrv_arakoon_config=None,
                             abm_arakoon_config=None, nsm_arakoon_config=None):
@@ -1041,7 +1036,7 @@ def deploy_external_cluster(node_ip, external_etcd_cluster, ovsdb_arakoon_config
     :param voldrv_arakoon_config: voldrv arakoon cluster information
     :param abm_arakoon_config: abm arakoon cluster information
     :param nsm_arakoon_config: nsm arakoon cluster information
-    :return:
+    :return: None
     """
     client_ip, client_port = _setup_etcd(node_ip, external_etcd_cluster)
 
