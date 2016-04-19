@@ -8,7 +8,7 @@ chown -R ovs:ovs /opt/OpenvStorage/ci
 find /opt/OpenvStorage -name *.pyc -exec rm -rf {} \;
 
 wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-echo "deb http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
+echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
 apt-get update
 apt-get install google-chrome-beta x11vnc  libav-tools -y --force-yes
 wget http://chromedriver.storage.googleapis.com/2.19/chromedriver_linux64.zip;unzip chromedriver_linux64.zip;mv chromedriver /usr/bin/

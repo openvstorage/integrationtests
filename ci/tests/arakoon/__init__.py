@@ -63,7 +63,7 @@ def setup():
             root_client.run('rm -rf {0}'.format(location))
 
     GeneralAlba.add_alba_backend(backend_name)
-    GeneralArakoon.manual_voldrv_arakoon_checkup()
+    GeneralArakoon.voldrv_arakoon_checkup()
 
 
 def teardown():

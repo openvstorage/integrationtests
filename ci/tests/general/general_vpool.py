@@ -28,6 +28,7 @@ from ci.tests.general.general_storagedriver import GeneralStorageDriver
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
 from ovs.dal.hybrids.diskpartition import DiskPartition
+from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.hybrids.vpool import VPool
 from ovs.dal.lists.backendlist import BackendList
 from ovs.dal.lists.vpoollist import VPoolList
@@ -540,7 +541,7 @@ class GeneralVPool(object):
                 assert GeneralManagementCenter.is_host_configured(pmachine=storagerouter.pmachine) is False, 'Management Center is still configured on Storage Router {0}'.format(storagerouter.ip)
 
             # Check MDS services
-            mds_services = GeneralService.get_services_by_name('MetadataServer')
+            mds_services = GeneralService.get_services_by_name(ServiceType.SERVICE_TYPES.MD_SERVER)
             assert len([mds_service for mds_service in mds_services if mds_service.storagerouter_guid == storagerouter.guid]) == 0, 'There are still MDS services present for Storage Router {0}'.format(storagerouter.ip)
 
             # Check services
