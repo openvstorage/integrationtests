@@ -31,6 +31,7 @@ from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.logHandler import LogHandler
 from ovs.dal.exceptions import ObjectNotFoundException
 from ovs.dal.hybrids.albabackend import AlbaBackend
+from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.lists.albanodelist import AlbaNodeList
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
@@ -82,7 +83,7 @@ class GeneralAlba(object):
         :param alba_backend: ALBA backend
         :return: Configuration string
         """
-        return '--config etcd://127.0.0.1:2379/ovs/arakoon/{0}-abm/config'.format(alba_backend.name)
+        return '--config etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name)
 
     @staticmethod
     def prepare_alba_backend(name=None):
@@ -406,9 +407,9 @@ class GeneralAlba(object):
         assert backend is None, 'Still found a backend in the model with name {0}'.format(alba_backend_name)
 
         # Validate services removed from model
-        for service in GeneralService.get_services_by_name('AlbaManager'):
+        for service in GeneralService.get_services_by_name(ServiceType.SERVICE_TYPES.ALBA_MGR):
             assert service.name != '{0}-abm'.format(alba_backend_name), 'An AlbaManager service has been found with name {0}'.format(alba_backend_name)
-        for service in GeneralService.get_services_by_name('NamespaceManager'):
+        for service in GeneralService.get_services_by_name(ServiceType.SERVICE_TYPES.NS_MGR):
             assert service.name.startswith('{0}-nsm_'.format(alba_backend_name)) is False, 'An NamespaceManager service has been found with name {0}'.format(alba_backend_name)
 
         # Validate ALBA backend ETCD structure

@@ -38,6 +38,7 @@ from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.logHandler import LogHandler
 from ConfigParser import RawConfigParser
 from nose.plugins.skip import SkipTest
+from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.extensions.generic.sshclient import SSHClient
@@ -258,7 +259,7 @@ class TestArakoon(object):
 
         TestArakoon.logger.info('===================================================')
         TestArakoon.logger.info('setup and validate single node cluster')
-        ArakoonInstaller.create_cluster(cluster_name, first_ip, cluster_basedir)
+        ArakoonInstaller.create_cluster(cluster_name, ServiceType.ARAKOON_CLUSTER_TYPES.FWK, first_ip, cluster_basedir)
         TestArakoon.validate_arakoon_config_files(TestArakoon.get_cluster_pmachines([first_ip]), cluster_name)
         TestArakoon.verify_arakoon_structure(first_root_client, cluster_name, True, True)
 
@@ -363,7 +364,7 @@ class TestArakoon(object):
 
         TestArakoon.logger.info('===================================================')
         TestArakoon.logger.info('setup and validate single node cluster')
-        ArakoonInstaller.create_cluster(cluster_name, first_ip, cluster_basedir)
+        ArakoonInstaller.create_cluster(cluster_name, ServiceType.ARAKOON_CLUSTER_TYPES.FWK, first_ip, cluster_basedir)
         TestArakoon.validate_arakoon_config_files(TestArakoon.get_cluster_pmachines([first_ip]), cluster_name)
         TestArakoon.verify_arakoon_structure(root_client, cluster_name, True, True)
         TestArakoon.check_archived_directory(client, archived_files)
@@ -423,7 +424,7 @@ class TestArakoon(object):
             TestArakoon.logger.info('===================================================')
             TestArakoon.logger.info('setup and validate single node cluster')
             if ip == first_ip:
-                ArakoonInstaller.create_cluster(cluster_name, ip, cluster_basedir)
+                ArakoonInstaller.create_cluster(cluster_name, ServiceType.ARAKOON_CLUSTER_TYPES.FWK, ip, cluster_basedir)
             else:
                 ArakoonInstaller.extend_cluster(first_ip, ip, cluster_name, cluster_basedir)
             TestArakoon.validate_arakoon_config_files(TestArakoon.get_cluster_pmachines(ips_to_validate), cluster_name)

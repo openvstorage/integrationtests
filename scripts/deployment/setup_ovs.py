@@ -248,7 +248,7 @@ python /opt/qbase5/utils/ubuntu_autoinstall.py -M {public_mac_address}
     q.clients.ssh.waitForConnection(pub_ip, "root", UBUNTU_PASSWORD, times=60)
 
 
-def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip):
+def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch=''):
     """
     Handle OVS setup
     :param pub_ip: Public IP
@@ -256,9 +256,10 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip):
     :param cluster: Cluster name
     :param hv_type: Hypervisor type
     :param hv_ip: Hypervisor IP
+    :param ext_etcd='': External etcd cluster
+    :param branch: specific branch to use as extra patch on top of official branches
     :return: None
     """
-    integrate_papertrail(pub_ip)
 
     remote_con = q.remote.system.connect(pub_ip, "root", UBUNTU_PASSWORD)
     remote_con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
@@ -277,8 +278,20 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip):
             remote_con.process.execute("mdadm --stop {}".format(md), dieOnNonZeroExitCode=False)
             for d in o.splitlines():
                 remote_con.process.execute("mdadm --zero-superblock {}".format(d), dieOnNonZeroExitCode=False)
+
+    if branch != '':
+        repo_map = {'framework': {'config': '/opt/OpenvStorage/config',
+                                  'ovs': '/opt/OpenvStorage/ovs',
+                                  'webapps': '/opt/OpenvStorage/webapps'},
+                    'framework-alba-plugin': {'ovs': '/opt/OpenvStorage/ovs',
+                                              'webapps': '/opt/OpenvStorage/webapps'},
+                    'alba-asdmanager': {'config': '/opt/asd-manager/config',
+                                        'source': '/opt/asd-manager/source'}
+                    }
+        _patch_code_with(branch, repo_map, remote_con)
+
     child = pexpect.spawn('ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{0}'.format(pub_ip))
-    child.timeout = 300
+    child.timeout = 30
     child.logfile = sys.stdout
     child.expect('password:')
     child.sendline(UBUNTU_PASSWORD)
@@ -289,11 +302,12 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip):
         _pick_option(child, "Create a new cluster", use_select=False)
         child.expect('Please enter the cluster name')
         child.sendline(cluster)
-    idx = child.expect(['Select the public ip address of', 'Password:'])
+    idx = child.expect(['Select the public IP address of', 'Password:'])
     if idx == 1:
         child.sendline(UBUNTU_PASSWORD)
-        child.expect('Select the public ip address of')
+        child.expect('Select the public IP address of')
     _pick_option(child, pub_ip)
+
     # 5 minutes to partition disks
     child.timeout = 300
 
@@ -301,7 +315,22 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip):
     while provide_root_pwds:
         idx = child.expect(["Which type of hypervisor is this Grid Storage Router",
                             "Which type of hypervisor is this Storage Router backing",
-                            "Password:"])
+                            "Password:",
+                            "Use an external Etcd cluster"])
+        if idx == 3:
+            if not ext_etcd:
+                child.sendline("")
+            else:
+                child.sendline("y")
+                if ':' in ext_etcd:
+                    etcd_ip = ext_etcd.split(':')[0]
+                    etcd_port = ext_etcd.split(':')[1]
+                    child.sendline(etcd_ip)
+                    child.sendline(etcd_port)
+                else:
+                    child.sendline(ext_etcd)
+                    child.sendline("")
+            print "external etcd: {0}".format(ext_etcd)
         if idx == 2:
             child.sendline(UBUNTU_PASSWORD)
         else:
@@ -354,27 +383,48 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip):
         raise
 
 
+def _patch_code_with(branch, repo_map, remote_con):
+
+    remote_con.process.execute("apt-get install -y git")
+    url = 'https://github.com/openvstorage/{0}.git'
+
+    for repo in repo_map.iterkeys():
+        print remote_con.process.execute("cd /tmp; rm -rf /tmp/{0}".format(repo) + "; git clone " + url.format(repo))
+        exit_code, _ = remote_con.process.execute("cd /tmp/{0}; git checkout {1} ".format(repo, branch), dieOnNonZeroExitCode=False)
+        if exit_code == 0:
+            for source_path in repo_map[repo]:
+                cmd = "cd /tmp/{0}; cp -R {1}/* {2}".format(repo, source_path, repo_map[repo][source_path])
+                print cmd
+                print remote_con.process.execute(cmd)
+        else:
+            print 'Specific branch: {0} does not exist, target dir will not be overwritten'.format(branch)
+
+
 #############################
 # FUNCTIONS USED BY JENKINS #
 #############################
 
-
-def install_autotests(node_ip):
+def install_autotests(node_ip, patch_branch=''):
     """
     Install the autotest package on node with IP
     :param node_ip: IP of node
+    :param patch_branch: code branch to apply as patch on target
     :return: None
     """
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     remote_con.process.execute("apt-get update")
     remote_con.process.execute("apt-get install unzip openvstorage-test -y --force-yes")
 
+    if patch_branch != '':
+        repo_map = {'integrationtests': {'ci': '/opt/OpenvStorage/ci'}}
+        _patch_code_with(patch_branch, repo_map, remote_con)
+
 
 def run_autotests(node_ip, vmware_info='', dc='', capture_screen=False, test_plan='', reboot_test=False,
                   vpool_name='alba', backend_name='alba', test_project='Open vStorage Engineering',
                   testrail_server='', testrail_key='', output_folder='/var/tmp', ql=''):
     """
-    vmware_info = "10.100.131.221,root,R00t3r123"
+    vmware_info = "10.100.131.221,root"
     :param node_ip: Node IP
     :param vmware_info: VMWare information
     :param dc: DC
@@ -466,6 +516,198 @@ python -c 'from ci import autotests; autotests.run("api.extended_test:post_reboo
                 rnode_ip, existing_plan_id)
             print cmd
             q.tools.installerci._run_command(cmd, node_ip, "root", UBUNTU_PASSWORD, buffered=True)
+
+
+def deploy_external_cluster(node_ip, server_port, client_port, ovsdb_arakoon_config, voldrv_arakoon_config, abm_arakoon_config, nsm_arakoon_config):
+    """
+    Deploy externally managed arakoon clusters
+    :param node_ip: IP to deploy the clusters on
+    :type node_ip: str
+
+    :param server_port: Port on which server instance should be running
+    :type server_port: int
+
+    :param client_port: Port on which client should be listening
+    :type client_port: int
+
+    :param ovsdb_arakoon_config: ovsdb arakoon cluster information
+    :type ovsdb_arakoon_config: str
+
+    :param voldrv_arakoon_config: voldrv arakoon cluster information
+    :type voldrv_arakoon_config: str
+
+    :param abm_arakoon_config: abm arakoon cluster information
+    :type abm_arakoon_config: str
+
+    :param nsm_arakoon_config: nsm arakoon cluster information
+    :type nsm_arakoon_config: str
+
+    :return: None
+    """
+    etcd_proxy_name = 'proxy'
+    etcd_cluster_name = 'jenkins'
+
+    ###############
+    # Validations #
+    ###############
+    if not isinstance(server_port, int) or not 1025 <= server_port <= 65535:
+        raise ValueError('Etcd service port should be an integer between 1025 and 65535')
+    if not isinstance(client_port, int) or not 1025 <= client_port <= 65535:
+        raise ValueError('Etcd client port should be an integer between 1025 and 65535')
+    if server_port == client_port:
+        raise ValueError('Server and client port should not be identical')
+    assert q.system.net.pingMachine(node_ip), 'IP {0} unreachable'.format(node_ip)
+
+    arakoon_map = {}
+    for cluster_type, arakoon_config in {'SD': voldrv_arakoon_config,
+                                         'FWK': ovsdb_arakoon_config,
+                                         'ABM': abm_arakoon_config,
+                                         'NSM': nsm_arakoon_config}.iteritems():
+        if not arakoon_config:
+            continue
+
+        arakoon_params = arakoon_config.split(':')
+        if len(arakoon_params) != 2:
+            raise ValueError('Please specify at least: cluster_name and base_dir')
+
+        base_dir = arakoon_params[1]
+        clustername = arakoon_params[0]
+        if not clustername.isalnum() or len(clustername) < 3:
+            raise ValueError('Arakoon cluster name should be at least 3 characters and alpha numeric')
+        if not base_dir.startswith('/'):
+            raise ValueError('Absolute path required for Arakoon base directory')
+
+        arakoon_map[cluster_type] = [base_dir, clustername]
+
+    #######################
+    # INITIALIZE COMMANDS #
+    #######################
+    etcd_server_command = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
+ipython 2>&1 -c "
+from ovs.extensions.db.etcd.installer import EtcdInstaller
+
+EtcdInstaller.create_cluster(cluster_name='{0}', ip='{1}', server_port={2}, client_port={3})
+"'''.format(etcd_cluster_name, node_ip, server_port, client_port)
+
+    etcd_proxy_command = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
+ipython 2>&1 -c "
+from ovs.extensions.db.etcd.installer import EtcdInstaller
+from ovs.extensions.generic.sshclient import SSHClient
+
+EtcdInstaller.use_external(external='{0}=http://{1}:{2}', slave_ip='{1}', cluster_name='{3}')
+"'''.format(etcd_cluster_name, node_ip, server_port, etcd_proxy_name)
+
+    etcd_initialize_command = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
+ipython 2>&1 -c "
+from ovs.extensions.db.etcd.configuration import EtcdConfiguration
+from ovs.extensions.db.etcd.installer import EtcdInstaller
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.generic.system import System
+
+client = SSHClient('{0}', username='root')
+machine_id = System.get_my_machine_id(client)
+
+EtcdConfiguration.initialize(external_etcd='http://{0}:{1}')
+EtcdConfiguration.initialize_host(machine_id)
+"'''.format(node_ip, server_port)
+
+    arakoon_command = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
+ipython 2>&1 -c "
+import subprocess
+from ovs.dal.hybrids.servicetype import ServiceType
+from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.services.service import ServiceManager
+
+current_etcd_value = ArakoonInstaller.ETCD_CONFIG_PATH
+current_ssh_user = ArakoonInstaller.SSHCLIENT_USER
+
+ARAKOON_PLUGIN_DIR = '/usr/lib/alba'
+
+base_dir = '{{1}}'
+cluster_name = '{{2}}'
+cluster_type = '{{3}}'
+ip = '{0}'
+plugins = []
+if cluster_type == ServiceType.ARAKOON_CLUSTER_TYPES.ABM:
+    plugins = ['albamgr_plugin']
+
+if cluster_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
+    plugins = ['nsm_host_plugin']
+
+ArakoonInstaller.ETCD_CONFIG_PATH = 'etcd://{0}:{1}/ovs/arakoon/{{0}}/config'
+ArakoonInstaller.SSHCLIENT_USER = 'root'
+ArakoonInstaller.create_cluster(cluster_name, cluster_type, ip, base_dir, plugins=plugins, locked=False, internal=False)
+ArakoonInstaller.ETCD_CONFIG_PATH = current_etcd_value
+ArakoonInstaller.SSHCLIENT_USER = current_ssh_user
+
+client = SSHClient(ip, username='root')
+
+base_dir = '' if base_dir == '/' else base_dir
+db_dir = base_dir + 'arakoon/' + cluster_name + '/db'
+for plugin in plugins:
+    cmd = '[ ! -f ' + db_dir + '/' + plugin + '.cmxs ] && ln -s ' + ARAKOON_PLUGIN_DIR + '/' + plugin + '.cmxs ' + db_dir + ' || echo True'
+    subprocess.check_output(cmd, shell=True)
+
+ServiceManager.start_service('arakoon-' + cluster_name, client=client)
+"'''.format(node_ip, client_port)
+
+    etcd_remove_proxy_command = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
+ipython 2>&1 -c "
+from ovs.extensions.db.etcd.installer import EtcdInstaller
+
+EtcdInstaller.remove_proxy(cluster_name='{0}', ip='{1}')
+"'''.format(etcd_proxy_name, node_ip)
+
+    validate_command = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
+ipython 2>&1 -c "
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.services.service import ServiceManager
+
+services = ['ovs-etcd-{0}'] + {1}
+client = SSHClient('{2}', username='root')
+non_running_services = []
+for service in services:
+    if ServiceManager.has_service(service, client) is False or ServiceManager.get_service_status(service, client) is False:
+        non_running_services.append(service + ' is NOT RUNNING')
+if non_running_services:
+    print non_running_services
+proxy = 'ovs-etcd-{3}'
+if ServiceManager.has_service(proxy, client) is True:
+    print 'ETCD proxy was not cleaned up properly'
+"'''.format(etcd_cluster_name, map(lambda x: 'ovs-arakoon-{0}'.format(x[1]), arakoon_map.values()), node_ip, etcd_proxy_name)
+
+    ####################
+    # EXECUTE COMMANDS #
+    ####################
+    remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
+    print '\n\n\n############### Deploy ETCD cluster ###############\n\n\n'
+    print etcd_server_command
+    print remote_con.process.execute(etcd_server_command)
+
+    print '\n\n\n############### Deploy ETCD proxy ###############\n\n\n'
+    print etcd_proxy_command
+    print remote_con.process.execute(etcd_proxy_command)
+
+    print '\n\n\n############### Initialize ETCD ###############\n\n\n'
+    print etcd_initialize_command
+    print remote_con.process.execute(etcd_initialize_command)
+
+    for cluster_type, arakoon_info in arakoon_map.iteritems():
+        # @TODO: remove locked=False when OVS-4437 is fixed
+        print '\n\n\n############### Deploy Arakoon cluster {0} ###############\n\n\n'.format(cluster_type)
+        command = arakoon_command.format('{0}', arakoon_info[0], arakoon_info[1], cluster_type)
+        print command
+        print remote_con.process.execute(command)
+
+    print '\n\n\n############### Remove ETCD proxy ###############\n\n\n'
+    print etcd_remove_proxy_command
+    print remote_con.process.execute(etcd_remove_proxy_command)
+
+    print '\n\n\n############### Validate required services ###############\n\n\n'
+    exit_code, result = remote_con.process.execute(validate_command)
+    if exit_code != 0 or result:
+        raise ValueError('Not all service statuses are as expected: {0}'.format(result))
 
 
 def install_devstack(node_ip, fixed_range, fixed_range_size, floating_range, master_node_ip=None,
@@ -612,7 +854,7 @@ restart mysql
 def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node_ip,
                             ql, cluster, domain_name_system, pub_network, pub_netmask, gw, host_name,
                             storage_ip_last_part=None, with_devstack=False, fixed_range=None, fixed_range_size=None,
-                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0"):
+                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0", branch=''):
     """
     Install an additional node
     :param hv_type: Hypervisor type
@@ -635,6 +877,7 @@ def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node
     :param branch_name: Branch name
     :param tag_name: Tag name
     :param flat_interface: Flat interface
+    :param branch: patch_branch
     :return: None
     """
     # check connectivity
@@ -664,7 +907,8 @@ def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node
                       ql=ql,
                       cluster=cluster,
                       hv_type=hv_type,
-                      hv_ip=hv_ip)
+                      hv_ip=hv_ip,
+                      branch=branch)
 
 
 def integrate_papertrail(ip):
@@ -856,12 +1100,15 @@ start ovs-beaver
 """
     print remote_con.process.execute(upstart_cmd, dieOnNonZeroExitCode=False)
 
+
 if __name__ == '__main__':
     dns = ''
     gateway = ''
     public_network = ''
     storage_nic_mac = ''
-    options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:h:E:H:M:S:s:N')
+    external_etcd = ''
+    patchbranch = ''
+    options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:h:E:H:M:S:s:x:b:N')
     for opt, arg in options:
         if opt == '-e':
             hypervisor_ip = arg
@@ -894,8 +1141,13 @@ if __name__ == '__main__':
             connection_host = arg
         if opt == '-s':
             storage_ip_last_octet = arg
+        if opt == '-x':
+            external_etcd = arg
+        if opt == '-b':
+            patchbranch = arg
         if opt == '-N':
             install_ovsvsa = False
+
     assert q.system.net.pingMachine(hypervisor_ip), "Invalid ip given or unreachable"
     hypervisor_password = hypervisor_password or "R00t3r123"
     hypervisor_login = "root"
@@ -916,11 +1168,15 @@ if __name__ == '__main__':
                               host_name=hostname,
                               extra_pkgs=extra_packages,
                               storage_ip_last_part=storage_ip_last_octet)
+
     _handle_ovs_setup(pub_ip=public_ip,
                       ql=qualitylevel,
                       cluster=cluster_name,
                       hv_type=hypervisor_type,
-                      hv_ip=hypervisor_ip)
+                      hv_ip=hypervisor_ip,
+                      ext_etcd=external_etcd,
+                      branch=patchbranch)
+
     # TODO: remove this if when OVS-3984 is resolved
     if hypervisor_type == "KVM":
         con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
