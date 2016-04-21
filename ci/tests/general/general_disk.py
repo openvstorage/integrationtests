@@ -174,18 +174,31 @@ class GeneralDisk(object):
         :return: None
         """
         role_added = False
-        ssd_partition = None
+        db_partition = None
         for partition in GeneralDisk.get_disk_partitions():
             if partition.disk.storagerouter == storagerouter:
                 if partition.mountpoint and '/mnt/ssd' in partition.mountpoint:
-                    ssd_partition = partition
+                    db_partition = partition
                 if partition.mountpoint == '/' or partition.folder == '/mnt/storage':
                     GeneralDisk.append_disk_role(partition, ['DB'])
                     role_added = True
                     break
         # LVM partition present on the / mountpoint
-        if role_added is False:
-            GeneralDisk.append_disk_role(ssd_partition, ['DB'])
+        if db_partition is None and role_added is False:
+            # disks havent been partitioned yet
+            disks_to_partition = []
+            disks = GeneralDisk.get_disks()
+            if len(disks) == 1:
+                if len(disks[0].partitions) == 0:
+                    disks_to_partition = disks
+            elif len(disks) > 1:
+                disks_to_partition = [disk for disk in disks if disk.storagerouter == storagerouter and
+                                      not disk.partitions_guids and disk.is_ssd]
+            for disk in disks_to_partition:
+                db_partition = GeneralDisk.partition_disk(disk)
+            GeneralDisk.append_disk_role(db_partition, ['DB'])
+        elif role_added is False:
+            GeneralDisk.append_disk_role(db_partition, ['DB'])
 
     @staticmethod
     def partition_disk(disk):
