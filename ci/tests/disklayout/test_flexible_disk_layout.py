@@ -165,11 +165,12 @@ def fdl_0002_add_remove_partition_with_role_and_crosscheck_model_test():
     partitions_detected = False
     disk_guid = ''
     for path in unused_disks:
-        disk_guid = all_disks[path]
-        for partition_guid in partitions:
-            partition = api.fetch('diskpartitions', partition_guid)
-            if partition['disk_guid'] == disk_guid:
-                partitions_detected = True
+        if path in all_disks:
+            disk_guid = all_disks[path]
+            for partition_guid in partitions:
+                partition = api.fetch('diskpartitions', partition_guid)
+                if partition['disk_guid'] == disk_guid:
+                    partitions_detected = True
     assert partitions_detected is False, 'Existing partitions detected on unused disks!'
 
     # try partition a disk using it's full reported size
