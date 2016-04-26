@@ -1,10 +1,10 @@
-# Copyright 2014 iNuron NV
+# Copyright 2016 iNuron NV
 #
-# Licensed under the Open vStorage Modified Apache License (the "License");
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.openvstorage.org/license
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,14 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pylabs.InitBaseCore import q
+"""
+Class to configure OVS via Jenkins
+"""
+
 import re
 import sys
-import time
-import json
 import getopt
 import ipcalc
 import pexpect
+from pylabs.InitBaseCore import q
 
 DEPLOY_OVS_SCRIPT_LOCATION = "https://bitbucket.org/openvstorage/openvstorage/raw/default/scripts/deployment/deployOvs.py"
 PUBLIC_NET_NAME = "CloudFramesPublic"
@@ -54,56 +56,24 @@ storage_ip_last_octet = None
 print sys.argv
 
 
-def pick_option(child, opt_name, fail_if_not_found=True, use_select=True):
+
+def _pick_option(pexpect_child, opt_name, fail_if_not_found=True, use_select=True):
+    """
+    Pick an option
+    :param pexpect_child: Child
+    :param opt_name: Option name
+    :param fail_if_not_found: Raise AssertionError if not found
+    :param use_select: Use select
+    :return: True if option found
+    """
     if use_select:
-        child.expect('Select Nr:')
-    opt = [l for l in child.before.splitlines() if opt_name in l]
-    assert opt or not fail_if_not_found, "Option {0} not found\n{1}".format(opt_name, child.before)
-    if opt:
-        opt = opt[0].split(":")[0].strip()
-        child.sendline(opt)
-    return bool(opt)
-
-
-def setup_mgmt_center(public_ip):
-    q.clients.ssh.waitForConnection(public_ip, "root", UBUNTU_PASSWORD, times=120)
-    con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-
-    python_cmd = """
-from ovs.dal.lists.pmachinelist import PMachineList
-from ovs.dal.lists.mgmtcenterlist import MgmtCenterList
-from ovs.dal.hybrids.mgmtcenter import MgmtCenter
-mcs = MgmtCenterList.get_mgmtcenters()
-if len(mcs) >= 1:
-    mc = mcs[0]
-else:
-    mc = MgmtCenter()
-    mc.name = 'hmc'
-    mc.username = 'admin'
-    mc.password = 'rooter'
-    mc.ip = '{public_ip}'
-    mc.type = 'OPENSTACK'
-    mc.port=443
-if hasattr(mc, 'metadata'):
-    mc.metadata = dict()
-    mc.metadata['integratemgmt']=True
-mc.save()
-for pm in PMachineList.get_pmachines():
-    pm.mgmtcenter = mc
-    pm.save()
-""".format(public_ip=public_ip)
-
-    cmd = """cat <<EOF > /tmp/setup_mgmt_center.py
-{0}
-EOF
-""".format(python_cmd)
-    con.process.execute(cmd, dieOnNonZeroExitCode=False)
-
-    cmd = """
-    export PYTHONPATH=:/opt/OpenvStorage:/opt/OpenvStorage/webapps
-    python /tmp/setup_mgmt_center.py"""
-
-    print con.process.execute(cmd)
+        pexpect_child.expect('Select Nr:')
+    option = [l for l in pexpect_child.before.splitlines() if opt_name in l]
+    assert option or not fail_if_not_found, "Option {0} not found\n{1}".format(opt_name, pexpect_child.before)
+    if option:
+        option = option[0].split(":")[0].strip()
+        pexpect_child.sendline(option)
+    return bool(option)
 
 
 def run_deploy_ovs(hypervisor_ip, hypervisor_password, sdk, cli, vifs):
@@ -146,10 +116,10 @@ def run_deploy_ovs(hypervisor_ip, hypervisor_password, sdk, cli, vifs):
     child.sendline('y')
 
     child.expect('Please select your public network:')
-    pick_option(child, PUBLIC_NET_NAME)
+    _pick_option(child, PUBLIC_NET_NAME)
 
     child.expect('Please select your storage network:')
-    pick_option(child, STORAGE_NET_NAME)
+    _pick_option(child, STORAGE_NET_NAME)
 
     child.expect('Specify the size in GB')
     child.sendline('')
@@ -167,54 +137,15 @@ def run_deploy_ovs(hypervisor_ip, hypervisor_password, sdk, cli, vifs):
             child.sendline("1")
             child.expect("~ #")
 
-    vmobjects = q.tools.installerci.get_vm_objects_esx(sdk, ['name', 'config'])
-    vmobj = [v for v in vmobjects if v.name == OVS_NAME]
-    assert vmobj, "DeployOvs script failed to create vm"
-    vmobj = vmobj[0]
+    vm_objects = q.tools.installerci.get_vm_objects_esx(sdk, ['name', 'config'])
+    vm_object = [v for v in vm_objects if v.name == OVS_NAME]
+    assert vm_object, "DeployOvs script failed to create vm"
+    vm_object = vm_object[0]
 
-    storage_eth_adapter = [dev for dev in vmobj.config.hardware.device if dev.deviceInfo.summary == STORAGE_NET_NAME]
-    storage_eth_adapter = storage_eth_adapter[0]
+    storage_eth_adapter = [dev for dev in vm_object.config.hardware.device if dev.deviceInfo.summary == STORAGE_NET_NAME][0]
+    public_eth_adapter = [dev for dev in vm_object.config.hardware.device if dev.deviceInfo.summary == PUBLIC_NET_NAME][0]
 
-    public_eth_adapter = [dev for dev in vmobj.config.hardware.device if dev.deviceInfo.summary == PUBLIC_NET_NAME]
-    public_eth_adapter = public_eth_adapter[0]
-
-    return vmobj, storage_eth_adapter, public_eth_adapter
-
-
-def configure_alba(hypervisor_ip, public_ip, alba_deploy_type, license, backend_name):
-    if alba_deploy_type in ['converged']:
-        alba_host_ip = hypervisor_ip
-    else:
-        alba_host_ip = public_ip
-
-    q.clients.ssh.waitForConnection(alba_host_ip, "root", UBUNTU_PASSWORD, times=120)
-    con = q.remote.system.connect(alba_host_ip, "root", UBUNTU_PASSWORD)
-
-    python_cmd = """
-# add license
-from ovs.lib.license import LicenseController
-LicenseController.apply('%(license)s')
-""" % {'license': license}
-
-    cmd = """cat <<EOF > /tmp/configure_alba.py
-{0}
-EOF
-echo 1
-""".format(python_cmd)
-    con.process.execute(cmd, dieOnNonZeroExitCode=False)
-
-    cmd = """
-export PYTHONPATH=:/opt/OpenvStorage:/opt/OpenvStorage/webapps
-python /tmp/configure_alba.py
-"""
-
-    print con.process.execute(cmd, dieOnNonZeroExitCode=False)
-
-
-def install_autotests(node_ip):
-    con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
-    con.process.execute("apt-get update")
-    con.process.execute("apt-get install unzip openvstorage-test -y --force-yes")
+    return storage_eth_adapter, public_eth_adapter
 
 
 def create_autotest_cfg(os_name, vmware_info, template_server, screen_capture, vpool_config, vpool_name, backend_name,
@@ -334,16 +265,215 @@ vpool_config_params = {{"dtl_mode": "a_sync", "sco_size": 4, "dedupe_mode": "ded
            vpool_type=vpool_type)
 
 
+def deploy_ovsvsa_vmware(public_ip, hypervisor_ip, hypervisor_password, dns, public_network, gateway, public_netmask,
+                         hostname, extra_packages=None, storage_ip_last_octet=None):
+
+
+    assert storage_ip_last_octet, "storage_ip_last_octet needs to be suplied for vmware install"
+    hypervisor_login = "root"
+    cli = q.hypervisors.cmdtools.esx.cli.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
+    vifs = q.hypervisors.cmdtools.esx.vifs.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
+    sdk = q.hypervisors.cmdtools.esx.sdk.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
+    vmobj, storage_eth_adapter, public_eth_adapter = run_deploy_ovs(hypervisor_ip, hypervisor_password, sdk, cli, vifs)
+    q.tools.installerci.shutdown_vm_esx(sdk, OVS_NAME)
+    q.tools.installerci.poweron_vm_esx(sdk, OVS_NAME)
+    storage_nic_mac = storage_eth_adapter.macAddress
+    command = "python /opt/qbase5/utils/ubuntu_autoinstall.py -M {public_mac_address} \
+    -m {storage_nic_mac} \
+    -d {dns} \
+    -P {public_ip} \
+    -n {public_network} \
+    -g {gateway} \
+    -k {public_netmask} \
+    -a sda \
+    -x {hypervisor_ip} \
+    -b {OVS_NAME} \
+    -v {UBUNTU_ISO} \
+    -o {hostname} \
+    -S {storage_ip_last_octet}"
+    command = command.format(public_mac_address=public_eth_adapter.macAddress,
+                             storage_nic_mac=storage_nic_mac,
+                             dns=dns,
+                             public_ip=public_ip,
+                             public_network=public_network,
+                             gateway=gateway,
+                             public_netmask=public_netmask,
+                             hypervisor_ip=hypervisor_ip,
+                             OVS_NAME=OVS_NAME,
+                             UBUNTU_ISO=UBUNTU_ISO,
+                             hostname=hostname,
+                             storage_ip_last_octet=storage_ip_last_octet
+                             )
+    if extra_packages:
+        command += " -E {extra_packages}".format(extra_packages=extra_packages)
+    q.system.process.execute(command)
+    q.clients.ssh.waitForConnection(public_ip, "root", UBUNTU_PASSWORD, times=60)
+
+
+def handle_ovs_setup(public_ip, qualitylevel, cluster_name, hypervisor_type, hypervisor_ip, hypervisor_password,
+                     hostname, branch):
+    remote_con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
+    remote_con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
+
+    remote_con.process.execute('apt-get update')
+    remote_con.process.execute('apt-get install -y ntp')
+    remote_con.process.execute('apt-get install -y --force-yes openvstorage-hc')
+    # clean leftover mds
+    e, o = remote_con.process.execute("ls /dev/md*", dieOnNonZeroExitCode=False)
+    if e == 0:
+        for md in o.splitlines():
+            e, o = remote_con.process.execute("mdadm --detail {} | awk '/\/dev\/sd?/ {{print $(NF);}}'".format(md),
+                                              dieOnNonZeroExitCode=False)
+            if e != 0:
+                continue
+            remote_con.process.execute("mdadm --stop {}".format(md), dieOnNonZeroExitCode=False)
+            for d in o.splitlines():
+                remote_con.process.execute("mdadm --zero-superblock {}".format(d), dieOnNonZeroExitCode=False)
+
+    if branch != '':
+        repo_map = {'framework': {'config': '/opt/OpenvStorage/config',
+                                  'ovs': '/opt/OpenvStorage/ovs',
+                                  'webapps': '/opt/OpenvStorage/webapps'},
+                    'framework-alba-plugin': {'ovs': '/opt/OpenvStorage/ovs',
+                                              'webapps': '/opt/OpenvStorage/webapps'},
+                    'alba-asdmanager': {'config': '/opt/asd-manager/config',
+                                        'source': '/opt/asd-manager/source'}
+                    }
+        _patch_code_with(branch, repo_map, remote_con)
+
+    child = pexpect.spawn('ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{0}'.format(public_ip))
+    child.timeout = 30
+    child.logfile = sys.stdout
+    child.expect('password:')
+    child.sendline(UBUNTU_PASSWORD)
+    child.expect(':~#')
+    child.sendline('ovs setup')
+    joined_cluster = _pick_option(child, cluster_name, fail_if_not_found=False)
+    if not joined_cluster:
+        _pick_option(child, "Create a new cluster", use_select=False)
+        child.expect('Please enter the cluster name')
+        child.sendline(cluster_name)
+    idx = child.expect(['Select the public ip address of', 'Password:'])
+    if idx == 1:
+        child.sendline(UBUNTU_PASSWORD)
+        child.expect('Select the public ip address of')
+    _pick_option(child, public_ip)
+
+    # 5 minutes to partition disks
+    child.timeout = 300
+
+    provide_root_pwds = True
+    while provide_root_pwds:
+        idx = child.expect(["Which type of hypervisor is this Grid Storage Router",
+                            "Which type of hypervisor is this Storage Router backing",
+                            "Password:"])
+        if idx == 2:
+            child.sendline(UBUNTU_PASSWORD)
+        else:
+            provide_root_pwds = False
+
+    _pick_option(child, hypervisor_type.upper())
+    child.expect("Enter hypervisor hostname")
+    child.sendline("")
+    if hypervisor_type == "VMWARE":
+        child.expect("Enter hypervisor ip address")
+        child.sendline(hypervisor_ip)
+        try:
+            _ = child.expect("Password:")
+            child.sendline("R00t3r123")
+        except:
+            pass
+    exit_script_mark = "~#"
+
+    # 10 minutes to install ovs components
+    child.timeout = 600
+
+    try:
+        # IP address to be used for the ASD API
+        idx = child.expect(["Select the public IP address to be used for the API", exit_script_mark])
+        if idx == 0:
+            _pick_option(child, public_ip)
+            # port - default 8500
+            child.sendline("")
+            # IP addresses to be used for the ASDs - default all
+            child.sendline("")
+            # port to be used for the ASDs - default 8600
+            child.sendline("")
+        elif idx == 1:
+            return
+    except:
+        print
+        print str(child)
+        raise
+    child.timeout = 180
+    try:
+        child.expect(exit_script_mark)
+    except:
+        print "--- pexpect before:"
+        print child.before
+        print "--- pexpect buffer:"
+        print child.buffer
+        print "--- pexpect after:"
+        print child.after
+        print "--- pexpect end"
+        raise
+
+
+def _patch_code_with(branch, repo_map, remote_con):
+
+    remote_con.process.execute("apt-get install -y git")
+    url = 'https://github.com/openvstorage/{0}.git'
+
+    for repo in repo_map.iterkeys():
+        print remote_con.process.execute("cd /tmp; rm -rf /tmp/{0}".format(repo) + "; git clone " + url.format(repo))
+        exit_code, _ = remote_con.process.execute("cd /tmp/{0}; git checkout {1} ".format(repo, branch), dieOnNonZeroExitCode=False)
+        if exit_code == 0:
+            for source_path in repo_map[repo]:
+                cmd = "cd /tmp/{0}; cp -R {1}/* {2}".format(repo, source_path, repo_map[repo][source_path])
+                print cmd
+                print remote_con.process.execute(cmd)
+        else:
+            print 'Specific branch: {0} does not exist, target dir will not be overwritten'.format(branch)
+
+
+#############################
+# FUNCTIONS USED BY JENKINS #
+#############################
+
+def install_ovs_packages(pub_ip, ql):
+    remote_con = q.remote.system.connect(pub_ip, "root", UBUNTU_PASSWORD)
+    remote_con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
+
+    remote_con.process.execute('apt-get update')
+    remote_con.process.execute('apt-get install -y ntp')
+    remote_con.process.execute('apt-get install -y --force-yes openvstorage-hc')
+
+
+def install_autotests(node_ip, patch_branch=''):
+    """
+    Install the autotest package on node with IP
+    :param node_ip: IP of node
+    :param patch_branch: code branch to apply as patch on target
+    :return: None
+    """
+    remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
+    remote_con.process.execute("apt-get update")
+    remote_con.process.execute("apt-get install unzip openvstorage-test -y --force-yes")
+
+    if patch_branch != '':
+        repo_map = {'integrationtests': {'ci': '/opt/OpenvStorage/ci'}}
+        _patch_code_with(patch_branch, repo_map, remote_con)
+
+
 def run_autotests(node_ip, vpool_host_ip, vmware_info='', dc='', capture_screen=False, test_plan='', reboot_test=False,
                   vpool_name='alba', backend_name='alba', vpool_type='alba', test_project='Open vStorage Engineering',
                   testrail_server='', testrail_key='', output_folder='/var/tmp', qualitylevel=''):
     """
     vmware_info = "10.100.131.221,root,R00t3r123"
     """
+    remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
 
-    con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
-
-    vpool_storage_ip = con.process.execute("ip a | awk '/inet/ && /privbr/ {print $2}'")[0]
+    vpool_storage_ip = remote_con.process.execute("ip a | awk '/inet/ && /privbr/ {print $2}'")[0]
     vpool_storage_ip = ipcalc.IP(vpool_storage_ip).dq
 
     os_name = "ubuntu_desktop14_kvm" if not vmware_info else "small_linux_esx"
@@ -414,12 +544,12 @@ ipython 2>&1 -c "from ci import autotests
         cmd = """source /etc/profile.d/ovs.sh; \
 python -c 'from ovs.dal.lists.storagerouterlist import StorageRouterList; \
 print [sr.ip for sr in StorageRouterList.get_storagerouters() if sr.ip != "{0}"]'""".format(node_ip)
-        out = con.process.execute(cmd)[1]
+        out = remote_con.process.execute(cmd)[1]
         nodes = eval(out) + [node_ip]
 
         for rnode_ip in nodes:
-            con = q.remote.system.connect(rnode_ip, "root", UBUNTU_PASSWORD)
-            con.process.execute("shutdown -r now")
+            remote_con = q.remote.system.connect(rnode_ip, "root", UBUNTU_PASSWORD)
+            remote_con.process.execute("shutdown -r now")
             q.system.net.waitForIpDown(ip=rnode_ip, timeout=600)
             q.system.net.waitForIp(ip=rnode_ip, timeout=600)
             q.clients.ssh.waitForConnection(rnode_ip, "root", UBUNTU_PASSWORD, times=60)
@@ -439,14 +569,18 @@ def install_devstack(node_ip, fixed_range, fixed_range_size, floating_range, mas
     Juno: 2014.2.4
     Kilo: 2015.1.2
     Liberty: due Oct 15, 2015
+    :param node_ip: Node IP
+    :param fixed_range: Fixed range
+    :param fixed_range_size: Fixed range size
+    :param floating_range: Floating range
+    :param master_node_ip: Master node IP
+    :param branch_name: Branch name
+    :param tag_name: Tag name
+    :param flat_interface: Flat interface
     """
-    con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
-    (exitcode, output) = con.process.execute("apt-get install git -y --force-yes")
-    print exitcode
-    print output
-    (exitcode, output) = con.process.execute("apt-get install curl -y --force-yes")
-    print exitcode
-    print output
+    remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
+    print remote_con.process.execute("apt-get install git -y --force-yes")
+    print remote_con.process.execute("apt-get install curl -y --force-yes")
 
     if not tag_name:
         if branch_name == 'stable/juno':
@@ -541,12 +675,9 @@ echo 1""".format(host_ip=node_ip,
                  sub_branches=sub_branches)
 
     print 'Creating local.conf'
-    (exitcode, output) = con.process.execute(cmd)
-    print exitcode
-    print output
+    print remote_con.process.execute(cmd)
 
     exports = "export OS_USERNAME=admin;export OS_PASSWORD=rooter;export OS_TENANT_NAME=admin;export OS_AUTH_URL=http://{0}:35357/v2.0;".format(master_node_ip)
-
     if master_node_ip:
         con_master = q.remote.system.connect(master_node_ip, "root", UBUNTU_PASSWORD)
         # Delete the lvmdriver cinder-type from your first node as the 2nd one will try to add the same and bail out
@@ -557,16 +688,11 @@ echo 1""".format(host_ip=node_ip,
 
     if master_node_ip is not None:
         cmd = exports + cmd
-
-    (exitcode, output) = con.process.execute(cmd)
-    print exitcode
-    print output
+    print remote_con.process.execute(cmd)
 
     print "Removing librabbitmq1 ..."
     cmd = "apt-get remove librabbitmq1 --purge -y"
-    (exitcode, output) = con.process.execute(cmd, dieOnNonZeroExitCode=False)
-    print exitcode
-    print output
+    print remote_con.process.execute(cmd, dieOnNonZeroExitCode=False)
 
     # https://review.openstack.org/#/c/81489/1/lib/databases/mysql
     print "Increasing mysql max_connections to 10000 ..."
@@ -574,23 +700,21 @@ echo 1""".format(host_ip=node_ip,
 sed -i 's/.*max_connections.*/max_connections=10000/' /etc/mysql/my.cnf
 restart mysql
 """
-    (exitcode, output) = con.process.execute(cmd, dieOnNonZeroExitCode=False)
-    print exitcode
-    print output
+    print remote_con.process.execute(cmd, dieOnNonZeroExitCode=False)
 
 
 def copy_stack_user_ssh_keys(master_ip):
     """
     call if stable/icehouse and all nodes have been installed
     """
-    con = q.remote.system.connect(master_ip, "root", UBUNTU_PASSWORD)
-    devstack_branch = con.process.execute("cd /home/devstack/; git branch | awk '{print $2}'")[1].strip()
+    remote_con = q.remote.system.connect(master_ip, "root", UBUNTU_PASSWORD)
+    devstack_branch = remote_con.process.execute("cd /home/devstack/; git branch | awk '{print $2}'")[1].strip()
     if devstack_branch != "stable/icehouse":
         return
     cmd = 'source /etc/profile.d/ovs.sh;python -c "from ovs.dal.lists.storagerouterlist import StorageRouterList;print [sg.ip for sg in StorageRouterList.get_storagerouters()]"'
-    out = con.process.execute(cmd)[1]
+    out = remote_con.process.execute(cmd)[1]
     node_ips = eval(out)
-    con.close()
+    remote_con.close()
     cmd_ssh_id_gen = r"""apt-get install sshpass -y
 chpasswd <<< "stack:{password}"
 su -c "ssh-keygen -f ~/.ssh/id_rsa -t rsa -b 4096 -q -N \"\"" stack
@@ -612,7 +736,7 @@ echo 1""".format(password=UBUNTU_PASSWORD)
 def install_additional_node(hypervisor_type, hypervisor_ip, hypervisor_password, first_node_ip, new_node_ip,
                             qualitylevel, cluster_name, dns, public_network, public_netmask, gateway, hostname,
                             storage_ip_last_octet=None, with_devstack=False, fixed_range=None, fixed_range_size=None,
-                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0"):
+                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0", branch=''):
     # check connectivity
     q.clients.ssh.waitForConnection(first_node_ip, "root", UBUNTU_PASSWORD, times=30)
     if hypervisor_type == "VMWARE":
@@ -642,65 +766,18 @@ def install_additional_node(hypervisor_type, hypervisor_ip, hypervisor_password,
                      hypervisor_type=hypervisor_type,
                      hypervisor_ip=hypervisor_ip,
                      hypervisor_password=hypervisor_password,
-                     hostname=hostname)
-
-
-def deploy_ovsvsa_vmware(public_ip, hypervisor_ip, hypervisor_password, dns, public_network, gateway, public_netmask,
-                         hostname, extra_packages=None, storage_ip_last_octet=None):
-
-    assert storage_ip_last_octet, "storage_ip_last_octet needs to be suplied for vmware install"
-    hypervisor_login = "root"
-    cli = q.hypervisors.cmdtools.esx.cli.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
-    vifs = q.hypervisors.cmdtools.esx.vifs.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
-    sdk = q.hypervisors.cmdtools.esx.sdk.connect(hypervisor_ip, hypervisor_login, hypervisor_password)
-    vmobj, storage_eth_adapter, public_eth_adapter = run_deploy_ovs(hypervisor_ip, hypervisor_password, sdk, cli, vifs)
-    q.tools.installerci.shutdown_vm_esx(sdk, OVS_NAME)
-    q.tools.installerci.poweron_vm_esx(sdk, OVS_NAME)
-    storage_nic_mac = storage_eth_adapter.macAddress
-    command = "python /opt/qbase5/utils/ubuntu_autoinstall.py -M {public_mac_address} \
--m {storage_nic_mac} \
--d {dns} \
--P {public_ip} \
--n {public_network} \
--g {gateway} \
--k {public_netmask} \
--a sda \
--x {hypervisor_ip} \
--b {OVS_NAME} \
--v {UBUNTU_ISO} \
--o {hostname} \
--S {storage_ip_last_octet}"
-    command = command.format(public_mac_address=public_eth_adapter.macAddress,
-                             storage_nic_mac=storage_nic_mac,
-                             dns=dns,
-                             public_ip=public_ip,
-                             public_network=public_network,
-                             gateway=gateway,
-                             public_netmask=public_netmask,
-                             hypervisor_ip=hypervisor_ip,
-                             OVS_NAME=OVS_NAME,
-                             UBUNTU_ISO=UBUNTU_ISO,
-                             hostname=hostname,
-                             storage_ip_last_octet=storage_ip_last_octet
-                             )
-    if extra_packages:
-        command += " -E {extra_packages}".format(extra_packages=extra_packages)
-    q.system.process.execute(command)
-    q.clients.ssh.waitForConnection(public_ip, "root", UBUNTU_PASSWORD, times=60)
+                     hostname=hostname,
+                     branch=branch)
 
 
 def integrate_papertrail(ip):
     """
-    setup beaver config to log to papertrail
+    Setup beaver config to log to papertrail
+    :param ip: IP where papertrail needs to be configured
     """
-    con = q.remote.system.connect(ip, "root", UBUNTU_PASSWORD)
-    cmd = 'apt-get -y install python-pip'
-    out = con.process.execute(cmd)
-    print out
-
-    cmd = 'pip install beaver --upgrade'
-    out = con.process.execute(cmd)
-    print out
+    remote_con = q.remote.system.connect(ip, "root", UBUNTU_PASSWORD)
+    print remote_con.process.execute('apt-get -y install python-pip')
+    print remote_con.process.execute('pip install beaver --upgrade')
 
     sentinel_transport_cmd = """
 mkdir -p /usr/local/lib/python2.7/dist-packages/beaver/transports
@@ -813,8 +890,7 @@ class SentinelTransport(BaseTransport):
             raise TransportException(exception)
 EOF
 """
-    out = con.process.execute(sentinel_transport_cmd, dieOnNonZeroExitCode=False)
-    print out
+    print remote_con.process.execute(sentinel_transport_cmd, dieOnNonZeroExitCode=False)
 
     config_cmd = """
 mkdir -p /etc/beaver
@@ -862,9 +938,7 @@ type: nginx
 tags: nginx
 EOF
 """
-
-    out = con.process.execute(config_cmd, dieOnNonZeroExitCode=False)
-    print out
+    print remote_con.process.execute(config_cmd, dieOnNonZeroExitCode=False)
 
     upstart_cmd = """cat <<EOF > /etc/init/ovs-beaver.conf
 description "Beaver upstart for papertrail"
@@ -882,113 +956,12 @@ EOF
 
 stop ovs-beaver
 start ovs-beaver
-
 """
+    print remote_con.process.execute(upstart_cmd, dieOnNonZeroExitCode=False)
 
-    out = con.process.execute(upstart_cmd, dieOnNonZeroExitCode=False)
-    print out
-
-
-def handle_ovs_setup(public_ip, qualitylevel, cluster_name, hypervisor_type, hypervisor_ip, hypervisor_password,
-                     hostname):
-
-    integrate_papertrail(public_ip)
-
-    con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-    con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(qualitylevel))
-
-    con.process.execute('apt-get update')
-    con.process.execute('apt-get install -y ntp')
-    con.process.execute('apt-get install -y --force-yes openvstorage-hc')
-    # clean leftover mds
-    e, o = con.process.execute("ls /dev/md*", dieOnNonZeroExitCode=False)
-    if e == 0:
-        for md in o.splitlines():
-            e, o = con.process.execute("mdadm --detail {} | awk '/\/dev\/sd?/ {{print $(NF);}}'".format(md),
-                                       dieOnNonZeroExitCode=False)
-            if e != 0:
-                continue
-            con.process.execute("mdadm --stop {}".format(md), dieOnNonZeroExitCode=False)
-            for d in o.splitlines():
-                con.process.execute("mdadm --zero-superblock {}".format(d), dieOnNonZeroExitCode=False)
-    child = pexpect.spawn('ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{0}'.format(public_ip))
-    child.timeout = 300
-    child.logfile = sys.stdout
-    child.expect('password:')
-    child.sendline(UBUNTU_PASSWORD)
-    child.expect(':~#')
-    child.sendline('ovs setup')
-    joined_cluster = pick_option(child, cluster_name, fail_if_not_found=False)
-    if not joined_cluster:
-        pick_option(child, "Create a new cluster", use_select=False)
-        child.expect('Please enter the cluster name')
-        child.sendline(cluster_name)
-    idx = child.expect(['Select the public ip address of', 'Password:'])
-    if idx == 1:
-        child.sendline(UBUNTU_PASSWORD)
-        child.expect('Select the public ip address of')
-    pick_option(child, public_ip)
-    # 5 minutes to partition disks
-    child.timeout = 300
-
-    provide_root_pwds = True
-    while provide_root_pwds:
-        idx = child.expect(["Which type of hypervisor is this Grid Storage Router",
-                            "Which type of hypervisor is this Storage Router backing",
-                            "Password:"])
-        if idx == 2:
-            child.sendline(UBUNTU_PASSWORD)
-        else:
-            provide_root_pwds = False
-
-    pick_option(child, hypervisor_type.upper())
-    child.expect("Enter hypervisor hostname")
-    child.sendline("")
-    if hypervisor_type == "VMWARE":
-        child.expect("Enter hypervisor ip address")
-        child.sendline(hypervisor_ip)
-        try:
-            _ = child.expect("Password:")
-            child.sendline("R00t3r123")
-        except:
-            pass
-    exit_script_mark = "~#"
-
-    # 10 minutes to install ovs components
-    child.timeout = 600
-
-    try:
-        # IP address to be used for the ASD API
-        idx = child.expect(["Select the public IP address to be used for the API", exit_script_mark])
-        if idx == 0:
-            pick_option(child, public_ip)
-            # port - default 8500
-            child.sendline("")
-            # IP addresses to be used for the ASDs - default all
-            child.sendline("")
-            # port to be used for the ASDs - default 8600
-            child.sendline("")
-        elif idx == 1:
-            return
-    except:
-        print
-        print str(child)
-        raise
-    child.timeout = 180
-    try:
-        child.expect(exit_script_mark)
-    except:
-        print "--- pexpect before:"
-        print child.before
-        print "--- pexpect buffer:"
-        print child.buffer
-        print "--- pexpect after:"
-        print child.after
-        print "--- pexpect end"
-        raise
 
 if __name__ == '__main__':
-    options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:l:h:E:H:M:S:s:N')
+    options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:l:h:E:H:M:S:s:b:N')
     for opt, arg in options:
         if opt == '-e':
             hypervisor_ip = arg
@@ -1008,9 +981,6 @@ if __name__ == '__main__':
             qualitylevel = arg
         if opt == '-c':
             cluster_name = arg
-        if opt == '-l':
-            vpool_type = arg.strip().lower()
-            assert vpool_type in VPOOL_TYPES, "Invalid value for vpool_type, supported are: " + str(VPOOL_TYPES)
         if opt == '-h':
             hostname = arg
         if opt == '-E':
@@ -1024,14 +994,15 @@ if __name__ == '__main__':
             connection_host = arg
         if opt == '-s':
             storage_ip_last_octet = arg
+        if opt == '-b':
+            patchbranch = arg
         if opt == '-N':
             install_ovsvsa = False
     assert q.system.net.pingMachine(hypervisor_ip), "Invalid ip given or unreachable"
     hypervisor_password = hypervisor_password or "R00t3r123"
     hypervisor_login = "root"
     qualitylevel = qualitylevel or "test"
-    if vpool_type == "swift_s3":
-        assert q.system.net.pingMachine(connection_host), "swift_s3 invalid ip or unreachable"
+
     if hypervisor_type == "KVM":
         public_ip = hypervisor_ip
         assert storage_nic_mac, "storage_nic_mac needs to be specified"
@@ -1053,11 +1024,12 @@ if __name__ == '__main__':
                      hypervisor_type=hypervisor_type,
                      hypervisor_ip=hypervisor_ip,
                      hypervisor_password=hypervisor_password,
-                     hostname=hostname)
+                     hostname=hostname,
+                     branch=patchbranch)
     # TODO: remove this if when OVS-3984 is resolved
     if hypervisor_type == "KVM":
-        con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-        (exitcode, output) = con.process.execute("grep -c 'ovs' /etc/passwd")
+        remote_con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
+        exitcode, output = remote_con.process.execute("grep -c 'ovs' /etc/passwd")
         if exitcode == 0 and output[0] == '1':
             # user ovs exists
-            (exitcode, output) = con.process.execute("usermod -a -G ovs libvirt-qemu")
+            remote_con.process.execute("usermod -a -G ovs libvirt-qemu")
