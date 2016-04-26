@@ -145,10 +145,11 @@ class TestFlexibleDiskLayout(object):
         partitions_detected = False
         disk_guid = ''
         for path in unused_disks:
-            disk_guid = all_disks[path].guid
-            for partition in partitions:
-                if partition.disk_guid == disk_guid:
-                    partitions_detected = True
+            if path in all_disks:
+                disk_guid = all_disks[path].guid
+                for partition in partitions:
+                    if partition.disk_guid == disk_guid:
+                        partitions_detected = True
         assert partitions_detected is False, 'Existing partitions detected on unused disks!'
 
         # try partition a disk using it's full reported size

@@ -16,6 +16,7 @@
 A general class dedicated to Physical Disk logic
 """
 
+import operator
 import time
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
@@ -193,10 +194,13 @@ class GeneralDisk(object):
                     disks_to_partition = disks
             elif len(disks) > 1:
                 disks_to_partition = [disk for disk in disks if disk.storagerouter == storagerouter and
-                                      not disk.partitions_guids and disk.is_ssd]
-            for disk in disks_to_partition:
-                db_partition = GeneralDisk.partition_disk(disk)
-            GeneralDisk.append_disk_role(db_partition, ['DB'])
+                                      not disk.partitions_guids]
+            disks_to_partition.sort(key=operator.attrgetter('is_ssd'), reverse=True)
+            if len(disks_to_partition):
+                db_partition = GeneralDisk.partition_disk(disks_to_partition[0])
+                GeneralDisk.append_disk_role(db_partition, ['DB'])
+            else:
+                raise Exception('No disks capable of receiveing a DB role')
         elif role_added is False:
             GeneralDisk.append_disk_role(db_partition, ['DB'])
 
