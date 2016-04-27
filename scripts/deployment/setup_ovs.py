@@ -961,6 +961,11 @@ start ovs-beaver
 
 
 if __name__ == '__main__':
+    dns = ''
+    gateway = ''
+    public_network = ''
+    storage_nic_mac = ''
+    patchbranch = ''
     options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:l:h:E:H:M:S:s:b:N')
     for opt, arg in options:
         if opt == '-e':
