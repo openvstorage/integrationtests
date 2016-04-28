@@ -145,6 +145,7 @@ class TestFlexibleDiskLayout(object):
         partitions_detected = False
         disk_guid = ''
         for path in unused_disks:
+            # @TODO: remove the if when ticket OVS-4503 is solved
             if path in all_disks:
                 disk_guid = all_disks[path].guid
                 for partition in partitions:

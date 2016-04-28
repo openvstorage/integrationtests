@@ -187,14 +187,8 @@ class GeneralDisk(object):
         # LVM partition present on the / mountpoint
         if db_partition is None and role_added is False:
             # disks havent been partitioned yet
-            disks_to_partition = []
-            disks = GeneralDisk.get_disks()
-            if len(disks) == 1:
-                if len(disks[0].partitions) == 0:
-                    disks_to_partition = disks
-            elif len(disks) > 1:
-                disks_to_partition = [disk for disk in disks if disk.storagerouter == storagerouter and
-                                      not disk.partitions_guids]
+            disks_to_partition = [disk for disk in GeneralDisk.get_disks() if disk.storagerouter == storagerouter and
+                                  len(disk.partitions) == 0]
             disks_to_partition.sort(key=operator.attrgetter('is_ssd'), reverse=True)
             if len(disks_to_partition):
                 db_partition = GeneralDisk.partition_disk(disks_to_partition[0])
