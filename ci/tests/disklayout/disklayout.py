@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import operator
 from ci.tests.general.connection import Connection
 from ovs.lib.storagerouter import StorageRouterController
 
@@ -47,13 +48,36 @@ def append_disk_role(partition_guid, roles_to_add):
 
 
 def add_db_role(storagerouter_guid):
+    role_added = False
+    db_partition = None
     api = Connection.get_connection()
     for partition in api.get_components('diskpartitions'):
-        if partition['mountpoint'] in ['/'] or partition['folder'] in ['/mnt/storage']:
-            disk = api.fetch('disks', partition['disk_guid'])
-            if disk['storagerouter_guid'] == storagerouter_guid:
+        disk = api.fetch('disks', partition['disk_guid'])
+        if disk['storagerouter_guid'] == storagerouter_guid:
+            if partition['mountpoint'] and '/mnt/ssd' in partition['mountpoint']:
+                db_partition = partition
+            if partition['mountpoint'] in ['/'] or partition['folder'] in ['/mnt/storage']:
                 append_disk_role(partition['guid'], ['DB'])
+                role_added = True
                 break
+    # LVM partition present on the / mountpoint
+    if db_partition is None and role_added is False:
+        # disks havent been partitioned yet
+        disks_to_partition = []
+        disks = api.get_components('disks')
+        if len(disks) == 1:
+            if len(disks[0].partitions) == 0:
+                disks_to_partition = disks
+        elif len(disks) > 1:
+            disks_to_partition = [disk for disk in disks if disk['storagerouter_guid'] == storagerouter_guid and
+                                  not disk['partitions_guids']]
+            disks_to_partition.sort(key=operator.itemgetter('is_ssd'), reverse=True)
+        else:
+            raise Exception('No disks capable of receiveing a DB role')
+        db_partition_guid = partition_disk(disks_to_partition[0]['guid'])
+        append_disk_role(db_partition_guid, ['DB'])
+    elif role_added is False:
+        append_disk_role(db_partition['guid'], ['DB'])
 
 
 def remove_role(storagerouter_guid, role, partition_guid=None):
