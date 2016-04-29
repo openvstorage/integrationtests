@@ -26,8 +26,12 @@ from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
-from nose.plugins.skip import SkipTest
+from ci.tests.general.logHandler import LogHandler
+
 from ovs.extensions.generic.sshclient import SSHClient
+
+logger = LogHandler.get('api', name='setup')
+logger.logger.propagate = False
 
 
 class TestVPool(object):
@@ -85,7 +89,8 @@ class TestVPool(object):
         # Verify if an unused disk is available to mount
         unused_disks = GeneralDisk.get_unused_disks()
         if len(unused_disks) == 0:
-            raise SkipTest('No available disks found to mount locally for the distributed backend')
+            logger.info('No available disks found to mount locally for the distributed backend')
+            return
 
         # Raise if vPool already exists
         vpool_name = 'add-remove-distr-vpool'

@@ -21,10 +21,6 @@ from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.logHandler import LogHandler
-from ovs.dal.hybrids.albanode import AlbaNode
-from ovs.dal.hybrids.albaasd import AlbaASD
-from ovs.dal.hybrids.albabackend import AlbaBackend
-from ovs.dal.hybrids.backend import Backend
 from ovs.dal.hybrids.albaasd import AlbaASD
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.albanode import AlbaNode
@@ -32,13 +28,14 @@ from ovs.dal.hybrids.backend import Backend
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.lib.albascheduledtask import AlbaScheduledTaskController
 
+logger = LogHandler.get('backend', name='alba')
+logger.logger.propagate = False
+
 
 class TestALBA(object):
     """
     ALBA testsuite
     """
-    logger = LogHandler.get('backend', name='alba')
-    logger.logger.propagate = False
 
     autotest_config = General.get_config()
     backend_name = autotest_config.get('backend', 'name')
@@ -331,7 +328,7 @@ class TestALBA(object):
         try:
             abe.statistics
         except KeyError, ex:
-            TestALBA.logger.error('Regression OVS-3769 - asd statistics raises a KeyError: {0}'.format(str(ex)))
+            logger.error('Regression OVS-3769 - asd statistics raises a KeyError: {0}'.format(str(ex)))
 
         assert asd.statistics == dict(), "asd statistics should return an empty dict, go {0}".format(asd.statistics)
         asd.delete()
