@@ -326,6 +326,7 @@ class TestArakoon(object):
         storagerouters = GeneralStorageRouter.get_storage_routers()
         if not len(storagerouters) >= 4:
             logger.info('Environment has only {0} node(s)'.format(len(storagerouters)))
+            return
 
         pmachines = TestArakoon.get_cluster_pmachines([sr.ip for sr in storagerouters])
         TestArakoon.validate_arakoon_config_files(pmachines)
