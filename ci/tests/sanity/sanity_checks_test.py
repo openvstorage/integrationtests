@@ -14,7 +14,6 @@
 
 import os
 import time
-from nose.plugins.skip import SkipTest
 from ovs.dal.lists.backendlist import BackendList
 from ovs.dal.lists.vpoollist import VPoolList
 from ovs.dal.lists.pmachinelist import PMachineList
@@ -24,6 +23,10 @@ from ci.tests.vpool import generic
 from ci.tests.general.general import test_config
 from ci.tests.backend import alba, generic as backend_generic
 from ci import autotests
+from ci.tests.general.logHandler import LogHandler
+
+logger = LogHandler.get('sanity', name='setup')
+logger.logger.propagate = False
 
 BACKEND_TYPE = test_config.get('backend', 'type')
 GRID_IP = test_config.get('main', 'grid_ip')
@@ -69,7 +72,8 @@ def ssh_check_test():
 
     env_ips = autotests._get_ips()
     if len(env_ips) == 1:
-        raise SkipTest('Environment has only 1 node')
+        logger.info('Environment has only 1 node')
+        return
 
     for env_ip_connecting_from in env_ips:
         out = general.execute_command_on_node(env_ip_connecting_from, "cat ~/.ssh/known_hosts")
@@ -183,7 +187,8 @@ def check_model_test():
     backends_present_on_env = BackendList.get_backends()
     if len(backends_present_on_env) == 0:
         # @TODO: Remove this skipTest
-        raise SkipTest('No backend present at the time of the test')
+        logger.info('No backend present at the time of the test')
+        return
 
     backend_name = general.test_config.get("backend", "name")
     backend = BackendList.get_by_name(backend_name)
@@ -203,7 +208,8 @@ def check_backend_services_test():
     backends_present_on_env = BackendList.get_backends()
     if len(backends_present_on_env) == 0:
         # @TODO: Remove this skipTest
-        raise SkipTest('No backend present at the time of the test')
+        logger.info('No backend present at the time of the test')
+        return
 
     # TODO: more than 1 backends present
     # TODO: different backends not just alba
@@ -234,7 +240,8 @@ def check_backend_files_test():
     backends_present_on_env = BackendList.get_backends()
     if len(backends_present_on_env) == 0:
         # @TODO: Remove this skipTest
-        raise SkipTest('No backend present at the time of the test')
+        logger.info('No backend present at the time of the test')
+        return
 
     my_backend_name = backends_present_on_env[0].name
     files_to_check = ["/opt/OpenvStorage/config/arakoon/{0}-abm/{0}-abm.cfg".format(my_backend_name),
@@ -309,7 +316,9 @@ def check_vpool_sanity_test(vpool_name=''):
     vpool = VPoolList.get_vpool_by_name(vpool_name)
     # TODO: think of a way to skip the test if there's no vpool to check(mainly for full autotest runs)
     if not vpool:
-        raise SkipTest('No vpool present with name {0} at the time of the test'.format(vpool_name))
+        logger.info('No vpool present with name {0} at the time of the test'.format(vpool_name))
+        return
+
     # assert vpool.name == vpool_name, "No vpool found modeled with {0} name".format(vpool_name)
 
     # @TODO check services on each node after implementing vpool extension to all nodes

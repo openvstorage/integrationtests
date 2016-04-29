@@ -14,9 +14,12 @@
 
 from ci.tests.general import general
 from ci.tests.mgmtcenter import generic
-from nose.plugins.skip import SkipTest
 from ci import autotests
 from ci.tests.general.connection import Connection
+from ci.tests.general.logHandler import LogHandler
+
+logger = LogHandler.get('mgmtcenter', name='setup')
+logger.logger.propagate = False
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
@@ -42,7 +45,8 @@ def check_reachability_test():
 
     devstack_installed = generic.is_devstack_installed()
     if devstack_installed is False:
-        raise SkipTest('No devstack/openstack present')
+        logger.info('No devstack/openstack present')
+        return
 
     api = Connection.get_connection()
     management_centers = api.get_components('mgmtcenters')
@@ -66,7 +70,8 @@ def management_center_connection_test():
 
     devstack_installed = generic.is_devstack_installed()
     if devstack_installed is False:
-        raise SkipTest('No devstack/openstack present')
+        logger.info('No devstack/openstack present')
+        return
 
     api = Connection.get_connection()
     management_centers = api.get_components('mgmtcenters')
@@ -89,7 +94,8 @@ def check_configured_management_center_test():
 
     devstack_installed = generic.is_devstack_installed()
     if devstack_installed is False:
-        raise SkipTest('No devstack/openstack present')
+        logger.info('No devstack/openstack present')
+        return
 
     api = Connection.get_connection()
     management_centers = api.get_components('mgmtcenters')
@@ -113,7 +119,8 @@ def check_unconfigured_management_center_test():
 
     devstack_installed = generic.is_devstack_installed()
     if devstack_installed is False:
-        raise SkipTest('No devstack/openstack present')
+        logger.info('No devstack/openstack present')
+        return
 
     api = Connection.get_connection()
     management_centers = api.get_components('mgmtcenters')

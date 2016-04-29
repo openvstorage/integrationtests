@@ -105,7 +105,7 @@ def add_preset(name, compression, encryption, policies, remove_when_finished=Tru
         assert not is_preset_present(name), "Preset with name {0} is not present".format(name)
 
 
-def be_0001_add_and_verify_backend_is_running_test():
+def be_0001_add_and_remove_backend_test():
     """
     {0}
     """.format(general.get_function_name())
