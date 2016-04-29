@@ -19,7 +19,10 @@ Management center testsuite
 from ci.tests.general.general import General
 from ci.tests.general.general_mgmtcenter import GeneralManagementCenter
 from ci.tests.general.general_pmachine import GeneralPMachine
-from nose.plugins.skip import SkipTest
+from ci.tests.general.logHandler import LogHandler
+
+logger = LogHandler.get('mgmtcenter', name='setup')
+logger.logger.propagate = False
 
 
 class TestMgmtCenter(object):
@@ -32,7 +35,8 @@ class TestMgmtCenter(object):
         Verify the management center is reachable
         """
         if GeneralManagementCenter.is_devstack_installed() is False:
-            raise SkipTest('No devstack/openstack present')
+            logger.info('No devstack/openstack present')
+            return
 
         management_centers = GeneralManagementCenter.get_mgmt_centers()
         issues_found = ""
@@ -50,7 +54,8 @@ class TestMgmtCenter(object):
         Verify the management center connectivity
         """
         if GeneralManagementCenter.is_devstack_installed() is False:
-            raise SkipTest('No devstack/openstack present')
+            logger.info('No devstack/openstack present')
+            return
 
         management_centers = GeneralManagementCenter.get_mgmt_centers()
         issues_found = ""
@@ -67,7 +72,8 @@ class TestMgmtCenter(object):
         Verify if the management center has been configured correctly
         """
         if GeneralManagementCenter.is_devstack_installed() is False:
-            raise SkipTest('No devstack/openstack present')
+            logger.info('No devstack/openstack present')
+            return
 
         management_centers = GeneralManagementCenter.get_mgmt_centers()
         issues_found = ""
@@ -85,7 +91,8 @@ class TestMgmtCenter(object):
         Verify if the management center has been un-configured correctly
         """
         if GeneralManagementCenter.is_devstack_installed() is False:
-            raise SkipTest('No devstack/openstack present')
+            logger.info('No devstack/openstack present')
+            return
 
         management_centers = GeneralManagementCenter.get_mgmt_centers()
         issues_found = ""

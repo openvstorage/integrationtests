@@ -20,9 +20,11 @@ from ci.tests.general.general import General
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
-from nose.plugins.skip import SkipTest
+from ci.tests.general.logHandler import LogHandler
 from ovs.extensions.generic.sshclient import SSHClient
 
+logger = LogHandler.get('disklayout', name='alba')
+logger.logger.propagate = False
 
 class ContinueTesting(object):
     """
@@ -59,14 +61,14 @@ class TestFlexibleDiskLayout(object):
         FDL-0001 - disks in ovs model should match actual physical disk configuration
         """
         if TestFlexibleDiskLayout.continue_testing.state is False:
-            raise SkipTest('Test suite signaled to stop')
+            logger.info('Test suite signaled to stop')
+            return
         GeneralStorageRouter.sync_with_reality()
 
         physical_disks = dict()
         modelled_disks = dict()
         loops = dict()
 
-        TestFlexibleDiskLayout.logger.setLevel('INFO')
         storagerouters = GeneralStorageRouter.get_storage_routers()
         for storagerouter in storagerouters:
             root_client = SSHClient(storagerouter, username='root')
@@ -83,8 +85,8 @@ class TestFlexibleDiskLayout(object):
             if disk.name not in loops[disk.storagerouter_guid]:
                 modelled_disks[disk.storagerouter_guid][disk.name] = {'is_ssd': disk.is_ssd}
 
-        TestFlexibleDiskLayout.logger.info('PDISKS: {0}'.format(physical_disks))
-        TestFlexibleDiskLayout.logger.info('MDISKS: {0}'.format(modelled_disks))
+        logger.info('PDISKS: {0}'.format(physical_disks))
+        logger.info('MDISKS: {0}'.format(modelled_disks))
 
         assert len(modelled_disks.keys()) == len(physical_disks.keys()),\
             "Nr of modelled/physical disks is NOT equal!:\n PDISKS: {0}\nMDISKS: {1}".format(modelled_disks,
@@ -117,13 +119,15 @@ class TestFlexibleDiskLayout(object):
             - verify ovs model is correctly updated
         """
         if TestFlexibleDiskLayout.continue_testing.state is False:
-            raise SkipTest('Test suite signaled to stop')
+            logger.info('Test suite signaled to stop')
+            return
 
         my_sr = GeneralStorageRouter.get_local_storagerouter()
 
         unused_disks = GeneralDisk.get_unused_disks()
         if not unused_disks:
-            raise SkipTest("At least one unused disk should be available for partition testing")
+            logger.info("At least one unused disk should be available for partition testing")
+            return
 
         hdds = dict()
         ssds = dict()
