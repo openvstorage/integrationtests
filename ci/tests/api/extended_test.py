@@ -40,7 +40,7 @@ class TestExtended(object):
             logger.info('Test not setup to run')
             return
 
-            logger.info('Post reboot check node {0}\n'.format(rebooted_host))
+        logger.info('Post reboot check node {0}\n'.format(rebooted_host))
 
         wait_time = 5 * 60
         sleep_time = 5
