@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
-from nose.plugins.skip import SkipTest
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.system import System
 from ovs.lib.disk import DiskController
@@ -21,10 +19,13 @@ from ovs.lib.storagerouter import StorageRouterController
 from ci.tests.general import general
 from ci.tests.general.connection import Connection
 from ci import autotests
+from ci.tests.general.logHandler import LogHandler
+
+logger = LogHandler.get('disklayout', name='setup')
+logger.logger.propagate = False
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
-log = logging.getLogger('test_flexible_disk_layout')
 vpool_name = general.test_config.get("vpool", "vpool_name")
 vpool_name = 'api-' + vpool_name
 
@@ -47,18 +48,6 @@ def teardown():
     pass
 
 
-def fdl_0000_disklayout_prerequisites_test():
-    """
-    FDL-0000 - prerequisite tests for complete test suite
-    {0}
-    """.format(general.get_function_name())
-
-    general.check_prereqs(testcase_number=1,
-                          tests_to_run=testsToRun)
-    __continue_testing.state = True
-    pass
-
-
 def fdl_0001_match_model_with_reality_test():
     """
     FDL-0001 - disks in ovs model should match actual physical disk configuration
@@ -68,7 +57,8 @@ def fdl_0001_match_model_with_reality_test():
     general.check_prereqs(testcase_number=2,
                           tests_to_run=testsToRun)
     if not __continue_testing.state:
-        raise SkipTest('Test suite signaled to stop')
+        logger.info('Test suite signaled to stop')
+        return
 
     DiskController.sync_with_reality()
 
@@ -78,7 +68,6 @@ def fdl_0001_match_model_with_reality_test():
 
     api = Connection.get_connection()
 
-    log.setLevel('INFO')
     storagerouters = StorageRouterList.get_storagerouters()
     for storagerouter in storagerouters:
         hdds, ssds = general.get_physical_disks(storagerouter.ip)
@@ -95,8 +84,8 @@ def fdl_0001_match_model_with_reality_test():
         if not disk['name'] in loops[disk['storagerouter_guid']]:
             modelled_disks[disk['storagerouter_guid']][disk['name']] = {'is_ssd': disk['is_ssd']}
 
-    log.info('PDISKS: {0}'.format(physical_disks))
-    log.info('MDISKS: {0}'.format(modelled_disks))
+    logger.info('PDISKS: {0}'.format(physical_disks))
+    logger.info('MDISKS: {0}'.format(modelled_disks))
 
     assert len(modelled_disks.keys()) == len(physical_disks.keys()),\
         "Nr of modelled/physical disks is NOT equal!:\n PDISKS: {0}\nMDISKS: {1}".format(modelled_disks,
@@ -134,13 +123,15 @@ def fdl_0002_add_remove_partition_with_role_and_crosscheck_model_test():
                           tests_to_run=testsToRun)
 
     if not __continue_testing.state:
-        raise SkipTest('Test suite signaled to stop')
+        logger.info('Test suite signaled to stop')
+        return
 
     my_sr = System.get_my_storagerouter()
 
     unused_disks = general.get_unused_disks()
     if not unused_disks:
-        raise SkipTest("At least one unused disk should be available for partition testing")
+        logger.info("At least one unused disk should be available for partition testing")
+        return
 
     api = Connection.get_connection()
 

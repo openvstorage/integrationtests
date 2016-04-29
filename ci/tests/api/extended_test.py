@@ -14,9 +14,12 @@
 
 import os
 import time
-from nose.plugins.skip import SkipTest
 from ci.tests.general import general
 from ci import autotests
+from ci.tests.general.logHandler import LogHandler
+
+logger = LogHandler.get('api', name='setup')
+logger.logger.propagate = False
 
 testsToRun = general.get_tests_to_run(autotests.get_test_level())
 
@@ -35,9 +38,10 @@ def post_reboot_checks_test():
 
     rebooted_host = os.environ.get('POST_REBOOT_HOST')
     if not rebooted_host:
-        raise SkipTest('Test not setup to run')
+        logger.info('Test not setup to run')
+        return
 
-    print "Post reboot check node {0}\n".format(rebooted_host)
+    logger.info("Post reboot check node {0}\n".format(rebooted_host))
 
     wait_time = 5 * 60
     sleep_time = 5
