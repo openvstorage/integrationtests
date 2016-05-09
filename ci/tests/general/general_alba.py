@@ -111,7 +111,7 @@ class GeneralAlba(object):
             alba_backend = GeneralAlba.add_alba_backend(name)
         else:
             alba_backend = backend.alba_backend
-        GeneralAlba.claim_disks(alba_backend, nr_of_disks_to_claim, type_of_disks_to_claim)
+        GeneralAlba.claim_asds(alba_backend, nr_of_disks_to_claim, type_of_disks_to_claim)
 
     @staticmethod
     def unclaim_disks_and_remove_alba_backend(alba_backend):
@@ -271,8 +271,8 @@ class GeneralAlba(object):
         assert EtcdConfiguration.exists(key=alba_backend_key, raw=True) is True, 'Etcd does not contain key {0}'.format(alba_backend_key)
 
         actual_etcd_keys = [key for key in EtcdConfiguration.list(alba_backend_key)]
-        expected_etcd_keys = ['job_schedule_x_months', 'global_gui_error_interval', alba_backend.guid]
-        optional_etcd_keys = ['job_factor']
+        expected_etcd_keys = ['verification_schedule', 'global_gui_error_interval', alba_backend.guid]
+        optional_etcd_keys = ['verification_factor']
 
         expected_keys_amount = 0
         for optional_key in optional_etcd_keys:
@@ -624,15 +624,21 @@ class GeneralAlba(object):
         :return: None
         """
         # Assume no disks are claimed by a remote environment
-        alba_backend.invalidate_dynamics(['all_disks'])
-        all_disks = alba_backend.all_disks
+        alba_backend.invalidate_dynamics(['storage_stack'])
+        storage_stack = alba_backend.storage_stack
 
-        initialised_disks = [disk['name'] for disk in all_disks if disk['status'] == 'available']
-        nr_of_disks_to_init = nr_of_disks - len(initialised_disks)
+        initialised_disks = 0
+        uninitialized_disk_names = []
+        for disks in storage_stack.values():
+            for disk_id, disk in disks.iteritems():
+                if disk['status'] == 'uninitialized':
+                    initialised_disks += 1
+                elif disk['status'] == 'initialized':
+                    uninitialized_disk_names.append(disk_id)
+        nr_of_disks_to_init = nr_of_disks - initialised_disks
         if nr_of_disks_to_init <= 0:
             return True
 
-        uninitialized_disk_names = [disk['name'] for disk in all_disks if disk['status'] == 'uninitialized']
         assert len(uninitialized_disk_names) >= nr_of_disks_to_init, "Not enough disks to initialize!"
 
         disks_to_init = GeneralAlba.filter_disks(uninitialized_disk_names, nr_of_disks_to_init, disk_type)
@@ -640,65 +646,61 @@ class GeneralAlba(object):
 
         grid_ip = General.get_config().get('main', 'grid_ip')
         alba_node = AlbaNodeList.get_albanode_by_ip(grid_ip)
-        failures = AlbaNodeController.initialize_disks(alba_node.guid, disks_to_init)
+        failures = AlbaNodeController.initialize_disks(alba_node.guid, dict((disk_id, 1) for disk_id in disks_to_init))
         assert not failures, 'Alba disk initialization failed for (some) disks: {0}'.format(failures)
 
     @staticmethod
-    def claim_disks(alba_backend, nr_of_disks, disk_type=''):
+    def claim_asds(alba_backend, nr_of_asds, disk_type=''):
         """
         Claim disks
         :param alba_backend: ALBA Backend
-        :param nr_of_disks: Amount of disks to claim
+        :param nr_of_asds: Amount of disks to claim
         :param disk_type: Type of disks
         :return: None
         """
-        def _wait_for_disk_count_with_status(_alba_backend, _nr_of_disks, status):
+        def _wait_for_asd_count_with_status(_alba_backend, _nr_of_asds, status):
+            grid_ip = General.get_config().get('main', 'grid_ip')
+            alba_node = AlbaNodeList.get_albanode_by_ip(grid_ip)
             counter = GeneralAlba.ALBA_TIMER / GeneralAlba.ALBA_TIMER_STEP
-            disks_with_status = []
+            asds_with_status = {}
             while counter > 0:
                 GeneralAlba.logger.info('counter: {0}'.format(counter))
-                _alba_backend.invalidate_dynamics(['all_disks'])
-                disks_with_status = [d['name'] for d in _alba_backend.all_disks if 'status' in d and d['status'] == status and 'asd_id' in d]
-                GeneralAlba.logger.info('looking for {0} disks with status {1}: {2}'.format(_nr_of_disks, status, disks_with_status))
-                if len(disks_with_status) >= _nr_of_disks:
+                _alba_backend.invalidate_dynamics(['storage_stack'])
+                if alba_node.node_id in _alba_backend.storage_stack:
+                    for _disk in _alba_backend.storage_stack[alba_node.node_id].values():
+                        for _asd_id, _asd in _disk['asds'].iteritems():
+                            if _asd['status'] == status:
+                                asds_with_status[_asd_id] = _disk.get('guid')
+                GeneralAlba.logger.info('looking for {0} asds with status {1}: {2}'.format(_nr_of_asds, status, asds_with_status))
+                if len(asds_with_status) >= _nr_of_asds:
                     break
                 counter -= 1
                 time.sleep(GeneralAlba.ALBA_TIMER_STEP)
-            assert len(disks_with_status) >= _nr_of_disks,\
-                "Unable to find {0} disks, only found {1} disks with status: {2}.\n".format(_nr_of_disks, len(disks_with_status), status)
-            return disks_with_status
+            assert len(asds_with_status) >= _nr_of_asds,\
+                "Unable to find {0} asds, only found {1} asds with status: {2}.\n".format(_nr_of_asds, len(asds_with_status), status)
+            return asds_with_status
 
-        all_disks = alba_backend.all_disks
-
-        claimed_disks = [disk['name'] for disk in all_disks if 'status' in disk and disk['status'] == 'claimed' and 'name' in disk]
-        nr_disks_to_claim = nr_of_disks - len(claimed_disks)
-        if nr_disks_to_claim <= 0:
+        claimed_asds = []
+        alba_backend.invalidate_dynamics(['storage_stack'])
+        storage_stack = alba_backend.storage_stack
+        for disks in storage_stack.values():
+            for disk in disks.values():
+                for asd_id, asd in disk['asds'].iteritems():
+                    if asd['status'] == 'claimed':
+                        claimed_asds.append(asd_id)
+        nr_asds_to_claim = nr_of_asds - len(claimed_asds)
+        if nr_asds_to_claim <= 0:
             return True
 
         # @TODO: Initialize disks should be parameterized to be parallel or sequential with parallel being the default
-        GeneralAlba.initialise_disks(alba_backend, nr_disks_to_claim, disk_type)
+        GeneralAlba.initialise_disks(alba_backend, nr_asds_to_claim, disk_type)
 
-        claimable_disk_names = _wait_for_disk_count_with_status(alba_backend, nr_disks_to_claim, 'available')
+        claimable_asds = _wait_for_asd_count_with_status(alba_backend, nr_asds_to_claim, 'available')
 
-        disks_to_claim = GeneralAlba.filter_disks(claimable_disk_names, nr_disks_to_claim, disk_type)
-        assert len(disks_to_claim) >= nr_disks_to_claim,\
-            "Unable to claim {0} disks, only found {1} disks.\n".format(nr_of_disks, len(disks_to_claim))
+        GeneralAlba.logger.info('osds: {0}'.format(claimable_asds))
+        AlbaController.add_units(alba_backend.guid, claimable_asds)
 
-        alba_backend.invalidate_dynamics(['all_disks'])
-        all_disks = alba_backend.all_disks
-        osds = dict()
-
-        grid_ip = General.get_config().get('main', 'grid_ip')
-        alba_node = AlbaNodeList.get_albanode_by_ip(grid_ip)
-        for name in disks_to_claim:
-            for disk in all_disks:
-                if name in disk['name'] and 'asd_id' in disk:
-                    osds[disk['asd_id']] = alba_node.guid
-
-        GeneralAlba.logger.info('osds: {0}'.format(osds))
-        AlbaController.add_units(alba_backend.guid, osds)
-
-        _wait_for_disk_count_with_status(alba_backend, nr_of_disks, 'claimed')
+        _wait_for_asd_count_with_status(alba_backend, nr_of_asds, 'claimed')
 
     @staticmethod
     def unclaim_disks(alba_backend):
@@ -708,13 +710,14 @@ class GeneralAlba(object):
         :return: None
         """
         # @TODO: Allow the unclaim of disks go sequentially or parallel (parallel should be default)
-        alba_backend.invalidate_dynamics(['all_disks'])
-        for disk in alba_backend.all_disks:
-            if disk['status'] in ['available', 'claimed']:
-                asd_node = GeneralAlba.get_node_by_id(disk['node_id'])
-                data = {'alba_backend_guid': alba_backend.guid,
-                        'disk': disk['name'],
-                        'safety': {'good': 0, 'critical': 0, 'lost': 0}}
+        alba_backend.invalidate_dynamics(['storage_stack'])
+        for disks in alba_backend.storage_stack.values():
+            for disk in disks.values():
+                if disk['status'] in ['available', 'claimed']:
+                    asd_node = GeneralAlba.get_node_by_id(disk['node_id'])
+                    data = {'alba_backend_guid': alba_backend.guid,
+                            'disk': disk['name'],
+                            'safety': {'good': 0, 'critical': 0, 'lost': 0}}
                 GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'remove_disk', data, wait=True)
 
     @staticmethod
@@ -737,7 +740,7 @@ class GeneralAlba(object):
         service_names = []
         for asd_node in GeneralAlba.get_alba_nodes():
             for entry in asd_node.client.list_maintenance_services():
-                if entry.startswith('ovs-alba-maintenance_{0}'.format(alba_backend.backend.name)):
+                if entry.startswith('alba-maintenance_{0}'.format(alba_backend.backend.name)):
                     service_names.append(entry)
         assert len(service_names) > 0, 'No maintenance services found for ALBA backend {0}'.format(alba_backend.backend.name)
         return service_names
