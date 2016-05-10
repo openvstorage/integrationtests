@@ -631,9 +631,9 @@ class GeneralAlba(object):
         uninitialized_disk_names = []
         for disks in storage_stack.values():
             for disk_id, disk in disks.iteritems():
-                if disk['status'] == 'uninitialized':
+                if disk['status'] == 'initialized':
                     initialised_disks += 1
-                elif disk['status'] == 'initialized':
+                elif disk['status'] == 'uninitialized':
                     uninitialized_disk_names.append(disk_id)
         nr_of_disks_to_init = nr_of_disks - initialised_disks
         if nr_of_disks_to_init <= 0:
