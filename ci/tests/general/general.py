@@ -26,7 +26,7 @@ import subprocess
 import ConfigParser
 from ci.scripts import debug
 from nose.plugins.skip import SkipTest
-from ovs.extensions.generic.remote import Remote
+from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 
 
@@ -109,8 +109,8 @@ class General(object):
         """
         if username is None:
             username = 'root'
-        with Remote(host, [os], username=username, password=password, strict_host_key_checking=False) as remote:
-            return remote.os.path.islink(file_path)
+        with remote(host, [os], username=username, password=password, strict_host_key_checking=False) as rem:
+            return rem.os.path.islink(file_path)
 
     @staticmethod
     def check_prereqs(testcase_number, tests_to_run):
