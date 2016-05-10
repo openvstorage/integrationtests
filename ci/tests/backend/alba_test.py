@@ -379,7 +379,7 @@ class TestALBA(object):
             result = {}
             total = 0
             for ip in alba_node_ips:
-                count = General.execute_command_on_node(ip, 'ls /etc/init/ovs-alba-maintenance_{0}-* | wc -l'.format(agent_name))
+                count = General.execute_command_on_node(ip, 'ls /etc/init/alba-maintenance_{0}-* | wc -l'.format(agent_name))
                 if count:
                     count = int(count)
                 else:

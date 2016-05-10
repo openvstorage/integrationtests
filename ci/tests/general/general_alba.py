@@ -326,7 +326,7 @@ class GeneralAlba(object):
         # @TODO: Add validation for config values
 
         # Validate maintenance agents
-        actual_amount_agents = len([key for client in [alba_node.client.list_maintenance_services() for alba_node in alba_nodes] for key in client.iterkeys() if not key.startswith('_')])
+        actual_amount_agents = len([service for node_services in [alba_node.client.list_maintenance_services() for alba_node in alba_nodes] for service in node_services])
         expected_amount_agents = EtcdConfiguration.get('/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend.guid))
         assert actual_amount_agents == expected_amount_agents, 'Amount of maintenance agents is incorrect. Found {0} - Expected {1}'.format(actual_amount_agents, expected_amount_agents)
 
