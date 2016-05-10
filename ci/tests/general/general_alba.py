@@ -712,12 +712,13 @@ class GeneralAlba(object):
         # @TODO: Allow the unclaim of disks go sequentially or parallel (parallel should be default)
         alba_backend.invalidate_dynamics(['storage_stack'])
         for disks in alba_backend.storage_stack.values():
-            for disk in disks.values():
-                if disk['status'] in ['available', 'claimed']:
-                    asd_node = GeneralAlba.get_node_by_id(disk['node_id'])
-                    data = {'alba_backend_guid': alba_backend.guid,
-                            'disk': disk['name'],
+            for disk_id, disk in disks.iteritems():
+                asd_node = GeneralAlba.get_node_by_id(disk['node_id'])
+                for asd_id in disk['asds'].keys():
+                    data = {'asd_id': asd_id,
                             'safety': {'good': 0, 'critical': 0, 'lost': 0}}
+                    GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'reset_asd', data, wait=True)
+                data = {'disk': disk_id}
                 GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'remove_disk', data, wait=True)
 
     @staticmethod
