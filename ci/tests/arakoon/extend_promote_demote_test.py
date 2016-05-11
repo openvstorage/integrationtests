@@ -30,6 +30,7 @@ Arakoon testsuite
 """
 
 import os
+import re
 import hashlib
 from ci.tests.general.general import General
 from ci.tests.general.general_arakoon import GeneralArakoon
@@ -41,6 +42,7 @@ from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs.lib.scheduledtask import ScheduledTaskController
 from StringIO import StringIO
 
 logger = LogHandler.get('arakoon', name='setup')
@@ -447,3 +449,48 @@ class TestArakoon(object):
             for filename in files_to_create:
                 assert client.file_exists(filename) is False, 'File {0} is missing'.format(filename)
             TestArakoon.verify_arakoon_structure(client, cluster_name, False, False)
+
+    @staticmethod
+    def ovs_4509_validate_arakoon_collapse_test():
+        """
+        Validate arakoon collapse
+        """
+        node_ips = [sr.ip for sr in GeneralStorageRouter.get_storage_routers()]
+        node_ips.sort()
+        arakoon_conf_file = '/etc/init/ovs-arakoon-ovsdb.conf'
+        etcd_config = 'etcd://127.0.0.1:2379/ovs/arakoon/ovsdb/config'
+        tlog_location = '/opt/OpenvStorage/db/arakoon/ovsdb/tlogs'
+        first_ip = node_ips[0]
+        root_client = SSHClient(first_ip, username='root')
+        # read_conf_settings
+        conf_contents = root_client.file_read(arakoon_conf_file)
+        for split_item in conf_contents.splitlines()[-1].split():
+            if 'etcd' in split_item:
+                etcd_config = split_item
+        # read_tlog_dir
+        etcd_arakoon_conf = re.findall('\d+|\D+', etcd_config)[-1]
+        etcd_contents = root_client.run('etcdctl get {0}'.format(etcd_arakoon_conf))
+        for line in etcd_contents.splitlines():
+            if 'tlog_dir' in line:
+                tlog_location = line.split()[-1]
+
+        no_of_tlogs = 0
+        for file_name in root_client.file_list(tlog_location):
+            if file_name.endswith('tlx') or file_name.endswith('tlog'):
+                no_of_tlogs += 1
+        old_headdb_timestamp = root_client.run('stat --format=%Y {0}/{1}'.format(tlog_location, 'head.db'))
+        if no_of_tlogs <= 2:
+            # run_arakoon_benchmark
+            benchmark_command = 'arakoon --benchmark -n_clients 1 -max_n 10_000 -config {0}'.format(etcd_config)
+            root_client.run(benchmark_command)
+        # run_collapse
+        ScheduledTaskController.collapse_arakoon()
+
+        no_of_tlogs = 0
+        for file_name in root_client.file_list(tlog_location):
+            if file_name.endswith('tlx') or file_name.endswith('tlog'):
+                no_of_tlogs += 1
+        new_headdb_timestamp = root_client.run('stat --format=%Y {0}/{1}'.format(tlog_location, 'head.db'))
+        assert no_of_tlogs <= 2, 'Arakoon collapse left {0} tlogs on the environment, expecting less than 2'.format(no_of_tlogs)
+        assert old_headdb_timestamp != new_headdb_timestamp, 'Timestamp of the head_db file was not changed in the process of collapsing tlogs'
+
