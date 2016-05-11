@@ -106,7 +106,7 @@ class GeneralDisk(object):
         disk_by_id = dict()
         result = client.run('ls -la /dev/disk/by-id/')
         for entry in result.splitlines():
-            if 'ata-' in entry:
+            if 'ata-' in entry or 'scsi-' in entry:
                 device = entry.split()
                 disk_by_id[device[10][-3:]] = device[8]
 
@@ -118,11 +118,13 @@ class GeneralDisk(object):
             disk_id = disk[0]
             if len(disk_id) > 2 and disk_id[0:2] in ['fd', 'sr', 'lo']:
                 continue
+            if disk_id not in disk_by_id:
+                continue
             if disk[1] in 'disk':
                 if disk[3] == '0':
-                    ssds[disk[0]] = {'size': disk[2], 'is_ssd': True, 'name': disk_by_id[disk[0]]}
+                    ssds[disk_id] = {'size': disk[2], 'is_ssd': True, 'name': disk_by_id[disk_id]}
                 else:
-                    hdds[disk[0]] = {'size': disk[2], 'is_ssd': False, 'name': disk_by_id[disk[0]]}
+                    hdds[disk_id] = {'size': disk[2], 'is_ssd': False, 'name': disk_by_id[disk_id]}
         return hdds, ssds
 
     @staticmethod

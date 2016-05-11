@@ -24,6 +24,7 @@ from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.albaasd import AlbaASD
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.albanode import AlbaNode
+from ovs.dal.hybrids.albadisk import AlbaDisk
 from ovs.dal.hybrids.backend import Backend
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.lib.albascheduledtask import AlbaScheduledTaskController
@@ -125,7 +126,7 @@ class TestALBA(object):
         alba_backend = GeneralAlba.add_alba_backend(TestALBA.backend_name)
         GeneralAlba.validate_alba_backend_sanity_without_claimed_disks(alba_backend=alba_backend)
 
-        GeneralAlba.claim_disks(alba_backend, 3, 'SATA')
+        GeneralAlba.claim_asds(alba_backend, 3, 'SATA')
         GeneralAlba.validate_alba_backend_sanity_with_claimed_disks(alba_backend=alba_backend)
 
         guid = alba_backend.guid
@@ -231,7 +232,7 @@ class TestALBA(object):
         else:
             alba_backend = backend.alba_backend
 
-        GeneralAlba.claim_disks(alba_backend=alba_backend, nr_of_disks=3, disk_type='SATA')
+        GeneralAlba.claim_asds(alba_backend=alba_backend, nr_of_asds=3, disk_type='SATA')
 
         timeout = 300
         preset_name = 'be_preset_0007'
@@ -319,10 +320,15 @@ class TestALBA(object):
         abe.backend = be
         abe.save()
 
+        ad = AlbaDisk()
+        ad.name = 'ovs3769ad'
+        ad.alba_node = an
+        ad.save()
+
         asd = AlbaASD()
         asd.alba_backend = abe
         asd.asd_id = 'ovs3769asd'
-        asd.alba_node = an
+        asd.alba_disk = ad
         asd.save()
 
         try:
@@ -332,6 +338,7 @@ class TestALBA(object):
 
         assert asd.statistics == dict(), "asd statistics should return an empty dict, go {0}".format(asd.statistics)
         asd.delete()
+        ad.delete()
         an.delete()
         abe.delete()
         be.delete()
@@ -372,7 +379,7 @@ class TestALBA(object):
             result = {}
             total = 0
             for ip in alba_node_ips:
-                count = General.execute_command_on_node(ip, 'ls /etc/init/ovs-alba-maintenance_{0}-* | wc -l'.format(agent_name))
+                count = General.execute_command_on_node(ip, 'ls /etc/init/alba-maintenance_{0}-* | wc -l'.format(agent_name))
                 if count:
                     count = int(count)
                 else:
