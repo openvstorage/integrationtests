@@ -271,7 +271,8 @@ class GeneralAlba(object):
         assert EtcdConfiguration.exists(key=alba_backend_key, raw=True) is True, 'Etcd does not contain key {0}'.format(alba_backend_key)
 
         actual_etcd_keys = [key for key in EtcdConfiguration.list(alba_backend_key)]
-        expected_etcd_keys = ['verification_schedule', 'global_gui_error_interval', alba_backend.guid]
+        expected_etcd_keys = ['verification_schedule', 'global_gui_error_interval', alba_backend.guid,
+                              'default_nsm_hosts']
         optional_etcd_keys = ['verification_factor']
 
         expected_keys_amount = 0
