@@ -129,8 +129,7 @@ def add_read_write_scrub_roles(storagerouter_guid):
             partition_roles[hdds[0]['partitions_guids'][0]] = ['READ']
             partition_roles[hdds[1]['partitions_guids'][0]] = ['WRITE', 'SCRUB']
         elif len(ssds) == 1:
-            partition_roles[hdds[0]['partitions_guids'][0]] = ['READ', 'SCRUB']
-            partition_roles[ssds[0]['partitions_guids'][0]] = ['WRITE']
+            partition_roles[ssds[0]['partitions_guids'][0]] = ['WRITE', 'READ', 'SCRUB']
         elif len(ssds) >= 2:
             partition_roles[ssds[0]['partitions_guids'][0]] = ['READ', 'SCRUB']
             partition_roles[ssds[1]['partitions_guids'][0]] = ['WRITE']
