@@ -359,8 +359,8 @@ def _get_ovs_version():
 
 def _get_env_info():
     number_of_nodes = len(StorageRouterList.get_storagerouters())
-    env_name = System.get_my_storagerouter().name
-    return str(number_of_nodes) + 'N-' + env_name
+    split_ip = System.get_my_storagerouter().ip.split('.')
+    return str(number_of_nodes) + 'N-' + split_ip[2] + '.' + split_ip[3]
 
 
 def _get_testresult_files(folder):
