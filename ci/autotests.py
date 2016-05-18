@@ -28,6 +28,7 @@ from xml.dom import minidom
 import nose
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
+from ovs.dal.lists.pmachinelist import PMachineList
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.system import System
 
@@ -238,6 +239,7 @@ def _parse_args(suite_name, output_format, output_folder, always_die, testrail_u
         arguments.append('--description')
         arguments.append("")
     elif output_format == TestRunnerOutputFormat.TESTRAIL:
+        env_info = _get_env_info()
         if not output_folder:
             raise AttributeError("No output folder for the XML result files specified")
         if not os.path.exists(output_folder):
@@ -265,7 +267,7 @@ def _parse_args(suite_name, output_format, output_folder, always_die, testrail_u
         arguments.append('--project-name')
         arguments.append(project_name)
         arguments.append('--push-name')
-        arguments.append(version + "__" + quality_level + "__" + _get_hypervisor())
+        arguments.append(env_info + "__" + version + "__" + quality_level + "__" + _get_hypervisor())
         arguments.append('--description')
         arguments.append(_get_description())
         arguments.append('--plan-id')
@@ -311,7 +313,6 @@ def _get_hypervisor():
     """
     Get hypervisor
     """
-    from ovs.dal.lists.pmachinelist import PMachineList
     return list(PMachineList.get_pmachines())[0].hvtype
 
 
@@ -359,7 +360,7 @@ def _get_ovs_version():
 def _get_env_info():
     number_of_nodes = len(StorageRouterList.get_storagerouters())
     env_name = System.get_my_storagerouter().name
-    return str(number_of_nodes) + 'N_' + env_name
+    return str(number_of_nodes) + 'N-' + env_name
 
 
 def _get_testresult_files(folder):
