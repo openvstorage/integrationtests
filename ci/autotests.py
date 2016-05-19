@@ -30,6 +30,7 @@ import ConfigParser
 from xml.dom import minidom
 from ci.tests.general.general import General
 from ci.tests.general.general_pmachine import GeneralPMachine
+from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
 
@@ -133,7 +134,8 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
 
             testrail_ip = TESTRAIL_SERVER
             testrail_key = TESTRAIL_KEY
-            testrail_title = version + "__" + qualitylevel + "__" + GeneralPMachine.get_hypervisor_type()
+            env_info = _get_env_info()
+            testrail_title = env_info + "__" + version + "__" + qualitylevel + "__" + GeneralPMachine.get_hypervisor_type()
             testrail_project = project_name
             testrail_description = _get_description()
 
@@ -272,7 +274,8 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
 
     today = datetime.datetime.today()
     date = today.strftime('%a %b %d %H:%M:%S')
-    name = '%s_%s' % (version, date)
+    env_info = _get_env_info()
+    name = '_'.join([env_info, version, date])
 
     project_mapping_file = '/'.join([General.CONFIG_DIR, "project_testsuite_mapping.cfg"])
     project_map = ConfigParser.ConfigParser()
@@ -559,3 +562,12 @@ def _get_package_info():
 
     (output, _error) = child_process.communicate()
     return output
+
+
+def _get_env_info():
+    """
+    Retrieve number of env nodes and the last two ip digits to add to the testrail title
+    """
+    number_of_nodes = len(GeneralStorageRouter.get_storage_routers())
+    split_ip = GeneralStorageRouter.get_local_storagerouter().ip.split('.')
+    return str(number_of_nodes) + 'N-' + split_ip[2] + '.' + split_ip[3]
