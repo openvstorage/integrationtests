@@ -315,13 +315,13 @@ class XunitTestrail(Plugin):
             self.skippedStatus = [status for status in all_statuses if status['name'].lower() == 'skipped'][0]
             self.blockedStatus = [status for status in all_statuses if status['name'].lower() == 'blocked'][0]
 
-            name_splits = options.pushName.split("_")
-            name = name_splits[0]
+            name_splits = options.pushName.split("__")
+            name = name_splits[0] + '_' + name_splits[1]
             today = datetime.datetime.today()
             name += "_" + today.strftime('%a %b %d %H:%M:%S')
 
-            self.version = name_splits[0]
-            self.hypervisor = name_splits[2]
+            self.version = name_splits[2]
+            self.hypervisor = name_splits[3]
             self.projectName = options.projectName
 
             self.project = self.testrailApi.get_project_by_name(self.projectName)
