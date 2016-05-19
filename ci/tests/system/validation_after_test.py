@@ -256,8 +256,7 @@ class TestAfterCare(object):
         Check license headers
         """
         license_header = re.compile('Copyright \(C\) 201[4-9] iNuron NV')
-        license_to_check = ["  Copyright (C) 2016 iNuron NV",
-                            "",
+        license_to_check = ["",
                             " This file is part of Open vStorage Open Source Edition (OSE),",
                             " as available from",
                             "",
@@ -334,18 +333,8 @@ class TestAfterCare(object):
                         files_with_diff_licenses[storagerouter.guid].append(file_name)
                         continue
 
-                    # Search shebang
-                    shebang = False
-                    for line in lines_to_check:
-                        if line.startswith('#!/usr/bin'):
-                            shebang = True
-                            break
-                    if shebang is True:
-                        lines_to_check.remove(lines_to_check[0])
-
                     # License header found, checking rest of license
-                    if shebang is True:
-                        index -= 1
+                    index += 1
                     for license_line in license_to_check:
                         line_to_check = lines_to_check[index]
                         for comment in comments:
