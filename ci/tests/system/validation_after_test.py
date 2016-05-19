@@ -281,6 +281,7 @@ class TestAfterCare(object):
         exclude_files = ['/opt/OpenvStorage/ovs/extensions/generic/fakesleep.py']
         include_files = ['/opt/OpenvStorage/webapps/frontend/css/ovs.css']
         extension_comments_map = {'.py': ['#'],
+                                  '.sh': ['#'],
                                   '.js': ['//'],
                                   '.html': ['<!--', '-->'],
                                   '.css': ['/*', '*', '*/']}
