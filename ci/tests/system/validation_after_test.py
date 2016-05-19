@@ -342,7 +342,6 @@ class TestAfterCare(object):
                         if license_line.strip() == line_to_check.strip():
                             index += 1
                         else:
-                            raise RuntimeError(file_name, license_line.strip(), line_to_check.strip(), index, shebang)
                             files_with_diff_licenses[storagerouter.guid].append(file_name)
                             break
 
