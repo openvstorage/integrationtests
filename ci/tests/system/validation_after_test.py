@@ -255,21 +255,20 @@ class TestAfterCare(object):
         """
         Check license headers
         """
-        license_header = re.compile('Copyright 201[4-9] iNuron NV')
-        license_to_check = ['',
-                            "  Copyright 2016 iNuron NV",
+        license_header = re.compile('Copyright \(C\) 201[4-9] iNuron NV')
+        license_to_check = ["",
                             " This file is part of Open vStorage Open Source Edition (OSE),",
                             " as available from",
                             "",
                             "     http://www.openvstorage.org and",
-                            "     http://www.openvstorage.com."
+                            "     http://www.openvstorage.com.",
                             "",
                             " This file is free software; you can redistribute it and/or modify it",
                             " under the terms of the GNU Affero General Public License v3 (GNU AGPLv3)",
                             " as published by the Free Software Foundation, in version 3 as it comes",
                             " in the LICENSE.txt file of the Open vStorage OSE distribution.",
                             "",
-                            " Open vStorage is distributed in the hope that it will be useful,"
+                            " Open vStorage is distributed in the hope that it will be useful,",
                             " but WITHOUT ANY WARRANTY of any kind."]
 
         exclude_dirs = ['/opt/OpenvStorage/config/templates/cinder-unit-tests/',
@@ -282,6 +281,7 @@ class TestAfterCare(object):
         exclude_files = ['/opt/OpenvStorage/ovs/extensions/generic/fakesleep.py']
         include_files = ['/opt/OpenvStorage/webapps/frontend/css/ovs.css']
         extension_comments_map = {'.py': ['#'],
+                                  '.sh': ['#'],
                                   '.js': ['//'],
                                   '.html': ['<!--', '-->'],
                                   '.css': ['/*', '*', '*/']}
@@ -342,10 +342,9 @@ class TestAfterCare(object):
                             line_to_check = line_to_check.replace(comment, '', 1)
                         if license_line.strip() == line_to_check.strip():
                             index += 1
-                            continue
-
-                        files_with_diff_licenses[storagerouter.guid].append(file_name)
-                        break
+                        else:
+                            files_with_diff_licenses[storagerouter.guid].append(file_name)
+                            break
 
         for storagerouter in storagerouters:
             assert len(files_with_diff_licenses[storagerouter.guid]) == 0, 'Following files were found with different licenses:\n - {0}'.format('\n - '.join(files_with_diff_licenses[storagerouter.guid]))
