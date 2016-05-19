@@ -255,21 +255,21 @@ class TestAfterCare(object):
         """
         Check license headers
         """
-        license_header = re.compile('Copyright 201[4-9] iNuron NV')
-        license_to_check = ['',
-                            "  Copyright 2016 iNuron NV",
+        license_header = re.compile('Copyright \(C\) 201[4-9] iNuron NV')
+        license_to_check = ["  Copyright (C) 2016 iNuron NV",
+                            "",
                             " This file is part of Open vStorage Open Source Edition (OSE),",
                             " as available from",
                             "",
                             "     http://www.openvstorage.org and",
-                            "     http://www.openvstorage.com."
+                            "     http://www.openvstorage.com.",
                             "",
                             " This file is free software; you can redistribute it and/or modify it",
                             " under the terms of the GNU Affero General Public License v3 (GNU AGPLv3)",
                             " as published by the Free Software Foundation, in version 3 as it comes",
                             " in the LICENSE.txt file of the Open vStorage OSE distribution.",
                             "",
-                            " Open vStorage is distributed in the hope that it will be useful,"
+                            " Open vStorage is distributed in the hope that it will be useful,",
                             " but WITHOUT ANY WARRANTY of any kind."]
 
         exclude_dirs = ['/opt/OpenvStorage/config/templates/cinder-unit-tests/',
@@ -334,18 +334,28 @@ class TestAfterCare(object):
                         files_with_diff_licenses[storagerouter.guid].append(file_name)
                         continue
 
+                    # Search shebang
+                    shebang = False
+                    for line in lines_to_check:
+                        if line.startswith('#!/usr/bin'):
+                            shebang = True
+                            break
+                    if shebang is True:
+                        lines_to_check.remove(lines_to_check[0])
+
                     # License header found, checking rest of license
-                    index += 1
+                    if shebang is True:
+                        index -= 1
                     for license_line in license_to_check:
                         line_to_check = lines_to_check[index]
                         for comment in comments:
                             line_to_check = line_to_check.replace(comment, '', 1)
                         if license_line.strip() == line_to_check.strip():
                             index += 1
-                            continue
-
-                        files_with_diff_licenses[storagerouter.guid].append(file_name)
-                        break
+                        else:
+                            raise RuntimeError(file_name, license_line.strip(), line_to_check.strip(), index, shebang)
+                            files_with_diff_licenses[storagerouter.guid].append(file_name)
+                            break
 
         for storagerouter in storagerouters:
             assert len(files_with_diff_licenses[storagerouter.guid]) == 0, 'Following files were found with different licenses:\n - {0}'.format('\n - '.join(files_with_diff_licenses[storagerouter.guid]))
