@@ -26,7 +26,7 @@ from ci.tests.general.logHandler import LogHandler
 from ovs.extensions.generic.sshclient import SSHClient
 
 logger = LogHandler.get('disklayout', name='alba')
-logger.logger.propagate = False
+
 
 class ContinueTesting(object):
     """

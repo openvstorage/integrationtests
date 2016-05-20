@@ -43,7 +43,6 @@ class Connection(object):
     disable_warnings(SNIMissingWarning)
 
     logger = LogHandler.get('backend', name='api-connection')
-    logger.logger.propagate = False
 
     def __init__(self, ip=None, username=None, password=None):
         if ip is None:

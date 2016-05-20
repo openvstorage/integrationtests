@@ -64,6 +64,7 @@ class LogHandler(object):
     """
     cache = {}
     targets = {'api': 'api',
+               'api-connection': 'api-connection',
                'arakoon': 'arakoon',
                'backend': 'backend',
                'disklayout': 'disklayout',
@@ -75,7 +76,7 @@ class LogHandler(object):
                'validation': 'validation',
                'vpool': 'vpool'}
 
-    def __init__(self, source, name=None):
+    def __init__(self, source, name=None, propagate=False):
         """
         Initializes the logger
         """
@@ -93,7 +94,7 @@ class LogHandler(object):
         handler.setFormatter(formatter)
 
         self.logger = logging.getLogger(name)
-        self.logger.propagate = True
+        self.logger.propagate = propagate
         self.logger.setLevel(getattr(logging, General.get_config().get('logger', 'level')))
         self.logger.addHandler(handler)
 

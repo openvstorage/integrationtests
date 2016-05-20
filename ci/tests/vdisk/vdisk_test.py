@@ -31,7 +31,6 @@ class TestVDisk(object):
     Virtual Disk testsuite
     """
     logger = LogHandler.get('vdisks', name='vdisk')
-    logger.logger.propagate = False
 
     vpool_name = General.get_config().get("vpool", "name")
     assert vpool_name, 'vPool name required in autotest.cfg file'

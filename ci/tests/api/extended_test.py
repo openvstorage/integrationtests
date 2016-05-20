@@ -24,7 +24,6 @@ from ci.tests.general.general import General
 from ci.tests.general.logHandler import LogHandler
 
 logger = LogHandler.get('api', name='setup')
-logger.logger.propagate = False
 
 
 class TestExtended(object):

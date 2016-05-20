@@ -27,7 +27,6 @@ class GeneralVMachine(object):
     A general class dedicated to vMachine logic
     """
     logger = LogHandler.get('vmachines', name='vmachine')
-    logger.logger.propagate = False
 
     template_image = 'debian.qcow2'
     template_target_folder = '/var/tmp/templates/'

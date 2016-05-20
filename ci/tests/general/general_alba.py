@@ -51,7 +51,6 @@ class GeneralAlba(object):
 
     api = Connection()
     logger = LogHandler.get('backend', name='alba')
-    logger.logger.propagate = False
 
     @staticmethod
     def get_alba_backend(guid):
@@ -101,7 +100,8 @@ class GeneralAlba(object):
             name = autotest_config.get('backend', 'name')
         nr_of_disks_to_claim = autotest_config.getint('backend', 'nr_of_disks_to_claim')
         type_of_disks_to_claim = autotest_config.get('backend', 'type_of_disks_to_claim')
-        assert name, "Please fill out a valid backend name in autotest.cfg file"
+        assert name,\
+            "Please fill out a valid backend name in autotest.cfg file"
 
         my_sr = GeneralStorageRouter.get_local_storagerouter()
         if GeneralStorageRouter.has_roles(storagerouter=my_sr, roles='DB') is False:
@@ -251,12 +251,18 @@ class GeneralAlba(object):
         :return: None
         """
         # Attribute validation
-        assert alba_backend.available is True, 'ALBA backend {0} is not available'.format(alba_backend.backend.name)
-        assert len(alba_backend.presets) >= 1, 'No preset found for ALBA backend {0}'.format(alba_backend.backend.name)
-        assert len([default for default in alba_backend.presets if default['is_default'] is True]) == 1, 'Could not find default preset for backend {0}'.format(alba_backend.backend.name)
-        assert alba_backend.backend.backend_type.code == 'alba', 'Backend type for ALBA backend is {0}'.format(alba_backend.backend.backend_type.code)
-        assert alba_backend.backend.status == 'RUNNING', 'Status for ALBA backend is {0}'.format(alba_backend.backend.status)
-        assert isinstance(alba_backend.metadata_information, dict) is True, 'ALBA backend {0} metadata information is not a dictionary'.format(alba_backend.backend.name)
+        assert alba_backend.available is True,\
+            'ALBA backend {0} is not available'.format(alba_backend.backend.name)
+        assert len(alba_backend.presets) >= 1,\
+            'No preset found for ALBA backend {0}'.format(alba_backend.backend.name)
+        assert len([default for default in alba_backend.presets if default['is_default'] is True]) == 1,\
+            'Could not find default preset for backend {0}'.format(alba_backend.backend.name)
+        assert alba_backend.backend.backend_type.code == 'alba',\
+            'Backend type for ALBA backend is {0}'.format(alba_backend.backend.backend_type.code)
+        assert alba_backend.backend.status == 'RUNNING',\
+            'Status for ALBA backend is {0}'.format(alba_backend.backend.status)
+        assert isinstance(alba_backend.metadata_information, dict) is True,\
+            'ALBA backend {0} metadata information is not a dictionary'.format(alba_backend.backend.name)
         Toolbox.verify_required_params(actual_params=alba_backend.metadata_information,
                                        required_params={'nsm_partition_guids': (list, Toolbox.regex_guid)},
                                        exact_match=True)
@@ -265,12 +271,15 @@ class GeneralAlba(object):
         storagerouters = GeneralStorageRouter.get_storage_routers()
         storagerouters_with_db_role = [sr for sr in storagerouters if GeneralStorageRouter.has_roles(storagerouter=sr, roles='DB') is True and sr.node_type == 'MASTER']
 
-        assert len(alba_backend.abm_services) == len(storagerouters_with_db_role), 'Not enough ABM services found'
-        assert len(alba_backend.nsm_services) == len(storagerouters_with_db_role), 'Not enough NSM services found'
+        assert len(alba_backend.abm_services) == len(storagerouters_with_db_role),\
+            'Not enough ABM services found'
+        assert len(alba_backend.nsm_services) == len(storagerouters_with_db_role),\
+            'Not enough NSM services found'
 
         # Validate ALBA backend ETCD structure
         alba_backend_key = '/ovs/alba/backends'
-        assert EtcdConfiguration.exists(key=alba_backend_key, raw=True) is True, 'Etcd does not contain key {0}'.format(alba_backend_key)
+        assert EtcdConfiguration.exists(key=alba_backend_key, raw=True) is True,\
+            'Etcd does not contain key {0}'.format(alba_backend_key)
 
         actual_etcd_keys = [key for key in EtcdConfiguration.list(alba_backend_key)]
         expected_etcd_keys = ['verification_schedule', 'global_gui_error_interval', alba_backend.guid,
@@ -285,53 +294,67 @@ class GeneralAlba(object):
         for expected_key in expected_etcd_keys:
             if not re.match(Toolbox.regex_guid, expected_key):
                 expected_keys_amount += 1
-            assert expected_key in actual_etcd_keys, 'Key {0} was not found in tree {1}'.format(expected_key, alba_backend_key)
+            assert expected_key in actual_etcd_keys,\
+                'Key {0} was not found in tree {1}'.format(expected_key, alba_backend_key)
 
         for actual_key in list(actual_etcd_keys):
             if re.match(Toolbox.regex_guid, actual_key):
                 actual_etcd_keys.remove(actual_key)  # Remove all alba backend keys
-        assert len(actual_etcd_keys) == expected_keys_amount, 'Another key was added to the {0} tree'.format(alba_backend_key)
+        assert len(actual_etcd_keys) == expected_keys_amount,\
+            'Another key was added to the {0} tree'.format(alba_backend_key)
 
         this_alba_backend_key = '{0}/{1}'.format(alba_backend_key, alba_backend.guid)
         actual_keys = [key for key in EtcdConfiguration.list(this_alba_backend_key)]
         expected_keys = ['maintenance']
-        assert actual_keys == expected_keys, 'Actual keys: {0} - Expected keys: {1}'.format(actual_keys, expected_keys)
+        assert actual_keys == expected_keys,\
+            'Actual keys: {0} - Expected keys: {1}'.format(actual_keys, expected_keys)
 
         maintenance_key = '{0}/maintenance'.format(this_alba_backend_key)
         actual_keys = [key for key in EtcdConfiguration.list(maintenance_key)]
         expected_keys = ['nr_of_agents', 'config']
-        assert set(actual_keys) == set(expected_keys), 'Actual keys: {0} - Expected keys: {1}'.format(actual_keys, expected_keys)
+        assert set(actual_keys) == set(expected_keys),\
+            'Actual keys: {0} - Expected keys: {1}'.format(actual_keys, expected_keys)
         # @TODO: Add validation for config values
 
         # Validate ASD node ETCD structure
         alba_nodes = GeneralAlba.get_alba_nodes()
-        assert len(alba_nodes) > 0, 'Could not find any ALBA nodes in the model'
+        assert len(alba_nodes) > 0,\
+            'Could not find any ALBA nodes in the model'
         alba_node_key = '/ovs/alba/asdnodes'
         actual_keys = [key for key in EtcdConfiguration.list(alba_node_key)]
-        assert len(alba_nodes) == len(actual_keys), 'Amount of ALBA nodes in model does not match amount of ALBA nodes in ETCD. In model: {0} - In Etcd: {1}'.format(len(alba_nodes), len(actual_keys))
+        assert len(alba_nodes) == len(actual_keys),\
+            'Amount of ALBA nodes in model: {0} >< amount of ALBA nodes in ETCD: {1}.'.format(len(alba_nodes),
+                                                                                              len(actual_keys))
         for alba_node in alba_nodes:
-            assert alba_node.node_id in actual_keys, 'ALBA node with ID {0} not present in ETCD'.format(alba_node.node_id)
+            assert alba_node.node_id in actual_keys,\
+                'ALBA node with ID {0} not present in ETCD'.format(alba_node.node_id)
 
             actual_asdnode_keys = [key for key in EtcdConfiguration.list('{0}/{1}'.format(alba_node_key, alba_node.node_id))]
             expected_asdnode_keys = ['config']
-            assert actual_asdnode_keys == expected_asdnode_keys, 'Actual keys: {0} - Expected keys: {1}'.format(actual_asdnode_keys, expected_asdnode_keys)
+            assert actual_asdnode_keys == expected_asdnode_keys,\
+                'Actual keys: {0} - Expected keys: {1}'.format(actual_asdnode_keys, expected_asdnode_keys)
 
             actual_config_keys = [key for key in EtcdConfiguration.list('{0}/{1}/config'.format(alba_node_key, alba_node.node_id))]
             expected_config_keys = ['main', 'network']
-            assert set(actual_config_keys) == set(expected_config_keys), 'Actual keys: {0} - Expected keys: {1}'.format(actual_config_keys, expected_config_keys)
+            assert set(actual_config_keys) == set(expected_config_keys),\
+                'Actual keys: {0} - Expected keys: {1}'.format(actual_config_keys, expected_config_keys)
             # @TODO: Add validation for main and network values
 
         # Validate Arakoon ETCD structure
         arakoon_abm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name)
         arakoon_nsm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.nsm_services[0].service.name)
-        assert EtcdConfiguration.exists(key=arakoon_abm_key, raw=True) is True, 'Etcd key {0} does not exists'.format(arakoon_abm_key)
-        assert EtcdConfiguration.exists(key=arakoon_nsm_key, raw=True) is True, 'Etcd key {0} does not exists'.format(arakoon_nsm_key)
+        assert EtcdConfiguration.exists(key=arakoon_abm_key, raw=True) is True,\
+            'Etcd key {0} does not exists'.format(arakoon_abm_key)
+        assert EtcdConfiguration.exists(key=arakoon_nsm_key, raw=True) is True,\
+            'Etcd key {0} does not exists'.format(arakoon_nsm_key)
         # @TODO: Add validation for config values
 
         # Validate maintenance agents
         actual_amount_agents = len([service for node_services in [alba_node.client.list_maintenance_services() for alba_node in alba_nodes] for service in node_services])
         expected_amount_agents = EtcdConfiguration.get('/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend.guid))
-        assert actual_amount_agents == expected_amount_agents, 'Amount of maintenance agents is incorrect. Found {0} - Expected {1}'.format(actual_amount_agents, expected_amount_agents)
+        assert actual_amount_agents == expected_amount_agents,\
+            'Amount of maintenance agents is incorrect. Found {0} - Expected {1}'.format(actual_amount_agents,
+                                                                                         expected_amount_agents)
 
         # Validate arakoon services
         machine_ids = [sr.machine_id for sr in storagerouters_with_db_role]
@@ -343,12 +366,13 @@ class GeneralAlba(object):
             abm_arakoon_service_name = 'ovs-arakoon-{0}'.format(abm_service_name)
             nsm_arakoon_service_name = 'ovs-arakoon-{0}'.format(nsm_service_name)
             for service_name in [abm_arakoon_service_name, nsm_arakoon_service_name]:
-                assert GeneralService.has_service(name=service_name,
-                                                  client=root_client) is True, 'Service {0} not deployed on Storage Router {1}'.format(service_name, storagerouter.name)
-                assert GeneralService.get_service_status(name=service_name,
-                                                         client=root_client) is True, 'Service {0} not running on Storage Router {1}'.format(service_name, storagerouter.name)
+                assert GeneralService.has_service(name=service_name,client=root_client) is True,\
+                    'Service {0} not deployed on Storage Router {1}'.format(service_name, storagerouter.name)
+                assert GeneralService.get_service_status(name=service_name, client=root_client) is True,\
+                    'Service {0} not running on Storage Router {1}'.format(service_name, storagerouter.name)
                 out, err, _ = General.execute_command('arakoon --who-master -config {0}'.format(GeneralArakoon.ETCD_CONFIG_PATH.format(abm_service_name)))
-                assert out.strip() in machine_ids, 'Arakoon master is {0}, but should be 1 of "{1}"'.format(out.strip(), ', '.join(machine_ids))
+                assert out.strip() in machine_ids,\
+                    'Arakoon master is {0}, but should be 1 of "{1}"'.format(out.strip(), ', '.join(machine_ids))
 
     @staticmethod
     def validate_alba_backend_sanity_with_claimed_disks(alba_backend):
@@ -379,11 +403,13 @@ class GeneralAlba(object):
         namespace_name = 'autotest-sanity-validation'
         GeneralAlba.execute_alba_cli_action(alba_backend, 'create-namespace', [namespace_name, 'default'], False)
         namespace_info = GeneralAlba.list_alba_namespaces(alba_backend=alba_backend, name=namespace_name)
-        assert len(namespace_info) == 1, 'Expected to find 1 namespace with name {0}'.format(namespace_name)
+        assert len(namespace_info) == 1,\
+            'Expected to find 1 namespace with name {0}'.format(namespace_name)
 
         GeneralAlba.upload_file(alba_backend=alba_backend, namespace_name=namespace_name, file_size=100, object_name=object_name)
         objects = GeneralAlba.list_objects_in_namespace(alba_backend=alba_backend, namespace_name=namespace_name)
-        assert object_name in objects, 'Object with name {0} could not be found in namespace objects'.format(object_name)
+        assert object_name in objects,\
+            'Object with name {0} could not be found in namespace objects'.format(object_name)
 
         GeneralAlba.remove_alba_namespaces(alba_backend=alba_backend, namespaces=namespace_info)
 
@@ -407,33 +433,37 @@ class GeneralAlba(object):
         alba_backend_guid = alba_backend_info['guid']
         alba_backend_name = alba_backend_info['name']
         backend = GeneralBackend.get_by_name(alba_backend_name)
-        assert backend is None, 'Still found a backend in the model with name {0}'.format(alba_backend_name)
+        assert backend is None,\
+            'Still found a backend in the model with name {0}'.format(alba_backend_name)
 
         # Validate services removed from model
         for service in GeneralService.get_services_by_name(ServiceType.SERVICE_TYPES.ALBA_MGR):
-            assert service.name != '{0}-abm'.format(alba_backend_name), 'An AlbaManager service has been found with name {0}'.format(alba_backend_name)
+            assert service.name != '{0}-abm'.format(alba_backend_name),\
+                'An AlbaManager service has been found with name {0}'.format(alba_backend_name)
         for service in GeneralService.get_services_by_name(ServiceType.SERVICE_TYPES.NS_MGR):
-            assert service.name.startswith('{0}-nsm_'.format(alba_backend_name)) is False, 'An NamespaceManager service has been found with name {0}'.format(alba_backend_name)
+            assert service.name.startswith('{0}-nsm_'.format(alba_backend_name)) is False,\
+                'An NamespaceManager service has been found with name {0}'.format(alba_backend_name)
 
         # Validate ALBA backend ETCD structure
         alba_backend_key = '/ovs/alba/backends'
         actual_etcd_keys = [key for key in EtcdConfiguration.list(alba_backend_key)]
-        assert alba_backend_guid not in actual_etcd_keys, 'Etcd still contains an entry in {0} with guid {1}'.format(alba_backend_key, alba_backend_guid)
+        assert alba_backend_guid not in actual_etcd_keys,\
+            'Etcd still contains an entry in {0} with guid {1}'.format(alba_backend_key, alba_backend_guid)
 
         # Validate Arakoon ETCD structure
         arakoon_keys = [key for key in EtcdConfiguration.list('/ovs/arakoon') if key.startswith(alba_backend_name)]
-        assert len(arakoon_keys) == 0, 'Etcd still contains configurations for clusters: {0}'.format(', '.join(arakoon_keys))
+        assert len(arakoon_keys) == 0,\
+            'Etcd still contains configurations for clusters: {0}'.format(', '.join(arakoon_keys))
 
         # Validate services
         for storagerouter in GeneralStorageRouter.get_storage_routers():
-            root_client = SSHClient(endpoint=storagerouter,
-                                    username='root')
+            root_client = SSHClient(endpoint=storagerouter, username='root')
             maintenance_services = alba_backend_info['maintenance_service_names']
             abm_arakoon_service_name = 'ovs-arakoon-{0}-abm'.format(alba_backend_name)
             nsm_arakoon_service_name = 'ovs-arakoon-{0}-nsm_0'.format(alba_backend_name)
             for service_name in [abm_arakoon_service_name, nsm_arakoon_service_name] + maintenance_services:
-                assert GeneralService.has_service(name=service_name,
-                                                  client=root_client) is False, 'Service {0} still deployed on Storage Router {1}'.format(service_name, storagerouter.name)
+                assert GeneralService.has_service(name=service_name, client=root_client) is False,\
+                    'Service {0} still deployed on Storage Router {1}'.format(service_name, storagerouter.name)
 
     @staticmethod
     def remove_alba_backend(alba_backend):
@@ -489,7 +519,8 @@ class GeneralAlba(object):
         if len(nss) > 0:
             actual_keys = nss[0].keys()  # Only check 1st namespace for keys, assume rest is identical
             expected_keys = ['id', 'name', 'nsm_host_id', 'preset_name', 'state']
-            assert set(actual_keys) == set(expected_keys), 'Expected keys did not match actual keys in namespace {0}'.format(nss[0])
+            assert set(actual_keys) == set(expected_keys),\
+                'Expected keys did not match actual keys in namespace {0}'.format(nss[0])
 
         # Apply filter
         if kwargs.get('name') is not None:
@@ -514,11 +545,13 @@ class GeneralAlba(object):
                                                      action='list-objects',
                                                      params=[namespace_name],
                                                      json_output=False)
-        assert isinstance(output, str), 'List-objects output not as expected: {0}'.format(output)
+        assert isinstance(output, str),\
+            'List-objects output not as expected: {0}'.format(output)
         object_info = output.strip()
-        # @TODO: Use --to-json option once implemented for list-objects (See http://jira.openvstorage.com/browse/OVS-4337)
+        # @TODO: Use --to-json option once implemented for list-objects (http://jira.openvstorage.com/browse/OVS-4337)
         match = re.match('Found \d objects: (.*)', object_info)
-        assert match is not None, 'List-objects returned different output then expected: {0}'.format(object_info)
+        assert match is not None,\
+            'List-objects returned different output then expected: {0}'.format(object_info)
 
         return json.loads(match.groups()[0].replace(';', ','))
 
@@ -549,7 +582,8 @@ class GeneralAlba(object):
             for ns in fd_namespaces:
                 GeneralAlba.logger.info("WARNING: Deleting leftover vpool namespace: {0}".format(str(ns)))
                 print General.execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')
-            assert len(fd_namespaces) == 0, "Removing Alba namespaces should not be necessary!"
+            assert len(fd_namespaces) == 0,\
+                "Removing Alba namespaces should not be necessary!"
 
     @staticmethod
     def is_bucket_count_valid_with_policy(bucket_count, policies):
@@ -644,15 +678,18 @@ class GeneralAlba(object):
         if nr_of_disks_to_init <= 0:
             return True
 
-        assert len(uninitialized_disk_names) >= nr_of_disks_to_init, "Not enough disks to initialize!"
+        assert len(uninitialized_disk_names) >= nr_of_disks_to_init,\
+            "Not enough disks to initialize!"
 
         disks_to_init = GeneralAlba.filter_disks(uninitialized_disk_names, nr_of_disks_to_init, disk_type)
-        assert len(disks_to_init) >= nr_of_disks_to_init, "Not enough disks to initialize!"
+        assert len(disks_to_init) >= nr_of_disks_to_init,\
+            "Not enough disks to initialize!"
 
         grid_ip = General.get_config().get('main', 'grid_ip')
         alba_node = AlbaNodeList.get_albanode_by_ip(grid_ip)
         failures = AlbaNodeController.initialize_disks(alba_node.guid, dict((disk_id, 1) for disk_id in disks_to_init))
-        assert not failures, 'Alba disk initialization failed for (some) disks: {0}'.format(failures)
+        assert not failures,\
+            'Alba disk initialization failed for (some) disks: {0}'.format(failures)
 
     @staticmethod
     def claim_asds(alba_backend, nr_of_asds, disk_type=''):
@@ -750,5 +787,6 @@ class GeneralAlba(object):
             for entry in asd_node.client.list_maintenance_services():
                 if entry.startswith('alba-maintenance_{0}'.format(alba_backend.backend.name)):
                     service_names.append(entry)
-        assert len(service_names) > 0, 'No maintenance services found for ALBA backend {0}'.format(alba_backend.backend.name)
+        assert len(service_names) > 0,\
+            'No maintenance services found for ALBA backend {0}'.format(alba_backend.backend.name)
         return service_names
