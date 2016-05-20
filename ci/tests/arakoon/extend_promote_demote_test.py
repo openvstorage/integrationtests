@@ -499,7 +499,7 @@ class TestArakoon(object):
                     old_headdb_timestamp = root_client.run('stat --format=%Y {0}/{1}'.format(tlog_location, 'head.db'))
                 if nr_of_tlogs <= 2:
                     # run_arakoon_benchmark
-                    benchmark_command = 'arakoon --benchmark -n_clients 1 -max_n 10_000 -config {0}'.format(etcd_config)
+                    benchmark_command = 'arakoon --benchmark -n_clients 1 -max_n 5_000 -config {0}'.format(etcd_config)
                     root_client.run(benchmark_command)
                 # run_collapse
                 ScheduledTaskController.collapse_arakoon()

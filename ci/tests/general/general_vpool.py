@@ -78,7 +78,8 @@ class GeneralVPool(object):
                                                                wait=True,
                                                                timeout=500)
             if task_result[0] is not True:
-                raise RuntimeError('vPool was not {0} successfully: {1}'.format('extended' if index > 0 else 'created', task_result[1]))
+                raise RuntimeError('vPool was not {0} successfully'.format('extended' if index > 0 else 'created'),
+                                   task_result)
 
         vpool = GeneralVPool.get_vpool_by_name(vpool_name)
         if vpool is None:
@@ -114,7 +115,8 @@ class GeneralVPool(object):
                                                            wait=True,
                                                            timeout=500)
         if task_result[0] is not True:
-            raise RuntimeError('Storage Driver with ID {0} was not successfully removed from vPool {1}'.format(storage_driver.storagedriver_id, vpool.name))
+            raise RuntimeError('Storage Driver with ID {0} was not successfully removed from vPool {1}'.format(storage_driver.storagedriver_id, vpool.name),
+                               task_result)
         return GeneralVPool.get_vpool_by_name(vpool_name=vpool.name)
 
     @staticmethod
@@ -130,7 +132,8 @@ class GeneralVPool(object):
                                                           wait=True,
                                                           timeout=60)
         if task_result[0] is not True:
-            raise RuntimeError('Failed to retrieve the configuration for vPool {0}'.format(vpool.name))
+            raise RuntimeError('Failed to retrieve the configuration for vPool {0}'.format(vpool.name),
+                               task_result)
         return task_result[1]
 
     @staticmethod

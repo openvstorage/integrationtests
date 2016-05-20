@@ -442,7 +442,7 @@ class GeneralAlba(object):
         :param alba_backend: ALBA Backend
         :return: None
         """
-        GeneralAlba.api.remove('alba/backends', alba_backend.guid)
+        task_result = GeneralAlba.api.remove('alba/backends', alba_backend.guid)
 
         counter = GeneralAlba.ALBA_TIMER / GeneralAlba.ALBA_TIMER_STEP
         while counter > 0:
@@ -454,7 +454,9 @@ class GeneralAlba(object):
             time.sleep(GeneralAlba.ALBA_TIMER_STEP)
 
         if counter == 0:
-            raise ValueError('Unable to remove backend {0}'.format(alba_backend.name))
+            raise RuntimeError('Unable to remove backend {0} within {1} seconds'.format(alba_backend.name,
+                                                                                        GeneralAlba.ALBA_TIMER),
+                               task_result)
 
     @staticmethod
     def upload_file(alba_backend, namespace_name, file_size, object_name=None):
@@ -716,13 +718,15 @@ class GeneralAlba(object):
         alba_backend.invalidate_dynamics(['storage_stack'])
         for disks in alba_backend.storage_stack.values():
             for disk_id, disk in disks.iteritems():
+                if disk['status'] in ['uninitialized']:
+                    continue
                 asd_node = GeneralAlba.get_node_by_id(disk['node_id'])
                 for asd_id in disk['asds'].keys():
                     data = {'asd_id': asd_id,
                             'safety': {'good': 0, 'critical': 0, 'lost': 0}}
-                    GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'reset_asd', data, wait=True)
+                    GeneralAlba.logger.info(GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'reset_asd', data, wait=True))
                 data = {'disk': disk_id}
-                GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'remove_disk', data, wait=True)
+                GeneralAlba.logger.info(GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'remove_disk', data, wait=True))
 
     @staticmethod
     def checkup_maintenance_agents():
