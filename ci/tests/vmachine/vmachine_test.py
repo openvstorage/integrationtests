@@ -72,7 +72,7 @@ class TestVMachine(object):
         vms = GeneralVMachine.get_vmachines()
         assert len(vms) == nr_of_disks, "Only {0} out of {1} VMachines have been created after {2} seconds".format(len(vms), nr_of_disks, timeout)
 
-        # Waiting for 5 minutes of FIO activity on the vmachines
+        # Waiting for 1 minutes of FIO activity on vmachine
         time.sleep(60)
         vms = GeneralVMachine.get_vmachines()
         for vm in vms:
