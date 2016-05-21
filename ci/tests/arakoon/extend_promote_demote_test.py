@@ -114,16 +114,15 @@ class TestArakoon(object):
         :param dir_present: Directory structure presence expectancy
         :return: True if correct
         """
-        log_dir = GeneralArakoon.LOG_DIR.format(cluster_name)
         tlog_dir = GeneralArakoon.TLOG_DIR.format('/var/tmp', cluster_name)
         home_dir = GeneralArakoon.HOME_DIR.format('/var/tmp', cluster_name)
 
         key_exists = EtcdConfiguration.exists(GeneralArakoon.ETCD_CONFIG_KEY.format(cluster_name), raw=True)
         assert key_exists is etcd_present,\
             "Arakoon configuration in Etcd was {0}expected".format('' if etcd_present else 'not ')
-        for directory in [tlog_dir, home_dir, log_dir]:
+        for directory in [tlog_dir, home_dir]:
             assert client.dir_exists(directory) is dir_present,\
-                "Arakoon directory {0} was {1}expected".format(directory, '' if dir_present else 'not ')
+                "Arakoon directory {0} was {1} expected".format(directory, '' if dir_present else 'not ')
 
     @staticmethod
     def validate_arakoon_config_files(pmachines, config=None):
@@ -373,8 +372,7 @@ class TestArakoon(object):
             root_client.dir_chown(os.path.dirname(directory), 'ovs', 'ovs', recursive=True)
 
         files_to_create = ['/'.join([cluster_basedir, 'arakoon', cluster_name, 'db', 'one.db']),
-                           '/'.join([cluster_basedir, 'arakoon', cluster_name, 'tlogs', 'one.tlog']),
-                           '/'.join(['/var/log', 'arakoon', cluster_name, 'one.log'])]
+                           '/'.join([cluster_basedir, 'arakoon', cluster_name, 'tlogs', 'one.tlog'])]
 
         client = SSHClient(first_ip, username='ovs')
         for filename in files_to_create:
@@ -387,14 +385,11 @@ class TestArakoon(object):
             assert client.file_exists(filename) is True,\
                 'File {0} not present'.format(filename)
 
-        archived_files = ['/'.join(['/var/log/arakoon', cluster_name, 'archive', 'one.log'])]
-
         logger.info('===================================================')
         logger.info('setup and validate single node cluster')
         ArakoonInstaller.create_cluster(cluster_name, ServiceType.ARAKOON_CLUSTER_TYPES.FWK, first_ip, cluster_basedir)
         TestArakoon.validate_arakoon_config_files(TestArakoon.get_cluster_pmachines([first_ip]), cluster_name)
         TestArakoon.verify_arakoon_structure(root_client, cluster_name, True, True)
-        TestArakoon.check_archived_directory(client, archived_files)
         for filename in files_to_create:
             assert client.file_exists(filename) is False,\
                 'File {0} is missing'.format(filename)
@@ -402,7 +397,6 @@ class TestArakoon(object):
         logger.info('===================================================')
         logger.info('remove cluster')
         ArakoonInstaller.delete_cluster(cluster_name, first_ip)
-        TestArakoon.check_archived_directory(client, archived_files)
         for filename in files_to_create:
             assert client.file_exists(filename) is False,\
                 'File {0} is missing'.format(filename)
@@ -436,8 +430,7 @@ class TestArakoon(object):
                 root_client.dir_chown(os.path.dirname(directory), 'ovs', 'ovs', recursive=True)
 
             files_to_create = ['/'.join([cluster_basedir, 'arakoon', cluster_name, 'db', 'one.db']),
-                               '/'.join([cluster_basedir, 'arakoon', cluster_name, 'tlogs', 'one.tlog']),
-                               '/'.join(['/var/log', 'arakoon', cluster_name, 'one.log'])]
+                               '/'.join([cluster_basedir, 'arakoon', cluster_name, 'tlogs', 'one.tlog'])]
 
             client = SSHClient(ip, username='ovs')
             for filename in files_to_create:
@@ -450,8 +443,6 @@ class TestArakoon(object):
                 assert client.file_exists(filename) is True,\
                     'File {0} not present'.format(filename)
 
-            archived_files = ['/'.join(['/var/log/arakoon', cluster_name, 'archive', 'one.log'])]
-
             logger.info('===================================================')
             logger.info('setup and validate single node cluster')
             if ip == first_ip:
@@ -461,7 +452,6 @@ class TestArakoon(object):
                 ArakoonInstaller.extend_cluster(first_ip, ip, cluster_name, cluster_basedir)
             TestArakoon.validate_arakoon_config_files(TestArakoon.get_cluster_pmachines(ips_to_validate), cluster_name)
             TestArakoon.verify_arakoon_structure(root_client, cluster_name, True, True)
-            TestArakoon.check_archived_directory(client, archived_files)
             for filename in files_to_create:
                 assert client.file_exists(filename) is False,\
                     'File {0} is missing'.format(filename)

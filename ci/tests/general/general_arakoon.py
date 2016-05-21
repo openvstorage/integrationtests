@@ -30,7 +30,7 @@ class GeneralArakoon(object):
     """
     A general class dedicated to Arakoon logic
     """
-    LOG_DIR = ArakoonInstaller.ARAKOON_LOG_DIR
+    LOG_DIR = '/var/log/upstart'
     BASE_DIR = ArakoonInstaller.ARAKOON_BASE_DIR
     HOME_DIR = ArakoonInstaller.ARAKOON_HOME_DIR
     TLOG_DIR = ArakoonInstaller.ARAKOON_TLOG_DIR
