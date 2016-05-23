@@ -97,20 +97,8 @@ class TestAfterCare(object):
     compress
     copytruncate
     notifempty
-}}
-
-{1} {{
-    su ovs ovs
-    rotate 10
-    size 19M
-    compress
-    delaycompress
-    notifempty
-    create 666 ovs ovs
-    postrotate
-        /usr/bin/pkill -SIGUSR1 arakoon
-    endscript
 }}"""
+
         if len(storagerouters) == 0:
             raise ValueError('No Storage Routers found in the model')
 
@@ -118,7 +106,7 @@ class TestAfterCare(object):
         logrotate_cfg_file = '/etc/logrotate.conf'
         logrotate_cron_file = '/etc/cron.daily/logrotate'
         logrotate_ovs_file = '{0}/openvstorage-logs'.format(logrotate_include_dir)
-        expected_logrotate_content = logrotate_content.format('/var/log/ovs/*.log', '/var/log/arakoon/*/*.log')
+        expected_logrotate_content = logrotate_content.format('/var/log/ovs/*.log')
 
         # Verify basic logrotate configurations
         for storagerouter in storagerouters:
@@ -137,6 +125,24 @@ class TestAfterCare(object):
             assert_equal(first=expected_logrotate_content,
                          second=actual_file_contents,
                          msg='Logrotate contents does not match expected contents on Storage Router {0}'.format(storagerouter.name))
+
+        logrotate_content = """{0} {{
+    rotate 5
+    size 20M
+    compress
+    copytruncate
+    notifempty
+}}
+
+{1} {{
+    su ovs ovs
+    rotate 10
+    size 19M
+    compress
+    delaycompress
+    notifempty
+    create 666 ovs ovs
+}}"""
 
         # Create custom logrotate file for testing purposes
         custom_logrotate_cfg_file = '/opt/OpenvStorage/ci/logrotate-conf'
@@ -172,7 +178,7 @@ class TestAfterCare(object):
                                      bs='1M',
                                      input_type='zero',
                                      root_client=root_client)
-        root_client.run('logrotate {0}'.format(custom_logrotate_cfg_file))
+        root_client.run('logrotate -d {0}'.format(custom_logrotate_cfg_file))
         assert_equal(first=len(root_client.file_list(directory=custom_logrotate_dir)),
                      second=2,
                      msg='More files than expected present in {0}'.format(custom_logrotate_dir))
@@ -186,7 +192,7 @@ class TestAfterCare(object):
                                          bs='1M',
                                          input_type='zero',
                                          root_client=root_client)
-            root_client.run('logrotate {0}'.format(custom_logrotate_cfg_file))
+            root_client.run('logrotate -d {0}'.format(custom_logrotate_cfg_file))
             assert_equal(first=len(root_client.file_list(directory=custom_logrotate_dir)),
                          second=counter + 3 if counter < 5 else 7,
                          msg='Not the expected amount of files present in {0}'.format(custom_logrotate_dir))
@@ -216,7 +222,7 @@ class TestAfterCare(object):
                                      bs='1M',
                                      input_type='zero',
                                      root_client=root_client)
-        root_client.run('logrotate {0}'.format(custom_logrotate_cfg_file))
+        root_client.run('logrotate -d {0}'.format(custom_logrotate_cfg_file))
         assert_equal(first=len(root_client.file_list(directory=custom_logrotate_dir)),
                      second=2,
                      msg='More files than expected present in {0}'.format(custom_logrotate_dir))
@@ -232,7 +238,7 @@ class TestAfterCare(object):
                                          bs='1M',
                                          input_type='zero',
                                          root_client=root_client)
-            root_client.run('logrotate {0}'.format(custom_logrotate_cfg_file))
+            root_client.run('logrotate -d {0}'.format(custom_logrotate_cfg_file))
             assert_equal(first=len(root_client.file_list(directory=custom_logrotate_dir)),
                          second=counter + 3 if counter < 10 else 12,
                          msg='Not the expected amount of files present in {0}'.format(custom_logrotate_dir))
