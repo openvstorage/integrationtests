@@ -25,6 +25,7 @@ import time
 import urllib
 import urllib2
 from ci.tests.general.general import General
+from ci.tests.general.logHandler import LogHandler
 from ovs.lib.helpers.toolbox import Toolbox
 from requests.packages.urllib3 import disable_warnings
 from requests.packages.urllib3.exceptions import InsecurePlatformWarning
@@ -40,6 +41,8 @@ class Connection(object):
     disable_warnings(InsecurePlatformWarning)
     disable_warnings(InsecureRequestWarning)
     disable_warnings(SNIMissingWarning)
+
+    logger = LogHandler.get('backend', name='api-connection')
 
     def __init__(self, ip=None, username=None, password=None):
         if ip is None:
@@ -173,7 +176,7 @@ class Connection(object):
         try:
             response = urllib2.urlopen(request).read()
         except urllib2.HTTPError, error:
-            print error.read()
+            Connection.logger.error(str(error.read()))
             raise
         task_id = json.loads(response)
 

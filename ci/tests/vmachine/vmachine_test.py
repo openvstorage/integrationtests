@@ -35,7 +35,7 @@ class TestVMachine(object):
         """
         timeout = 30
         timer_step = 5
-        nr_of_disks = 10
+        nr_of_disks = 1
         vpool_name = General.get_config().get('vpool', 'name')
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
         assert vpool, "No vpool found where one was expected"
@@ -72,8 +72,8 @@ class TestVMachine(object):
         vms = GeneralVMachine.get_vmachines()
         assert len(vms) == nr_of_disks, "Only {0} out of {1} VMachines have been created after {2} seconds".format(len(vms), nr_of_disks, timeout)
 
-        # Waiting for 5 minutes of FIO activity on the vmachines
-        time.sleep(300)
+        # Waiting for 1 minute of FIO activity on vmachine
+        time.sleep(60)
         vms = GeneralVMachine.get_vmachines()
         for vm in vms:
             assert vm.hypervisor_status == 'RUNNING', "Machine {0} has wrong status on the hypervisor: {1}".format(vm.name, vm.hypervisor_status)

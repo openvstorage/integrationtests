@@ -32,7 +32,6 @@ from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.lib.albascheduledtask import AlbaScheduledTaskController
 
 logger = LogHandler.get('backend', name='alba')
-logger.logger.propagate = False
 
 
 class TestALBA(object):
@@ -244,7 +243,8 @@ class TestALBA(object):
         org_policy = [[1, 1, 1, 2]]
         new_policy = [[2, 2, 3, 3]]
 
-        TestALBA.add_validate_remove_preset(preset_name, compression, encryption, org_policy, remove_when_finished=False)
+        TestALBA.add_validate_remove_preset(preset_name, compression, encryption, org_policy,
+                                            remove_when_finished=False)
         result = GeneralAlba.list_alba_namespaces(alba_backend=alba_backend,
                                                   name=namespace_name)
 
@@ -269,7 +269,7 @@ class TestALBA(object):
                 object_has_new_policy = True
                 break
             time.sleep(1)
-            result = GeneralAlba.execute_alba_cli_action(alba_backend, 'show-namespace', [namespace_name])['bucket_count']
+            result = GeneralAlba.execute_alba_cli_action(alba_backend, 'show-namespace',[namespace_name])['bucket_count']
 
         assert object_has_new_policy is True, "Object was not rewritten within {0} seconds: {1}".format(timeout, result)
 
@@ -364,7 +364,8 @@ class TestALBA(object):
 
         for x in range(nr_of_disks_to_create):
             namespace_name = namespace_prefix + str(x)
-            GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'create-namespace', [namespace_name, preset_name], False)
+            GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'create-namespace', [namespace_name, preset_name],
+                                                False)
             GeneralAlba.upload_file(backend.alba_backend, namespace_name, 1024 * 1024 * 1)
 
         AlbaScheduledTaskController.verify_namespaces()
@@ -381,7 +382,7 @@ class TestALBA(object):
             result = {}
             total = 0
             for ip in alba_node_ips:
-                count = General.execute_command_on_node(ip, 'ls /etc/init/alba-maintenance_{0}-* | wc -l'.format(agent_name))
+                count = General.execute_command_on_node(ip,'ls /etc/init/alba-maintenance_{0}-* | wc -l'.format(agent_name))
                 if count:
                     count = int(count)
                 else:

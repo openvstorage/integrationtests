@@ -24,7 +24,6 @@ from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.tests.general.logHandler import LogHandler
 
 logger = LogHandler.get('mgmtcenter', name='setup')
-logger.logger.propagate = False
 
 
 class TestMgmtCenter(object):
@@ -48,7 +47,8 @@ class TestMgmtCenter(object):
             if "Destination Host Unreachable" in out:
                 issues_found += "Management center {0} with ip {1}\n".format(mgmtcenter.name, mgmtcenter.ip)
 
-        assert issues_found == "", "Following management centers could not be reached:\n{0}".format(issues_found)
+        assert issues_found == "",\
+            "Following management centers could not be reached:\n{0}".format(issues_found)
 
     @staticmethod
     def management_center_connection_test():
@@ -66,7 +66,8 @@ class TestMgmtCenter(object):
             if not GeneralManagementCenter.test_connection(mgmtcenter.guid):
                 issues_found += "Management center {0}\n".format(mgmtcenter.name)
 
-        assert issues_found == "", "Following management centers failed the connection test:\n{0}".format(issues_found)
+        assert issues_found == "",\
+            "Following management centers failed the connection test:\n{0}".format(issues_found)
 
     @staticmethod
     def check_configured_management_center_test():
@@ -85,7 +86,8 @@ class TestMgmtCenter(object):
                 if not GeneralManagementCenter.is_host_configured(physical_machine):
                     issues_found += "Mgmtcenter {0} has an unconfigured pmachine with guid {1}\n".format(mgmtcenter.name, physical_machine.guid)
 
-        assert issues_found == "", "Following pmachines were not configured with their management center:\n{0}".format(issues_found)
+        assert issues_found == "",\
+            "Following pmachines were not configured with their management center:\n{0}".format(issues_found)
 
     @staticmethod
     def check_unconfigured_management_center_test():
@@ -106,4 +108,5 @@ class TestMgmtCenter(object):
                     issues_found += "Machine {0} is still configured with {1} management center".format(physical_machine.name, mgmtcenter.name)
                 GeneralManagementCenter.configure_pmachine_with_mgmtcenter(physical_machine, mgmtcenter)
 
-        assert issues_found == "", "Following pmachines were still configured with their management center:\n{0}".format(issues_found)
+        assert issues_found == "",\
+            "Following pmachines were still configured with their management center:\n{0}".format(issues_found)
