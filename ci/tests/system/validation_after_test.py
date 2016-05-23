@@ -178,7 +178,7 @@ class TestAfterCare(object):
                                      bs='1M',
                                      input_type='zero',
                                      root_client=root_client)
-        root_client.run('logrotate -d {0}'.format(custom_logrotate_cfg_file))
+        root_client.run('logrotate {0}'.format(custom_logrotate_cfg_file))
         assert_equal(first=len(root_client.file_list(directory=custom_logrotate_dir)),
                      second=2,
                      msg='More files than expected present in {0}'.format(custom_logrotate_dir))
@@ -192,7 +192,7 @@ class TestAfterCare(object):
                                          bs='1M',
                                          input_type='zero',
                                          root_client=root_client)
-            root_client.run('logrotate -d {0}'.format(custom_logrotate_cfg_file))
+            root_client.run('logrotate {0}'.format(custom_logrotate_cfg_file))
             assert_equal(first=len(root_client.file_list(directory=custom_logrotate_dir)),
                          second=counter + 3 if counter < 5 else 7,
                          msg='Not the expected amount of files present in {0}'.format(custom_logrotate_dir))
@@ -222,7 +222,7 @@ class TestAfterCare(object):
                                      bs='1M',
                                      input_type='zero',
                                      root_client=root_client)
-        root_client.run('logrotate -d {0}'.format(custom_logrotate_cfg_file))
+        root_client.run('logrotate {0}'.format(custom_logrotate_cfg_file))
         assert_equal(first=len(root_client.file_list(directory=custom_logrotate_dir)),
                      second=2,
                      msg='More files than expected present in {0}'.format(custom_logrotate_dir))
@@ -238,7 +238,7 @@ class TestAfterCare(object):
                                          bs='1M',
                                          input_type='zero',
                                          root_client=root_client)
-            root_client.run('logrotate -d {0}'.format(custom_logrotate_cfg_file))
+            root_client.run('logrotate {0}'.format(custom_logrotate_cfg_file))
             assert_equal(first=len(root_client.file_list(directory=custom_logrotate_dir)),
                          second=counter + 3 if counter < 10 else 12,
                          msg='Not the expected amount of files present in {0}'.format(custom_logrotate_dir))
