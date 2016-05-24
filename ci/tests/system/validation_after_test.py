@@ -97,20 +97,8 @@ class TestAfterCare(object):
     compress
     copytruncate
     notifempty
-}}
-
-{1} {{
-    su ovs ovs
-    rotate 10
-    size 19M
-    compress
-    delaycompress
-    notifempty
-    create 666 ovs ovs
-    postrotate
-        /usr/bin/pkill -SIGUSR1 arakoon
-    endscript
 }}"""
+
         if len(storagerouters) == 0:
             raise ValueError('No Storage Routers found in the model')
 
@@ -118,7 +106,7 @@ class TestAfterCare(object):
         logrotate_cfg_file = '/etc/logrotate.conf'
         logrotate_cron_file = '/etc/cron.daily/logrotate'
         logrotate_ovs_file = '{0}/openvstorage-logs'.format(logrotate_include_dir)
-        expected_logrotate_content = logrotate_content.format('/var/log/ovs/*.log', '/var/log/arakoon/*/*.log')
+        expected_logrotate_content = logrotate_content.format('/var/log/ovs/*.log')
 
         # Verify basic logrotate configurations
         for storagerouter in storagerouters:
@@ -137,6 +125,24 @@ class TestAfterCare(object):
             assert_equal(first=expected_logrotate_content,
                          second=actual_file_contents,
                          msg='Logrotate contents does not match expected contents on Storage Router {0}'.format(storagerouter.name))
+
+        logrotate_content = """{0} {{
+    rotate 5
+    size 20M
+    compress
+    copytruncate
+    notifempty
+}}
+
+{1} {{
+    su ovs ovs
+    rotate 10
+    size 19M
+    compress
+    delaycompress
+    notifempty
+    create 666 ovs ovs
+}}"""
 
         # Create custom logrotate file for testing purposes
         custom_logrotate_cfg_file = '/opt/OpenvStorage/ci/logrotate-conf'
