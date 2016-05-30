@@ -49,11 +49,11 @@ class TestrailApi:
         try:
             content = urllib2.urlopen(request).readline()
         except urllib2.HTTPError as e:
-            print e.readlines()
+            print e.reason
             raise
         except urllib2.URLError as e:
             print e
-            print e.readlines()
+            print e.reason
             raise
         except:
             raise
