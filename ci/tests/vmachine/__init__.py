@@ -61,7 +61,8 @@ def setup():
 
     GeneralAlba.prepare_alba_backend()
     GeneralManagementCenter.create_generic_mgmt_center()
-    GeneralVPool.add_vpool()
+    _, vpool_params = GeneralVPool.add_vpool()
+    GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
 
 
 def teardown():
