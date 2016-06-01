@@ -172,7 +172,8 @@ class TestVPool(object):
                                                                                    len(result))
 
         # Create a vPool and create volumes on it
-        vpool, _ = GeneralVPool.add_vpool()
+        vpool, vpool_params = GeneralVPool.add_vpool()
+        GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
         root_client = SSHClient(GeneralStorageRouter.get_local_storagerouter(), username='root')
         if vpool.storagedrivers[0].storagerouter.pmachine.hvtype == 'VMWARE':
             GeneralVPool.mount_vpool(vpool=vpool,
@@ -223,7 +224,8 @@ class TestVPool(object):
         # @TODO 2: Make test smarter to test all required services on all node types
         vpool = GeneralVPool.get_vpool_by_name(General.get_config().get('vpool', 'name'))
         if vpool is None:
-            vpool, _ = GeneralVPool.add_vpool()
+            vpool, vpool_params = GeneralVPool.add_vpool()
+            GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
 
         errors = []
         root_client = SSHClient(GeneralStorageRouter.get_local_storagerouter(), username='root')

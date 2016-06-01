@@ -35,7 +35,8 @@ def setup():
     assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
 
     GeneralAlba.prepare_alba_backend()
-    GeneralVPool.add_vpool()
+    _, vpool_params = GeneralVPool.add_vpool()
+    GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
 
 
 def teardown():
