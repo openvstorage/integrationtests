@@ -74,13 +74,22 @@ class TestVDisk(object):
         """
         Validate get/set metadata cache size for a vdisk
         """
-        metadata_cache_page_size = 256 * 24
-        default_metadata_cache_size = 8192 * metadata_cache_page_size
-
         disk_name = 'ovs-3756-disk'
         loop = 'loop0'
         vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
-        vdisk = GeneralVDisk.create_volume(size=2, vpool=vpool, name=disk_name, loop_device=loop, wait=True)
+        # vdisk_size in GiB
+        vdisk_size = 2
+        vdisk = GeneralVDisk.create_volume(size=vdisk_size, vpool=vpool, name=disk_name, loop_device=loop, wait=True)
+
+        metadata_page_capacity = 256
+        # 8 bytes non-dedup'ed, 24 bytes for the dedup'ed flavour
+        individual_page_entry = 24
+        metadata_cache_page_size = metadata_page_capacity * individual_page_entry
+        # metadata_cache_capacity depending on volume_size
+        # 100GiB -> 102400
+        # 2GiB -> 2048
+        metadata_cache_capacity = vdisk_size * 1024
+        default_metadata_cache_size = metadata_cache_capacity * metadata_cache_page_size
 
         def _validate_setting_cache_value(value_to_verify):
             disk_config_params = GeneralVDisk.get_config_params(vdisk)
