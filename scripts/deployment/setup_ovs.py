@@ -736,7 +736,7 @@ echo 1""".format(password=UBUNTU_PASSWORD)
 def install_additional_node(hypervisor_type, hypervisor_ip, hypervisor_password, first_node_ip, new_node_ip,
                             qualitylevel, cluster_name, dns, public_network, public_netmask, gateway, hostname,
                             storage_ip_last_octet=None, with_devstack=False, fixed_range=None, fixed_range_size=None,
-                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0", branch=''):
+                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0", patch_branch=''):
     # check connectivity
     q.clients.ssh.waitForConnection(first_node_ip, "root", UBUNTU_PASSWORD, times=30)
     if hypervisor_type == "VMWARE":
@@ -767,7 +767,7 @@ def install_additional_node(hypervisor_type, hypervisor_ip, hypervisor_password,
                      hypervisor_ip=hypervisor_ip,
                      hypervisor_password=hypervisor_password,
                      hostname=hostname,
-                     branch=branch)
+                     branch=patch_branch)
 
 
 def integrate_papertrail(ip):
