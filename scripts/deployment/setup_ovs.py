@@ -882,6 +882,39 @@ def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node
     :param branch: patch_branch
     :return: None
     """
+<<<<<<< HEAD
+=======
+    remote_con = q.remote.system.connect(master_ip, "root", UBUNTU_PASSWORD)
+    devstack_branch = remote_con.process.execute("cd /home/devstack/; git branch | awk '{print $2}'")[1].strip()
+    if devstack_branch != "stable/icehouse":
+        return
+    cmd = 'source /etc/profile.d/ovs.sh;python -c "from ovs.dal.lists.storagerouterlist import StorageRouterList;print [sg.ip for sg in StorageRouterList.get_storagerouters()]"'
+    out = remote_con.process.execute(cmd)[1]
+    node_ips = eval(out)
+    remote_con.close()
+    cmd_ssh_id_gen = r"""apt-get install sshpass -y
+chpasswd <<< "stack:{password}"
+su -c "ssh-keygen -f ~/.ssh/id_rsa -t rsa -b 4096 -q -N \"\"" stack
+echo 1""".format(password=UBUNTU_PASSWORD)
+    for node_ip in node_ips:
+        con2 = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
+        con2.process.execute(cmd_ssh_id_gen)
+        con2.close()
+    for node_ip in node_ips:
+        con2 = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
+        for other_node_ip in node_ips:
+            if other_node_ip == node_ip:
+                continue
+            cmd = 'su -c "echo {password} | sshpass ssh-copy-id stack@{other_node_ip} -o StrictHostKeyChecking=no" stack'.format(password=UBUNTU_PASSWORD, other_node_ip=other_node_ip)
+            con2.process.execute(cmd)
+        con2.close()
+
+
+def install_additional_node(hypervisor_type, hypervisor_ip, hypervisor_password, first_node_ip, new_node_ip,
+                            qualitylevel, cluster_name, dns, public_network, public_netmask, gateway, hostname,
+                            storage_ip_last_octet=None, with_devstack=False, fixed_range=None, fixed_range_size=None,
+                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0", patch_branch=''):
+>>>>>>> eugene-updates
     # check connectivity
     q.clients.ssh.waitForConnection(first_node_ip, "root", UBUNTU_PASSWORD, times=30)
     if hv_type == "VMWARE":
@@ -905,12 +938,23 @@ def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node
                          master_node_ip=first_node_ip,
                          branch_name=branch_name,
                          tag_name=tag_name)
+<<<<<<< HEAD
     _handle_ovs_setup(pub_ip=new_node_ip,
                       ql=ql,
                       cluster=cluster,
                       hv_type=hv_type,
                       hv_ip=hv_ip,
                       branch=branch)
+=======
+    handle_ovs_setup(public_ip=new_node_ip,
+                     qualitylevel=qualitylevel,
+                     cluster_name=cluster_name,
+                     hypervisor_type=hypervisor_type,
+                     hypervisor_ip=hypervisor_ip,
+                     hypervisor_password=hypervisor_password,
+                     hostname=hostname,
+                     branch=patch_branch)
+>>>>>>> eugene-updates
 
 
 def integrate_papertrail(ip):
