@@ -79,10 +79,10 @@ class TestrailApi:
         try:
             response = urllib2.urlopen(req, data)
         except urllib2.HTTPError as e:
-            print e.readlines()
+            print e.reason
             raise
         except urllib2.URLError as e:
-            print e.readlines()
+            print e.reason
             raise
         except:
             raise
