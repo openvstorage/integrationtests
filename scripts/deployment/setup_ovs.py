@@ -856,7 +856,7 @@ restart mysql
 def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node_ip,
                             ql, cluster, domain_name_system, pub_network, pub_netmask, gw, host_name,
                             storage_ip_last_part=None, with_devstack=False, fixed_range=None, fixed_range_size=None,
-                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0", branch=''):
+                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0", patch_branch=''):
     """
     Install an additional node
     :param hv_type: Hypervisor type
@@ -879,7 +879,7 @@ def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node
     :param branch_name: Branch name
     :param tag_name: Tag name
     :param flat_interface: Flat interface
-    :param branch: patch_branch
+    :param patch_branch: patch_branch
     :return: None
     """
     # check connectivity
@@ -910,7 +910,7 @@ def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node
                       cluster=cluster,
                       hv_type=hv_type,
                       hv_ip=hv_ip,
-                      branch=branch)
+                      branch=patch_branch)
 
 
 def integrate_papertrail(ip):
