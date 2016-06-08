@@ -268,7 +268,8 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
 
     remote_con.process.execute('apt-get update')
     remote_con.process.execute('apt-get install -y ntp')
-    remote_con.process.execute('apt-get install -y --force-yes openvstorage-hc')
+    remote_con.process.execute('apt-get install -y --allow-unauthenticated volumedriver-no-dedup-server')
+    remote_con.process.execute('apt-get install -y --allow-unauthenticated openvstorage-hc')
     # clean leftover mds
     e, o = remote_con.process.execute("ls /dev/md*", dieOnNonZeroExitCode=False)
     if e == 0:
