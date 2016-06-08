@@ -397,19 +397,20 @@ class GeneralVPool(object):
             root_client = SSHClient(storagerouter, username='root')
 
             assert EtcdConfiguration.exists('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id), raw=True), 'vPool config not found in etcd'
-            current_config_sections = set([item for item in EtcdConfiguration.list('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id))])
-            assert not current_config_sections.difference(set(expected_config.keys())), 'New section appeared in the storage driver config in etcd'
-            assert not set(expected_config.keys()).difference(current_config_sections), 'Config section expected for storage driver, but not found in etcd'
-
-            for key, values in expected_config.iteritems():
-                current_config = EtcdConfiguration.get('/ovs/vpools/{0}/hosts/{1}/config/{2}'.format(vpool.guid, storagedriver.storagedriver_id, key))
-                assert set(current_config.keys()).union(set(values.keys())) == set(values.keys()), 'Not all expected keys match for key "{0}" on Storage Driver {1}'.format(key, storagedriver.name)
-
-                for sub_key, value in current_config.iteritems():
-                    expected_value = values[sub_key]
-                    if expected_value is None:
-                        continue
-                    assert value == expected_value, 'Key: {0} - Sub key: {1} - Value: {2} - Expected value: {3}'.format(key, sub_key, value, expected_value)
+            # @todo: replace next lines with implementation defined in: http://jira.openvstorage.com/browse/OVS-4577
+            # current_config_sections = set([item for item in EtcdConfiguration.list('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id))])
+            # assert not current_config_sections.difference(set(expected_config.keys())), 'New section appeared in the storage driver config in etcd'
+            # assert not set(expected_config.keys()).difference(current_config_sections), 'Config section expected for storage driver, but not found in etcd'
+            #
+            # for key, values in expected_config.iteritems():
+            #     current_config = EtcdConfiguration.get('/ovs/vpools/{0}/hosts/{1}/config/{2}'.format(vpool.guid, storagedriver.storagedriver_id, key))
+            #     assert set(current_config.keys()).union(set(values.keys())) == set(values.keys()), 'Not all expected keys match for key "{0}" on Storage Driver {1}'.format(key, storagedriver.name)
+            #
+            #     for sub_key, value in current_config.iteritems():
+            #         expected_value = values[sub_key]
+            #         if expected_value is None:
+            #             continue
+            #         assert value == expected_value, 'Key: {0} - Sub key: {1} - Value: {2} - Expected value: {3}'.format(key, sub_key, value, expected_value)
 
             # Check services
             if storagerouter.node_type == 'MASTER':

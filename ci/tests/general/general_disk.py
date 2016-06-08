@@ -96,7 +96,7 @@ class GeneralDisk(object):
         all_disks = General.execute_command("""fdisk -l 2>/dev/null| awk '/Disk \/.*:/ {gsub(":","",$s);print $2}'""")[0].splitlines()
         out = General.execute_command("df -h | awk '{print $1}'")[0]
 
-        return [d for d in all_disks if d not in out and not General.execute_command("fuser {0}".format(d))[0]]
+        return [d for d in all_disks if d not in out and not 'mapper' in d and not General.execute_command("fuser {0}".format(d))[0]]
 
     @staticmethod
     def get_physical_disks(client):
