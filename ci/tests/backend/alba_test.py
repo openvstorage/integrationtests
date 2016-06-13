@@ -23,7 +23,7 @@ from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.logHandler import LogHandler
-from ovs.dal.hybrids.albaasd import AlbaASD
+from ovs.dal.hybrids.albaasd import AlbaOSD
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.albanode import AlbaNode
 from ovs.dal.hybrids.albadisk import AlbaDisk
@@ -327,9 +327,9 @@ class TestALBA(object):
         ad.alba_node = an
         ad.save()
 
-        asd = AlbaASD()
+        asd = AlbaOSD()
         asd.alba_backend = abe
-        asd.asd_id = 'ovs3769asd'
+        asd.osd_id = 'ovs3769asd'
         asd.alba_disk = ad
         asd.save()
 
