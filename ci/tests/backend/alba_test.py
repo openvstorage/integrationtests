@@ -331,6 +331,7 @@ class TestALBA(object):
         asd = AlbaOSD()
         asd.alba_backend = abe
         asd.osd_id = 'ovs3769asd'
+        asd.osd_type = 'ASD'
         asd.alba_disk = ad
         asd.save()
 

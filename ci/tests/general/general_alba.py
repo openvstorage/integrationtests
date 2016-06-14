@@ -46,7 +46,7 @@ class GeneralAlba(object):
     """
     A general class dedicated to ALBA backend logic
     """
-    ALBA_TIMER = 1800
+    ALBA_TIMER = 600
     ALBA_TIMER_STEP = 5
 
     api = Connection()
