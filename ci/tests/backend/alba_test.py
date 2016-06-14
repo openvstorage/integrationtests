@@ -320,6 +320,7 @@ class TestALBA(object):
 
         abe = AlbaBackend()
         abe.backend = be
+        abe.scaling = 'LOCAL'
         abe.save()
 
         ad = AlbaDisk()

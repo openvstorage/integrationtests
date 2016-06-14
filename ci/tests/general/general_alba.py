@@ -760,7 +760,7 @@ class GeneralAlba(object):
                 asd_node = GeneralAlba.get_node_by_id(disk['node_id'])
                 for osd_id in disk['asds'].keys():
                     data = {'asd_id': osd_id,
-                            'safety': {'good': 0, 'critical': 0, 'lost': 0}}
+                            'safety': {'good': 0, 'critical': 0, 'lost': len(disks)}}
                     GeneralAlba.logger.info(GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'reset_asd', data, wait=True))
                 data = {'disk': disk_id}
                 GeneralAlba.logger.info(GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'remove_disk', data, wait=True))
