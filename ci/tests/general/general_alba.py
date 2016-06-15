@@ -223,7 +223,7 @@ class GeneralAlba(object):
             raise ValueError('ALBA Backend {0} did not reach {1} status in {2} seconds'.format(alba_backend.backend.name, status, timeout))
 
     @staticmethod
-    def add_alba_backend(name, wait=True):
+    def add_alba_backend(name, scaling='LOCAL', wait=True):
         """
         Put an ALBA backend in the model
         :param name: Name of the backend
@@ -233,7 +233,8 @@ class GeneralAlba(object):
         backend = GeneralBackend.get_by_name(name)
         if backend is None:
             backend = GeneralBackend.add_backend(name, 'alba')
-            alba_backend = AlbaBackend(GeneralAlba.api.add('alba/backends', {'backend_guid': backend.guid})['guid'])
+            alba_backend = AlbaBackend(GeneralAlba.api.add('alba/backends', {'backend_guid': backend.guid,
+                                                                             'scaling': scaling})['guid'])
             if wait is True:
                 GeneralAlba.wait_for_alba_backend_status(alba_backend)
 

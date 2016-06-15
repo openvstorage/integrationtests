@@ -362,6 +362,7 @@ class TestALBA(object):
         backend = GeneralBackend.get_by_name(TestALBA.backend_name)
         if backend is None:
             backend = GeneralAlba.add_alba_backend(TestALBA.backend_name).backend
+            GeneralAlba.claim_asds(alba_backend=backend.alba_backend, nr_of_asds=3, disk_type='SATA')
         GeneralAlba.add_preset(backend.alba_backend, preset_name, policies, compression, encryption)
 
         for x in range(nr_of_disks_to_create):
