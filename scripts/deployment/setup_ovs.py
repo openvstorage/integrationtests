@@ -355,6 +355,9 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
     # 10 minutes to install ovs components
     child.timeout = 600
 
+    child.expect("Enable RDMA?")
+    child.sendline("")
+
     try:
         # IP address to be used for the ASD API
         idx = child.expect(["Select the public IP address to be used for the API", exit_script_mark])
