@@ -58,7 +58,7 @@ class Connection(object):
         self.ip = ip
         self.username = username
         self.password = password
-        self.headers = {'Accept': 'application/json; version=*'}
+        self.headers = {'Accept': 'application/json; version=3'}
         if os.path.exists(self.TOKEN_CACHE_FILENAME) \
                 and (time.time() - os.path.getmtime(self.TOKEN_CACHE_FILENAME) > 3600.0):
             os.remove(self.TOKEN_CACHE_FILENAME)

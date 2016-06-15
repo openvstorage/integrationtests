@@ -66,11 +66,12 @@ class GeneralBackend(object):
         return BackendTypeList.get_backend_type_by_code(code=code)
 
     @staticmethod
-    def add_backend(backend_name, backend_code):
+    def add_backend(backend_name, backend_code, scaling='LOCAL'):
         """
         Add a new backend
         :param backend_name: Name of the Backend to add
         :param backend_code: Code of the Backend Type to add
+        :param scaling: LOCAL or GLOBAL
         :return: Guid of the new Backend
         """
         backend = GeneralBackend.get_by_name(backend_name)
@@ -79,5 +80,6 @@ class GeneralBackend(object):
 
         backend_type = GeneralBackend.get_backendtype_by_code(code=backend_code)
         GeneralBackend.api.add('backends', {'name': backend_name,
-                                            'backend_type_guid': backend_type.guid})
+                                            'backend_type_guid': backend_type.guid,
+                                            'scaling': scaling})
         return GeneralBackend.get_by_name(backend_name)

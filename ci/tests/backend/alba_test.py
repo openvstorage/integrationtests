@@ -23,7 +23,7 @@ from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.logHandler import LogHandler
-from ovs.dal.hybrids.albaasd import AlbaASD
+from ovs.dal.hybrids.albaosd import AlbaOSD
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.albanode import AlbaNode
 from ovs.dal.hybrids.albadisk import AlbaDisk
@@ -320,6 +320,7 @@ class TestALBA(object):
 
         abe = AlbaBackend()
         abe.backend = be
+        abe.scaling = 'LOCAL'
         abe.save()
 
         ad = AlbaDisk()
@@ -327,9 +328,10 @@ class TestALBA(object):
         ad.alba_node = an
         ad.save()
 
-        asd = AlbaASD()
+        asd = AlbaOSD()
         asd.alba_backend = abe
-        asd.asd_id = 'ovs3769asd'
+        asd.osd_id = 'ovs3769asd'
+        asd.osd_type = 'ASD'
         asd.alba_disk = ad
         asd.save()
 
@@ -360,6 +362,7 @@ class TestALBA(object):
         backend = GeneralBackend.get_by_name(TestALBA.backend_name)
         if backend is None:
             backend = GeneralAlba.add_alba_backend(TestALBA.backend_name).backend
+            GeneralAlba.claim_asds(alba_backend=backend.alba_backend, nr_of_asds=3, disk_type='SATA')
         GeneralAlba.add_preset(backend.alba_backend, preset_name, policies, compression, encryption)
 
         for x in range(nr_of_disks_to_create):
