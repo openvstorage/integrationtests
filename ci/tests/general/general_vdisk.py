@@ -27,6 +27,8 @@ from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs.lib.scheduledtask import ScheduledTaskController
+from ovs.lib.vdisk import VDiskController
 from subprocess import CalledProcessError
 
 
@@ -319,3 +321,26 @@ class GeneralVDisk(object):
             'is_volume_synced_up_to_snapshot failed for vdisk: {0}'.format(vdisk.name)
 
         return result
+
+    @staticmethod
+    def snapshot_disk(diskguid, metadata):
+        """
+        Create snapshot for vdisk
+        :param diskguid: guid of the vdisk to snapshot
+        :param metadata: metadata = {'label': 'snp1',
+                                    'is_consistent': True,
+                                    'timestamp': time.time(),
+                                    'machineguid': vm disk is attached to,
+                                    'is_automatic': False,
+                                    'is_sticky': False}
+        :return: None
+        """
+        VDiskController.create_snapshot(diskguid, metadata)
+
+    @staticmethod
+    def start_scrub_work():
+        """
+        Starts scrub work for all vdisks present
+        :return: None
+        """
+        ScheduledTaskController.gather_scrub_work()
