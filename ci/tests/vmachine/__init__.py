@@ -33,7 +33,7 @@ def setup():
     :return: None
     """
     autotest_config = General.get_config()
-    backend_name = 'vmachine-' + autotest_config.get('backend', 'name')
+    backend_name = autotest_config.get('backend', 'name')
     assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
 
     # Download the template
@@ -59,7 +59,7 @@ def setup():
     if err:
         GeneralVMachine.logger.error("Error while changing user owner to root for template: {0}".format(err))
 
-    GeneralAlba.prepare_alba_backend(name=backend_name)
+    GeneralAlba.prepare_alba_backend()
     GeneralManagementCenter.create_generic_mgmt_center()
     _, vpool_params = GeneralVPool.add_vpool()
     GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
@@ -78,7 +78,7 @@ def teardown():
     GeneralVPool.remove_vpool(vpool)
 
     autotest_config = General.get_config()
-    be = GeneralBackend.get_by_name('vmachine-' + autotest_config.get('backend', 'name'))
+    be = GeneralBackend.get_by_name(autotest_config.get('backend', 'name'))
     if be:
         GeneralAlba.unclaim_disks_and_remove_alba_backend(alba_backend=be.alba_backend)
 

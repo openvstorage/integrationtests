@@ -121,6 +121,7 @@ class TestVMachine(object):
         """
         Check scrubbing of vdisks test
         """
+        issues_found = ""
         nr_of_disks = 3
         vpool_name = General.get_config().get('vpool', 'name')
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
@@ -187,7 +188,8 @@ class TestVMachine(object):
         # checking result of scrub work
         vds = GeneralVDisk.get_vdisks()
         for disk in vds:
-            assert disk.statistics['backend_data_written'] < disk_backend_data[disk.guid], "No scrub work was applied to {0} disk".format(disk.name)
+            if disk.statistics['backend_data_written'] == disk_backend_data[disk.guid]:
+                issues_found += "No scrub work was applied to {0} disk\n".format(disk.name)
 
         # cleanup
         # removing vmachines
@@ -200,3 +202,5 @@ class TestVMachine(object):
         out, err, _ = General.execute_command("rm -rf /mnt/{0}/*.raw".format(vpool_name))
         if err:
             GeneralVMachine.logger.error("Error while removing vdisks: {0}".format(err))
+
+        assert issues_found == "", "Following issues appeared:\n{0}".format(issues_found)
