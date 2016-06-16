@@ -191,6 +191,8 @@ class TestVMachine(object):
 
         # starting scrubber
         ScheduledTaskController.gather_scrub_work()
+        # waiting for model to catch up
+        time.sleep(120)
         for disk in vds:
             disk.invalidate_dynamics(['statistics'])
         # checking result of scrub work
