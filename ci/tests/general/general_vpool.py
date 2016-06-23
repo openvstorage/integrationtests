@@ -61,7 +61,7 @@ class GeneralVPool(object):
         :rtype: VPool
         """
         if storagerouters is None:
-            storagerouters = [GeneralStorageRouter.get_local_storagerouter()]
+            storagerouters = GeneralStorageRouter.get_storage_routers()
         if vpool_parameters is None:
             vpool_parameters = {}
         if not isinstance(storagerouters, list) or len(storagerouters) == 0:
