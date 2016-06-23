@@ -635,7 +635,6 @@ class GeneralAlba(object):
         filtered_disks = dict()
         for node_id in disk_names.iterkeys():
             node_ids.append(node_id)
-
         while count < amount:
             node_id = node_ids[count % 3]
 
@@ -661,7 +660,7 @@ class GeneralAlba(object):
                             filtered_disks[node_id] = [disk['name']]
                         disk_names[node_id].pop(0)
                         count += 1
-
+                        break
         return filtered_disks
 
     @staticmethod
@@ -697,8 +696,10 @@ class GeneralAlba(object):
         assert uninitialised_disks >= nr_of_disks_to_init, "Not enough disks to initialize!"
 
         disks_to_init = GeneralAlba.filter_disks(uninitialized_disk_names, nr_of_disks_to_init, disk_type)
-        # assert len(disks_to_init) >= nr_of_disks_to_init,\
-        #    "Not enough disks to initialize!"
+        disks_found = 0
+        for node_id, disks in disks_to_init.iteritems():
+            disks_found += len(disks)
+        assert len(disks_found) >= nr_of_disks_to_init, "Not enough disks to initialize!"
 
         for node_id, disks in disks_to_init.iteritems():
             alba_node = AlbaNodeList.get_albanode_by_node_id(node_id)
@@ -716,15 +717,13 @@ class GeneralAlba(object):
         :return: None
         """
         def _wait_for_asd_count_with_status(_alba_backend, _nr_of_asds, status):
-            grid_ip = General.get_config().get('main', 'grid_ip')
-            alba_node = AlbaNodeList.get_albanode_by_ip(grid_ip)
             counter = GeneralAlba.ALBA_TIMER / GeneralAlba.ALBA_TIMER_STEP
             asds_with_status = {}
             while counter > 0:
                 GeneralAlba.logger.info('counter: {0}'.format(counter))
                 _alba_backend.invalidate_dynamics(['local_stack'])
-                if alba_node.node_id in _alba_backend.local_stack:
-                    for _disk in _alba_backend.local_stack[alba_node.node_id].values():
+                for node_id in _alba_backend.local_stack:
+                    for _disk in _alba_backend.local_stack[node_id].values():
                         for _osd_id, _asd in _disk['asds'].iteritems():
                             if _asd['status'] == status:
                                 asds_with_status[_osd_id] = _disk.get('guid')
