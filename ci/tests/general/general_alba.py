@@ -635,8 +635,9 @@ class GeneralAlba(object):
         filtered_disks = dict()
         for node_id in disk_names.iterkeys():
             node_ids.append(node_id)
+        no_of_nodes = len(node_ids)
         while count < amount:
-            node_id = node_ids[count % 3]
+            node_id = node_ids[count % no_of_nodes]
 
             alba_node = AlbaNodeList.get_albanode_by_node_id(node_id)
             storagerouter = GeneralStorageRouter.get_storage_router_by_ip(ip=alba_node.ip)
@@ -699,7 +700,7 @@ class GeneralAlba(object):
         disks_found = 0
         for node_id, disks in disks_to_init.iteritems():
             disks_found += len(disks)
-        assert len(disks_found) >= nr_of_disks_to_init, "Not enough disks to initialize!"
+        assert disks_found >= nr_of_disks_to_init, "Not enough disks to initialize!"
 
         for node_id, disks in disks_to_init.iteritems():
             alba_node = AlbaNodeList.get_albanode_by_node_id(node_id)
