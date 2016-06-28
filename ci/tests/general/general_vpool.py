@@ -126,15 +126,7 @@ class GeneralVPool(object):
         :param vpool: vPool to retrieve configuration for
         :return: Storage Driver configuration
         """
-        task_result = GeneralVPool.api.execute_get_action(component='vpools',
-                                                          guid=vpool.guid,
-                                                          action='get_configuration',
-                                                          wait=True,
-                                                          timeout=60)
-        if task_result[0] is not True:
-            raise RuntimeError('Failed to retrieve the configuration for vPool {0}'.format(vpool.name),
-                               task_result)
-        return task_result[1]
+        return GeneralVPool.api.fetch(component='vpools', guid=vpool.guid)['configuration']
 
     @staticmethod
     def get_vpools():
