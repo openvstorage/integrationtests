@@ -635,9 +635,8 @@ class GeneralAlba(object):
         filtered_disks = dict()
         for node_id in disk_names.iterkeys():
             node_ids.append(node_id)
-        no_of_nodes = len(node_ids)
         while count < amount:
-            node_id = node_ids[count % no_of_nodes]
+            node_id = node_ids[count % len(node_ids)]
 
             alba_node = AlbaNodeList.get_albanode_by_node_id(node_id)
             storagerouter = GeneralStorageRouter.get_storage_router_by_ip(ip=alba_node.ip)
