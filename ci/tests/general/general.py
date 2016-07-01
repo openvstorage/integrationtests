@@ -135,7 +135,6 @@ class General(object):
         Do some cleanup actions
         :return: None
         """
-        from ci.tests.general.general_pmachine import GeneralPMachine
         from ci.tests.general.general_vdisk import GeneralVDisk
         from ci.tests.general.general_vmachine import GeneralVMachine
 
@@ -202,7 +201,7 @@ class General(object):
 
                 GeneralVPool.remove_vpool(vpool)
 
-                if GeneralPMachine.get_hypervisor_type() == 'VMWARE':
+                if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
                     from ci.tests.general.general_hypervisor import GeneralHypervisor
                     hypervisor_info = GeneralHypervisor.get_hypervisor_info()
                     ssh_con = _get_remote_ssh_connection(*hypervisor_info)[0]

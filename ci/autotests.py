@@ -29,7 +29,6 @@ import subprocess
 import ConfigParser
 from xml.dom import minidom
 from ci.tests.general.general import General
-from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
@@ -135,7 +134,7 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
             testrail_ip = TESTRAIL_SERVER
             testrail_key = TESTRAIL_KEY
             env_info = _get_env_info()
-            testrail_title = env_info + "__" + version + "__" + qualitylevel + "__" + GeneralPMachine.get_hypervisor_type()
+            testrail_title = env_info + "__" + version + "__" + qualitylevel + "__" + GeneralStorageRouter.get_hypervisor_type()
             testrail_project = project_name
             testrail_description = _get_description()
 

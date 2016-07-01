@@ -73,6 +73,30 @@ class GeneralStorageRouter(object):
         return StorageRouterList.get_slaves()
 
     @staticmethod
+    def get_all_ips():
+        """
+        Retrieve all Storage Router master ips
+        :return: list of master ips
+        """
+        return [sr.ip for sr in StorageRouterList.get_storagerouters()]
+
+    @staticmethod
+    def get_master_ips():
+        """
+        Retrieve all Storage Router master ips
+        :return: list of master ips
+        """
+        return [sr.ip for sr in StorageRouterList.get_masters()]
+
+    @staticmethod
+    def get_slave_ips():
+        """
+        Retrieve all Storage Router slave ips
+        :return: list of slave ips
+        """
+        return [sr.ip for sr in StorageRouterList.get_masters()]
+
+    @staticmethod
     def sync_with_reality(storagerouter=None):
         """
         Synchronize the disks in the model with the reality on the storagerouter or all storagerouters

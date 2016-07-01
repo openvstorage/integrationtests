@@ -21,7 +21,6 @@ Init for Arakoon testsuite
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_arakoon import GeneralArakoon
-from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
@@ -42,13 +41,6 @@ def setup():
     Make necessary changes before being able to run the tests
     :return: None
     """
-    autotest_config = General.get_config()
-    backend_name = autotest_config.get('backend', 'name')
-    assert backend_name, 'Please fill out a backend name in the autotest.cfg file'
-    backend = GeneralBackend.get_by_name(backend_name)
-    if backend is not None:
-        GeneralAlba.remove_alba_backend(backend.alba_backend)
-
     for storagerouter in GeneralStorageRouter.get_masters():
         root_client = SSHClient(storagerouter, username='root')
         if GeneralService.get_service_status(name='ovs-scheduled-tasks',
@@ -56,16 +48,10 @@ def setup():
             GeneralService.stop_service(name='ovs-scheduled-tasks',
                                         client=root_client)
 
-    storagerouters = GeneralStorageRouter.get_storage_routers()
-    for sr in storagerouters:
+    for sr in GeneralStorageRouter.get_storage_routers():
         root_client = SSHClient(sr, username='root')
-        GeneralDisk.add_db_role(sr)
-
         for location in TEST_CLEANUP:
             root_client.run('rm -rf {0}'.format(location))
-
-    GeneralAlba.add_alba_backend(backend_name)
-    GeneralArakoon.voldrv_arakoon_checkup()
 
 
 def teardown():
@@ -74,12 +60,6 @@ def teardown():
     Removal actions of possible things left over after the test-run
     :return: None
     """
-    autotest_config = General.get_config()
-    backend_name = autotest_config.get('backend', 'name')
-    backend = GeneralBackend.get_by_name(backend_name)
-    if backend is not None:
-        GeneralAlba.remove_alba_backend(backend.alba_backend)
-
     for storagerouter in GeneralStorageRouter.get_masters():
         root_client = SSHClient(storagerouter, username='root')
         if GeneralService.get_service_status(name='ovs-scheduled-tasks',

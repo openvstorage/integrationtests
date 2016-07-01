@@ -316,11 +316,9 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
 
     provide_root_pwds = True
     while provide_root_pwds:
-        idx = child.expect(["Which type of hypervisor is this Grid Storage Router",
-                            "Which type of hypervisor is this Storage Router backing",
-                            "Password:",
+        idx = child.expect(["Password:",
                             "Use an external Etcd cluster"])
-        if idx == 3:
+        if idx == 1:
             if not ext_etcd:
                 child.sendline("")
             else:
@@ -334,22 +332,11 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
                     child.sendline(ext_etcd)
                     child.sendline("")
             print "external etcd: {0}".format(ext_etcd)
-        if idx == 2:
+        if idx == 0:
             child.sendline(UBUNTU_PASSWORD)
         else:
             provide_root_pwds = False
 
-    _pick_option(child, hv_type.upper())
-    child.expect("Enter hypervisor hostname")
-    child.sendline("")
-    if hv_type == "VMWARE":
-        child.expect("Enter hypervisor ip address")
-        child.sendline(hv_ip)
-        try:
-            _ = child.expect("Password:")
-            child.sendline("R00t3r123")
-        except:
-            pass
     exit_script_mark = "~#"
 
     # 10 minutes to install ovs components
@@ -395,8 +382,10 @@ def _patch_code_with(branch, repo_map, remote_con):
     url = 'https://github.com/openvstorage/{0}.git'
 
     for repo in repo_map.iterkeys():
+        print remote_con.process.execute("rm -rf /opt/OpenvStorage/*")
         print remote_con.process.execute("cd /tmp; rm -rf /tmp/{0}".format(repo) + "; git clone " + url.format(repo))
-        exit_code, _ = remote_con.process.execute("cd /tmp/{0}; git checkout {1} ".format(repo, branch), dieOnNonZeroExitCode=False)
+        exit_code, _ = remote_con.process.execute("cd /tmp/{0}; git checkout {1} ".format(repo, branch),
+                                                  dieOnNonZeroExitCode=False)
         if exit_code == 0:
             for source_path in repo_map[repo]:
                 cmd = "cd /tmp/{0}; cp -R {1}/* {2}".format(repo, source_path, repo_map[repo][source_path])

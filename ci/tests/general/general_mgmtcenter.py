@@ -19,7 +19,6 @@ A general class dedicated to Management Center logic
 """
 
 from ci.tests.general.general import General
-from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.tests.general.connection import Connection
 from ovs.dal.lists.mgmtcenterlist import MgmtCenterList
 from ovs.extensions.generic.sshclient import SSHClient
