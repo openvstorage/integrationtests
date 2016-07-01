@@ -61,7 +61,7 @@ class GeneralVPool(object):
         :rtype: VPool
         """
         if storagerouters is None:
-            storagerouters = [GeneralStorageRouter.get_local_storagerouter()]
+            storagerouters = list(GeneralStorageRouter.get_storage_routers())
         if vpool_parameters is None:
             vpool_parameters = {}
         if not isinstance(storagerouters, list) or len(storagerouters) == 0:
@@ -126,15 +126,7 @@ class GeneralVPool(object):
         :param vpool: vPool to retrieve configuration for
         :return: Storage Driver configuration
         """
-        task_result = GeneralVPool.api.execute_get_action(component='vpools',
-                                                          guid=vpool.guid,
-                                                          action='get_configuration',
-                                                          wait=True,
-                                                          timeout=60)
-        if task_result[0] is not True:
-            raise RuntimeError('Failed to retrieve the configuration for vPool {0}'.format(vpool.name),
-                               task_result)
-        return task_result[1]
+        return GeneralVPool.api.fetch(component='vpools', guid=vpool.guid)['configuration']
 
     @staticmethod
     def get_vpools():
@@ -450,10 +442,11 @@ class GeneralVPool(object):
                 if root_client.file_exists(file_name) is False:
                     raise ValueError('File {0} does not exist on Storage Router {1}'.format(file_name, storagerouter.ip))
 
+            # @TODO: check roles and sub_roles for all storagedrivers and not just once
             for partition in storagedriver.partitions:
                 if partition.role in sd_partitions and partition.sub_role in sd_partitions[partition.role]:
                     sd_partitions[partition.role].remove(partition.sub_role)
-                elif partition.role in sd_partitions and partition.sub_role is None:
+                elif partition.role in sd_partitions and partition.sub_role is None and len(sd_partitions[partition.role]):
                     sd_partitions[partition.role].remove('None')
 
             # Verify vPool writeable

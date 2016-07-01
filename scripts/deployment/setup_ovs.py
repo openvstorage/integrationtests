@@ -337,14 +337,16 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
         else:
             provide_root_pwds = False
 
-    exit_script_mark = "~#"
+    idx = child.expect(["Enable RDMA?", "Adding services"])
+    if idx == 0:
+        child.sendline("n")
+    elif idx == 1:
+        pass
 
     # 10 minutes to install ovs components
     child.timeout = 600
 
-    child.expect("Enable RDMA?")
-    child.sendline("")
-
+    exit_script_mark = "~#"
     try:
         # IP address to be used for the ASD API
         idx = child.expect(["Select the public IP address to be used for the API", exit_script_mark])
