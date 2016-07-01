@@ -18,7 +18,6 @@
 A general class dedicated to vMachine logic
 """
 
-from ovs.dal.lists.vmachinelist import VMachineList
 from ci.tests.general.logHandler import LogHandler
 
 
@@ -38,7 +37,7 @@ class GeneralVMachine(object):
         :param name: Name of the virtual machine
         :return: vMachine DAL object
         """
-        return VMachineList.get_vmachine_by_name(vmname=name)
+        return []
 
     @staticmethod
     def get_vmachines():
@@ -46,4 +45,4 @@ class GeneralVMachine(object):
         Retrieve all Virtual Machines
         :return: Virtual Machine data-object list
         """
-        return VMachineList.get_vmachines()
+        return []
