@@ -120,7 +120,8 @@ class TestVPool(object):
         # Add vPool and validate health
         vpool, vpool_params = GeneralVPool.add_vpool(vpool_parameters={'vpool_name': vpool_name,
                                                                        'type': 'distributed',
-                                                                       'distributed_mountpoint': partition.mountpoint})
+                                                                       'distributed_mountpoint': partition.mountpoint},
+                                                     storagerouters=[local_sr])
         assert vpool is not None,\
             'vPool {0} was not created'.format(vpool_name)
         GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)

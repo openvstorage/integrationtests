@@ -103,11 +103,12 @@ class GeneralAlba(object):
         assert name,\
             "Please fill out a valid backend name in autotest.cfg file"
 
-        my_sr = GeneralStorageRouter.get_local_storagerouter()
-        if GeneralStorageRouter.has_roles(storagerouter=my_sr, roles='DB') is False:
-            GeneralDisk.add_db_role(my_sr)
-        if GeneralStorageRouter.has_roles(storagerouter=my_sr, roles=['READ', 'SCRUB', 'WRITE']) is False:
-            GeneralDisk.add_read_write_scrub_roles(my_sr)
+        storage_routers = GeneralStorageRouter.get_storage_routers()
+        for sr in storage_routers:
+            if GeneralStorageRouter.has_roles(storagerouter=sr, roles='DB') is False:
+                GeneralDisk.add_db_role(sr)
+            if GeneralStorageRouter.has_roles(storagerouter=sr, roles=['READ', 'SCRUB', 'WRITE']) is False:
+                GeneralDisk.add_read_write_scrub_roles(sr)
         backend = GeneralBackend.get_by_name(name)
         if not backend:
             alba_backend = GeneralAlba.add_alba_backend(name)
@@ -367,7 +368,7 @@ class GeneralAlba(object):
             abm_arakoon_service_name = 'ovs-arakoon-{0}'.format(abm_service_name)
             nsm_arakoon_service_name = 'ovs-arakoon-{0}'.format(nsm_service_name)
             for service_name in [abm_arakoon_service_name, nsm_arakoon_service_name]:
-                assert GeneralService.has_service(name=service_name,client=root_client) is True,\
+                assert GeneralService.has_service(name=service_name, client=root_client) is True,\
                     'Service {0} not deployed on Storage Router {1}'.format(service_name, storagerouter.name)
                 assert GeneralService.get_service_status(name=service_name, client=root_client) is True,\
                     'Service {0} not running on Storage Router {1}'.format(service_name, storagerouter.name)
@@ -629,29 +630,37 @@ class GeneralAlba(object):
         :param disk_type: Type of disk
         :return: Filtered disks
         """
-        grid_ip = General.get_config().get('main', 'grid_ip')
-        storagerouter = GeneralStorageRouter.get_storage_router_by_ip(ip=grid_ip)
-        root_client = SSHClient(storagerouter, username='root')
-        hdds, ssds = GeneralDisk.get_physical_disks(client=root_client)
         count = 0
-        filtered_disks = list()
+        node_ids = []
+        filtered_disks = dict()
+        for node_id in disk_names.iterkeys():
+            node_ids.append(node_id)
+        while count < amount:
+            node_id = node_ids[count % len(node_ids)]
 
-        if disk_type == 'SATA':
-            list_to_check = hdds.values()
-        elif disk_type == 'SSD':
-            list_to_check = ssds.values()
-        else:
-            hdds.update(ssds)
-            list_to_check = hdds.values()
+            alba_node = AlbaNodeList.get_albanode_by_node_id(node_id)
+            storagerouter = GeneralStorageRouter.get_storage_router_by_ip(ip=alba_node.ip)
+            root_client = SSHClient(storagerouter, username='root')
+            hdds, ssds = GeneralDisk.get_physical_disks(client=root_client)
 
-        for disk_name in disk_names:
-            for disk in list_to_check:
-                if disk_name == disk['name']:
-                    filtered_disks.append(disk['name'])
-                    count += 1
-            if count == amount:
-                break
+            if disk_type == 'SATA':
+                list_to_check = hdds.values()
+            elif disk_type == 'SSD':
+                list_to_check = ssds.values()
+            else:
+                hdds.update(ssds)
+                list_to_check = hdds.values()
 
+            if len(disk_names[node_id]):
+                for disk in list_to_check:
+                    if disk_names[node_id][0] == disk['name']:
+                        if node_id in filtered_disks.keys():
+                            filtered_disks[node_id].append(disk['name'])
+                        else:
+                            filtered_disks[node_id] = [disk['name']]
+                        disk_names[node_id].pop(0)
+                        count += 1
+                        break
         return filtered_disks
 
     @staticmethod
@@ -668,29 +677,35 @@ class GeneralAlba(object):
         local_stack = alba_backend.local_stack
 
         initialised_disks = 0
-        uninitialized_disk_names = []
+        uninitialised_disks = 0
+        uninitialized_disk_names = {}
         for disks in local_stack.values():
             for disk_id, disk in disks.iteritems():
                 if disk['status'] == 'initialized':
                     initialised_disks += 1
                 elif disk['status'] == 'uninitialized':
-                    uninitialized_disk_names.append(disk_id)
+                    uninitialised_disks += 1
+                    if disk['node_id'] in uninitialized_disk_names.keys():
+                        uninitialized_disk_names[disk['node_id']].append(disk_id)
+                    else:
+                        uninitialized_disk_names[disk['node_id']] = [disk_id]
         nr_of_disks_to_init = nr_of_disks - initialised_disks
         if nr_of_disks_to_init <= 0:
             return True
 
-        assert len(uninitialized_disk_names) >= nr_of_disks_to_init,\
-            "Not enough disks to initialize!"
+        assert uninitialised_disks >= nr_of_disks_to_init, "Not enough disks to initialize!"
 
         disks_to_init = GeneralAlba.filter_disks(uninitialized_disk_names, nr_of_disks_to_init, disk_type)
-        assert len(disks_to_init) >= nr_of_disks_to_init,\
-            "Not enough disks to initialize!"
+        disks_found = 0
+        for node_id, disks in disks_to_init.iteritems():
+            disks_found += len(disks)
+        assert disks_found >= nr_of_disks_to_init, "Not enough disks to initialize!"
 
-        grid_ip = General.get_config().get('main', 'grid_ip')
-        alba_node = AlbaNodeList.get_albanode_by_ip(grid_ip)
-        failures = AlbaNodeController.initialize_disks(alba_node.guid, dict((disk_id, 1) for disk_id in disks_to_init))
-        assert not failures,\
-            'Alba disk initialization failed for (some) disks: {0}'.format(failures)
+        for node_id, disks in disks_to_init.iteritems():
+            alba_node = AlbaNodeList.get_albanode_by_node_id(node_id)
+            failures = AlbaNodeController.initialize_disks(alba_node.guid, dict((disk_id, 1) for disk_id in disks))
+            assert not failures,\
+                'Alba disk initialization failed for (some) disks: {0}'.format(failures)
 
     @staticmethod
     def claim_asds(alba_backend, nr_of_asds, disk_type=''):
@@ -702,15 +717,13 @@ class GeneralAlba(object):
         :return: None
         """
         def _wait_for_asd_count_with_status(_alba_backend, _nr_of_asds, status):
-            grid_ip = General.get_config().get('main', 'grid_ip')
-            alba_node = AlbaNodeList.get_albanode_by_ip(grid_ip)
             counter = GeneralAlba.ALBA_TIMER / GeneralAlba.ALBA_TIMER_STEP
             asds_with_status = {}
             while counter > 0:
                 GeneralAlba.logger.info('counter: {0}'.format(counter))
                 _alba_backend.invalidate_dynamics(['local_stack'])
-                if alba_node.node_id in _alba_backend.local_stack:
-                    for _disk in _alba_backend.local_stack[alba_node.node_id].values():
+                for node_id in _alba_backend.local_stack:
+                    for _disk in _alba_backend.local_stack[node_id].values():
                         for _osd_id, _asd in _disk['asds'].iteritems():
                             if _asd['status'] == status:
                                 asds_with_status[_osd_id] = _disk.get('guid')
