@@ -25,20 +25,19 @@ import urllib
 import logging
 import urlparse
 from ci.tests.general.general import General
-from ci.tests.general.general_openstack import GeneralOpenStack
-from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.tests.general.general_vmachine import GeneralVMachine
-from ovs.extensions.hypervisor.hypervisors.kvm import Sdk as Kvm_sdk
-from ovs.extensions.hypervisor.hypervisors.vmware import Sdk as Vmware_sdk
+from ci.tests.general.general_openstack import GeneralOpenStack
 from ovs.lib.helpers.toolbox import Toolbox
 from ovs.lib.vdisk import VDiskController
 from xml.dom import minidom
+
 
 
 class GeneralHypervisor(object):
     """
     A general class dedicated to Hypervisor logic
     """
+
     @staticmethod
     def download_to_vpool(url, path, overwrite_if_exists=False):
         """
@@ -66,6 +65,15 @@ class GeneralHypervisor(object):
                 if len(s) < bsize:
                     break
         u.close()
+
+    @staticmethod
+    def get_hypervisor_type():
+        """
+        Retrieve type of hypervisor
+        :return hypervisor type ['KVM'|'VMWARE']
+        """
+        config = General.get_config()
+        return config.get('hypervisor', 'type')
 
     @staticmethod
     def get_hypervisor_info():
@@ -143,7 +151,7 @@ class Hypervisor(object):
         if len(vpool.storagedrivers) == 0:
             raise ValueError('No Storage Drivers found on vPool {0}'.format(vpool.name))
 
-        htype = GeneralPMachine.get_hypervisor_type()
+        htype = GeneralHypervisor.get_hypervisor_type()
         if htype == 'VMWARE':
             return Vmware(vpool)
         else:

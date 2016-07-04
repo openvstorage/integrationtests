@@ -135,9 +135,7 @@ class General(object):
         Do some cleanup actions
         :return: None
         """
-        from ci.tests.general.general_pmachine import GeneralPMachine
         from ci.tests.general.general_vdisk import GeneralVDisk
-        from ci.tests.general.general_vmachine import GeneralVMachine
 
         def _get_remote_ssh_connection(ip_address, username, password):
             import paramiko
@@ -154,21 +152,6 @@ class General(object):
         from ci.tests.general.general_vpool import GeneralVPool
         for vpool in GeneralVPool.get_vpools():
             if vpool:
-                hpv = general_hypervisor.Hypervisor.get(vpool)
-                vm_names = [vm.name for vm in GeneralVMachine.get_vmachines()]
-                for name in vm_names:
-                    vm = GeneralVMachine.get_vmachine_by_name(name)
-                    if not vm:
-                        continue
-                    vm = vm[0]
-                    if not vm.name.startswith(machine_name):
-                        continue
-                    if vm.is_vtemplate:
-                        hpv.delete_clones(vm)
-                    logging.log(1, "Deleting {0} on hypervisor".format(vm.name))
-                    hpv.poweroff(vm.name)
-                    hpv.delete(vm.name)
-
                 env_macs = General.execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()
                 if vpool.storagedrivers:
                     mountpoint = vpool.storagedrivers[0].mountpoint
@@ -202,17 +185,12 @@ class General(object):
 
                 GeneralVPool.remove_vpool(vpool)
 
-                if GeneralPMachine.get_hypervisor_type() == 'VMWARE':
+                if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
                     from ci.tests.general.general_hypervisor import GeneralHypervisor
                     hypervisor_info = GeneralHypervisor.get_hypervisor_info()
                     ssh_con = _get_remote_ssh_connection(*hypervisor_info)[0]
                     cmd = "esxcli storage nfs remove -v {0}".format(vpool.name)
                     ssh_con.exec_command(cmd)
-
-                vmachines = GeneralVMachine.get_vmachines()
-                for vmachine in vmachines:
-                    logging.log(1, 'WARNING: Removing leftover vmachine: {0}'.format(vmachine.name))
-                    vmachine.delete()
 
     @staticmethod
     def get_loop_devices(client):

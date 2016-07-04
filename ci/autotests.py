@@ -29,7 +29,7 @@ import subprocess
 import ConfigParser
 from xml.dom import minidom
 from ci.tests.general.general import General
-from ci.tests.general.general_pmachine import GeneralPMachine
+from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
@@ -135,7 +135,7 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
             testrail_ip = TESTRAIL_SERVER
             testrail_key = TESTRAIL_KEY
             env_info = _get_env_info()
-            testrail_title = env_info + "__" + version + "__" + qualitylevel + "__" + GeneralPMachine.get_hypervisor_type()
+            testrail_title = env_info + "__" + version + "__" + qualitylevel + "__" + GeneralHypervisor.get_hypervisor_type()
             testrail_project = project_name
             testrail_description = _get_description()
 
@@ -443,7 +443,7 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
         if elapsed == 0:
             elapsed = 1
         testrail_api.add_result(test_id=test_id, status_id=status_id, comment=comment, version=version,
-                                elapsed='%ss' % elapsed, custom_fields={'custom_hypervisor': GeneralPMachine.get_hypervisor_type()})
+                                elapsed='%ss' % elapsed, custom_fields={'custom_hypervisor': GeneralHypervisor.get_hypervisor_type()})
 
     xmlfile.unlink()
     del xmlfile
@@ -511,11 +511,11 @@ def _get_description(plan_comment="", durations=""):
     hardware_info = "### " + sysinfo + '\n### Disk Information\n' + diskinfo + '\n### Processor Information\n' + '* ' + '\n* '.join(cpuinfo) + '\n### Memory Information\n' + '* ' + ' '.join(meminfo)
     description = ""
     node_ips = ""
-    for ip in GeneralPMachine.get_all_ips():
+    for ip in GeneralStorageRouter.get_all_ips():
         node_ips += "* " + ip + "\n"
     for item, value in (("ip", "%s" % node_ips),
                         ("testsuite", durations),
-                        ("Hypervisor", GeneralPMachine.get_hypervisor_type()),
+                        ("Hypervisor", GeneralHypervisor.get_hypervisor_type()),
                         ("hardware", hardware_info),
                         ("package", _get_package_info()),
                         ("Comment ", ('*' * 40 + "\n" + plan_comment) if plan_comment else '')):

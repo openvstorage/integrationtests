@@ -19,7 +19,6 @@ Sanity check testsuite
 """
 
 from ci.tests.general.general import General
-from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
 from ovs.extensions.generic.sshclient import SSHClient
@@ -35,7 +34,7 @@ class TestSanity(object):
         Verify SSH keys
         """
         issues_found = []
-        env_ips = GeneralPMachine.get_all_ips()
+        env_ips = GeneralStorageRouter.get_all_ips()
         for env_ip_connecting_from in env_ips:
             out = General.execute_command_on_node(env_ip_connecting_from, "cat ~/.ssh/known_hosts")
             for env_ip_connecting_to in env_ips:
@@ -51,7 +50,7 @@ class TestSanity(object):
         Verify some services
         """
         # get env ips
-        env_ips = GeneralPMachine.get_all_ips()
+        env_ips = GeneralStorageRouter.get_all_ips()
         non_running_services = []
 
         for env_ip in env_ips:

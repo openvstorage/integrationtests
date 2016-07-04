@@ -20,7 +20,6 @@ Validation testsuite
 
 import re
 from ci.tests.general.general import General
-from ci.tests.general.general_pmachine import GeneralPMachine
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
@@ -51,7 +50,7 @@ class TestAfterCare(object):
         """
         errorlist = ""
         command = "grep -C 1 'Could not acquire lock' /var/log/ovs/lib.log"
-        gridips = GeneralPMachine.get_all_ips()
+        gridips = GeneralStorageRouter.get_all_ips()
 
         for gridip in gridips:
             out = General.execute_command_on_node(gridip, command + " | wc -l")
