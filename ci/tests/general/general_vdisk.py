@@ -25,6 +25,7 @@ import random
 import string
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
+from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.extensions.generic.sshclient import SSHClient
 from subprocess import CalledProcessError
@@ -35,15 +36,6 @@ class GeneralVDisk(object):
     A general class dedicated to vDisk logic
     """
     api = Connection()
-
-    @staticmethod
-    def get_vdisk_by_name(name):
-        """
-        Retrieve the DAL vDisk object based on its name
-        :param name: Name of the virtual disk
-        :return: vDisk DAL object
-        """
-        return VDiskList.get_vdisk_by_name(vdiskname=name)
 
     @staticmethod
     def get_vdisks():
@@ -97,12 +89,11 @@ class GeneralVDisk(object):
         if wait is True:
             counter = 0
             timeout = 60
-            volume_name = os.path.basename(location).replace('-flat.vmdk', '').replace('.raw', '')
+            volume_name = '/' + os.path.basename(location)
             while True and counter < timeout:
                 time.sleep(1)
-                vdisks = GeneralVDisk.get_vdisk_by_name(name=volume_name)
-                if vdisks is not None:
-                    vdisk = vdisks[0]
+                vdisk = VDiskList.get_by_devicename_and_vpool(volume_name, vpool)
+                if vdisk is not None:
                     break
                 counter += 1
             if counter == timeout:
@@ -134,10 +125,10 @@ class GeneralVDisk(object):
         if wait is True:
             counter = 0
             timeout = 60
-            volume_name = os.path.basename(location).replace('-flat.vmdk', '').replace('.raw', '')
+            volume_name = '/' + os.path.basename(location)
             while True and counter < timeout:
                 time.sleep(1)
-                vdisks = GeneralVDisk.get_vdisk_by_name(name=volume_name)
+                vdisks = VDiskList.get_by_devicename_and_vpool(volume_name, vpool)
                 if vdisks is None:
                     break
                 counter += 1
@@ -200,7 +191,8 @@ class GeneralVDisk(object):
                                                           'consistent': consistent,
                                                           'automatic': automatic,
                                                           'sticky': sticky,
-                                                          'snapshot_id': snapshot_name})
+                                                          'snapshot_id': snapshot_name},
+                                                    wait=True)
 
     @staticmethod
     def delete_snapshot(disk, snapshot_name):
@@ -240,7 +232,7 @@ class GeneralVDisk(object):
         :param vdisk_name: Disk to retrieve path for
         :return: Absolute path
         """
-        hv_type = vpool.storagedrivers[0].storagerouter.pmachine.hvtype
+        hv_type = GeneralHypervisor.get_hypervisor_type()
         if hv_type == 'VMWARE':
             location = '/'.join(['/mnt/{0}'.format(vpool.name), "{0}-flat.vmdk".format(vdisk_name)])
         elif hv_type == 'KVM':
@@ -316,6 +308,6 @@ class GeneralVDisk(object):
                                                               action='is_volume_synced_up_to_snapshot',
                                                               data={'snapshot_id': str(snapshot_id)}, wait=True)
         assert status is True,\
-            'is_volume_synced_up_to_snapshot failed for vdisk: {0}'.format(vdisk.name)
+            'is_volume_synced_up_to_snapshot failed for vdisk: {0} with error: {1}'.format(vdisk.name, result)
 
         return result

@@ -291,6 +291,7 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
                     'alba-asdmanager': {'config': '/opt/asd-manager/config',
                                         'source': '/opt/asd-manager/source'}
                     }
+        print remote_con.process.execute("rm -rf /opt/OpenvStorage/*")
         _patch_code_with(branch, repo_map, remote_con)
 
     child = pexpect.spawn('ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{0}'.format(pub_ip))
@@ -383,14 +384,21 @@ def _patch_code_with(branch, repo_map, remote_con):
     remote_con.process.execute("apt-get install -y git")
     url = 'https://github.com/openvstorage/{0}.git'
 
+    exit_code, output = remote_con.process.execute("cat /etc/apt/sources.list.d/ovsaptrepo.list | awk '{print $3}'")
+    base_branch = output.strip()
+    if base_branch == 'unstable':
+        base_branch = 'master'
+
     for repo in repo_map.iterkeys():
-        print remote_con.process.execute("rm -rf /opt/OpenvStorage/*")
         print remote_con.process.execute("cd /tmp; rm -rf /tmp/{0}".format(repo) + "; git clone " + url.format(repo))
         exit_code, _ = remote_con.process.execute("cd /tmp/{0}; git checkout {1} ".format(repo, branch),
                                                   dieOnNonZeroExitCode=False)
+        if exit_code != 0:
+            exit_code, _ = remote_con.process.execute("cd /tmp/{0}; git checkout {1} ".format(repo, base_branch),
+                                                      dieOnNonZeroExitCode=False)
         if exit_code == 0:
             for source_path in repo_map[repo]:
-                cmd = "cd /tmp/{0}; cp -R {1}/* {2}".format(repo, source_path, repo_map[repo][source_path])
+                cmd = "cd /tmp/{0}; mkdir -p {2}; cp -R {1}/* {2}".format(repo, source_path, repo_map[repo][source_path])
                 print cmd
                 print remote_con.process.execute(cmd)
         else:
