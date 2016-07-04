@@ -291,7 +291,9 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
                     'alba-asdmanager': {'config': '/opt/asd-manager/config',
                                         'source': '/opt/asd-manager/source'}
                     }
-        print remote_con.process.execute("rm -rf /opt/OpenvStorage/*")
+        # @todo: cleanup
+        # print remote_con.process.execute("rm -rf /opt/OpenvStorage/ovs/*")
+        # print remote_con.process.execute("rm -rf /opt/OpenvStorage/webapps/*")
         _patch_code_with(branch, repo_map, remote_con)
 
     child = pexpect.spawn('ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@{0}'.format(pub_ip))
