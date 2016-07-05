@@ -18,8 +18,8 @@
 A general class dedicated to vMachine logic
 """
 
-from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ci.tests.general.logHandler import LogHandler
+
 
 class GeneralVMachine(object):
     """
