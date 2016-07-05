@@ -651,14 +651,13 @@ class GeneralAlba(object):
                 hdds.update(ssds)
                 list_to_check = hdds.values()
 
-            if len(disk_names[node_id]):
+            for disk_name in disk_names[node_id]:
                 for disk in list_to_check:
-                    if disk_names[node_id][0] == disk['name']:
+                    if disk_name == disk['name']:
                         if node_id in filtered_disks.keys():
                             filtered_disks[node_id].append(disk['name'])
                         else:
                             filtered_disks[node_id] = [disk['name']]
-                        disk_names[node_id].pop(0)
                         count += 1
                         break
         return filtered_disks
