@@ -405,7 +405,7 @@ class Kvm(object):
         self.sdk = Kvm_sdk()
 
     def _get_vms(self):
-        vms = self.sdk.get_vms()
+        return self.sdk.get_vms()
 
     def create_vm(self, name, ram=1024, small=False):
         """
@@ -531,6 +531,9 @@ class Kvm(object):
         :param name: Name of the Virtual Machine
         :return: None
         """
+        vms = self._get_vms()
+        vm = [v for v in vms if v.name == name]
+
         assert vm, "Couldn't find Virtual Machine with name {0}".format(name)
         assert len(vm) == 1, "More than 1 result when looking up vmachine with name: {0}".format(name)
 
