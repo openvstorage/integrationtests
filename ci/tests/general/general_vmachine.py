@@ -18,8 +18,8 @@
 A general class dedicated to vMachine logic
 """
 
+from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ci.tests.general.logHandler import LogHandler
-
 
 class GeneralVMachine(object):
     """
@@ -29,20 +29,3 @@ class GeneralVMachine(object):
 
     template_image = 'debian.qcow2'
     template_target_folder = '/var/tmp/templates/'
-
-    @staticmethod
-    def get_vmachine_by_name(name):
-        """
-        Retrieve the DAL vMachine object based on its name
-        :param name: Name of the virtual machine
-        :return: vMachine DAL object
-        """
-        return []
-
-    @staticmethod
-    def get_vmachines():
-        """
-        Retrieve all Virtual Machines
-        :return: Virtual Machine data-object list
-        """
-        return []

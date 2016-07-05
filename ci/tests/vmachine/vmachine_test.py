@@ -20,9 +20,10 @@ Virtual Machine testsuite
 
 import time
 from ci.tests.general.general import General
+from ci.tests.general.general_vdisk import GeneralVDisk
+from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ci.tests.general.general_vmachine import GeneralVMachine
 from ci.tests.general.general_vpool import GeneralVPool
-from ci.tests.general.general_vdisk import GeneralVDisk
 from ovs.lib.scheduledtask import ScheduledTaskController
 from ovs.lib.vdisk import VDiskController
 
@@ -31,6 +32,7 @@ class TestVMachine(object):
     """
     Virtual Machine testsuite
     """
+
 
     @staticmethod
     def vms_with_fio_test():
@@ -43,10 +45,13 @@ class TestVMachine(object):
         vpool_name = General.get_config().get('vpool', 'name')
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
         assert vpool, "No vpool found where one was expected"
+
+        hypervisor = GeneralHypervisor.Hypervisor.get(vpool)
+
         for disk_number in range(nr_of_disks):
             disk_name = "disk-{0}".format(disk_number)
             GeneralVMachine.logger.info("Starting RAW disk creation")
-            template_folder = TestVMachine.template_target_folder
+            template_folder = GeneralVMachine.template_target_folder
             image_name = GeneralVMachine.template_image
             out, err, _ = General.execute_command('qemu-img convert -O raw {0}{1} /mnt/{2}/{3}.raw'.format(template_folder, image_name, vpool_name, disk_name))
             if err:
@@ -67,20 +72,20 @@ class TestVMachine(object):
 
         counter = timeout / timer_step
         while counter > 0:
-            vms = GeneralVMachine.get_vmachines()
+            vms = hypervisor.get_vms()
             if len(vms) == nr_of_disks:
                 counter = 0
             else:
                 counter -= 1
                 time.sleep(timer_step)
-        vms = GeneralVMachine.get_vmachines()
+        vms = hypervisor.get_vmachines()
         assert len(vms) == nr_of_disks, "Only {0} out of {1} VMachines have been created after {2} seconds".format(len(vms), nr_of_disks, timeout)
 
         # Waiting for 1 minute of FIO activity on vmachine
         time.sleep(60)
-        vms = GeneralVMachine.get_vmachines()
+        vms = hypervisor.get_vmachines()
         for vm in vms:
-            assert vm.hypervisor_status == 'RUNNING', "Machine {0} has wrong status on the hypervisor: {1}".format(vm.name, vm.hypervisor_status)
+            assert hypervisor.get_power_state(vm) == 'RUNNING', "Machine {0} has wrong status on the hypervisor: {1}".format(vm.name, vm.hypervisor_status)
 
         for vm_number in range(nr_of_disks):
             vmachine_name = "machine-{0}".format(vm_number)
@@ -94,13 +99,13 @@ class TestVMachine(object):
 
         counter = timeout / timer_step
         while counter > 0:
-            vms = GeneralVMachine.get_vmachines()
+            vms = hypervisor.get_vmachines()
             if len(vms):
                 counter -= 1
                 time.sleep(timer_step)
             else:
                 counter = 0
-        vms = GeneralVMachine.get_vmachines()
+        vms = hypervisor.get_vmachines()
         assert len(vms) == 0, "Still some machines left on the vpool after waiting for {0} seconds: {1}".format(timeout, [vm.name for vm in vms])
 
         GeneralVMachine.logger.info("Removing vpool vdisks from {0} vpool".format(vpool_name))
@@ -132,12 +137,14 @@ class TestVMachine(object):
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
         assert vpool, "No vpool found where one was expected"
 
+        hypervisor = GeneralHypervisor.Hypervisor.get(vpool)
+
         template_folder = GeneralVMachine.template_target_folder
         image_name = GeneralVMachine.template_image
 
         for disk_number in range(nr_of_disks):
             disk_name = "scrubdisk-{0}".format(disk_number)
-            TestVMachine.logger.info("Starting RAW disk creation")
+            GeneralVMachine.logger.info("Starting RAW disk creation")
             out, err, _ = General.execute_command('qemu-img convert -O raw {0}{1} /mnt/{2}/{3}.raw'.format(template_folder, image_name, vpool_name, disk_name))
             if err:
                 TestVMachine.logger.error("Error while creating raw disk: {0}".format(err))
@@ -145,12 +152,12 @@ class TestVMachine(object):
         for vm_number in range(nr_of_disks):
             machine_name = "machine-{0}".format(vm_number)
             disk_name = "scrubdisk-{0}".format(vm_number)
-            TestVMachine.logger.info("Starting vmachine creation from RAW disk")
+            GeneralVMachine.logger.info("Starting vmachine creation from RAW disk")
             out, err, _ = General.execute_command('virt-install --connect qemu:///system -n {0} -r 512 --disk /mnt/{1}/{2}.raw,'
                                                   'device=disk --noautoconsole --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,'
                                                   'model=e1000 --import'.format(machine_name, vpool_name, disk_name))
             if err:
-                TestVMachine.logger.error("Error while creating vmachine: {0}".format(err))
+                GeneralVMachine.logger.error("Error while creating vmachine: {0}".format(err))
 
         def snapshot_vdisks():
             vds = GeneralVDisk.get_vdisks()
@@ -158,12 +165,11 @@ class TestVMachine(object):
                 metadata = {'label': 'snap-' + disk.name,
                             'is_consistent': True,
                             'timestamp': time.time(),
-                            'machineguid': disk.vmachine_guid,
                             'is_automatic': False,
                             'is_sticky': False}
                 VDiskController.create_snapshot(disk.guid, metadata)
 
-        # snapshoting disks for the first time
+        # snapshotting disks for the first time
         snapshot_vdisks()
         counter = timeout / timer_step
         while counter > 0:
@@ -172,12 +178,12 @@ class TestVMachine(object):
             snapshot_vdisks()
 
         # stopping machines
-        vms = GeneralVMachine.get_vmachines()
+        vms = hypervisor.get_vmachines()
         for vm in vms:
-            TestVMachine.logger.info("Stopping {0} vmachine".format(vm.name))
+            GeneralVMachine.logger.info("Stopping {0} vmachine".format(vm.name))
             out, err, _ = General.execute_command('virsh destroy {0}'.format(vm.name))
             if err:
-                TestVMachine.logger.error("Error while stopping vmachine: {0}".format(err))
+                GeneralVMachine.logger.error("Error while stopping vmachine: {0}".format(err))
 
         vds = GeneralVDisk.get_vdisks()
         disk_backend_data = {}
@@ -208,12 +214,18 @@ class TestVMachine(object):
         # removing vmachines
         for vm_number in range(nr_of_disks):
             vmachine_name = "machine-{0}".format(vm_number)
-            TestVMachine.logger.info("Removing vmachine {0}".format(vmachine_name))
+            GeneralVMachine.logger.info("Removing vmachine {0}".format(vmachine_name))
+            out, err, _ = General.execute_command('virsh destroy {0}'.format(vmachine_name))
+            GeneralVMachine.logger.info("Removing vmachine {0} - out:".format(out))
+            GeneralVMachine.logger.info("Removing vmachine {0} - err:".format(err))
             out, err, _ = General.execute_command('virsh undefine {0}'.format(vmachine_name))
+            GeneralVMachine.logger.info("Removing vmachine {0} - out:".format(out))
+            GeneralVMachine.logger.info("Removing vmachine {0} - err:".format(err))
+
         # removing vdisk
-        TestVMachine.logger.info("Removing vpool vdisks from {0} vpool".format(vpool_name))
+            GeneralVMachine.logger.info("Removing vpool vdisks from {0} vpool".format(vpool_name))
         out, err, _ = General.execute_command("rm -rf /mnt/{0}/*.raw".format(vpool_name))
         if err:
-            TestVMachine.logger.error("Error while removing vdisks: {0}".format(err))
+            GeneralVMachine.logger.error("Error while removing vdisks: {0}".format(err))
 
         assert issues_found == "", "Following issues appeared:\n{0}".format(issues_found)

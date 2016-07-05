@@ -320,7 +320,8 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
     provide_root_pwds = True
     while provide_root_pwds:
         idx = child.expect(["Password:",
-                            "Use an external Etcd cluster"])
+                            "Use an external Etcd cluster",
+                            "Adding services"])
         if idx == 1:
             if not ext_etcd:
                 child.sendline("")
@@ -340,10 +341,12 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
         else:
             provide_root_pwds = False
 
-    idx = child.expect(["Enable RDMA?", "Adding services"])
+    idx = child.expect(["Enable RDMA?", "Adding service workers", "Promoting node"])
     if idx == 0:
         child.sendline("n")
     elif idx == 1:
+        pass
+    elif idx == 2:
         pass
 
     # 10 minutes to install ovs components
