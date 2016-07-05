@@ -60,7 +60,6 @@ def setup():
         GeneralVMachine.logger.error("Error while changing user owner to root for template: {0}".format(err))
 
     GeneralAlba.prepare_alba_backend()
-    GeneralManagementCenter.create_generic_mgmt_center()
     _, vpool_params = GeneralVPool.add_vpool()
     GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
 
@@ -81,8 +80,3 @@ def teardown():
     be = GeneralBackend.get_by_name(autotest_config.get('backend', 'name'))
     if be:
         GeneralAlba.unclaim_disks_and_remove_alba_backend(alba_backend=be.alba_backend)
-
-    GeneralVMachine.logger.info("Cleaning management center")
-
-    for mgmt_center in GeneralManagementCenter.get_mgmt_centers():
-        GeneralManagementCenter.remove_mgmt_center(mgmt_center)

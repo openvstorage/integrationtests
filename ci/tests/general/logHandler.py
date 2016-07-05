@@ -73,7 +73,10 @@ class LogHandler(object):
                'license': 'license',
                'mgmtcenter': 'mgmtcenter',
                'sanity': 'sanity',
+               'system': 'system',
                'validation': 'validation',
+               'vdisk': 'vdisk',
+               'vmachines': 'vmachines',
                'vpool': 'vpool'}
 
     def __init__(self, source, name=None, propagate=False):

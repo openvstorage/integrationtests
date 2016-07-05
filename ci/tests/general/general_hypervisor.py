@@ -25,8 +25,9 @@ import urllib
 import logging
 import urlparse
 from ci.tests.general.general import General
-from ci.tests.general.general_vmachine import GeneralVMachine
 from ci.tests.general.general_openstack import GeneralOpenStack
+from ci.tests.general.general_kvm import Sdk as Kvm_sdk
+from ci.tests.general.general_vmware import Sdk as Vmware_sdk
 from ovs.lib.helpers.toolbox import Toolbox
 from ovs.lib.vdisk import VDiskController
 from xml.dom import minidom
@@ -403,6 +404,9 @@ class Kvm(object):
         self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
         self.sdk = Kvm_sdk()
 
+    def _get_vms(self):
+        return self.sdk.get_vms()
+
     def create_vm(self, name, ram=1024, small=False):
         """
         Create a Virtual Machine
@@ -527,7 +531,9 @@ class Kvm(object):
         :param name: Name of the Virtual Machine
         :return: None
         """
-        vm = GeneralVMachine.get_vmachine_by_name(name)
+        vms = self._get_vms()
+        vm = [v for v in vms if v.name == name]
+
         assert vm, "Couldn't find Virtual Machine with name {0}".format(name)
         assert len(vm) == 1, "More than 1 result when looking up vmachine with name: {0}".format(name)
 

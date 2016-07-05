@@ -24,6 +24,7 @@ from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.general_disk import GeneralDisk
+from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
@@ -176,7 +177,7 @@ class TestVPool(object):
         vpool, vpool_params = GeneralVPool.add_vpool()
         GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
         root_client = SSHClient(GeneralStorageRouter.get_local_storagerouter(), username='root')
-        if vpool.storagedrivers[0].storagerouter.pmachine.hvtype == 'VMWARE':
+        if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
             GeneralVPool.mount_vpool(vpool=vpool,
                                      root_client=root_client)
 
@@ -195,7 +196,7 @@ class TestVPool(object):
                                        vpool=vpool,
                                        root_client=root_client)
 
-        if vpool.storagedrivers[0].storagerouter.pmachine.hvtype == 'VMWARE':
+        if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
             GeneralVPool.unmount_vpool(vpool=vpool,
                                        root_client=root_client)
 

@@ -21,8 +21,10 @@ Init for vDisk testsuite
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
+from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
 
+from ovs.dal.lists.vdisklist import VDiskList
 
 def setup():
     """
@@ -47,6 +49,10 @@ def teardown():
     """
     vpool_name = General.get_config().get("vpool", "name")
     vpool = GeneralVPool.get_vpool_by_name(vpool_name)
+
+    for vd in VDiskList.get_vdisks():
+        GeneralVDisk.delete_volume(vd)
+
     if vpool is not None:
         GeneralVPool.remove_vpool(vpool)
 
