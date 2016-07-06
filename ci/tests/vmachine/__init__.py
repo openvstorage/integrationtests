@@ -21,7 +21,6 @@ Init for vMachine testsuite
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
 from ci.tests.general.general_backend import GeneralBackend
-from ci.tests.general.general_mgmtcenter import GeneralManagementCenter
 from ci.tests.general.general_vmachine import GeneralVMachine
 from ci.tests.general.general_vpool import GeneralVPool
 
