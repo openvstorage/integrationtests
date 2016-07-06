@@ -77,12 +77,9 @@ class GeneralVDisk(object):
                 root_client.run('mount -t ext4 /dev/{0} /mnt/{0}'.format(loop_device))
             else:
                 root_client.run('truncate -s {0}G {1}'.format(size, location))
-        except CalledProcessError as _:
-            cmd = """
-                umount /mnt/{0};
-                losetup -d /dev/{0};
-                rm {1}""".format(loop_device, location)
-            root_client.run(cmd)
+        except CalledProcessError:
+            if loop_device is not None:
+                root_client.run("""umount /mnt/{0}; losetup -d /dev/{0}; rm {1}""".format(loop_device, location))
             raise
 
         vdisk = None

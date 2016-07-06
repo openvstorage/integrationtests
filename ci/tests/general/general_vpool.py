@@ -24,6 +24,7 @@ from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
 from ci.tests.general.general_arakoon import GeneralArakoon
 from ci.tests.general.general_backend import GeneralBackend
+from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagedriver import GeneralStorageDriver
@@ -46,6 +47,9 @@ class GeneralVPool(object):
     A general class dedicated to vPool logic
     """
     api = Connection()
+
+    TIMEOUT_ADD_VPOOL = 500
+    TIMEOUT_GET_ACTION = 60
 
     @staticmethod
     def add_vpool(vpool_parameters=None, storagerouters=None):
@@ -71,15 +75,19 @@ class GeneralVPool(object):
         storagerouter_param_map = dict((sr, GeneralVPool.get_add_vpool_params(storagerouter=sr, **vpool_parameters)) for sr in storagerouters)
         for index, sr in enumerate(storagerouters):
             vpool_name = storagerouter_param_map[sr]['vpool_name']
+            if GeneralStorageRouter.has_roles(storagerouter=sr, roles='DB') is False and sr.node_type == 'MASTER':
+                GeneralDisk.add_db_role(sr)
+            if GeneralStorageRouter.has_roles(storagerouter=sr, roles=['READ', 'SCRUB', 'WRITE']) is False:
+                GeneralDisk.add_read_write_scrub_roles(sr)
+
             task_result = GeneralVPool.api.execute_post_action(component='storagerouters',
                                                                guid=sr.guid,
                                                                action='add_vpool',
                                                                data={'call_parameters': storagerouter_param_map[sr]},
                                                                wait=True,
-                                                               timeout=500)
+                                                               timeout=GeneralVPool.TIMEOUT_ADD_VPOOL)
             if task_result[0] is not True:
-                raise RuntimeError('vPool was not {0} successfully'.format('extended' if index > 0 else 'created'),
-                                   task_result)
+                raise RuntimeError('vPool was not {0} successfully: {1}'.format('extended' if index > 0 else 'created', task_result[1]))
 
         vpool = GeneralVPool.get_vpool_by_name(vpool_name)
         if vpool is None:
@@ -113,7 +121,7 @@ class GeneralVPool(object):
                                                            action='shrink_vpool',
                                                            data={'storagerouter_guid': storage_driver.storagerouter.guid},
                                                            wait=True,
-                                                           timeout=500)
+                                                           timeout=GeneralVPool.TIMEOUT_ADD_VPOOL)
         if task_result[0] is not True:
             raise RuntimeError('Storage Driver with ID {0} was not successfully removed from vPool {1}'.format(storage_driver.storagedriver_id, vpool.name),
                                task_result)
@@ -126,7 +134,14 @@ class GeneralVPool(object):
         :param vpool: vPool to retrieve configuration for
         :return: Storage Driver configuration
         """
-        return GeneralVPool.api.fetch(component='vpools', guid=vpool.guid)['configuration']
+        task_result = GeneralVPool.api.execute_get_action(component='vpools',
+                                                          guid=vpool.guid,
+                                                          action='get_configuration',
+                                                          wait=True,
+                                                          timeout=GeneralVPool.TIMEOUT_GET_ACTION)
+        if task_result[0] is not True:
+            raise RuntimeError('Failed to retrieve the configuration for vPool {0}'.format(vpool.name))
+        return task_result[1]
 
     @staticmethod
     def get_vpools():

@@ -44,8 +44,14 @@ class GeneralHypervisor(object):
         """
         Special method to download to vpool because voldrv does not support extending file at write
         :param url: URL to download from
+        :type url: str
+
         :param path: Path to download to
+        :type path: str
+
         :param overwrite_if_exists: Overwrite if file already exists
+        :type overwrite_if_exists: bool
+
         :return: None
         """
         print url
@@ -82,42 +88,12 @@ class GeneralHypervisor(object):
         Retrieve info about hypervisor (ip, username, password)
         """
         config = General.get_config()
-        # @TODO: Split these settings up in separate section or at least in 3 separate values in main
-        hi = config.get(section='main', option='hypervisorinfo')
-        hpv_list = hi.split(',')
-        if not len(hpv_list) == 3:
-            raise RuntimeError('No hypervisor info present in config')
-        return hpv_list
-
-    @staticmethod
-    def set_hypervisor_info(ip, username, password):
-        """
-        Set info about hypervisor( ip, username and password )
-
-        :param ip:         IP address of hypervisor
-        :type ip:          String
-
-        :param username:   Username for hypervisor
-        :type username:    String
-
-        :param password:   Password of hypervisor
-        :type password:    String
-
-        :return:           None
-        """
-        if not re.match(Toolbox.regex_ip, ip):
-            print 'Invalid IP address specified'
-            return False
-
-        if type(username) != str or type(password) != str:
-            print 'Username and password need to be str format'
-            return False
-
-        value = ','.join([ip, username, password])
-        config = General.get_config()
-        config.set(section='main', option='hypervisorinfo', value=value)
-        General.save_config(config)
-        return True
+        hv_ip = config.get(section='hypervisor', option='ip')
+        hv_user = config.get(section='hypervisor', option='username')
+        hv_pass = config.get(section='hypervisor', option='password')
+        if not hv_ip or not hv_user or not hv_pass:
+            raise RuntimeError('Not all hypervisor information present in config')
+        return [hv_ip, hv_user, hv_pass]
 
 
 class Hypervisor(object):

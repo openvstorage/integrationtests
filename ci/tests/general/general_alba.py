@@ -49,6 +49,7 @@ class GeneralAlba(object):
     """
     ALBA_TIMER = 600
     ALBA_TIMER_STEP = 5
+    ONE_DISK_PRESET = '1diskpreset'
 
     api = Connection()
     logger = LogHandler.get('backend', name='alba')
@@ -130,6 +131,11 @@ class GeneralAlba(object):
         else:
             alba_backend = backend.alba_backend
         GeneralAlba.claim_asds(alba_backend, nr_of_disks_to_claim, type_of_disks_to_claim)
+        if GeneralAlba.has_preset(alba_backend=alba_backend,
+                                  preset_name=GeneralAlba.ONE_DISK_PRESET) is False:
+            GeneralAlba.add_preset(alba_backend=alba_backend,
+                                   name=GeneralAlba.ONE_DISK_PRESET,
+                                   policies=[[1, 1, 1, 2]])
 
     @staticmethod
     def unclaim_disks_and_remove_alba_backend(alba_backend):
@@ -265,8 +271,8 @@ class GeneralAlba(object):
         :param wait: Wait for backend to enter RUNNING state
         :return: Newly created ALBA backend
         """
-        backend = GeneralBackend.get_by_name(name)
-        if backend is None:
+        alba_backend = GeneralAlba.get_by_name(name)
+        if alba_backend is None:
             backend = GeneralBackend.add_backend(name, 'alba')
             alba_backend = AlbaBackend(GeneralAlba.api.add('alba/backends', {'backend_guid': backend.guid,
                                                                              'scaling': scaling})['guid'])
@@ -277,7 +283,7 @@ class GeneralAlba(object):
         if err == '' and len(out):
             AlbaNodeController.model_local_albanode()
 
-        return GeneralBackend.get_by_name(name).alba_backend
+        return GeneralAlba.get_by_name(name)
 
     @staticmethod
     def validate_alba_backend_sanity_without_claimed_disks(alba_backend):
@@ -833,8 +839,6 @@ class GeneralAlba(object):
         service_names = []
         for asd_node in GeneralAlba.get_alba_nodes():
             for entry in asd_node.client.list_maintenance_services():
-                if re.match('^ovs-alba-maintenance_{0}-[a-zA-Z0-9]{{32}}$'.format(alba_backend.name), entry):
+                if re.match('^alba-maintenance_{0}-[a-zA-Z0-9]{{16}}$'.format(alba_backend.name), entry):
                     service_names.append(entry)
-        assert len(service_names) > 0,\
-            'No maintenance services found for ALBA backend {0}'.format(alba_backend.backend.name)
         return service_names

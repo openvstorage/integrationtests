@@ -28,6 +28,7 @@ def setup():
     :return: None
     """
     print "setup called " + __name__
+    General.validate_required_config_settings()
     General.cleanup()
 
 

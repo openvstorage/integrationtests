@@ -17,6 +17,7 @@
 """
 Init for Sanity testsuite
 """
+from ci.tests.general.general import General
 
 
 def setup():
@@ -26,6 +27,7 @@ def setup():
     :return: None
     """
     print "Setup called " + __name__
+    General.validate_required_config_settings()
 
 
 def teardown():
