@@ -51,7 +51,7 @@ def teardown():
     vpool = GeneralVPool.get_vpool_by_name(vpool_name)
 
     for vd in VDiskList.get_vdisks():
-        GeneralVDisk.delete_volume(vd)
+        GeneralVDisk.delete_volume(vd, vpool, loop_device='loop0')
 
     if vpool is not None:
         GeneralVPool.remove_vpool(vpool)

@@ -17,6 +17,7 @@
 """
 Init for Disk Layout testsuite
 """
+from ci.tests.general.general import General
 
 
 def setup():
@@ -25,7 +26,7 @@ def setup():
     Make necessary changes before being able to run the tests
     :return: None
     """
-    pass
+    General.validate_required_config_settings()
 
 
 def teardown():

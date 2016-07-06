@@ -261,6 +261,9 @@ class TestVPool(object):
             if pid_before == pid_after:
                 errors.append('Kill command did not work on service {0}'.format(service_name))
 
+        # wait for services to startup again - gunicorn startup takes +- 30 seconds
+        time.sleep(45)
+
         GeneralVPool.remove_vpool(vpool)
 
         assert len(errors) == 0, "Following issues were found with the services:\n - {0}".format('\n - '.join(errors))

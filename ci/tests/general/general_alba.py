@@ -34,6 +34,7 @@ from ci.tests.general.logHandler import LogHandler
 from ovs.dal.exceptions import ObjectNotFoundException
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.servicetype import ServiceType
+from ovs.dal.lists.albabackendlist import AlbaBackendList
 from ovs.dal.lists.albanodelist import AlbaNodeList
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
@@ -51,6 +52,20 @@ class GeneralAlba(object):
 
     api = Connection()
     logger = LogHandler.get('backend', name='alba')
+
+    @staticmethod
+    def get_by_name(name):
+        """
+        Retrieve an ALBA backend object based on its name
+        :param name: Name of the ALBA backend
+        :type name: str
+
+        :return: ALBA backend or None
+         :rtype: AlbaBackend
+        """
+        for alba_backend in AlbaBackendList.get_albabackends():
+            if alba_backend.name == name:
+                return alba_backend
 
     @staticmethod
     def get_alba_backend(guid):
@@ -202,6 +217,24 @@ class GeneralAlba(object):
         return GeneralAlba.api.execute_post_action('alba/backends', alba_backend.guid, 'delete_preset', data, wait=True)
 
     @staticmethod
+    def has_preset(alba_backend, preset_name):
+        """
+        Validate whether the ALBA backend has a preset with given name
+        :param alba_backend: ALBA backend
+        :type alba_backend: AlbaBackend
+
+        :param preset_name: Name of the preset
+        :type preset_name: str
+
+        :return: True if preset is present
+        :rtype: bool
+        """
+        for preset in alba_backend.presets:
+            if preset['name'] == preset_name:
+                return True
+        return False
+
+    @staticmethod
     def wait_for_alba_backend_status(alba_backend, status='RUNNING', timeout=None):
         """
         Verify the ALBA backend status
@@ -228,6 +261,7 @@ class GeneralAlba(object):
         """
         Put an ALBA backend in the model
         :param name: Name of the backend
+        :param scaling: Alba backend can be LOCAL or GLOBAL
         :param wait: Wait for backend to enter RUNNING state
         :return: Newly created ALBA backend
         """
@@ -799,7 +833,7 @@ class GeneralAlba(object):
         service_names = []
         for asd_node in GeneralAlba.get_alba_nodes():
             for entry in asd_node.client.list_maintenance_services():
-                if entry.startswith('alba-maintenance_{0}'.format(alba_backend.backend.name)):
+                if re.match('^ovs-alba-maintenance_{0}-[a-zA-Z0-9]{{32}}$'.format(alba_backend.name), entry):
                     service_names.append(entry)
         assert len(service_names) > 0,\
             'No maintenance services found for ALBA backend {0}'.format(alba_backend.backend.name)
