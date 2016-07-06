@@ -124,8 +124,6 @@ class TestVMachine(object):
         Check scrubbing of vdisks test
         """
         issues_found = ""
-        timeout = 360
-        timer_step = 60
         nr_of_disks = 1
         vpool_name = General.get_config().get('vpool', 'name')
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
@@ -141,18 +139,7 @@ class TestVMachine(object):
             if err:
                 GeneralVMachine.logger.error("Error while creating raw disk: {0}".format(err))
 
-        for vm_number in range(nr_of_disks):
-            machine_name = "machine-{0}".format(vm_number)
-            disk_name = "scrubdisk-{0}".format(vm_number)
-            GeneralVMachine.logger.info("Starting vmachine creation from RAW disk")
-            out, err, _ = General.execute_command('virt-install --connect qemu:///system -n {0} -r 512 --disk /mnt/{1}/{2}.raw,'
-                                                  'device=disk --noautoconsole --graphics vnc,listen=0.0.0.0 --vcpus=1 --network network=default,mac=RANDOM,'
-                                                  'model=e1000 --import'.format(machine_name, vpool_name, disk_name))
-            if err:
-                GeneralVMachine.logger.error("Error while creating vmachine: {0}".format(err))
-
-        def snapshot_vdisks():
-            vds = GeneralVDisk.get_vdisks()
+        def snapshot_vdisks(vds):
             for disk in vds:
                 metadata = {'label': 'snap-' + disk.name,
                             'is_consistent': True,
@@ -163,20 +150,14 @@ class TestVMachine(object):
                 VDiskController.create_snapshot(disk.guid, metadata)
 
         # snapshoting disks for the first time
-        snapshot_vdisks()
-        counter = timeout / timer_step
+        vds = GeneralVDisk.get_vdisks()
+        snapshot_vdisks(vds)
+        counter = 100
         while counter > 0:
-            time.sleep(timer_step)
+            for disk in vds:
+                out, err, _ = General.execute_command('dd if=/dev/zero of=/mnt/{0}/{1}.raw bs=10K count=1000 conv=notrunc'.format(vpool_name, disk.name))
             counter -= 1
-            snapshot_vdisks()
-
-        # stopping machines
-        vms = GeneralVMachine.get_vmachines()
-        for vm in vms:
-            GeneralVMachine.logger.info("Stopping {0} vmachine".format(vm.name))
-            out, err, _ = General.execute_command('virsh destroy {0}'.format(vm.name))
-            if err:
-                GeneralVMachine.logger.error("Error while stopping vmachine: {0}".format(err))
+            snapshot_vdisks(vds)
 
         vds = GeneralVDisk.get_vdisks()
         disk_backend_data = {}
@@ -192,7 +173,7 @@ class TestVMachine(object):
         # starting scrubber
         ScheduledTaskController.gather_scrub_work()
         # waiting for model to catch up
-        time.sleep(120)
+        time.sleep(300)
         for disk in vds:
             disk.invalidate_dynamics(['statistics'])
         # checking result of scrub work
