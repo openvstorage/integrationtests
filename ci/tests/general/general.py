@@ -19,10 +19,12 @@ A general class dedicated to general logic
 """
 
 import os
+import re
 import grp
 import pwd
 import sys
 import shutil
+import inspect
 import logging
 import subprocess
 import ConfigParser
@@ -408,3 +410,48 @@ class General(object):
                          'name': user},
                 'group': {'id': gid,
                           'name': group}}
+
+    @staticmethod
+    def validate_required_config_settings(settings=None):
+        """
+        Will validate whether the required configurations have been set for a test-suite/test-class/test to be executed
+        In section 'main' we will validate by default 'grid_ip', 'username' and 'password' because these are required for every testsuite
+        :param settings: Settings to check for presence in the autotest.cfg
+        :type settings: dict
+
+        :return: None
+        """
+        if settings is None:
+            settings = {}
+        if not isinstance(settings, dict):
+            raise ValueError('Settings should be a dictionary')
+
+        if 'main' not in settings:
+            settings['main'] = []
+        for key in ['grid_ip', 'username', 'password']:
+            if key not in settings['main']:
+                settings['main'].append(key)
+
+        current_frame = inspect.currentframe()
+        caller_frame = inspect.getouterframes(current_frame, 2)
+        testsuite = re.findall('^/opt/OpenvStorage/ci/tests/(.*)/.*', caller_frame[1][1])
+        testsuite_str = ''
+        if len(testsuite) > 0:
+            testsuite_str = ' for testsuite "{0}"'.format(testsuite[0])
+
+        config = General.get_config()
+        missing_items = []
+        for section, required_values in settings.iteritems():
+            if not isinstance(required_values, list):
+                raise ValueError('The values in the settings dictionary should be a list')
+            if not config.has_section(section):
+                raise ValueError('Section "{0}" not found in autotest.cfg'.format(section))
+            for required_value in required_values:
+                if not config.has_option(section=section,
+                                         option=required_value):
+                    raise ValueError('Option "{0}" in section "{1}" does not exist'.format(required_value, section))
+                if not config.get(section=section, option=required_value):
+                    missing_items.append('"{0}" in section "{1}" is mandatory{2}'.format(required_value, section, testsuite_str))
+
+        if len(missing_items) > 0:
+            raise ValueError('Some required field are missing in autotest.cfg\n - {0}'.format('\n - '.join(missing_items)))
