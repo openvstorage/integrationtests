@@ -19,7 +19,6 @@ A general class dedicated to Hypervisor logic
 """
 
 import os
-import re
 import time
 import urllib
 import logging
@@ -28,10 +27,8 @@ from ci.tests.general.general import General
 from ci.tests.general.general_openstack import GeneralOpenStack
 from ci.tests.general.general_kvm import Sdk as Kvm_sdk
 from ci.tests.general.general_vmware import Sdk as Vmware_sdk
-from ovs.lib.helpers.toolbox import Toolbox
 from ovs.lib.vdisk import VDiskController
 from xml.dom import minidom
-
 
 
 class GeneralHypervisor(object):

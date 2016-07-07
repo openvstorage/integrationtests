@@ -22,18 +22,14 @@ import re
 import time
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
-from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
-from ci.tests.general.logHandler import LogHandler
 
 from ovs.extensions.generic.sshclient import SSHClient
-
-logger = LogHandler.get('vpools', name='vpool')
 
 
 class TestVPool(object):
@@ -92,7 +88,7 @@ class TestVPool(object):
         # Verify if an unused disk is available to mount
         unused_disks = GeneralDisk.get_unused_disks()
         if len(unused_disks) == 0:
-            logger.info('No available disks found to mount locally for the distributed backend')
+            GeneralVPool.logger.info('No available disks found to mount locally for the distributed backend')
             return
 
         # Raise if vPool already exists

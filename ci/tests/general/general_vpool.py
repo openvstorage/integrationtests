@@ -30,6 +30,7 @@ from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagedriver import GeneralStorageDriver
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
+from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.diskpartition import DiskPartition
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.hybrids.vpool import VPool
@@ -50,6 +51,8 @@ class GeneralVPool(object):
 
     TIMEOUT_ADD_VPOOL = 500
     TIMEOUT_GET_ACTION = 60
+
+    logger = LogHandler.get('vpools', name='vpool')
 
     @staticmethod
     def add_vpool(vpool_parameters=None, storagerouters=None):
@@ -134,14 +137,7 @@ class GeneralVPool(object):
         :param vpool: vPool to retrieve configuration for
         :return: Storage Driver configuration
         """
-        task_result = GeneralVPool.api.execute_get_action(component='vpools',
-                                                          guid=vpool.guid,
-                                                          action='get_configuration',
-                                                          wait=True,
-                                                          timeout=GeneralVPool.TIMEOUT_GET_ACTION)
-        if task_result[0] is not True:
-            raise RuntimeError('Failed to retrieve the configuration for vPool {0}'.format(vpool.name))
-        return task_result[1]
+        return GeneralVPool.api.fetch(component='vpools', guid=vpool.guid)['configuration']
 
     @staticmethod
     def get_vpools():
