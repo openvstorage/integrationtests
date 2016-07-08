@@ -552,7 +552,7 @@ def _get_package_info():
     """
     Retrieve package information for installation
     """
-    command = "dpkg-query -W -f='${binary:Package} ${Version}\t${Description}\n' | grep 'openvstorage\|volumedriver-base\|alba \|arakoon\|python-celery '"
+    command = "dpkg-query -W -f='${binary:Package} ${Version}\t${Description}\n' | grep '^openvstorage\|^volumedriver\|^alba\|^arakoon\|^python-celery'"
 
     child_process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
