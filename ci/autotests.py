@@ -39,10 +39,7 @@ TESTRAIL_STATUS_ID_PASSED = '1'
 TESTRAIL_STATUS_ID_BLOCKED = '2'
 TESTRAIL_STATUS_ID_FAILED = '5'
 TESTRAIL_STATUS_ID_SKIPPED = '11'
-TESTRAIL_FOLDER = at_config.get(section="main", option="output_folder")
 TESTRAIL_KEY = at_config.get(section="testrail", option="key")
-TESTRAIL_PROJECT = at_config.get(section="testrail", option="test_project")
-TESTRAIL_QUALITYLEVEL = at_config.get(section="main", option="qualitylevel")
 TESTRAIL_SERVER = at_config.get(section="testrail", option="server")
 
 BLOCKED_MESSAGE = "BLOCKED"
@@ -360,7 +357,7 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
             new_case = testrail_api.add_case(section_id=section_id, title=case_name)
             all_cases[suite_name].append(new_case)
 
-        ran_cases[suite_name] = ran_cases[suite_name].add(case_name) or ran_cases[suite_name] if ran_cases.get(suite_name) else set([case_name])
+        ran_cases[suite_name] = ran_cases[suite_name].add(case_name) or ran_cases[suite_name] if ran_cases.get(suite_name) else {case_name}
 
     testcase_ids_to_select = []
 

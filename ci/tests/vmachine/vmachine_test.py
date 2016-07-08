@@ -21,7 +21,7 @@ Virtual Machine testsuite
 import time
 from ci.tests.general.general import General
 from ci.tests.general.general_vdisk import GeneralVDisk
-from ci.tests.general.general_hypervisor import GeneralHypervisor
+from ci.tests.general.general_hypervisor import Hypervisor
 from ci.tests.general.general_vmachine import GeneralVMachine
 from ci.tests.general.general_vpool import GeneralVPool
 from ovs.lib.scheduledtask import ScheduledTaskController
@@ -46,7 +46,7 @@ class TestVMachine(object):
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
         assert vpool, "No vpool found where one was expected"
 
-        hypervisor = GeneralHypervisor.Hypervisor.get(vpool)
+        hypervisor = Hypervisor.get(vpool)
 
         for disk_number in range(nr_of_disks):
             disk_name = "disk-{0}".format(disk_number)
@@ -58,7 +58,8 @@ class TestVMachine(object):
                 GeneralVMachine.logger.error("Error while creating raw disk: {0}".format(err))
 
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
-        assert len(vpool.vdisks) == nr_of_disks, "Only {0} out of {1} VDisks have been created".format(len(vpool.vdisks), nr_of_disks)
+        assert len(vpool.vdisks) == nr_of_disks,\
+            "Only {0} out of {1} VDisks have been created".format(len(vpool.vdisks), nr_of_disks)
 
         for vm_number in range(nr_of_disks):
             machine_name = "machine-{0}".format(vm_number)
@@ -72,20 +73,22 @@ class TestVMachine(object):
 
         counter = timeout / timer_step
         while counter > 0:
-            vms = hypervisor.get_vms()
+            vms = hypervisor.sdk.get_vms()
             if len(vms) == nr_of_disks:
                 counter = 0
             else:
                 counter -= 1
                 time.sleep(timer_step)
-        vms = hypervisor.get_vmachines()
-        assert len(vms) == nr_of_disks, "Only {0} out of {1} VMachines have been created after {2} seconds".format(len(vms), nr_of_disks, timeout)
+        vms = hypervisor.sdk.get_vms()
+        assert len(vms) == nr_of_disks,\
+            "Only {0} out of {1} VMachines have been created after {2} seconds".format(len(vms), nr_of_disks, timeout)
 
         # Waiting for 1 minute of FIO activity on vmachine
         time.sleep(60)
-        vms = hypervisor.get_vmachines()
+        vms = hypervisor.sdk.get_vms()
         for vm in vms:
-            assert hypervisor.get_power_state(vm) == 'RUNNING', "Machine {0} has wrong status on the hypervisor: {1}".format(vm.name, vm.hypervisor_status)
+            assert hypervisor.sdk.get_power_state(vm.name()) == 'RUNNING',\
+                "Machine {0} has wrong status on the hypervisor: {1}".format(vm.name(), vm.hypervisor_status)
 
         for vm_number in range(nr_of_disks):
             vmachine_name = "machine-{0}".format(vm_number)
@@ -99,14 +102,16 @@ class TestVMachine(object):
 
         counter = timeout / timer_step
         while counter > 0:
-            vms = hypervisor.get_vmachines()
+            vms = hypervisor.sdk.get_vms()
             if len(vms):
                 counter -= 1
                 time.sleep(timer_step)
             else:
                 counter = 0
-        vms = hypervisor.get_vmachines()
-        assert len(vms) == 0, "Still some machines left on the vpool after waiting for {0} seconds: {1}".format(timeout, [vm.name for vm in vms])
+        vms = hypervisor.sdk.get_vms()
+        assert len(vms) == 0,\
+            "Still some machines left on the vpool after waiting for {0} seconds: {1}".format(timeout,
+                                                                                              [vm.name() for vm in vms])
 
         GeneralVMachine.logger.info("Removing vpool vdisks from {0} vpool".format(vpool_name))
         out, err, _ = General.execute_command("rm -rf /mnt/{0}/*.raw".format(vpool_name))
@@ -122,7 +127,8 @@ class TestVMachine(object):
             else:
                 counter = 0
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
-        assert len(vpool.vdisks) == 0, "Still some disks left on the vpool after waiting {0} seconds: {1}".format(timeout, vpool.vdisks_guids)
+        assert len(vpool.vdisks) == 0,\
+            "Still some disks left on the vpool after waiting {0} seconds: {1}".format(timeout, vpool.vdisks_guids)
 
     @staticmethod
     def check_scrubbing_test():
@@ -130,14 +136,14 @@ class TestVMachine(object):
         Check scrubbing of vdisks test
         """
         issues_found = ""
-        timeout = 360
-        timer_step = 60
+        timeout = 60
+        timer_step = 20
         nr_of_disks = 1
         vpool_name = General.get_config().get('vpool', 'name')
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
         assert vpool, "No vpool found where one was expected"
 
-        hypervisor = GeneralHypervisor.Hypervisor.get(vpool)
+        hypervisor = Hypervisor.get(vpool)
 
         template_folder = GeneralVMachine.template_target_folder
         image_name = GeneralVMachine.template_image
@@ -167,7 +173,8 @@ class TestVMachine(object):
                             'timestamp': time.time(),
                             'is_automatic': False,
                             'is_sticky': False}
-                VDiskController.create_snapshot(disk.guid, metadata)
+                snapshot_id = VDiskController.create_snapshot(disk.guid, metadata)
+                GeneralVMachine.logger.info("Created snapshot {0} for vdDisk {1}".format(snapshot_id, disk.name))
 
         # snapshotting disks for the first time
         snapshot_vdisks()
@@ -178,10 +185,10 @@ class TestVMachine(object):
             snapshot_vdisks()
 
         # stopping machines
-        vms = hypervisor.get_vmachines()
+        vms = hypervisor.sdk.get_vms()
         for vm in vms:
-            GeneralVMachine.logger.info("Stopping {0} vmachine".format(vm.name))
-            out, err, _ = General.execute_command('virsh destroy {0}'.format(vm.name))
+            GeneralVMachine.logger.info("Stopping {0} vmachine".format(vm.name()))
+            out, err, _ = General.execute_command('virsh destroy {0}'.format(vm.name()))
             if err:
                 GeneralVMachine.logger.error("Error while stopping vmachine: {0}".format(err))
 
@@ -209,7 +216,6 @@ class TestVMachine(object):
                 issues_found += "No scrub work was applied to {0} disk.\nOld stored data:{1}\nNew stored data:{2}\n".format(disk.name,
                                                                                                                             disk_backend_data[disk.guid],
                                                                                                                             disk.statistics['stored'])
-
         # cleanup
         # removing vmachines
         for vm_number in range(nr_of_disks):

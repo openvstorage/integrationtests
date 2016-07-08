@@ -20,7 +20,6 @@ Init for Backend testsuite
 
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
-from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 
@@ -31,10 +30,7 @@ def setup():
     Make necessary changes before being able to run the tests
     :return: None
     """
-    autotest_config = General.get_config()
-    backend_name = autotest_config.get('backend', 'name')
-    assert backend_name, "Please fill out a valid backend name in autotest.cfg file"
-
+    General.validate_required_config_settings(settings={'backend': ['name']})
     my_sr = GeneralStorageRouter.get_local_storagerouter()
     if GeneralStorageRouter.has_roles(storagerouter=my_sr, roles='DB') is False:
         GeneralDisk.add_db_role(my_sr)
@@ -46,9 +42,7 @@ def teardown():
     Removal actions of possible things left over after the test-run
     :return: None
     """
-    autotest_config = General.get_config()
-    backend_name = autotest_config.get('backend', 'name')
-    backend = GeneralBackend.get_by_name(backend_name)
-    if backend:
-        GeneralAlba.unclaim_disks(backend.alba_backend)
-        GeneralAlba.remove_alba_backend(backend.alba_backend)
+    alba_backend = GeneralAlba.get_by_name(General.get_config().get('backend', 'name'))
+    if alba_backend is not None:
+        GeneralAlba.unclaim_disks(alba_backend)
+        GeneralAlba.remove_alba_backend(alba_backend)
