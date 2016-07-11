@@ -675,6 +675,11 @@ class GeneralAlba(object):
         filtered_disks = {}
         disk_count = 0
         # disk_names = dictionary with node_ids as keys and values as a list of uninitialised disk names
+        # {u'InA44YDJTKxFGvIKqD3CxYMlK7XxryZ0': [u'ata-TOSHIBA_MK2002TSKB_52Q2KSOTF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q3KR6TF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q2KSORF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q2KSOVF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q2KSOUF']}
         for node_id in disk_names.iterkeys():
             node_ids.append(node_id)
             list_of_available_disks[node_id] = []
@@ -688,16 +693,9 @@ class GeneralAlba(object):
                     # add it to list_of_available_disks only if it's found in the unitialised list for that node
                     if hdd['name'] in disk_names[node_id]:
                         list_of_available_disks[node_id].append(hdd)
-            elif disk_type == 'SSD':
+            if disk_type == 'SSD':
                 for ssd in ssds.values():
                     # add it to list_of_available_disks only if it's found in the unitialised list for that node
-                    if ssd['name'] in disk_names[node_id]:
-                        list_of_available_disks[node_id].append(ssd)
-            else:
-                for hdd in hdds.values():
-                    if hdd['name'] in disk_names[node_id]:
-                        list_of_available_disks[node_id].append(hdd)
-                for ssd in ssds.values():
                     if ssd['name'] in disk_names[node_id]:
                         list_of_available_disks[node_id].append(ssd)
             disk_count += len(list_of_available_disks[node_id])
