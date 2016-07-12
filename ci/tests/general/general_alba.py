@@ -670,36 +670,46 @@ class GeneralAlba(object):
         :param disk_type: Type of disk
         :return: Filtered disks
         """
-        count = 0
         node_ids = []
-        filtered_disks = dict()
+        list_of_available_disks = {}
+        filtered_disks = {}
+        disk_count = 0
+        # disk_names = dictionary with node_ids as keys and values as a list of uninitialised disk names
+        # {u'InA44YDJTKxFGvIKqD3CxYMlK7XxryZ0': [u'ata-TOSHIBA_MK2002TSKB_52Q2KSOTF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q3KR6TF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q2KSORF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q2KSOVF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q2KSOUF']}
         for node_id in disk_names.iterkeys():
             node_ids.append(node_id)
-        while count < amount:
-            node_id = node_ids[count % len(node_ids)]
-
+            list_of_available_disks[node_id] = []
+            filtered_disks[node_id] = []
             alba_node = AlbaNodeList.get_albanode_by_node_id(node_id)
             storagerouter = GeneralStorageRouter.get_storage_router_by_ip(ip=alba_node.ip)
             root_client = SSHClient(storagerouter, username='root')
             hdds, ssds = GeneralDisk.get_physical_disks(client=root_client)
-
             if disk_type == 'SATA':
-                list_to_check = hdds.values()
-            elif disk_type == 'SSD':
-                list_to_check = ssds.values()
-            else:
-                hdds.update(ssds)
-                list_to_check = hdds.values()
+                for hdd in hdds.values():
+                    # add it to list_of_available_disks only if it's found in the unitialised list for that node
+                    if hdd['name'] in disk_names[node_id]:
+                        list_of_available_disks[node_id].append(hdd)
+            if disk_type == 'SSD':
+                for ssd in ssds.values():
+                    # add it to list_of_available_disks only if it's found in the unitialised list for that node
+                    if ssd['name'] in disk_names[node_id]:
+                        list_of_available_disks[node_id].append(ssd)
+            disk_count += len(list_of_available_disks[node_id])
 
-            for disk_name in disk_names[node_id]:
-                for disk in list_to_check:
-                    if disk_name == disk['name']:
-                        if node_id in filtered_disks.keys():
-                            filtered_disks[node_id].append(disk['name'])
-                        else:
-                            filtered_disks[node_id] = [disk['name']]
+        count = 0
+        # all disks might be on a single node so we are going with the check to max of what we need
+        for disk_index in range(amount):
+            for node_id in node_ids:
+                # if we still need disks we will add all disks found at the count value index in the list_of_available_disks disk lists
+                if count < amount:
+                    if disk_index < len(list_of_available_disks[node_id]):
+                        filtered_disks[node_id].append(list_of_available_disks[node_id][disk_index]['name'])
                         count += 1
-                        break
+        # this should run through the whole list even if we havent reached the amount of disks needed
         return filtered_disks
 
     @staticmethod
