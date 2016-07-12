@@ -701,22 +701,14 @@ class GeneralAlba(object):
             disk_count += len(list_of_available_disks[node_id])
 
         count = 0
-        finished = False
         # all disks might be on a single node so we are going with the check to max of what we need
         for disk_index in range(amount):
-            if finished:
-                break
-            else:
-                for node_id in node_ids:
-                    # if we still need disks we will add all disks found at the count value index in the list_of_available_disks disk lists
-                    if count < amount:
-                        if disk_index < len(list_of_available_disks[node_id]):
-                            filtered_disks[node_id].append(list_of_available_disks[node_id][disk_index]['name'])
-                            count += 1
-                    else:
-                        # reached the amount needed for the disks so no need to go through the list_of_available_disks anymore
-                        finished = True
-                        break
+            for node_id in node_ids:
+                # if we still need disks we will add all disks found at the count value index in the list_of_available_disks disk lists
+                if count < amount:
+                    if disk_index < len(list_of_available_disks[node_id]):
+                        filtered_disks[node_id].append(list_of_available_disks[node_id][disk_index]['name'])
+                        count += 1
         # this should run through the whole list even if we havent reached the amount of disks needed
         return filtered_disks
 
