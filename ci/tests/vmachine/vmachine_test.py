@@ -154,6 +154,7 @@ class TestVMachine(object):
         snapshot_vdisks(vds)
         counter = 100
         while counter > 0:
+            time.sleep(5)
             for disk in vds:
                 out, err, _ = General.execute_command('dd if=/dev/zero of=/mnt/{0}/{1}.raw bs=10K count=1000 conv=notrunc'.format(vpool_name, disk.name))
             counter -= 1
