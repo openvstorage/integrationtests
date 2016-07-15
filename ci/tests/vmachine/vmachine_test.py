@@ -123,6 +123,8 @@ class TestVMachine(object):
         """
         Check scrubbing of vdisks test
         """
+        initial_counter = 300
+        step = 5
         vdisk = None
         vpool_name = General.get_config().get('vpool', 'name')
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
@@ -146,21 +148,21 @@ class TestVMachine(object):
                         'is_sticky': False}
             VDiskController.create_snapshot(vdisk.guid, metadata)
 
-        counter = 60
+        counter = initial_counter
         while counter and vdisk is None:
-            time.sleep(5)
+            time.sleep(step)
             vdisks = GeneralVDisk.get_vdisk_by_name(disk_name)
             if len(vdisks):
                 vdisk = vdisks[0]
-            counter -= 5
+            counter -= step
         assert counter > 0, "Vdisk with name {0} didn't appear in the model after 60 seconds".format(disk_name)
         # snapshoting disks for the first time
         snapshot_vdisk(vdisk)
-        counter = 100
+        counter = initial_counter
         while counter > 0:
-            time.sleep(5)
+            time.sleep(step)
             out, err, _ = General.execute_command('dd if=/dev/zero of=/mnt/{0}/{1}.raw bs=10K count=1000 conv=notrunc'.format(vpool_name, disk_name))
-            counter -= 1
+            counter -= step
             snapshot_vdisk(vdisk)
 
         vdisks = GeneralVDisk.get_vdisk_by_name(disk_name)
@@ -176,8 +178,7 @@ class TestVMachine(object):
         # starting scrubber
         ScheduledTaskController.gather_scrub_work()
         # waiting for model to catch up
-        counter = 300
-        step = 5
+        counter = initial_counter
         while counter > 0:
             time.sleep(step)
             vdisk.invalidate_dynamics(['statistics'])
