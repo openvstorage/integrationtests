@@ -23,6 +23,7 @@ from ci.tests.general.general import General
 from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
 from ci.tests.general.logHandler import LogHandler
+from ovs.dal.hybrids.vdisk import VDisk
 from ovs.lib.scheduledtask import ScheduledTaskController
 
 
@@ -158,4 +159,27 @@ class TestVDisk(object):
             timeout -= 1
         assert status is True, 'Tlog not synced to backend within 5 minutes'
 
+        GeneralVDisk.delete_volume(vdisk, vpool, loop)
+
+
+    @staticmethod
+    def validate_clone_disk_test():
+        """
+        Validate vdisk clone method
+        """
+        disk_name = 'clone-disk'
+        loop = 'loop0'
+        vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
+        vdisk = GeneralVDisk.create_volume(size=50, vpool=vpool, name=disk_name, loop_device=loop, wait=True)
+
+        TestVDisk.logger.info('clone_disk_test - create initial snapshot')
+        GeneralVDisk.create_snapshot(vdisk=vdisk, snapshot_name='snap0')
+        TestVDisk.logger.info('clone_disk_test - create 5GB test file')
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '1'), size=5000)
+        TestVDisk.logger.info('clone_disk_test - create 5GB test file')
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '2'), size=5000)
+        TestVDisk.logger.info('clone_disk_test - cloning disk')
+        cloned_vdisk = GeneralVDisk.clone_volume(vdisk, 'new-cloned-disk')
+        TestVDisk.logger.info('clone_disk_test - cloned disk')
+        GeneralVDisk.delete_volume(VDisk(cloned_vdisk['diskguid']), vpool)
         GeneralVDisk.delete_volume(vdisk, vpool, loop)

@@ -25,6 +25,7 @@ import random
 import string
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
+from ci.tests.general.logHandler import LogHandler
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.extensions.generic.sshclient import SSHClient
 from subprocess import CalledProcessError
@@ -35,6 +36,7 @@ class GeneralVDisk(object):
     A general class dedicated to vDisk logic
     """
     api = Connection()
+    logger = LogHandler.get('vdisks', name='vdisk')
 
     @staticmethod
     def get_vdisk_by_name(name):
@@ -220,7 +222,7 @@ class GeneralVDisk(object):
         """
         Generate a hash file
         :param full_name: Absolute path of file to create
-        :param size: Size of file to create
+        :param size: Size of file to create in MB
         :param root_client: SSHClient object
         :return:
         """
@@ -317,5 +319,24 @@ class GeneralVDisk(object):
                                                               data={'snapshot_id': str(snapshot_id)}, wait=True)
         assert status is True,\
             'is_volume_synced_up_to_snapshot failed for vdisk: {0}'.format(vdisk.name)
+
+        return result
+
+    @staticmethod
+    def clone_volume(vdisk, clone_name):
+        """
+        Clone a volume
+        :param vdisk: vdisk to clone
+        :param clone_name: name of clone
+        :return:
+        """
+        status, result = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
+                                                              action='clone', data={'name': clone_name,
+                                                                                    'storagerouter_guid': vdisk.storagerouter_guid},
+                                                              wait=True)
+        GeneralVDisk.logger.info('Status of cloning disk task: {0}'.format(status))
+        assert status is True,\
+            'clone failed for vdisk: {0}'.format(vdisk.name)
+        GeneralVDisk.logger.info('Result of cloning disk task: {0}'.format(result))
 
         return result
