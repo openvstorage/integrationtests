@@ -123,8 +123,7 @@ class TestVMachine(object):
         """
         Check scrubbing of vdisks test
         """
-        issues_found = ""
-        nr_of_disks = 1
+        vdisk = None
         vpool_name = General.get_config().get('vpool', 'name')
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
         assert vpool, "No vpool found where one was expected"
@@ -132,69 +131,67 @@ class TestVMachine(object):
         template_folder = GeneralVMachine.template_target_folder
         image_name = GeneralVMachine.template_image
 
-        for disk_number in range(nr_of_disks):
-            disk_name = "scrubdisk-{0}".format(disk_number)
-            GeneralVMachine.logger.info("Starting RAW disk creation")
-            out, err, _ = General.execute_command('qemu-img convert -O raw {0}{1} /mnt/{2}/{3}.raw'.format(template_folder, image_name, vpool_name, disk_name))
-            if err:
-                GeneralVMachine.logger.error("Error while creating raw disk: {0}".format(err))
+        disk_name = "scrubdisk"
+        GeneralVMachine.logger.info("Starting RAW disk creation")
+        out, err, _ = General.execute_command('qemu-img convert -O raw {0}{1} /mnt/{2}/{3}.raw'.format(template_folder, image_name, vpool_name, disk_name))
+        if err:
+            GeneralVMachine.logger.error("Error while creating raw disk: {0}".format(err))
 
-        def snapshot_vdisks(vds):
-            for disk in vds:
-                metadata = {'label': 'snap-' + disk.name,
-                            'is_consistent': True,
-                            'timestamp': time.time(),
-                            'machineguid': disk.vmachine_guid,
-                            'is_automatic': False,
-                            'is_sticky': False}
-                VDiskController.create_snapshot(disk.guid, metadata)
+        def snapshot_vdisk(vdisk):
+            metadata = {'label': 'snap-' + vdisk.name,
+                        'is_consistent': True,
+                        'timestamp': time.time(),
+                        'machineguid': vdisk.vmachine_guid,
+                        'is_automatic': False,
+                        'is_sticky': False}
+            VDiskController.create_snapshot(vdisk.guid, metadata)
 
+        counter = 60
+        while counter and vdisk is None:
+            time.sleep(5)
+            vdisks = GeneralVDisk.get_vdisk_by_name(disk_name)
+            if len(vdisks):
+                vdisk = vdisks[0]
+            counter -= 5
+        assert counter > 0, "Vdisk with name {0} didn't appear in the model after 60 seconds".format(disk_name)
         # snapshoting disks for the first time
-        vds = GeneralVDisk.get_vdisks()
-        snapshot_vdisks(vds)
+        snapshot_vdisk(vdisk)
         counter = 100
         while counter > 0:
             time.sleep(5)
-            for disk in vds:
-                out, err, _ = General.execute_command('dd if=/dev/zero of=/mnt/{0}/{1}.raw bs=10K count=1000 conv=notrunc'.format(vpool_name, disk.name))
+            out, err, _ = General.execute_command('dd if=/dev/zero of=/mnt/{0}/{1}.raw bs=10K count=1000 conv=notrunc'.format(vpool_name, disk_name))
             counter -= 1
-            snapshot_vdisks(vds)
+            snapshot_vdisk(vdisk)
 
-        vds = GeneralVDisk.get_vdisks()
-        disk_backend_data = {}
-        for disk in vds:
-            # saving disk 'stored' info / the only attribute that is lowered after scrubbing
-            disk_backend_data[disk.guid] = disk.statistics['stored']
+        vdisks = GeneralVDisk.get_vdisk_by_name(disk_name)
+        if len(vdisks):
+            vdisk = vdisks[0]
+        # saving disk 'stored' info / the only attribute that is lowered after scrubbing
+        disk_backend_data = vdisk.statistics['stored']
 
         # deleting middle snapshots
-        for disk in vds:
-            for snapshot in disk.snapshots[1:-1]:
-                VDiskController.delete_snapshot(disk.guid, snapshot['guid'])
+        for snapshot in vdisk.snapshots[1:-1]:
+            VDiskController.delete_snapshot(vdisk.guid, snapshot['guid'])
 
         # starting scrubber
         ScheduledTaskController.gather_scrub_work()
         # waiting for model to catch up
-        time.sleep(300)
-        for disk in vds:
-            disk.invalidate_dynamics(['statistics'])
-        # checking result of scrub work
-        vds = GeneralVDisk.get_vdisks()
-        for disk in vds:
-            if disk.statistics['stored'] >= disk_backend_data[disk.guid]:
-                issues_found += "No scrub work was applied to {0} disk.\nOld stored data:{1}\nNew stored data:{2}\n".format(disk.name,
-                                                                                                                            disk_backend_data[disk.guid],
-                                                                                                                            disk.statistics['stored'])
-
-        # cleanup
-        # removing vmachines
-        for vm_number in range(nr_of_disks):
-            vmachine_name = "machine-{0}".format(vm_number)
-            GeneralVMachine.logger.info("Removing vmachine {0}".format(vmachine_name))
-            out, err, _ = General.execute_command('virsh undefine {0}'.format(vmachine_name))
+        counter = 300
+        step = 5
+        while counter > 0:
+            time.sleep(step)
+            vdisk.invalidate_dynamics(['statistics'])
+            # checking result of scrub work
+            if vdisk.statistics['stored'] < disk_backend_data:
+                GeneralVMachine.logger.info("It took {0} seconds for the value to change from {1} to {2}\n".format(300 - counter,
+                                                                                                                   disk_backend_data,
+                                                                                                                   vdisk.statistics['stored']))
+                break
+            counter -= step
         # removing vdisk
         GeneralVMachine.logger.info("Removing vpool vdisks from {0} vpool".format(vpool_name))
         out, err, _ = General.execute_command("rm -rf /mnt/{0}/*.raw".format(vpool_name))
         if err:
-            GeneralVMachine.logger.error("Error while removing vdisks: {0}".format(err))
+            GeneralVMachine.logger.error("Error while removing vdisk: {0}".format(err))
 
-        assert issues_found == "", "Following issues appeared:\n{0}".format(issues_found)
+        assert counter > 0, "Scrubbing didn't run as expected, backend size of vdisk remained at {0}:\n".format(disk_backend_data)
