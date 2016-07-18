@@ -168,18 +168,38 @@ class TestVDisk(object):
         Validate vdisk clone method
         """
         disk_name = 'clone-disk'
+        clone_disk_name = 'new-cloned-disk'
+        test_file_name = 'file-contents'
         loop = 'loop0'
+        clone_loop = 'loop1'
+
         vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
         vdisk = GeneralVDisk.create_volume(size=50, vpool=vpool, name=disk_name, loop_device=loop, wait=True)
 
         TestVDisk.logger.info('clone_disk_test - create initial snapshot')
         GeneralVDisk.create_snapshot(vdisk=vdisk, snapshot_name='snap0')
-        TestVDisk.logger.info('clone_disk_test - create 5GB test file')
-        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '1'), size=5000)
-        TestVDisk.logger.info('clone_disk_test - create 5GB test file')
-        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, vdisk.name, '2'), size=5000)
+
+        TestVDisk.logger.info('clone_disk_test - create 1st 5GB test file')
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, test_file_name, '1'), size=5000)
+        md5_sum_1 = General.execute_command('md5sum /mnt/{0}/{1}_{2}.txt'.format(loop, test_file_name, '1'))[0].split('  ')[0]
+
+        TestVDisk.logger.info('clone_disk_test - create 2nd 5GB test file')
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, test_file_name, '2'), size=5000)
+        md5_sum_2 = General.execute_command('md5sum /mnt/{0}/{1}_{2}.txt'.format(loop, test_file_name, '2'))[0].split('  ')[0]
+
         TestVDisk.logger.info('clone_disk_test - cloning disk')
-        cloned_vdisk = GeneralVDisk.clone_volume(vdisk, 'new-cloned-disk')
+        cloned_vdisk = GeneralVDisk.clone_volume(vdisk, clone_disk_name)
         TestVDisk.logger.info('clone_disk_test - cloned disk')
+
+        GeneralVDisk.connect_volume(vpool, name=clone_disk_name, loop_device=clone_loop)
+        md5_clone_1 = General.execute_command('md5sum /mnt/{0}/{1}_{2}.txt'.format(clone_loop, test_file_name, '1'))[0].split('  ')[0]
+        md5_clone_2 = General.execute_command('md5sum /mnt/{0}/{1}_{2}.txt'.format(clone_loop, test_file_name, '2'))[0].split('  ')[0]
+
+        GeneralVDisk.disconnect_volume(loop_device=clone_loop)
         GeneralVDisk.delete_volume(VDisk(cloned_vdisk['diskguid']), vpool)
         GeneralVDisk.delete_volume(vdisk, vpool, loop)
+
+        assert md5_sum_1 == md5_clone_1,\
+            'file contents for /mnt/{0}/{1}_{2}.txt is not identical on source and clone!'.format(loop, vdisk.name, '1')
+        assert md5_sum_2 == md5_clone_2,\
+            'file contents for /mnt/{0}/{1}_{2}.txt is not identical on source and clone!'.format(loop, vdisk.name, '2')
