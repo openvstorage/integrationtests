@@ -152,7 +152,7 @@ class GeneralVDisk(object):
         :param name: Name of the volume
         :param loop_device: Loop device to use to mount volume on
         :param root_client: SSHClient object
-        :return: Newly created Virtual Disk
+        :return: None
         """
         location = GeneralVDisk.get_filesystem_location(vpool=vpool,
                                                         vdisk_name=name)
