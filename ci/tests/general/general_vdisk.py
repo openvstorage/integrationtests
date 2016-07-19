@@ -26,6 +26,7 @@ import string
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
 from ci.tests.general.general_hypervisor import GeneralHypervisor
+from ci.tests.general.logHandler import LogHandler
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.extensions.generic.sshclient import SSHClient
 from subprocess import CalledProcessError
@@ -36,6 +37,7 @@ class GeneralVDisk(object):
     A general class dedicated to vDisk logic
     """
     api = Connection()
+    logger = LogHandler.get('vdisks', name='vdisk')
 
     @staticmethod
     def get_vdisks():
@@ -114,13 +116,7 @@ class GeneralVDisk(object):
             root_client = SSHClient('127.0.0.1', username='root')
 
         if loop_device is not None:
-            try:
-                root_client.run('umount /dev/{0}'.format(loop_device))
-                root_client.run('losetup -d /dev/{0}'.format(loop_device))
-                root_client.dir_delete('/mnt/{0}'.format(loop_device))
-            except:
-                pass
-
+            GeneralVDisk.disconnect_volume(loop_device, root_client)
         root_client.file_delete(location)
 
         if wait is True:
@@ -135,6 +131,51 @@ class GeneralVDisk(object):
                 counter += 1
             if counter == timeout:
                 raise RuntimeError('Disk {0} was not deleted from model after {1} seconds'.format(volume_name, timeout))
+
+    @staticmethod
+    def connect_volume(vpool, name, loop_device, root_client=None):
+        """
+        Connect/mount a volume to loop device
+        :param vpool: vPool to create a volume for
+        :param name: Name of the volume
+        :param loop_device: Loop device to use to mount volume on
+        :param root_client: SSHClient object
+        :return: None
+        """
+        location = GeneralVDisk.get_filesystem_location(vpool=vpool,
+                                                        vdisk_name=name)
+        if root_client is None:
+            root_client = SSHClient('127.0.0.1', username='root')
+
+            try:
+                if loop_device is not None:
+                    root_client.run('losetup /dev/{0} {1}'.format(loop_device, location))
+                    root_client.dir_create('/mnt/{0}'.format(loop_device))
+                    root_client.run('mount -t ext4 /dev/{0} /mnt/{0}'.format(loop_device))
+            except CalledProcessError as _:
+                cmd = """
+                    umount /mnt/{0};
+                    losetup -d /dev/{0};
+                    rm {1}""".format(loop_device, location)
+                root_client.run(cmd)
+                raise
+
+    @staticmethod
+    def disconnect_volume(loop_device, root_client=None):
+        """
+        Disconnect a vdisk and cleanup it's loop device
+        :param loop_device: Loop device where volume is mounted on
+        :param root_client: SSHClient object
+        :return: None
+        """
+
+        if root_client is None:
+            root_client = SSHClient('127.0.0.1', username='root')
+
+        if loop_device is not None:
+            root_client.run('umount /dev/{0}'.format(loop_device))
+            root_client.run('losetup -d /dev/{0}'.format(loop_device))
+            root_client.dir_delete('/mnt/{0}'.format(loop_device))
 
     @staticmethod
     def write_to_volume(vdisk=None, vpool=None, location=None, count=1024, bs='1M', input_type='random',
@@ -213,7 +254,7 @@ class GeneralVDisk(object):
         """
         Generate a hash file
         :param full_name: Absolute path of file to create
-        :param size: Size of file to create
+        :param size: Size of file to create in MB
         :param root_client: SSHClient object
         :return:
         """
@@ -310,5 +351,24 @@ class GeneralVDisk(object):
                                                               data={'snapshot_id': str(snapshot_id)}, wait=True)
         assert status is True,\
             'is_volume_synced_up_to_snapshot failed for vdisk: {0} with error: {1}'.format(vdisk.name, result)
+
+        return result
+
+    @staticmethod
+    def clone_volume(vdisk, clone_name):
+        """
+        Clone a volume
+        :param vdisk: vdisk to clone
+        :param clone_name: name of clone
+        :return:
+        """
+        status, result = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
+                                                              action='clone', data={'name': clone_name,
+                                                                                    'storagerouter_guid': vdisk.storagerouter_guid},
+                                                              wait=True)
+        GeneralVDisk.logger.info('Status of cloning disk task: {0}'.format(status))
+        assert status is True,\
+            'clone failed for vdisk: {0}'.format(vdisk.name)
+        GeneralVDisk.logger.info('Result of cloning disk task: {0}'.format(result))
 
         return result
