@@ -187,7 +187,6 @@ class TestVDisk(object):
         GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, test_file_name, '2'), size=test_file_size)
 
         GeneralVDisk.logger.info(General.execute_command('sync'))
-        GeneralVDisk.logger.info(General.execute_command('sync'))
 
         TestVDisk.logger.info('clone_disk_test - cloning disk')
         cloned_vdisk = GeneralVDisk.clone_volume(vdisk, clone_disk_name)
