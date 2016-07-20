@@ -175,9 +175,8 @@ class TestVMachine(object):
             counter -= step
             snapshot_vdisk(vdisk)
 
-        vdisk = VDiskList.get_by_devicename_and_vpool('/' + disk_name + '.raw', vpool)
-
         # saving disk 'stored' info / the only attribute that is lowered after scrubbing
+        vdisk.invalidate_dynamics(['statistics'])
         disk_backend_data = vdisk.statistics['stored']
 
         # deleting middle snapshots
@@ -193,7 +192,7 @@ class TestVMachine(object):
             vdisk.invalidate_dynamics(['statistics'])
             # checking result of scrub work
             if vdisk.statistics['stored'] < disk_backend_data:
-                GeneralVMachine.logger.info("It took {0} seconds for the value to change from {1} to {2}\n".format(300 - counter,
+                GeneralVMachine.logger.info("It took {0} seconds for the value to change from {1} to {2}\n".format((initial_counter - counter) * step,
                                                                                                                    disk_backend_data,
                                                                                                                    vdisk.statistics['stored']))
                 break
