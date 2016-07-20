@@ -200,7 +200,7 @@ class TestVDisk(object):
         md5_clone_2 = General.execute_command('md5sum /mnt/{0}/{1}_{2}.txt'.format(clone_loop, test_file_name, '2'))[0].split('  ')[0]
 
         GeneralVDisk.disconnect_volume(loop_device=clone_loop)
-        GeneralVDisk.delete_volume(VDisk(cloned_vdisk['diskguid']), vpool, wait=True)
+        GeneralVDisk.delete_volume(VDisk(cloned_vdisk['vdisk_guid']), vpool, wait=True)
         GeneralVDisk.delete_volume(vdisk, vpool, loop, wait=True)
 
         assert md5_sum_1 == md5_clone_1,\
