@@ -170,7 +170,7 @@ class TestVDisk(object):
         disk_name = 'clone-disk'
         clone_disk_name = 'new-cloned-disk'
         test_file_name = 'file-contents'
-        test_file_size = 15000
+        test_file_size = 5000
         loop = 'loop0'
         clone_loop = 'loop1'
 
