@@ -422,7 +422,7 @@ def _patch_code_with(branch, repo_map, remote_con):
 # FUNCTIONS USED BY JENKINS #
 #############################
 
-def install_autotests(node_ip, patch_branch='', extra_pkgs=''):
+def install_autotests(node_ip, patch_branch=''):
     """
     Install the autotest package on node with IP
     :param node_ip: IP of node
@@ -433,9 +433,6 @@ def install_autotests(node_ip, patch_branch='', extra_pkgs=''):
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     remote_con.process.execute("apt-get update")
     remote_con.process.execute("apt-get install unzip openvstorage-test -y --force-yes")
-    for pkg in extra_pkgs.split(','):
-        print 'Installing extra pkg: {0}'.format(pkg)
-        remote_con.process.execute("apt-get install {0} -y --force-yes".format(pkg))
 
     if patch_branch != '':
         repo_map = {'integrationtests': {'ci': '/opt/OpenvStorage/ci'}}
