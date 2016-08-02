@@ -1105,9 +1105,9 @@ if __name__ == '__main__':
                       branch=patchbranch)
 
     # TODO: remove this if when OVS-3984 is resolved
-    if hypervisor_type == "KVM":
-        con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-        exitcode, output = con.process.execute("grep -c 'ovs' /etc/passwd")
-        if exitcode == 0 and output[0] == '1':
-            # user ovs exists
+    con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
+    exitcode, output = con.process.execute("grep -c 'ovs:' /etc/passwd")
+    if exitcode == 0 and output[0] == '1':
+        exitcode, output = con.process.execute("which virt-install")
+        if exitcode == 0:
             con.process.execute("usermod -a -G ovs libvirt-qemu")
