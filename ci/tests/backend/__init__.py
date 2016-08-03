@@ -35,6 +35,11 @@ def setup():
     if GeneralStorageRouter.has_roles(storagerouter=my_sr, roles='DB') is False:
         GeneralDisk.add_db_role(my_sr)
 
+    alba_backend_name = General.get_config().get('backend', 'name')
+    alba_backend = GeneralAlba.get_by_name(alba_backend_name)
+    if alba_backend is None:
+        GeneralAlba.add_alba_backend(alba_backend_name)
+
 
 def teardown():
     """
