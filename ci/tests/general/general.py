@@ -455,3 +455,7 @@ class General(object):
 
         if len(missing_items) > 0:
             raise ValueError('Some required field are missing in autotest.cfg\n - {0}'.format('\n - '.join(missing_items)))
+
+    @staticmethod
+    def remove_list_from_list(all_values, values_to_remove):
+        return list(set(all_values) - set(values_to_remove))

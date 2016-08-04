@@ -194,10 +194,10 @@ class GeneralDisk(object):
         :param roles_to_remove: Roles to remove on the disk
         :return: None
         """
-        roles = partition.roles
-        for role in roles_to_remove:
-            if role in roles:
-                roles.remove(role)
+        print "Found these roles on the partition '{0}'".format(partition.roles)
+        print "Should remove '{0}'".format(roles_to_remove)
+        roles = General.remove_list_from_list(partition.roles, roles_to_remove)
+        print "Will set these roles to the disk '{0}'".format(roles)
         GeneralDisk.configure_disk(storagerouter=partition.disk.storagerouter,
                                    disk=partition.disk,
                                    partition=partition,

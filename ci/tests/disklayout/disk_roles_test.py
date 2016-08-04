@@ -19,19 +19,9 @@ import re
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.logHandler import LogHandler
+from ci.tests.general.general import General
 
 logger = LogHandler.get('disklayout', name='alba')
-
-
-class Helper(object):
-    """
-    A helper class containing some helper methods used in TestDiskRoles class
-    """
-
-    @staticmethod
-    def remove_list_from_list(all_values, values_to_remove):
-        return list(set(all_values) - set(values_to_remove))
-
 
 class TestDiskRoles(object):
     """
@@ -138,7 +128,7 @@ class TestDiskRoles(object):
                         roles_list = partition.roles
                     else:
                         roles_list = partition.roles[number_of_roles_to_remain:]
-                    remaining_roles = Helper.remove_list_from_list(partition.roles, roles_list)
+                    remaining_roles = General.remove_list_from_list(partition.roles, roles_list)
                 else:
                     # When number_of_roles_to_remain, everything should have been removed
                     remaining_roles = []
@@ -206,7 +196,6 @@ class TestDiskRoles(object):
         # End remove disk roles
 
         # Start remove validaton
-        assert self.validate_roles(collection), "Roles were not set removed!"
         # End validation
 
     def tdr_0002_append_remove_role_and_crosscheck_model_test(self, ip, number_of_roles_to_remain=0):
@@ -247,5 +236,5 @@ class TestDiskRoles(object):
         # End remove disk roles
 
         # Start remove validaton
-        assert self.validate_roles(collection), "Roles were not set removed!"
+        assert self.validate_roles(collection), "Roles were not removed!"
         # End validation
