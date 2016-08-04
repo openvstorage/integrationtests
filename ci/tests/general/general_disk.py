@@ -172,6 +172,55 @@ class GeneralDisk(object):
                                    roles=roles)
 
     @staticmethod
+    def set_disk_role(partition, roles):
+        """
+        Configure a disk
+        :param partition: Disk partition
+        :param roles: Roles to set on the disk
+        :return: None
+        """
+        GeneralDisk.configure_disk(storagerouter=partition.disk.storagerouter,
+                                   disk=partition.disk,
+                                   partition=partition,
+                                   offset=partition.offset,
+                                   size=partition.size,
+                                   roles=roles)
+
+    @staticmethod
+    def remove_disk_role(partition, roles_to_remove):
+        """
+        Configure a disk
+        :param partition: Disk partition
+        :param roles_to_remove: Roles to remove on the disk
+        :return: None
+        """
+        roles = partition.roles
+        for role in roles_to_remove:
+            if role in roles:
+                roles.remove(role)
+        GeneralDisk.configure_disk(storagerouter=partition.disk.storagerouter,
+                                   disk=partition.disk,
+                                   partition=partition,
+                                   offset=partition.offset,
+                                   size=partition.size,
+                                   roles=roles)
+
+    @staticmethod
+    def set_disk_role(partition, roles):
+        """
+        Configure a disk
+        :param partition: Disk partition
+        :param roles: Roles to set on the disk
+        :return: None
+        """
+        GeneralDisk.configure_disk(storagerouter=partition.disk.storagerouter,
+                                   disk=partition.disk,
+                                   partition=partition,
+                                   offset=partition.offset,
+                                   size=partition.size,
+                                   roles=roles)
+
+    @staticmethod
     def add_db_role(storagerouter):
         """
         Add a DB role to a Storage Router
