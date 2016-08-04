@@ -73,6 +73,7 @@ class LogHandler(object):
                'license': 'license',
                'mgmtcenter': 'mgmtcenter',
                'sanity': 'sanity',
+               'system': 'system',
                'validation': 'validation',
                'vdisks': 'vdisk',
                'vmachines': 'vmachine',

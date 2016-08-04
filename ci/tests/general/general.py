@@ -19,10 +19,12 @@ A general class dedicated to general logic
 """
 
 import os
+import re
 import grp
 import pwd
 import sys
 import shutil
+import inspect
 import logging
 import subprocess
 import ConfigParser
@@ -135,9 +137,7 @@ class General(object):
         Do some cleanup actions
         :return: None
         """
-        from ci.tests.general.general_pmachine import GeneralPMachine
         from ci.tests.general.general_vdisk import GeneralVDisk
-        from ci.tests.general.general_vmachine import GeneralVMachine
 
         def _get_remote_ssh_connection(ip_address, username, password):
             import paramiko
@@ -154,21 +154,6 @@ class General(object):
         from ci.tests.general.general_vpool import GeneralVPool
         for vpool in GeneralVPool.get_vpools():
             if vpool:
-                hpv = general_hypervisor.Hypervisor.get(vpool)
-                vm_names = [vm.name for vm in GeneralVMachine.get_vmachines()]
-                for name in vm_names:
-                    vm = GeneralVMachine.get_vmachine_by_name(name)
-                    if not vm:
-                        continue
-                    vm = vm[0]
-                    if not vm.name.startswith(machine_name):
-                        continue
-                    if vm.is_vtemplate:
-                        hpv.delete_clones(vm)
-                    logging.log(1, "Deleting {0} on hypervisor".format(vm.name))
-                    hpv.poweroff(vm.name)
-                    hpv.delete(vm.name)
-
                 env_macs = General.execute_command("""ip a | awk '/link\/ether/ {gsub(":","",$2);print $2;}'""")[0].splitlines()
                 if vpool.storagedrivers:
                     mountpoint = vpool.storagedrivers[0].mountpoint
@@ -202,17 +187,12 @@ class General(object):
 
                 GeneralVPool.remove_vpool(vpool)
 
-                if GeneralPMachine.get_hypervisor_type() == 'VMWARE':
+                if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
                     from ci.tests.general.general_hypervisor import GeneralHypervisor
                     hypervisor_info = GeneralHypervisor.get_hypervisor_info()
                     ssh_con = _get_remote_ssh_connection(*hypervisor_info)[0]
                     cmd = "esxcli storage nfs remove -v {0}".format(vpool.name)
                     ssh_con.exec_command(cmd)
-
-                vmachines = GeneralVMachine.get_vmachines()
-                for vmachine in vmachines:
-                    logging.log(1, 'WARNING: Removing leftover vmachine: {0}'.format(vmachine.name))
-                    vmachine.delete()
 
     @staticmethod
     def get_loop_devices(client):
@@ -430,3 +410,48 @@ class General(object):
                          'name': user},
                 'group': {'id': gid,
                           'name': group}}
+
+    @staticmethod
+    def validate_required_config_settings(settings=None):
+        """
+        Will validate whether the required configurations have been set for a test-suite/test-class/test to be executed
+        In section 'main' we will validate by default 'grid_ip', 'username' and 'password' because these are required for every testsuite
+        :param settings: Settings to check for presence in the autotest.cfg
+        :type settings: dict
+
+        :return: None
+        """
+        if settings is None:
+            settings = {}
+        if not isinstance(settings, dict):
+            raise ValueError('Settings should be a dictionary')
+
+        if 'main' not in settings:
+            settings['main'] = []
+        for key in ['grid_ip', 'username', 'password']:
+            if key not in settings['main']:
+                settings['main'].append(key)
+
+        current_frame = inspect.currentframe()
+        caller_frame = inspect.getouterframes(current_frame, 2)
+        testsuite = re.findall('^/opt/OpenvStorage/ci/tests/(.*)/.*', caller_frame[1][1])
+        testsuite_str = ''
+        if len(testsuite) > 0:
+            testsuite_str = ' for testsuite "{0}"'.format(testsuite[0])
+
+        config = General.get_config()
+        missing_items = []
+        for section, required_values in settings.iteritems():
+            if not isinstance(required_values, list):
+                raise ValueError('The values in the settings dictionary should be a list')
+            if not config.has_section(section):
+                raise ValueError('Section "{0}" not found in autotest.cfg'.format(section))
+            for required_value in required_values:
+                if not config.has_option(section=section,
+                                         option=required_value):
+                    raise ValueError('Option "{0}" in section "{1}" does not exist'.format(required_value, section))
+                if not config.get(section=section, option=required_value):
+                    missing_items.append('"{0}" in section "{1}" is mandatory{2}'.format(required_value, section, testsuite_str))
+
+        if len(missing_items) > 0:
+            raise ValueError('Some required field are missing in autotest.cfg\n - {0}'.format('\n - '.join(missing_items)))

@@ -19,18 +19,14 @@ A general class dedicated to Hypervisor logic
 """
 
 import os
-import re
 import time
 import urllib
 import logging
 import urlparse
 from ci.tests.general.general import General
 from ci.tests.general.general_openstack import GeneralOpenStack
-from ci.tests.general.general_pmachine import GeneralPMachine
-from ci.tests.general.general_vmachine import GeneralVMachine
-from ovs.extensions.hypervisor.hypervisors.kvm import Sdk as Kvm_sdk
-from ovs.extensions.hypervisor.hypervisors.vmware import Sdk as Vmware_sdk
-from ovs.lib.helpers.toolbox import Toolbox
+from ci.tests.general.general_kvm import Sdk as Kvm_sdk
+from ci.tests.general.general_vmware import Sdk as Vmware_sdk
 from ovs.lib.vdisk import VDiskController
 from xml.dom import minidom
 
@@ -39,13 +35,20 @@ class GeneralHypervisor(object):
     """
     A general class dedicated to Hypervisor logic
     """
+
     @staticmethod
     def download_to_vpool(url, path, overwrite_if_exists=False):
         """
         Special method to download to vpool because voldrv does not support extending file at write
         :param url: URL to download from
+        :type url: str
+
         :param path: Path to download to
+        :type path: str
+
         :param overwrite_if_exists: Overwrite if file already exists
+        :type overwrite_if_exists: bool
+
         :return: None
         """
         print url
@@ -68,47 +71,26 @@ class GeneralHypervisor(object):
         u.close()
 
     @staticmethod
+    def get_hypervisor_type():
+        """
+        Retrieve type of hypervisor
+        :return hypervisor type ['KVM'|'VMWARE']
+        """
+        config = General.get_config()
+        return config.get('hypervisor', 'type')
+
+    @staticmethod
     def get_hypervisor_info():
         """
         Retrieve info about hypervisor (ip, username, password)
         """
         config = General.get_config()
-        # @TODO: Split these settings up in separate section or at least in 3 separate values in main
-        hi = config.get(section='main', option='hypervisorinfo')
-        hpv_list = hi.split(',')
-        if not len(hpv_list) == 3:
-            raise RuntimeError('No hypervisor info present in config')
-        return hpv_list
-
-    @staticmethod
-    def set_hypervisor_info(ip, username, password):
-        """
-        Set info about hypervisor( ip, username and password )
-
-        :param ip:         IP address of hypervisor
-        :type ip:          String
-
-        :param username:   Username for hypervisor
-        :type username:    String
-
-        :param password:   Password of hypervisor
-        :type password:    String
-
-        :return:           None
-        """
-        if not re.match(Toolbox.regex_ip, ip):
-            print 'Invalid IP address specified'
-            return False
-
-        if type(username) != str or type(password) != str:
-            print 'Username and password need to be str format'
-            return False
-
-        value = ','.join([ip, username, password])
-        config = General.get_config()
-        config.set(section='main', option='hypervisorinfo', value=value)
-        General.save_config(config)
-        return True
+        hv_ip = config.get(section='hypervisor', option='ip')
+        hv_user = config.get(section='hypervisor', option='username')
+        hv_pass = config.get(section='hypervisor', option='password')
+        if not hv_ip or not hv_user or not hv_pass:
+            raise RuntimeError('Not all hypervisor information present in config')
+        return [hv_ip, hv_user, hv_pass]
 
 
 class Hypervisor(object):
@@ -143,7 +125,7 @@ class Hypervisor(object):
         if len(vpool.storagedrivers) == 0:
             raise ValueError('No Storage Drivers found on vPool {0}'.format(vpool.name))
 
-        htype = GeneralPMachine.get_hypervisor_type()
+        htype = GeneralHypervisor.get_hypervisor_type()
         if htype == 'VMWARE':
             return Vmware(vpool)
         else:
@@ -395,6 +377,9 @@ class Kvm(object):
         self.mountpoint = list(vpool.storagedrivers)[0].mountpoint
         self.sdk = Kvm_sdk()
 
+    def _get_vms(self):
+        return self.sdk.get_vms()
+
     def create_vm(self, name, ram=1024, small=False):
         """
         Create a Virtual Machine
@@ -519,7 +504,9 @@ class Kvm(object):
         :param name: Name of the Virtual Machine
         :return: None
         """
-        vm = GeneralVMachine.get_vmachine_by_name(name)
+        vms = self._get_vms()
+        vm = [v for v in vms if v.name == name]
+
         assert vm, "Couldn't find Virtual Machine with name {0}".format(name)
         assert len(vm) == 1, "More than 1 result when looking up vmachine with name: {0}".format(name)
 

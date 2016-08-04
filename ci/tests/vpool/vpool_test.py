@@ -22,17 +22,14 @@ import re
 import time
 from ci.tests.general.general import General
 from ci.tests.general.general_alba import GeneralAlba
-from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.general_disk import GeneralDisk
+from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
-from ci.tests.general.logHandler import LogHandler
 
 from ovs.extensions.generic.sshclient import SSHClient
-
-logger = LogHandler.get('api', name='setup')
 
 
 class TestVPool(object):
@@ -58,9 +55,9 @@ class TestVPool(object):
             raise RuntimeError('vPool with name "{0}" still exists'.format(vpool_name))
 
         # Add vPool and validate health
-        vpool, vpool_params = GeneralVPool.add_vpool(vpool_parameters={'vpool_name': vpool_name})
-        assert vpool is not None,\
-            'vPool {0} was not created'.format(vpool_name)
+        vpool, vpool_params = GeneralVPool.add_vpool(vpool_parameters={'vpool_name': vpool_name,
+                                                                       'preset': GeneralAlba.ONE_DISK_PRESET})
+        assert vpool is not None, 'vPool {0} was not created'.format(vpool_name)
         GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
 
         # Retrieve vPool information before removal
@@ -74,8 +71,7 @@ class TestVPool(object):
         # Remove vPool and validate removal
         GeneralVPool.remove_vpool(vpool=vpool)
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
-        assert vpool is None,\
-            'vPool {0} was not deleted'.format(vpool_name)
+        assert vpool is None, 'vPool {0} was not deleted'.format(vpool_name)
         GeneralVPool.check_vpool_cleanup(vpool_info={'guid': guid,
                                                      'name': name,
                                                      'type': backend_type,
@@ -92,7 +88,7 @@ class TestVPool(object):
         # Verify if an unused disk is available to mount
         unused_disks = GeneralDisk.get_unused_disks()
         if len(unused_disks) == 0:
-            logger.info('No available disks found to mount locally for the distributed backend')
+            GeneralVPool.logger.info('No available disks found to mount locally for the distributed backend')
             return
 
         # Raise if vPool already exists
@@ -122,8 +118,7 @@ class TestVPool(object):
                                                                        'type': 'distributed',
                                                                        'distributed_mountpoint': partition.mountpoint},
                                                      storagerouters=[local_sr])
-        assert vpool is not None,\
-            'vPool {0} was not created'.format(vpool_name)
+        assert vpool is not None, 'vPool {0} was not created'.format(vpool_name)
         GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
 
         # Retrieve vPool information before removal
@@ -137,8 +132,7 @@ class TestVPool(object):
         # Remove vPool and validate removal
         GeneralVPool.remove_vpool(vpool=vpool)
         vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
-        assert vpool is None,\
-            'vPool {0} was not deleted'.format(vpool_name)
+        assert vpool is None, 'vPool {0} was not deleted'.format(vpool_name)
         GeneralVPool.check_vpool_cleanup(vpool_info={'guid': guid,
                                                      'name': name,
                                                      'type': backend_type,
@@ -161,22 +155,22 @@ class TestVPool(object):
         # Create some namespaces in alba
         no_namespaces = 3
         backend_name = General.get_config().get('backend', 'name')
-        backend = GeneralBackend.get_by_name(name=backend_name)
+        alba_backend = GeneralAlba.get_by_name(name=backend_name)
         namespace_name = 'autotest-ns_'
         namespace_name_regex = re.compile('^autotest-ns_\d$')
         for nmspc_index in range(no_namespaces):
-            GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'create-namespace', ['{0}{1}'.format(namespace_name, nmspc_index), 'default'], False)
-        result = GeneralAlba.list_alba_namespaces(alba_backend=backend.alba_backend,
+            GeneralAlba.execute_alba_cli_action(alba_backend, 'create-namespace', ['{0}{1}'.format(namespace_name, nmspc_index), 'default'], False)
+        result = GeneralAlba.list_alba_namespaces(alba_backend=alba_backend,
                                                   name=namespace_name_regex)
         assert len(result) == no_namespaces,\
             "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name,
                                                                                    len(result))
 
         # Create a vPool and create volumes on it
-        vpool, vpool_params = GeneralVPool.add_vpool()
+        vpool, vpool_params = GeneralVPool.add_vpool(vpool_parameters={'preset': GeneralAlba.ONE_DISK_PRESET})
         GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
         root_client = SSHClient(GeneralStorageRouter.get_local_storagerouter(), username='root')
-        if vpool.storagedrivers[0].storagerouter.pmachine.hvtype == 'VMWARE':
+        if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
             GeneralVPool.mount_vpool(vpool=vpool,
                                      root_client=root_client)
 
@@ -185,7 +179,7 @@ class TestVPool(object):
             vdisks.append(GeneralVDisk.create_volume(size=10,
                                                      vpool=vpool,
                                                      root_client=root_client))
-        result = GeneralAlba.list_alba_namespaces(alba_backend=backend.alba_backend)
+        result = GeneralAlba.list_alba_namespaces(alba_backend=alba_backend)
         assert len(result) == 2 * no_namespaces + 1,\
             "Expected {0} namespaces present on the {1} backend, found {2}".format(2 * no_namespaces + 1, backend_name, len(result))
 
@@ -195,21 +189,21 @@ class TestVPool(object):
                                        vpool=vpool,
                                        root_client=root_client)
 
-        if vpool.storagedrivers[0].storagerouter.pmachine.hvtype == 'VMWARE':
+        if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
             GeneralVPool.unmount_vpool(vpool=vpool,
                                        root_client=root_client)
 
         GeneralVPool.remove_vpool(vpool)
 
         # Verify amount of namespaces
-        result = GeneralAlba.list_alba_namespaces(alba_backend=backend.alba_backend,
+        result = GeneralAlba.list_alba_namespaces(alba_backend=alba_backend,
                                                   name=namespace_name_regex)
         assert len(result) == no_namespaces,\
             "Expected {0} namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name,
                                                                                    len(result))
         for namespace in result:
-            GeneralAlba.execute_alba_cli_action(backend.alba_backend, 'delete-namespace', [namespace['name']], False)
-        result = GeneralAlba.list_alba_namespaces(alba_backend=backend.alba_backend,
+            GeneralAlba.execute_alba_cli_action(alba_backend, 'delete-namespace', [namespace['name']], False)
+        result = GeneralAlba.list_alba_namespaces(alba_backend=alba_backend,
                                                   name=namespace_name_regex)
         assert len(result) == 0,\
             "Expected no namespaces present on the {1} backend, found {2}".format(no_namespaces, backend_name,
@@ -259,6 +253,9 @@ class TestVPool(object):
                 continue
             if pid_before == pid_after:
                 errors.append('Kill command did not work on service {0}'.format(service_name))
+
+        # wait for services to startup again - gunicorn startup takes +- 30 seconds
+        time.sleep(45)
 
         GeneralVPool.remove_vpool(vpool)
 

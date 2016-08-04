@@ -34,6 +34,7 @@ from ci.tests.general.logHandler import LogHandler
 from ovs.dal.exceptions import ObjectNotFoundException
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.servicetype import ServiceType
+from ovs.dal.lists.albabackendlist import AlbaBackendList
 from ovs.dal.lists.albanodelist import AlbaNodeList
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.db.etcd.configuration import EtcdConfiguration
@@ -48,9 +49,24 @@ class GeneralAlba(object):
     """
     ALBA_TIMER = 600
     ALBA_TIMER_STEP = 5
+    ONE_DISK_PRESET = '1diskpreset'
 
     api = Connection()
     logger = LogHandler.get('backend', name='alba')
+
+    @staticmethod
+    def get_by_name(name):
+        """
+        Retrieve an ALBA backend object based on its name
+        :param name: Name of the ALBA backend
+        :type name: str
+
+        :return: ALBA backend or None
+         :rtype: AlbaBackend
+        """
+        for alba_backend in AlbaBackendList.get_albabackends():
+            if alba_backend.name == name:
+                return alba_backend
 
     @staticmethod
     def get_alba_backend(guid):
@@ -115,6 +131,11 @@ class GeneralAlba(object):
         else:
             alba_backend = backend.alba_backend
         GeneralAlba.claim_asds(alba_backend, nr_of_disks_to_claim, type_of_disks_to_claim)
+        if GeneralAlba.has_preset(alba_backend=alba_backend,
+                                  preset_name=GeneralAlba.ONE_DISK_PRESET) is False:
+            GeneralAlba.add_preset(alba_backend=alba_backend,
+                                   name=GeneralAlba.ONE_DISK_PRESET,
+                                   policies=[[1, 1, 1, 2]])
 
     @staticmethod
     def unclaim_disks_and_remove_alba_backend(alba_backend):
@@ -202,6 +223,24 @@ class GeneralAlba(object):
         return GeneralAlba.api.execute_post_action('alba/backends', alba_backend.guid, 'delete_preset', data, wait=True)
 
     @staticmethod
+    def has_preset(alba_backend, preset_name):
+        """
+        Validate whether the ALBA backend has a preset with given name
+        :param alba_backend: ALBA backend
+        :type alba_backend: AlbaBackend
+
+        :param preset_name: Name of the preset
+        :type preset_name: str
+
+        :return: True if preset is present
+        :rtype: bool
+        """
+        for preset in alba_backend.presets:
+            if preset['name'] == preset_name:
+                return True
+        return False
+
+    @staticmethod
     def wait_for_alba_backend_status(alba_backend, status='RUNNING', timeout=None):
         """
         Verify the ALBA backend status
@@ -228,11 +267,12 @@ class GeneralAlba(object):
         """
         Put an ALBA backend in the model
         :param name: Name of the backend
+        :param scaling: Alba backend can be LOCAL or GLOBAL
         :param wait: Wait for backend to enter RUNNING state
         :return: Newly created ALBA backend
         """
-        backend = GeneralBackend.get_by_name(name)
-        if backend is None:
+        alba_backend = GeneralAlba.get_by_name(name)
+        if alba_backend is None:
             backend = GeneralBackend.add_backend(name, 'alba')
             alba_backend = AlbaBackend(GeneralAlba.api.add('alba/backends', {'backend_guid': backend.guid,
                                                                              'scaling': scaling})['guid'])
@@ -243,7 +283,7 @@ class GeneralAlba(object):
         if err == '' and len(out):
             AlbaNodeController.model_local_albanode()
 
-        return GeneralBackend.get_by_name(name).alba_backend
+        return GeneralAlba.get_by_name(name)
 
     @staticmethod
     def validate_alba_backend_sanity_without_claimed_disks(alba_backend):
@@ -630,37 +670,46 @@ class GeneralAlba(object):
         :param disk_type: Type of disk
         :return: Filtered disks
         """
-        count = 0
         node_ids = []
-        filtered_disks = dict()
+        list_of_available_disks = {}
+        filtered_disks = {}
+        disk_count = 0
+        # disk_names = dictionary with node_ids as keys and values as a list of uninitialised disk names
+        # {u'InA44YDJTKxFGvIKqD3CxYMlK7XxryZ0': [u'ata-TOSHIBA_MK2002TSKB_52Q2KSOTF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q3KR6TF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q2KSORF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q2KSOVF',
+        #                                        u'ata-TOSHIBA_MK2002TSKB_52Q2KSOUF']}
         for node_id in disk_names.iterkeys():
             node_ids.append(node_id)
-        while count < amount:
-            node_id = node_ids[count % len(node_ids)]
-
+            list_of_available_disks[node_id] = []
+            filtered_disks[node_id] = []
             alba_node = AlbaNodeList.get_albanode_by_node_id(node_id)
             storagerouter = GeneralStorageRouter.get_storage_router_by_ip(ip=alba_node.ip)
             root_client = SSHClient(storagerouter, username='root')
             hdds, ssds = GeneralDisk.get_physical_disks(client=root_client)
-
             if disk_type == 'SATA':
-                list_to_check = hdds.values()
-            elif disk_type == 'SSD':
-                list_to_check = ssds.values()
-            else:
-                hdds.update(ssds)
-                list_to_check = hdds.values()
+                for hdd in hdds.values():
+                    # add it to list_of_available_disks only if it's found in the unitialised list for that node
+                    if hdd['name'] in disk_names[node_id]:
+                        list_of_available_disks[node_id].append(hdd)
+            if disk_type == 'SSD':
+                for ssd in ssds.values():
+                    # add it to list_of_available_disks only if it's found in the unitialised list for that node
+                    if ssd['name'] in disk_names[node_id]:
+                        list_of_available_disks[node_id].append(ssd)
+            disk_count += len(list_of_available_disks[node_id])
 
-            if len(disk_names[node_id]):
-                for disk in list_to_check:
-                    if disk_names[node_id][0] == disk['name']:
-                        if node_id in filtered_disks.keys():
-                            filtered_disks[node_id].append(disk['name'])
-                        else:
-                            filtered_disks[node_id] = [disk['name']]
-                        disk_names[node_id].pop(0)
+        count = 0
+        # all disks might be on a single node so we are going with the check to max of what we need
+        for disk_index in range(amount):
+            for node_id in node_ids:
+                # if we still need disks we will add all disks found at the count value index in the list_of_available_disks disk lists
+                if count < amount:
+                    if disk_index < len(list_of_available_disks[node_id]):
+                        filtered_disks[node_id].append(list_of_available_disks[node_id][disk_index]['name'])
                         count += 1
-                        break
+        # this should run through the whole list even if we havent reached the amount of disks needed
         return filtered_disks
 
     @staticmethod
@@ -800,8 +849,6 @@ class GeneralAlba(object):
         service_names = []
         for asd_node in GeneralAlba.get_alba_nodes():
             for entry in asd_node.client.list_maintenance_services():
-                if entry.startswith('alba-maintenance_{0}'.format(alba_backend.backend.name)):
+                if re.match('^alba-maintenance_{0}-[a-zA-Z0-9]{{16}}$'.format(alba_backend.name), entry):
                     service_names.append(entry)
-        assert len(service_names) > 0,\
-            'No maintenance services found for ALBA backend {0}'.format(alba_backend.backend.name)
         return service_names

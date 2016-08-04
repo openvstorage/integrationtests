@@ -29,7 +29,7 @@ import subprocess
 import ConfigParser
 from xml.dom import minidom
 from ci.tests.general.general import General
-from ci.tests.general.general_pmachine import GeneralPMachine
+from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.scripts import testrailapi, testEnum
 from ci.scripts import xunit_testrail
@@ -39,10 +39,7 @@ TESTRAIL_STATUS_ID_PASSED = '1'
 TESTRAIL_STATUS_ID_BLOCKED = '2'
 TESTRAIL_STATUS_ID_FAILED = '5'
 TESTRAIL_STATUS_ID_SKIPPED = '11'
-TESTRAIL_FOLDER = at_config.get(section="main", option="output_folder")
 TESTRAIL_KEY = at_config.get(section="testrail", option="key")
-TESTRAIL_PROJECT = at_config.get(section="testrail", option="test_project")
-TESTRAIL_QUALITYLEVEL = at_config.get(section="main", option="qualitylevel")
 TESTRAIL_SERVER = at_config.get(section="testrail", option="server")
 
 BLOCKED_MESSAGE = "BLOCKED"
@@ -135,7 +132,7 @@ def run(tests='', output_format=TestRunnerOutputFormat.CONSOLE, output_folder='/
             testrail_ip = TESTRAIL_SERVER
             testrail_key = TESTRAIL_KEY
             env_info = _get_env_info()
-            testrail_title = env_info + "__" + version + "__" + qualitylevel + "__" + GeneralPMachine.get_hypervisor_type()
+            testrail_title = env_info + "__" + version + "__" + qualitylevel + "__" + GeneralHypervisor.get_hypervisor_type()
             testrail_project = project_name
             testrail_description = _get_description()
 
@@ -360,7 +357,7 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
             new_case = testrail_api.add_case(section_id=section_id, title=case_name)
             all_cases[suite_name].append(new_case)
 
-        ran_cases[suite_name] = ran_cases[suite_name].add(case_name) or ran_cases[suite_name] if ran_cases.get(suite_name) else set([case_name])
+        ran_cases[suite_name] = ran_cases[suite_name].add(case_name) or ran_cases[suite_name] if ran_cases.get(suite_name) else {case_name}
 
     testcase_ids_to_select = []
 
@@ -443,7 +440,7 @@ def push_to_testrail(project_name, output_folder, version=None, filename="", mil
         if elapsed == 0:
             elapsed = 1
         testrail_api.add_result(test_id=test_id, status_id=status_id, comment=comment, version=version,
-                                elapsed='%ss' % elapsed, custom_fields={'custom_hypervisor': GeneralPMachine.get_hypervisor_type()})
+                                elapsed='%ss' % elapsed, custom_fields={'custom_hypervisor': GeneralHypervisor.get_hypervisor_type()})
 
     xmlfile.unlink()
     del xmlfile
@@ -511,11 +508,11 @@ def _get_description(plan_comment="", durations=""):
     hardware_info = "### " + sysinfo + '\n### Disk Information\n' + diskinfo + '\n### Processor Information\n' + '* ' + '\n* '.join(cpuinfo) + '\n### Memory Information\n' + '* ' + ' '.join(meminfo)
     description = ""
     node_ips = ""
-    for ip in GeneralPMachine.get_all_ips():
+    for ip in GeneralStorageRouter.get_all_ips():
         node_ips += "* " + ip + "\n"
     for item, value in (("ip", "%s" % node_ips),
                         ("testsuite", durations),
-                        ("Hypervisor", GeneralPMachine.get_hypervisor_type()),
+                        ("Hypervisor", GeneralHypervisor.get_hypervisor_type()),
                         ("hardware", hardware_info),
                         ("package", _get_package_info()),
                         ("Comment ", ('*' * 40 + "\n" + plan_comment) if plan_comment else '')):
@@ -555,7 +552,7 @@ def _get_package_info():
     """
     Retrieve package information for installation
     """
-    command = "dpkg-query -W -f='${binary:Package} ${Version}\t${Description}\n' | grep 'openvstorage\|volumedriver-base\|alba \|arakoon\|python-celery '"
+    command = "dpkg-query -W -f='${binary:Package} ${Version}\t${Description}\n' | grep '^openvstorage\|^volumedriver\|^alba\|^arakoon\|^python-celery'"
 
     child_process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)

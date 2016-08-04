@@ -24,11 +24,13 @@ from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
 from ci.tests.general.general_arakoon import GeneralArakoon
 from ci.tests.general.general_backend import GeneralBackend
-from ci.tests.general.general_mgmtcenter import GeneralManagementCenter
+from ci.tests.general.general_disk import GeneralDisk
+from ci.tests.general.general_hypervisor import GeneralHypervisor
 from ci.tests.general.general_service import GeneralService
 from ci.tests.general.general_storagedriver import GeneralStorageDriver
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.general_vdisk import GeneralVDisk
+from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.diskpartition import DiskPartition
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.hybrids.vpool import VPool
@@ -46,6 +48,11 @@ class GeneralVPool(object):
     A general class dedicated to vPool logic
     """
     api = Connection()
+
+    TIMEOUT_ADD_VPOOL = 500
+    TIMEOUT_GET_ACTION = 60
+
+    logger = LogHandler.get('vpools', name='vpool')
 
     @staticmethod
     def add_vpool(vpool_parameters=None, storagerouters=None):
@@ -71,15 +78,19 @@ class GeneralVPool(object):
         storagerouter_param_map = dict((sr, GeneralVPool.get_add_vpool_params(storagerouter=sr, **vpool_parameters)) for sr in storagerouters)
         for index, sr in enumerate(storagerouters):
             vpool_name = storagerouter_param_map[sr]['vpool_name']
+            if GeneralStorageRouter.has_roles(storagerouter=sr, roles='DB') is False and sr.node_type == 'MASTER':
+                GeneralDisk.add_db_role(sr)
+            if GeneralStorageRouter.has_roles(storagerouter=sr, roles=['READ', 'SCRUB', 'WRITE']) is False:
+                GeneralDisk.add_read_write_scrub_roles(sr)
+
             task_result = GeneralVPool.api.execute_post_action(component='storagerouters',
                                                                guid=sr.guid,
                                                                action='add_vpool',
                                                                data={'call_parameters': storagerouter_param_map[sr]},
                                                                wait=True,
-                                                               timeout=500)
+                                                               timeout=GeneralVPool.TIMEOUT_ADD_VPOOL)
             if task_result[0] is not True:
-                raise RuntimeError('vPool was not {0} successfully'.format('extended' if index > 0 else 'created'),
-                                   task_result)
+                raise RuntimeError('vPool was not {0} successfully: {1}'.format('extended' if index > 0 else 'created', task_result[1]))
 
         vpool = GeneralVPool.get_vpool_by_name(vpool_name)
         if vpool is None:
@@ -104,7 +115,7 @@ class GeneralVPool(object):
         :return: None
         """
         vpool = storage_driver.vpool
-        if storage_driver.storagerouter.pmachine.hvtype == 'VMWARE':
+        if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
             root_client = SSHClient(storage_driver.storagerouter, username='root')
             if storage_driver.mountpoint in General.get_mountpoints(root_client):
                 root_client.run('umount {0}'.format(storage_driver.mountpoint))
@@ -113,7 +124,7 @@ class GeneralVPool(object):
                                                            action='shrink_vpool',
                                                            data={'storagerouter_guid': storage_driver.storagerouter.guid},
                                                            wait=True,
-                                                           timeout=500)
+                                                           timeout=GeneralVPool.TIMEOUT_ADD_VPOOL)
         if task_result[0] is not True:
             raise RuntimeError('Storage Driver with ID {0} was not successfully removed from vPool {1}'.format(storage_driver.storagedriver_id, vpool.name),
                                task_result)
@@ -126,15 +137,7 @@ class GeneralVPool(object):
         :param vpool: vPool to retrieve configuration for
         :return: Storage Driver configuration
         """
-        task_result = GeneralVPool.api.execute_get_action(component='vpools',
-                                                          guid=vpool.guid,
-                                                          action='get_configuration',
-                                                          wait=True,
-                                                          timeout=60)
-        if task_result[0] is not True:
-            raise RuntimeError('Failed to retrieve the configuration for vPool {0}'.format(vpool.name),
-                               task_result)
-        return task_result[1]
+        return GeneralVPool.api.fetch(component='vpools', guid=vpool.guid)['configuration']
 
     @staticmethod
     def get_vpools():
@@ -206,7 +209,7 @@ class GeneralVPool(object):
         all_files = {}
         for storagedriver in vpool.storagedrivers:
             files = set()
-            if storagedriver.storagerouter.pmachine.hvtype == 'VMWARE':
+            if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
                 volumedriver_mode = EtcdConfiguration.get('/ovs/framework/hosts/{0}/storagedriver|vmware_mode'.format(storagedriver.storagerouter.machine_id))
                 if volumedriver_mode == 'ganesha':
                     files.add('/opt/OpenvStorage/config/storagedriver/storagedriver/{0}_ganesha.conf'.format(vpool.name))
@@ -458,7 +461,7 @@ class GeneralVPool(object):
                     sd_partitions[partition.role].remove('None')
 
             # Verify vPool writeable
-            if storagerouter.pmachine.hvtype == 'VMWARE':
+            if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
                 GeneralVPool.mount_vpool(vpool=vpool,
                                          root_client=root_client)
 
@@ -542,10 +545,6 @@ class GeneralVPool(object):
 
         # Perform checks on all storagerouters where vpool was removed
         for storagerouter in storagerouters:
-            # Check management center
-            mgmt_center = GeneralManagementCenter.get_mgmt_center(pmachine=storagerouter.pmachine)
-            if mgmt_center is not None:
-                assert GeneralManagementCenter.is_host_configured(pmachine=storagerouter.pmachine) is False, 'Management Center is still configured on Storage Router {0}'.format(storagerouter.ip)
 
             # Check MDS services
             mds_services = GeneralService.get_services_by_name(ServiceType.SERVICE_TYPES.MD_SERVER)
@@ -558,7 +557,7 @@ class GeneralVPool(object):
                     raise RuntimeError('Service {0} is still configured on Storage Router {1}'.format(service, storagerouter.ip))
 
             # Check KVM vpool
-            if storagerouter.pmachine.hvtype == 'KVM':
+            if GeneralHypervisor.get_hypervisor_type() == 'KVM':
                 vpool_overview = root_client.run('virsh pool-list --all').splitlines()
                 vpool_overview.pop(1)
                 vpool_overview.pop(0)
