@@ -164,7 +164,10 @@ class TestDiskRoles(object):
             logger.info("Found '{0}' on partition and predefined roles: '{1}'".format(partition.roles, value))
             if sorted(partition.roles) == sorted(value):
                 succesfull_iterations += 1
-        return sorted(partition.roles) == sorted(value)
+            else:
+                logger.error("The role '{0}' for partition '{1}' was not set correctly!".format(value, key))
+                logger.error("Found '{0}' and expected '{1}' was not set correctly!".format(partition.roles, value))
+        return succesfull_iterations == iterations
 
     def tdr_0001_add_remove_role_and_crosscheck_model_test(self, ip, configuration):
         """
