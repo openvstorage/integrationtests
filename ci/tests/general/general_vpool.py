@@ -83,14 +83,19 @@ class GeneralVPool(object):
             if GeneralStorageRouter.has_roles(storagerouter=sr, roles=['READ', 'SCRUB', 'WRITE']) is False:
                 GeneralDisk.add_read_write_scrub_roles(sr)
 
-            task_result = GeneralVPool.api.execute_post_action(component='storagerouters',
-                                                               guid=sr.guid,
-                                                               action='add_vpool',
-                                                               data={'call_parameters': storagerouter_param_map[sr]},
-                                                               wait=True,
-                                                               timeout=GeneralVPool.TIMEOUT_ADD_VPOOL)
-            if task_result[0] is not True:
-                raise RuntimeError('vPool was not {0} successfully: {1}'.format('extended' if index > 0 else 'created', task_result[1]))
+            vpool_present = False
+            for sd in sr.storagedrivers:
+                if sd.vpool.name == vpool_name:
+                    vpool_present = True
+            if not vpool_present:
+                task_result = GeneralVPool.api.execute_post_action(component='storagerouters',
+                                                                   guid=sr.guid,
+                                                                   action='add_vpool',
+                                                                   data={'call_parameters': storagerouter_param_map[sr]},
+                                                                   wait=True,
+                                                                   timeout=GeneralVPool.TIMEOUT_ADD_VPOOL)
+                if task_result[0] is not True:
+                    raise RuntimeError('vPool was not {0} successfully: {1}'.format('extended' if index > 0 else 'created', task_result[1]))
 
         vpool = GeneralVPool.get_vpool_by_name(vpool_name)
         if vpool is None:
