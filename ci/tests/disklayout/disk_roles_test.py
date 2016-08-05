@@ -51,7 +51,7 @@ class TestDiskRoles(object):
     #########
 
     @staticmethod
-    def set_roles_from_config(config, operation_type):
+    def set_roles_from_config(config, operation_type='SET'):
         """
         :param config: Configuration file containing all of the required information
         :type config: dict
@@ -97,7 +97,7 @@ class TestDiskRoles(object):
                         collection[partition.guid] = new_roles_list
                 elif operation_type == "SET":
                     GeneralDisk.adjust_disk_role(partition, roles_list, 'SET')
-                return collection
+        return collection
 
     @staticmethod
     def remove_roles_from_config(config, number_of_roles_to_remain=0):
@@ -137,8 +137,8 @@ class TestDiskRoles(object):
                 GeneralDisk.adjust_disk_role(partition, remaining_roles, 'SET')
                 # Will test if the role is an empty list
                 collection[partition.guid] = remaining_roles
-                return collection
-                # End remove disk roles
+        return collection
+        # End remove disk roles
 
     @staticmethod
     def validate_roles(collection):
@@ -152,20 +152,28 @@ class TestDiskRoles(object):
         """
         # Start validation
         # Check if roles are the same as specified
+        iterations = 0
+        succesfull_iterations = 0
         logger.info("Starting validation of disk roles")
         for key, value in collection.iteritems():
+            iterations += 1
             # Fetch partition matching key
             partition = GeneralDisk.get_disk_partition(key)
             # Check if roles are the same
             logger.info("Comparing roles on the partition '{0}'...".format(key))
             logger.info("Found '{0}' on partition and predefined roles: '{1}'".format(partition.roles, value))
-            return sorted(partition.roles) == sorted(value)
+            if sorted(partition.roles) == sorted(value):
+                succesfull_iterations += 1
+        return sorted(partition.roles) == sorted(value)
 
-    def tdr_0001_add_remove_role_and_crosscheck_model_test(self, ip):
+    def tdr_0001_add_remove_role_and_crosscheck_model_test(self, ip, configuration):
         """
         This test will add a DB role to the sda disk of the storage router with the given IP
         :param ip: IP address of a storage router. (Example:
         :type ip: str
+
+        :param configuration: Dict that determines layout
+        :type configuration: dict
         :return: None
         """
         # Start input validation
@@ -176,14 +184,15 @@ class TestDiskRoles(object):
 
         # Start setup
         collection = {}
-        config = {
-            ip: {
-                "disks": [{
-                    "disk_name": "sda",
-                    "roles": ["DB"]
-                }]
-                }
-        }
+        if not configuration:
+            config = {
+                ip: {
+                    "disks": [{
+                        "disk_name": "sda",
+                        "roles": ["DB"]
+                    }]
+                    }
+            }
         collection = self.set_roles_from_config(config, 'SET')
         # End setup
 
@@ -198,7 +207,7 @@ class TestDiskRoles(object):
         # Start remove validaton
         # End validation
 
-    def tdr_0002_append_remove_role_and_crosscheck_model_test(self, ip, number_of_roles_to_remain=0):
+    def tdr_0002_append_remove_role_and_crosscheck_model_test(self, ip, number_of_roles_to_remain=0, configuration=None):
         """
         This test will append a DB role to the sda disk of the storage router with the given IP and remove all other roles so only DB role remains.
         :param ip: IP address of a storage router. (Example:
@@ -206,6 +215,9 @@ class TestDiskRoles(object):
 
         :param number_of_roles_to_remain: how roles may still be defined on the partition. The first 'number_of_roles_to_remain' will remain.
         :type number_of_roles_to_remain: int
+
+        :param configuration: Dict that determines layout
+        :type configuration: dict
 
         :return: None
         """
@@ -218,14 +230,15 @@ class TestDiskRoles(object):
 
         # Start setup
         collection = {}
-        config = {
-            ip: {
-                "disks": [{
-                    "disk_name": "sda",
-                    "roles": ["WRITE", "READ", "SCRUB"]
-                }]
+        if not configuration:
+            config = {
+                ip: {
+                    "disks": [{
+                        "disk_name": "sda",
+                        "roles": ["WRITE", "READ", "SCRUB"]
+                    }]
+                }
             }
-        }
         collection = self.set_roles_from_config(config, 'APPEND')
         # End setup
         # Start validation
