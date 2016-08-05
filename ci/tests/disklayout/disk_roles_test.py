@@ -23,6 +23,7 @@ from ci.tests.general.general import General
 
 logger = LogHandler.get('disklayout', name='alba')
 
+
 class TestDiskRoles(object):
     """
     Disk roles testsuite
@@ -91,11 +92,11 @@ class TestDiskRoles(object):
                 logger.info("Adding roles '{0}' to partition '{1}'".format(roles_list, partition.guid))
                 collection[partition.guid] = roles_list
                 if operation_type == "APPEND":
-                    GeneralDisk.append_disk_role(partition, roles_list)
+                    GeneralDisk.adjust_disk_role(partition, roles_list, 'APPEND')
                     if new_roles_list:
                         collection[partition.guid] = new_roles_list
                 elif operation_type == "SET":
-                    GeneralDisk.set_disk_role(partition, roles_list)
+                    GeneralDisk.adjust_disk_role(partition, roles_list, 'SET')
                 return collection
 
     @staticmethod
@@ -132,13 +133,12 @@ class TestDiskRoles(object):
                 else:
                     # When number_of_roles_to_remain, everything should have been removed
                     remaining_roles = []
-                logger.info("Removing roles '{0}' from partition '{1}'".format(roles_list, partition.guid))
-                GeneralDisk.remove_disk_role(partition, roles_list)
+                logger.info("Removing roles '{0}' from partition '{1}'".format(remaining_roles, partition.guid))
+                GeneralDisk.adjust_disk_role(partition, remaining_roles, 'SET')
                 # Will test if the role is an empty list
                 collection[partition.guid] = remaining_roles
                 return collection
                 # End remove disk roles
-
 
     @staticmethod
     def validate_roles(collection):
