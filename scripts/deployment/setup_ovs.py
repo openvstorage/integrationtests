@@ -1082,7 +1082,7 @@ start ovs-beaver
 if __name__ == '__main__':
     external_etcd = ''
     patchbranch = ''
-    options, remainder = getopt.getopt(sys.argv[1:], 'p:q:c:x:b')
+    options, remainder = getopt.getopt(sys.argv[1:], 'p:q:c:x:b:')
     for opt, arg in options:
         if opt == '-p':
             public_ip = arg
