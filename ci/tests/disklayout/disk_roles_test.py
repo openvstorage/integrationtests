@@ -15,11 +15,11 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 import logging
-import re
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.logHandler import LogHandler
 from ci.tests.general.general import General
+from ci.tests.general.general_network import GeneralNetwork
 
 logger = LogHandler.get('disklayout', name='alba')
 
@@ -123,16 +123,16 @@ class TestDiskRoles(object):
                 disk = GeneralStorageRouter().get_disk_by_ip(disk_name, key)
                 logger.info("Fetching or creating new partitions for disk '{0}'".format(disk.guid))
                 partition = GeneralDisk.partition_disk(disk)
-                if not number_of_roles_to_remain == 0:
+                if number_of_roles_to_remain == 0:
+                    # When number_of_roles_to_remain ==0, everything should have been removed
+                    remaining_roles = []
+                else:
                     if len(partition.roles) < number_of_roles_to_remain:
                         logger.warning("Number of roles that should remain exceed the number of roles that are present! Keeping all roles instead!")
                         roles_list = partition.roles
                     else:
                         roles_list = partition.roles[number_of_roles_to_remain:]
                     remaining_roles = General.remove_list_from_list(partition.roles, roles_list)
-                else:
-                    # When number_of_roles_to_remain, everything should have been removed
-                    remaining_roles = []
                 logger.info("Removing roles '{0}' from partition '{1}'".format(remaining_roles, partition.guid))
                 GeneralDisk.adjust_disk_role(partition, remaining_roles, 'SET')
                 # Will test if the role is an empty list
@@ -153,7 +153,7 @@ class TestDiskRoles(object):
         # Start validation
         # Check if roles are the same as specified
         iterations = 0
-        succesfull_iterations = 0
+        successful_iterations = 0
         logger.info("Starting validation of disk roles")
         for key, value in collection.iteritems():
             iterations += 1
@@ -163,11 +163,11 @@ class TestDiskRoles(object):
             logger.info("Comparing roles on the partition '{0}'...".format(key))
             logger.info("Found '{0}' on partition and predefined roles: '{1}'".format(partition.roles, value))
             if sorted(partition.roles) == sorted(value):
-                succesfull_iterations += 1
+                successful_iterations += 1
             else:
                 logger.error("The role '{0}' for partition '{1}' was not set correctly!".format(value, key))
                 logger.error("Found '{0}' and expected '{1}' was not set correctly!".format(partition.roles, value))
-        return succesfull_iterations == iterations
+        return successful_iterations == iterations
 
     def tdr_0001_add_remove_role_and_crosscheck_model_test(self, ip, configuration):
         """
@@ -180,9 +180,7 @@ class TestDiskRoles(object):
         :return: None
         """
         # Start input validation
-        pattern = re.compile(r"^(?<!\S)((\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\b|\.\b){7}(?!\S)$")
-        if not pattern.match(ip):
-            raise ValueError('Not a valid IP address')
+        GeneralNetwork.validate_ip(ip)
         # End input validation
 
         # Start setup
@@ -207,7 +205,8 @@ class TestDiskRoles(object):
         collection = self.remove_roles_from_config(config)
         # End remove disk roles
 
-        # Start remove validaton
+        # Start remove validation
+        assert self.validate_roles(collection), "Roles were not removed!"
         # End validation
 
     def tdr_0002_append_remove_role_and_crosscheck_model_test(self, ip, number_of_roles_to_remain=0, configuration=None):
@@ -226,9 +225,7 @@ class TestDiskRoles(object):
         """
 
         # Start input validation
-        pattern = re.compile(r"^(?<!\S)((\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\b|\.\b){7}(?!\S)$")
-        if not pattern.match(ip):
-            raise ValueError('Not a valid IP address')
+        GeneralNetwork.validate_ip(ip)
         # End input validation
 
         # Start setup
@@ -251,6 +248,6 @@ class TestDiskRoles(object):
         collection = self.remove_roles_from_config(config, number_of_roles_to_remain)
         # End remove disk roles
 
-        # Start remove validaton
+        # Start remove validation
         assert self.validate_roles(collection), "Roles were not removed!"
         # End validation
