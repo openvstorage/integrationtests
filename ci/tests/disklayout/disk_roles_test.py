@@ -31,7 +31,6 @@ class TestDiskRoles(object):
      - Adding a role to a disk
      - Removing all roles of a disk
      - Appending a role to existing role on a disk
-     @TODO
      - Remove a number of roles and leave x roles behind
     These tests can run from a config file that has the following markup:
     {
