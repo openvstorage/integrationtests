@@ -150,7 +150,7 @@ class General(object):
         # @TODO: Split this cleanup function up in relevant parts and put them in the correct general files
         machine_name = "AT_"
 
-        from ci.tests.general import general_hypervisor
+        from ci.tests.general.general_hypervisor import GeneralHypervisor
         from ci.tests.general.general_vpool import GeneralVPool
         for vpool in GeneralVPool.get_vpools():
             if vpool:
