@@ -173,7 +173,8 @@ class GeneralVPool(object):
                                           'cluster_size': kwargs.get('cluster_size', config_params.get('cluster_size', 4)),
                                           'write_buffer': kwargs.get('write_buffer', config_params.get('write_buffer', 128)),
                                           'dtl_transport': kwargs.get('dtl_transport', config_params.get('dtl_transport', 'tcp')),
-                                          'cache_strategy': kwargs.get('cache_strategy', config_params.get('cache_strategy', 'on_read'))}}
+                                          'cache_strategy': kwargs.get('cache_strategy', config_params.get('cache_strategy', 'on_read'))},
+                        'backend_connection_info': {'host': ''}}
         if vpool_type not in ['local', 'distributed']:
             vpool_params['backend_connection_info'] = {'host': kwargs.get('alba_connection_host', test_config.get('vpool', 'alba_connection_host')),
                                                        'port': kwargs.get('alba_connection_port', test_config.getint('vpool', 'alba_connection_port')),
