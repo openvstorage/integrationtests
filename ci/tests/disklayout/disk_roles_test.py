@@ -15,6 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 import logging
+import re
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ci.tests.general.logHandler import LogHandler
@@ -47,7 +48,7 @@ class TestDiskRoles(object):
     logger = logging.getLogger('test_disk_roles')
 
     #########
-    # TESTS #
+    # HELPERS #
     #########
 
     @staticmethod
@@ -168,10 +169,35 @@ class TestDiskRoles(object):
                 successful_iterations += 1
             else:
                 logger.error("The role '{0}' for partition '{1}' was not set correctly!".format(value, key))
-                logger.error("Found '{0}' and expected '{1}' was not set correctly!".format(partition.roles, value))
+                logger.error("Found '{0}' and expected '{1}'!".format(partition.roles, value))
         return successful_iterations == iterations
 
-    def tdr_0001_add_remove_role_and_crosscheck_model_test(self, ip=None, configuration=None):
+    @staticmethod
+    def extractDiskName(pathstring):
+        """
+        :param pathstring: A string containing a path to a disk (Example: /dev/sda)
+        :type pathstring
+
+        :return: Returns the diskname without the path (Example: sda)
+        :type: str
+        """
+        values=re.split(r'\/', pathstring)
+        return values[len(values)-1]
+
+    @staticmethod
+    def get_first_unused_disk():
+        disks=GeneralDisk.get_unused_disks()
+        if disks[0]:
+            return TestDiskRoles.extractDiskName(disks[0])
+        else:
+            raise ValueError('No available disks, setup is invalid for testing!')
+
+    #########
+    # TESTS #
+    #########
+
+    @staticmethod
+    def tdr_0001_add_remove_role_and_crosscheck_model_test(ip=None, configuration=None):
         """
         This test will add a DB role to the sda disk of the storage router with the given IP
         :param ip: IP address of a storage router. (Example:
@@ -191,31 +217,35 @@ class TestDiskRoles(object):
 
         # Start setup
         collection = {}
-        if not configuration:
+        if configuration:
+            config = configuration
+        else:
+            # Will use first unused disk
             config = {
                 ip: {
                     "disks": [{
-                        "disk_name": "sda",
-                        "roles": ["DB"]
+                        "disk_name": TestDiskRoles.get_first_unused_disk(),
+                        "roles": ["WRITE", "READ", "SCRUB"]
                     }]
-                    }
+                }
             }
-        collection = self.set_roles_from_config(config, 'SET')
+        collection = TestDiskRoles.set_roles_from_config(config, 'SET')
         # End setup
 
         # Start validation
-        assert self.validate_roles(collection), "Roles were not set according to the configuration!"
+        assert TestDiskRoles.validate_roles(collection), "Roles were not set according to the configuration!"
         # End validation
 
         # Remove disk roles
-        collection = self.remove_roles_from_config(config)
+        collection = TestDiskRoles.remove_roles_from_config(config)
         # End remove disk roles
 
         # Start remove validation
-        assert self.validate_roles(collection), "Roles were not removed!"
+        assert TestDiskRoles.validate_roles(collection), "Roles were not removed!"
         # End validation
 
-    def tdr_0002_append_remove_role_and_crosscheck_model_test(self, ip=None, number_of_roles_to_remain=0,
+    @staticmethod
+    def tdr_0002_append_remove_role_and_crosscheck_model_test(ip=None, number_of_roles_to_remain=0,
                                                               configuration=None):
         """
         This test will append a DB role to the sda disk of the storage router with the given IP and remove all
@@ -242,24 +272,26 @@ class TestDiskRoles(object):
 
         # Start setup
         collection = {}
-        if not configuration:
+        if configuration:
+            config = configuration
+        else:
             config = {
                 ip: {
                     "disks": [{
-                        "disk_name": "sda",
+                        "disk_name": TestDiskRoles.get_first_unused_disk(),
                         "roles": ["WRITE", "READ", "SCRUB"]
                     }]
                 }
             }
-        collection = self.set_roles_from_config(config, 'APPEND')
+        collection = TestDiskRoles.set_roles_from_config(config, 'APPEND')
         # End setup
         # Start validation
-        assert self.validate_roles(collection), "Roles were not set according to the configuration!"
+        assert TestDiskRoles.validate_roles(collection), "Roles were not set according to the configuration!"
         # End validation
         # Remove disk roles
-        collection = self.remove_roles_from_config(config, number_of_roles_to_remain)
+        collection = TestDiskRoles.remove_roles_from_config(config, number_of_roles_to_remain)
         # End remove disk roles
 
         # Start remove validation
-        assert self.validate_roles(collection), "Roles were not removed!"
+        assert TestDiskRoles.validate_roles(collection), "Roles were not removed!"
         # End validation
