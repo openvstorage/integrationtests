@@ -250,14 +250,12 @@ python /opt/qbase5/utils/ubuntu_autoinstall.py -M {public_mac_address}
     q.clients.ssh.waitForConnection(pub_ip, "root", UBUNTU_PASSWORD, times=60)
 
 
-def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch=''):
+def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch=''):
     """
     Handle OVS setup
     :param pub_ip: Public IP
     :param ql: Quality level
     :param cluster: Cluster name
-    :param hv_type: Hypervisor type
-    :param hv_ip: Hypervisor IP
     :param ext_etcd='': External etcd cluster
     :param branch: specific branch to use as extra patch on top of official branches
     :return: None
@@ -308,11 +306,14 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
         _pick_option(child, "Create a new cluster", use_select=False)
         child.expect('Please enter the cluster name')
         child.sendline(cluster)
-    idx = child.expect(['Select the public IP address of', 'Password:'])
-    if idx == 1:
+    idx = child.expect(['Found exactly one choice', 'Select the public IP address of', 'Password:'])
+    if idx == 2:
         child.sendline(UBUNTU_PASSWORD)
-        child.expect('Select the public IP address of')
-    _pick_option(child, pub_ip)
+        idx2 = child.expect(['Found exactly one choice', 'Select the public IP address of'])
+        if idx2 == 1:
+            _pick_option(child, pub_ip)
+    if idx == 1:
+        _pick_option(child, pub_ip)
 
     # 5 minutes to partition disks
     child.timeout = 300
@@ -355,8 +356,15 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
     exit_script_mark = "~#"
     try:
         # IP address to be used for the ASD API
-        idx = child.expect(["Select the public IP address to be used for the API", exit_script_mark])
+        idx = child.expect(["Found exactly one choice", "Select the public IP address to be used for the API", exit_script_mark])
         if idx == 0:
+            # port - default 8500
+            child.sendline("")
+            # IP addresses to be used for the ASDs - default all
+            child.sendline("")
+            # port to be used for the ASDs - default 8600
+            child.sendline("")
+        if idx == 1:
             _pick_option(child, pub_ip)
             # port - default 8500
             child.sendline("")
@@ -364,7 +372,7 @@ def _handle_ovs_setup(pub_ip, ql, cluster, hv_type, hv_ip, ext_etcd='', branch='
             child.sendline("")
             # port to be used for the ASDs - default 8600
             child.sendline("")
-        elif idx == 1:
+        elif idx == 2:
             return
     except:
         print
@@ -419,6 +427,7 @@ def install_autotests(node_ip, patch_branch=''):
     Install the autotest package on node with IP
     :param node_ip: IP of node
     :param patch_branch: code branch to apply as patch on target
+    :param extra_pkgs: install specific OS pkgs to be used during testing
     :return: None
     """
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
@@ -861,63 +870,22 @@ restart mysql
     print remote_con.process.execute(cmd, dieOnNonZeroExitCode=False)
 
 
-def install_additional_node(hv_type, hv_ip, hv_password, first_node_ip, new_node_ip,
-                            ql, cluster, domain_name_system, pub_network, pub_netmask, gw, host_name,
-                            storage_ip_last_part=None, with_devstack=False, fixed_range=None, fixed_range_size=None,
-                            floating_range=None, branch_name="", tag_name="", flat_interface="eth0", patch_branch=''):
+def install_additional_node(first_node_ip, new_node_ip, ql, cluster, patch_branch=''):
     """
     Install an additional node
-    :param hv_type: Hypervisor type
-    :param hv_ip: Hypervisor IP
-    :param hv_password: Hypervisor password
     :param first_node_ip: First node IP
     :param new_node_ip: Additional node IP
     :param ql: Quality level
     :param cluster: Cluster name
-    :param domain_name_system: DNS
-    :param pub_network: Public network
-    :param pub_netmask: Public netmask
-    :param gw: Gateway
-    :param host_name: Hostname
-    :param storage_ip_last_part: Last octet of storage IP
-    :param with_devstack: Install with DevStack
-    :param fixed_range: Fixed range
-    :param fixed_range_size: Fixed range size
-    :param floating_range: Floating range
-    :param branch_name: Branch name
-    :param tag_name: Tag name
-    :param flat_interface: Flat interface
     :param patch_branch: patch_branch
     :return: None
     """
     # check connectivity
     q.clients.ssh.waitForConnection(first_node_ip, "root", UBUNTU_PASSWORD, times=30)
-    if hv_type == "VMWARE":
-        _deploy_ovsvsa_vmware(pub_ip=new_node_ip,
-                              hv_ip=hv_ip,
-                              hv_password=hv_password,
-                              domain_name_server=domain_name_system,
-                              pub_network=pub_network,
-                              gw=gw,
-                              pub_netmask=pub_netmask,
-                              host_name=host_name,
-                              extra_pkgs=None,
-                              storage_ip_last_part=storage_ip_last_part)
     q.clients.ssh.waitForConnection(new_node_ip, "root", UBUNTU_PASSWORD, times=30)
-    if with_devstack:
-        install_devstack(node_ip=new_node_ip,
-                         fixed_range=fixed_range,
-                         fixed_range_size=fixed_range_size,
-                         floating_range=floating_range,
-                         flat_interface=flat_interface,
-                         master_node_ip=first_node_ip,
-                         branch_name=branch_name,
-                         tag_name=tag_name)
     _handle_ovs_setup(pub_ip=new_node_ip,
                       ql=ql,
                       cluster=cluster,
-                      hv_type=hv_type,
-                      hv_ip=hv_ip,
                       branch=patch_branch)
 
 
@@ -1112,85 +1080,34 @@ start ovs-beaver
 
 
 if __name__ == '__main__':
-    dns = ''
-    gateway = ''
-    public_network = ''
-    storage_nic_mac = ''
     external_etcd = ''
     patchbranch = ''
-    options, remainder = getopt.getopt(sys.argv[1:], 'e:w:p:n:g:k:d:q:c:h:E:H:M:S:s:x:b:N')
+    options, remainder = getopt.getopt(sys.argv[1:], 'p:q:c:x:b:')
     for opt, arg in options:
-        if opt == '-e':
-            hypervisor_ip = arg
-        if opt == '-w':
-            hypervisor_password = arg
         if opt == '-p':
             public_ip = arg
-        if opt == '-n':
-            public_network = arg
-        if opt == '-g':
-            gateway = arg
-        if opt == '-k':
-            public_netmask = arg
-        if opt == '-d':
-            dns = arg
         if opt == '-q':
             qualitylevel = arg
         if opt == '-c':
             cluster_name = arg
-        if opt == '-h':
-            hostname = arg
-        if opt == '-E':
-            extra_packages = arg
-        if opt == '-H':
-            hypervisor_type = arg
-            assert hypervisor_type in SUPPORTED_HYPERVISORS, "Supported hypervisor types are {0}".format(SUPPORTED_HYPERVISORS)
-        if opt == '-M':
-            storage_nic_mac = arg
-        if opt == '-S':
-            connection_host = arg
-        if opt == '-s':
-            storage_ip_last_octet = arg
         if opt == '-x':
             external_etcd = arg
         if opt == '-b':
             patchbranch = arg
-        if opt == '-N':
-            install_ovsvsa = False
 
-    assert q.system.net.pingMachine(hypervisor_ip), "Invalid ip given or unreachable"
-    hypervisor_password = hypervisor_password or "R00t3r123"
-    hypervisor_login = "root"
-    qualitylevel = qualitylevel or "test"
-
-    if hypervisor_type == "KVM":
-        public_ip = hypervisor_ip
-        assert storage_nic_mac, "storage_nic_mac needs to be specified"
-        storage_nic_mac = storage_nic_mac.lower()
-    if hypervisor_type == "VMWARE" and install_ovsvsa:
-        _deploy_ovsvsa_vmware(pub_ip=public_ip,
-                              hv_ip=hypervisor_ip,
-                              hv_password=hypervisor_password,
-                              domain_name_server=dns,
-                              pub_network=public_network,
-                              gw=gateway,
-                              pub_netmask=public_netmask,
-                              host_name=hostname,
-                              extra_pkgs=extra_packages,
-                              storage_ip_last_part=storage_ip_last_octet)
+    assert q.system.net.pingMachine(public_ip), "Invalid ip given or unreachable"
+    qualitylevel = qualitylevel or "unstable"
 
     _handle_ovs_setup(pub_ip=public_ip,
                       ql=qualitylevel,
                       cluster=cluster_name,
-                      hv_type=hypervisor_type,
-                      hv_ip=hypervisor_ip,
                       ext_etcd=external_etcd,
                       branch=patchbranch)
 
     # TODO: remove this if when OVS-3984 is resolved
-    if hypervisor_type == "KVM":
-        con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
-        exitcode, output = con.process.execute("grep -c 'ovs' /etc/passwd")
-        if exitcode == 0 and output[0] == '1':
-            # user ovs exists
+    con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
+    exitcode, output = con.process.execute("grep -c 'ovs:' /etc/passwd")
+    if exitcode == 0 and output[0] == '1':
+        exitcode, output = con.process.execute("which virt-install")
+        if exitcode == 0:
             con.process.execute("usermod -a -G ovs libvirt-qemu")
