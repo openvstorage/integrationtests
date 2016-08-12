@@ -266,8 +266,23 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch=''):
 
     remote_con.process.execute('apt-get update')
     remote_con.process.execute('apt-get install -y ntp')
-    remote_con.process.execute('apt-get install -y --allow-unauthenticated volumedriver-no-dedup-server')
+
+    exitcode, output = remote_con.process.execute('cat /etc/lsb-release')
+    if exitcode == 0:
+        for key in output.splitlines():
+            if key == 'DISTRIB_RELEASE=16.04':
+                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/ubuntu/job/volumedriver-dev-release-ubuntu-16.04/lastSuccessfulBuild/artifact/volumedriver-core/build/debian/volumedriver-base_6.0.3-dev.201608092006.f23221e_amd64.deb')
+                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/ubuntu/job/volumedriver-dev-release-ubuntu-16.04/lastSuccessfulBuild/artifact/volumedriver-core/build/debian/volumedriver-server_6.0.3-dev.201608092006.f23221e_amd64.deb')
+                remote_con.process.execute('apt-get install -y gdebi-core')
+                remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-base_6.0.3-dev.201608092006.f23221e_amd64.deb')
+                remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-server_6.0.3-dev.201608092006.f23221e_amd64.deb')
+                break
+            else:
+                remote_con.process.execute('apt-get install -y --allow-unauthenticated volumedriver-no-dedup-server')
+                break
+
     remote_con.process.execute('apt-get install -y --allow-unauthenticated openvstorage-hc')
+
     # clean leftover mds
     e, o = remote_con.process.execute("ls /dev/md*", dieOnNonZeroExitCode=False)
     if e == 0:
