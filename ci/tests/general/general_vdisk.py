@@ -163,8 +163,6 @@ class GeneralVDisk(object):
     def disconnect_volume(loop_device, root_client=None):
         """
         Disconnect a vdisk and cleanup it's loop device
-        :param vpool: vPool to disconnect a volume from
-        :param name: Name of the volume
         :param loop_device: Loop device where volume is mounted on
         :param root_client: SSHClient object
         :return: None
