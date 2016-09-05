@@ -20,6 +20,7 @@ A general class dedicated to Storage Router logic
 
 from ci.tests.general.connection import Connection
 from ovs.dal.hybrids.diskpartition import DiskPartition
+from ovs.dal.lists.disklist import DiskList
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.system import System
 from ovs.lib.helpers.toolbox import Toolbox
@@ -209,3 +210,41 @@ class GeneralStorageRouter(object):
         for role in roles:
             roles_found &= len(storagerouter.partition_config[role]) > 0
         return roles_found
+
+    @staticmethod
+    def get_disk_by_name(diskname, storagerouter_guid):
+        """
+        :param diskname: the name of the disk (EXAMPLE=sdb)
+        :type diskname: str
+
+        :param storagerouter_guid: the guid of the storagerouter
+        :type storagerouter_guid: str
+
+        :return: a physical disk with it properties
+        :rtype: ovs.dal.hybrids.disk
+        """
+
+        # Get all disks with args.diskname for the specified storagerouter
+        for d in DiskList.get_disks():
+            if d.name == diskname and d.storagerouter_guid == storagerouter_guid:
+                return d
+
+    def get_disk_by_ip(self, diskname, ip):
+        """
+
+        :param diskname: the name of the disk (EXAMPLE=sdb)
+        :type diskname: str
+
+        :param ip: the ip address of the storage router (EXAMPLE=10.100.199.1)
+        :type ip: str
+
+        :return: a physical disk with it properties
+        :rtype: ovs.dal.hybrids.disk
+        """
+
+        storagerouter = self.get_storage_router_by_ip(ip)
+
+        if storagerouter:
+            return self.get_disk_by_name(diskname, storagerouter.guid)
+        else:
+            raise ValueError("Storagerouter with ip '{0}' does not exist.".format(ip))

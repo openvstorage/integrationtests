@@ -173,6 +173,12 @@ class Connection(object):
         base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.ip, component, guid, action)
         request = urllib2.Request(base_url, json.dumps(data), headers=self.headers)
         request.add_header('Content-Type', 'application/json')
+
+        Connection.logger.info('component: {0}'.format(component))
+        Connection.logger.info('guid: {0}'.format(guid))
+        Connection.logger.info('action: {0}'.format(action))
+        Connection.logger.info('data: {0}'.format(data))
+
         try:
             response = urllib2.urlopen(request).read()
         except urllib2.HTTPError, error:

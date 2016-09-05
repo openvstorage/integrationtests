@@ -153,17 +153,34 @@ class GeneralDisk(object):
                                             timeout=300)
 
     @staticmethod
-    def append_disk_role(partition, roles_to_add):
+    def adjust_disk_role(partition, roles_to_adjust, action='APPEND'):
         """
-        Configure a disk
-        :param partition: Disk partition
-        :param roles_to_add: Roles to add to the disk
+        Adjust a disk its roles
+            - Append disk roles: ['DB'] to ['WRITE'] = ['DB', 'WRITE']
+            - Set/Remove disk roles: ['DB'] to ['WRITE'] = ['DB']
+
+        :param partition: Disk partition dal object
+        :type partition: ovs.dal.hybrids.diskpartition
+
+        :param roles_to_adjust: Roles to add to the disk
+        :type roles_to_adjust: list
+
+        :param action: options field with APPEND OR SET
+        :type action: str
+
         :return: None
         """
-        roles = partition.roles
-        for role in roles_to_add:
-            if role not in roles:
-                roles.append(role)
+        roles = None
+        if action == 'APPEND':
+            roles = partition.roles
+            for role in roles_to_adjust:
+                if role not in roles:
+                    roles.append(role)
+        elif action == 'SET':
+            roles = roles_to_adjust
+        else:
+            ValueError("Action '{0}' does not exists!".format(action))
+
         GeneralDisk.configure_disk(storagerouter=partition.disk.storagerouter,
                                    disk=partition.disk,
                                    partition=partition,
@@ -185,7 +202,7 @@ class GeneralDisk(object):
                 if partition.mountpoint and '/mnt/ssd' in partition.mountpoint:
                     db_partition = partition
                 if partition.mountpoint == '/' or partition.folder == '/mnt/storage':
-                    GeneralDisk.append_disk_role(partition, ['DB'])
+                    GeneralDisk.adjust_disk_role(partition, ['DB'])
                     role_added = True
                     break
         # LVM partition present on the / mountpoint
@@ -196,11 +213,11 @@ class GeneralDisk(object):
             disks_to_partition.sort(key=operator.attrgetter('is_ssd'), reverse=True)
             if len(disks_to_partition):
                 db_partition = GeneralDisk.partition_disk(disks_to_partition[0])
-                GeneralDisk.append_disk_role(db_partition, ['DB'])
+                GeneralDisk.adjust_disk_role(db_partition, ['DB'])
             else:
-                raise Exception('No disks capable of receiveing a DB role')
+                raise Exception('No disks capable of receiving a DB role')
         elif role_added is False:
-            GeneralDisk.append_disk_role(db_partition, ['DB'])
+            GeneralDisk.adjust_disk_role(db_partition, ['DB'])
 
     @staticmethod
     def partition_disk(disk):
@@ -291,4 +308,4 @@ class GeneralDisk(object):
                 partition_roles[ssds[1].partitions[0]] = ['WRITE']
 
         for partition, roles in partition_roles.iteritems():
-            GeneralDisk.append_disk_role(partition, roles)
+            GeneralDisk.adjust_disk_role(partition, roles)
