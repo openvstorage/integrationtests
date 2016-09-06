@@ -250,7 +250,7 @@ python /opt/qbase5/utils/ubuntu_autoinstall.py -M {public_mac_address}
     q.clients.ssh.waitForConnection(pub_ip, "root", UBUNTU_PASSWORD, times=60)
 
 
-def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch=''):
+def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='Arakoon'):
     """
     Handle OVS setup
     :param pub_ip: Public IP
@@ -258,6 +258,7 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch=''):
     :param cluster: Cluster name
     :param ext_etcd='': External etcd cluster
     :param branch: specific branch to use as extra patch on top of official branches
+    :param config_mgmt: configuration database store: Etcd|Arakoon
     :return: None
     """
 
@@ -271,10 +272,10 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch=''):
     if exitcode == 0:
         for key in output.splitlines():
             if key == 'DISTRIB_RELEASE=16.04':
-                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/ubuntu/job/volumedriver-dev-release-ubuntu-16.04/lastSuccessfulBuild/artifact/volumedriver-core/build/debian/volumedriver-base_6.0.3-dev.201608092006.f23221e_amd64.deb')
-                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/ubuntu/job/volumedriver-dev-release-ubuntu-16.04/lastSuccessfulBuild/artifact/volumedriver-core/build/debian/volumedriver-server_6.0.3-dev.201608092006.f23221e_amd64.deb')
-                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/alba2/job/alba_docker_generic_package_ubuntu-16.04/lastSuccessfulBuild/artifact/alba_0.9.17_amd64.deb')
-                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/alba2/job/arakoon_docker_generic_package_ubuntu-16.04/lastSuccessfulBuild/artifact/arakoon_1.9.9_amd64.deb')
+                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/ubuntu/job/volumedriver-dev-release-ubuntu-16.04/lastSuccessfulBuild/artifact/volumedriver-core/build/debian/volumedriver-base_6.0.3-dev.201609011619.db51fbb_amd64.deb')
+                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/ubuntu/job/volumedriver-dev-release-ubuntu-16.04/lastSuccessfulBuild/artifact/volumedriver-core/build/debian/volumedriver-server_6.0.3-dev.201609011619.db51fbb_amd64.deb')
+                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/alba2/job/alba_docker_generic_package_ubuntu-16.04/lastSuccessfulBuild/artifact/alba_0.9.19_amd64.deb')
+                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/alba2/job/arakoon_docker_generic_package_ubuntu-16.04/lastSuccessfulBuild/artifact/arakoon_1.9.11_amd64.deb')
                 remote_con.process.execute('apt-get install -y gdebi-core')
                 remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-base_6.0.3-dev.201608092006.f23221e_amd64.deb')
                 remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-server_6.0.3-dev.201608092006.f23221e_amd64.deb')
@@ -335,13 +336,17 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch=''):
     if idx == 1:
         _pick_option(child, pub_ip)
 
+    idx = child.expect(["Select the configuration management system. Make a selection please:", "Adding extra node"])
+    if idx == 0:
+        _pick_option(child, config_mgmt)
+
     # 5 minutes to partition disks
     child.timeout = 300
 
     provide_root_pwds = True
     while provide_root_pwds:
         idx = child.expect(["Password:",
-                            "Use an external Etcd cluster",
+                            "Use an external cluster",
                             "Adding services"])
         if idx == 1:
             if not ext_etcd:
@@ -392,6 +397,9 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch=''):
             child.sendline("")
             # port to be used for the ASDs - default 8600
             child.sendline("")
+            idx2 = child.expect(["Select the configuration management system. Make a selection please:"])
+            if idx2 == 0:
+                _pick_option(child, config_mgmt)
         elif idx == 2:
             return
     except:
@@ -1102,7 +1110,8 @@ start ovs-beaver
 if __name__ == '__main__':
     external_etcd = ''
     patchbranch = ''
-    options, remainder = getopt.getopt(sys.argv[1:], 'p:q:c:x:b:')
+    config_mgmt= 'Arakoon'
+    options, remainder = getopt.getopt(sys.argv[1:], 'p:q:c:x:b:m:')
     for opt, arg in options:
         if opt == '-p':
             public_ip = arg
@@ -1114,6 +1123,8 @@ if __name__ == '__main__':
             external_etcd = arg
         if opt == '-b':
             patchbranch = arg
+        if opt == '-m':
+            config_mgmt = arg
 
     assert q.system.net.pingMachine(public_ip), "Invalid ip given or unreachable"
     qualitylevel = qualitylevel or "unstable"
@@ -1122,7 +1133,8 @@ if __name__ == '__main__':
                       ql=qualitylevel,
                       cluster=cluster_name,
                       ext_etcd=external_etcd,
-                      branch=patchbranch)
+                      branch=patchbranch,
+                      config_mgmt=config_mgmt)
 
     # TODO: remove this if when OVS-3984 is resolved
     con = q.remote.system.connect(public_ip, "root", UBUNTU_PASSWORD)
