@@ -263,11 +263,6 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
     """
 
     remote_con = q.remote.system.connect(pub_ip, "root", UBUNTU_PASSWORD)
-    remote_con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
-
-    remote_con.process.execute('apt-get update')
-    remote_con.process.execute('apt-get install -y ntp')
-
     exitcode, output = remote_con.process.execute('cat /etc/lsb-release')
     if exitcode == 0:
         for key in output.splitlines():
@@ -390,6 +385,8 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
 
     # 10 minutes to install ovs components
     child.timeout = 600
+
+    remote_con.process.execute("[ -e /opt/OpenvStorage//config/arakoon_cacc.ini ] && cp /opt/OpenvStorage/config/arakoon_cacc.ini /opt/asd-manager/config/arakoon_cacc.ini")
 
     exit_script_mark = "~#"
     try:
