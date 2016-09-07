@@ -618,7 +618,7 @@ EtcdInstaller.use_external(external='{0}=http://{1}:{2}', slave_ip='{1}', cluste
 
     etcd_initialize_command = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
 ipython 2>&1 -c "
-from ovs.extensions.db.etcd.configuration import EtcdConfiguration
+from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.db.etcd.installer import EtcdInstaller
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.system import System
@@ -626,8 +626,8 @@ from ovs.extensions.generic.system import System
 client = SSHClient('{0}', username='root')
 machine_id = System.get_my_machine_id(client)
 
-EtcdConfiguration.initialize(external_etcd='http://{0}:{1}')
-EtcdConfiguration.initialize_host(machine_id)
+Configuration.initialize(external_etcd='http://{0}:{1}')
+Configuration.initialize_host(machine_id)
 "'''.format(node_ip, server_port)
 
     arakoon_command = '''export PYTHONPATH=/opt/OpenvStorage:/opt/OpenvStorage/webapps
@@ -638,7 +638,7 @@ from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.service import ServiceManager
 
-current_etcd_value = ArakoonInstaller.ETCD_CONFIG_PATH
+current_etcd_value = ArakoonInstaller.CONFIG_PATH
 current_ssh_user = ArakoonInstaller.SSHCLIENT_USER
 
 ARAKOON_PLUGIN_DIR = '/usr/lib/alba'
@@ -654,10 +654,10 @@ if cluster_type == ServiceType.ARAKOON_CLUSTER_TYPES.ABM:
 if cluster_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
     plugins = ['nsm_host_plugin']
 
-ArakoonInstaller.ETCD_CONFIG_PATH = 'etcd://{0}:{1}/ovs/arakoon/{{0}}/config'
+ArakoonInstaller.CONFIG_PATH = 'etcd://{0}:{1}/ovs/arakoon/{{0}}/config'
 ArakoonInstaller.SSHCLIENT_USER = 'root'
 ArakoonInstaller.create_cluster(cluster_name, cluster_type, ip, base_dir, plugins=plugins, locked=False, internal=False)
-ArakoonInstaller.ETCD_CONFIG_PATH = current_etcd_value
+ArakoonInstaller.CONFIG_PATH = current_etcd_value
 ArakoonInstaller.SSHCLIENT_USER = current_ssh_user
 
 client = SSHClient(ip, username='root')

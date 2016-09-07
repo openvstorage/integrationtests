@@ -20,7 +20,7 @@ Sanity check testsuite
 
 from ci.tests.general.general import General
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
-from ovs.extensions.db.etcd.configuration import EtcdConfiguration
+from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.sshclient import SSHClient
 
 
@@ -106,13 +106,13 @@ class TestSanity(object):
         """
         issues_found = ''
 
-        etcd_keys = {
+        config_keys = {
             "/ovs/framework/memcache",
             "/ovs/arakoon/ovsdb/config"
         }
 
-        for key_to_check in etcd_keys:
-            if not EtcdConfiguration.exists(key_to_check, raw = True):
+        for key_to_check in config_keys:
+            if not Configuration.exists(key_to_check, raw = True):
                 issues_found += "Couldn't find {0}\n".format(key_to_check)
 
         config_files = {
@@ -136,7 +136,7 @@ class TestSanity(object):
 
         srs = GeneralStorageRouter.get_storage_routers()
         for sr in srs:
-            config_contents = EtcdConfiguration.get('/ovs/framework/hosts/{0}/setupcompleted'.format(sr.machine_id), raw = True)
+            config_contents = Configuration.get('/ovs/framework/hosts/{0}/setupcompleted'.format(sr.machine_id), raw = True)
             if "true" not in config_contents:
                 issues_found += "Setup not completed for node {0}\n".format(sr.name)
 
