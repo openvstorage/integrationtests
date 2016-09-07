@@ -272,20 +272,33 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
     if exitcode == 0:
         for key in output.splitlines():
             if key == 'DISTRIB_RELEASE=16.04':
+                remote_con.process.execute('apt-get install -y --allow-unauthenticated etcd')
+                remote_con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
+                remote_con.process.execute('apt-get update')
+                remote_con.process.execute('apt-get install -y ntp')
                 remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/ubuntu/job/volumedriver-dev-release-ubuntu-16.04/lastSuccessfulBuild/artifact/volumedriver-core/build/debian/volumedriver-base_6.0.3-dev.201609011619.db51fbb_amd64.deb')
                 remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/ubuntu/job/volumedriver-dev-release-ubuntu-16.04/lastSuccessfulBuild/artifact/volumedriver-core/build/debian/volumedriver-server_6.0.3-dev.201609011619.db51fbb_amd64.deb')
                 remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/alba2/job/alba_docker_generic_package_ubuntu-16.04/lastSuccessfulBuild/artifact/alba_0.9.19_amd64.deb')
                 remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/alba2/job/arakoon_docker_generic_package_ubuntu-16.04/lastSuccessfulBuild/artifact/arakoon_1.9.11_amd64.deb')
                 remote_con.process.execute('apt-get install -y gdebi-core')
-                remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-base_6.0.3-dev.201608092006.f23221e_amd64.deb')
-                remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-server_6.0.3-dev.201608092006.f23221e_amd64.deb')
-                remote_con.process.execute('cd /tmp; gdebi -n ./alba_0.9.17_amd64.deb')
-                remote_con.process.execute('cd /tmp; gdebi -n ./arakoon_1.9.9_amd64.deb')
+                remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-base_6.0.3-dev.201609011619.db51fbb_amd64.deb')
+                remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-server_6.0.3-dev.201609011619.db51fbb_amd64.deb')
+                remote_con.process.execute('cd /tmp; gdebi -n ./alba_0.9.19_amd64.deb')
+                remote_con.process.execute('cd /tmp; gdebi -n ./arakoon_1.9.11_amd64.deb')
 
                 break
             elif key == 'DISTRIB_RELEASE=14.04':
+                remote_con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
+                remote_con.process.execute('apt-get update')
+                remote_con.process.execute('apt-get install -y ntp')
                 remote_con.process.execute('apt-get install -y --allow-unauthenticated volumedriver-no-dedup-server')
                 break
+
+    # qemu / libvirt ovs specific changes
+    # apt-get install -y --allow-unauthenticated qemu-kvm libvirt-bin qemu-utils
+    # service apparmor teardown; service libvirt-bin restart; service qemu-kvm restart; service apparmor start
+    #
+    # qemu-img create -f raw openvstorage+tcp:10.100.191.31:26203/bert 5G
 
     remote_con.process.execute('apt-get install -y --allow-unauthenticated openvstorage-hc')
 
