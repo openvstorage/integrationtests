@@ -40,11 +40,11 @@ from ConfigParser import RawConfigParser
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.lists.servicelist import ServiceList
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
-from ovs.extensions.db.etcd.configuration import EtcdConfiguration
+from ovs.extensions.generic.configuration import Configuration
+from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.scheduledtask import ScheduledTaskController
 from StringIO import StringIO
-
 
 
 class TestArakoon(object):
@@ -91,21 +91,21 @@ class TestArakoon(object):
         return True
 
     @staticmethod
-    def verify_arakoon_structure(client, cluster_name, etcd_present, dir_present):
+    def verify_arakoon_structure(client, cluster_name, config_present, dir_present):
         """
         Verify the expected arakoon structure and etcd configuration
         :param client: SSHClient object
         :param cluster_name: Name of the arakoon cluster
-        :param etcd_present: Etcd configuration presence expectancy
+        :param config_present: Etcd configuration presence expectancy
         :param dir_present: Directory structure presence expectancy
         :return: True if correct
         """
         tlog_dir = GeneralArakoon.TLOG_DIR.format('/var/tmp', cluster_name)
         home_dir = GeneralArakoon.HOME_DIR.format('/var/tmp', cluster_name)
 
-        key_exists = EtcdConfiguration.exists(GeneralArakoon.ETCD_CONFIG_KEY.format(cluster_name), raw=True)
-        assert key_exists is etcd_present,\
-            "Arakoon configuration in Etcd was {0} expected".format('' if etcd_present else 'not ')
+        key_exists = Configuration.exists(GeneralArakoon.CONFIG_KEY.format(cluster_name), raw=True)
+        assert key_exists is config_present,\
+            "Arakoon configuration in Etcd was {0} expected".format('' if config_present else 'not ')
         for directory in [tlog_dir, home_dir]:
             assert client.dir_exists(directory) is dir_present,\
                 "Arakoon directory {0} was {1}expected".format(directory, '' if dir_present else 'not ')
@@ -131,16 +131,16 @@ class TestArakoon(object):
             configs_to_check = []
             matrix[sr] = dict()
             if cluster_name is not None:
-                if EtcdConfiguration.exists(GeneralArakoon.ETCD_CONFIG_KEY.format(cluster_name), raw=True):
-                    configs_to_check = [GeneralArakoon.ETCD_CONFIG_KEY.format(cluster_name)]
+                if Configuration.exists(GeneralArakoon.CONFIG_KEY.format(cluster_name), raw=True):
+                    configs_to_check = [GeneralArakoon.CONFIG_KEY.format(cluster_name)]
             else:
-                gen = EtcdConfiguration.list(GeneralArakoon.ETCD_CONFIG_ROOT)
+                gen = Configuration.list(GeneralArakoon.CONFIG_ROOT)
                 for entry in gen:
                     if 'nsm_' not in entry:
-                        if EtcdConfiguration.exists(GeneralArakoon.ETCD_CONFIG_KEY.format(cluster_name), raw=True):
-                            configs_to_check.append(GeneralArakoon.ETCD_CONFIG_KEY.format(entry))
+                        if Configuration.exists(GeneralArakoon.CONFIG_KEY.format(cluster_name), raw=True):
+                            configs_to_check.append(GeneralArakoon.CONFIG_KEY.format(entry))
             for config_name in configs_to_check:
-                config_contents = EtcdConfiguration.get(configs_to_check[0], raw=True)
+                config_contents = Configuration.get(configs_to_check[0], raw=True)
                 matrix[sr][config_name] = hashlib.md5(config_contents).hexdigest()
             if sr.node_type == 'MASTER':
                 nr_of_configs_on_master = len(matrix[sr])
@@ -186,7 +186,7 @@ class TestArakoon(object):
         ips = node_ids.keys()
         ips.sort()
 
-        contents = EtcdConfiguration.get(config_file, raw=True)
+        contents = Configuration.get(config_file, raw=True)
         cfg = RawConfigParser()
         cfg.readfp(StringIO(contents))
 
@@ -271,7 +271,7 @@ class TestArakoon(object):
 
         TestArakoon.logger.info('===================================================')
         TestArakoon.logger.info('reduce and validate three node to two node cluster')
-        ArakoonInstaller.shrink_cluster(second_sr.ip, cluster_name)
+        ArakoonInstaller.shrink_cluster(second_sr.ip, first_sr.ip, cluster_name)
         TestArakoon.validate_arakoon_config_files([first_sr, third_sr], cluster_name)
         TestArakoon.verify_arakoon_structure(first_root_client, cluster_name, True, True)
         TestArakoon.verify_arakoon_structure(second_root_client, cluster_name, True, False)
@@ -279,7 +279,7 @@ class TestArakoon(object):
 
         TestArakoon.logger.info('===================================================')
         TestArakoon.logger.info('reduce and validate two node to one node cluster')
-        ArakoonInstaller.shrink_cluster(first_sr.ip, cluster_name)
+        ArakoonInstaller.shrink_cluster(first_sr.ip, third_sr.ip, cluster_name)
         TestArakoon.validate_arakoon_config_files([third_sr], cluster_name)
 
         TestArakoon.verify_arakoon_structure(first_root_client, cluster_name, True, False)
@@ -293,7 +293,7 @@ class TestArakoon(object):
         for client in [first_root_client, second_root_client, third_root_client]:
             TestArakoon.verify_arakoon_structure(client, cluster_name, False, False)
 
-        GeneralArakoon.delete_etcd_config(cluster_name)
+        GeneralArakoon.delete_config(cluster_name)
 
     @staticmethod
     def ar_0002_arakoon_cluster_validation_test():
@@ -435,17 +435,17 @@ class TestArakoon(object):
 
             for arakoon_cluster in arakoon_clusters:
                 arakoon_conf_file = '/etc/init/ovs-arakoon-{0}.conf'.format(arakoon_cluster)
-                etcd_config = 'etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(arakoon_cluster)
+                arakoon_config_path = Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(arakoon_cluster))
                 tlog_location = '/opt/OpenvStorage/db/arakoon/{0}/tlogs'.format(arakoon_cluster)
                 # read_conf_settings
                 conf_contents = root_client.file_read(arakoon_conf_file)
                 for split_item in conf_contents.splitlines()[-1].split():
                     if 'etcd' in split_item:
-                        etcd_config = split_item
+                        config_path = split_item
                 # read_tlog_dir
-                etcd_arakoon_conf = '/ovs/arakoon/{0}/config'.format(arakoon_cluster)
-                etcd_contents = root_client.run('etcdctl get {0}'.format(etcd_arakoon_conf))
-                for line in etcd_contents.splitlines():
+                with remote(node_ip, [Configuration]) as rem:
+                    config_contents = rem.Configuration.get('/ovs/arakoon/{0}/config'.format(arakoon_cluster), raw=True)
+                for line in config_contents.splitlines():
                     if 'tlog_dir' in line:
                         tlog_location = line.split()[-1]
 
@@ -455,7 +455,7 @@ class TestArakoon(object):
                     old_headdb_timestamp = root_client.run('stat --format=%Y {0}/{1}'.format(tlog_location, 'head.db'))
                 if nr_of_tlogs <= 2:
                     # run_arakoon_benchmark
-                    benchmark_command = 'arakoon --benchmark -n_clients 1 -max_n 5_000 -config {0}'.format(etcd_config)
+                    benchmark_command = 'arakoon --benchmark -n_clients 1 -max_n 5_000 -config {0}'.format(arakoon_config_path)
                     root_client.run(benchmark_command)
                 # run_collapse
                 ScheduledTaskController.collapse_arakoon()

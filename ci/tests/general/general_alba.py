@@ -37,7 +37,7 @@ from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.lists.albabackendlist import AlbaBackendList
 from ovs.dal.lists.albanodelist import AlbaNodeList
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.extensions.db.etcd.configuration import EtcdConfiguration
+from ovs.extensions.generic.configuration import Configuration
 from ovs.lib.albacontroller import AlbaController
 from ovs.lib.albanodecontroller import AlbaNodeController
 from ovs.lib.helpers.toolbox import Toolbox
@@ -320,39 +320,39 @@ class GeneralAlba(object):
 
         # Validate ALBA backend ETCD structure
         alba_backend_key = '/ovs/alba/backends'
-        assert EtcdConfiguration.exists(key=alba_backend_key, raw=True) is True,\
+        assert Configuration.exists(key=alba_backend_key, raw=True) is True,\
             'Etcd does not contain key {0}'.format(alba_backend_key)
 
-        actual_etcd_keys = [key for key in EtcdConfiguration.list(alba_backend_key)]
-        expected_etcd_keys = ['verification_schedule', 'global_gui_error_interval', alba_backend.guid,
+        actual_config_keys = [key for key in Configuration.list(alba_backend_key)]
+        expected_config_keys = ['verification_schedule', 'global_gui_error_interval', alba_backend.guid,
                               'default_nsm_hosts']
-        optional_etcd_keys = ['verification_factor']
+        optional_config_keys = ['verification_factor']
 
         expected_keys_amount = 0
-        for optional_key in optional_etcd_keys:
-            if optional_key in actual_etcd_keys:
+        for optional_key in optional_config_keys:
+            if optional_key in actual_config_keys:
                 expected_keys_amount += 1
 
-        for expected_key in expected_etcd_keys:
+        for expected_key in expected_config_keys:
             if not re.match(Toolbox.regex_guid, expected_key):
                 expected_keys_amount += 1
-            assert expected_key in actual_etcd_keys,\
+            assert expected_key in actual_config_keys,\
                 'Key {0} was not found in tree {1}'.format(expected_key, alba_backend_key)
 
-        for actual_key in list(actual_etcd_keys):
+        for actual_key in list(actual_config_keys):
             if re.match(Toolbox.regex_guid, actual_key):
-                actual_etcd_keys.remove(actual_key)  # Remove all alba backend keys
-        assert len(actual_etcd_keys) == expected_keys_amount,\
+                actual_config_keys.remove(actual_key)  # Remove all alba backend keys
+        assert len(actual_config_keys) == expected_keys_amount,\
             'Another key was added to the {0} tree'.format(alba_backend_key)
 
         this_alba_backend_key = '{0}/{1}'.format(alba_backend_key, alba_backend.guid)
-        actual_keys = [key for key in EtcdConfiguration.list(this_alba_backend_key)]
+        actual_keys = [key for key in Configuration.list(this_alba_backend_key)]
         expected_keys = ['maintenance']
         assert actual_keys == expected_keys,\
             'Actual keys: {0} - Expected keys: {1}'.format(actual_keys, expected_keys)
 
         maintenance_key = '{0}/maintenance'.format(this_alba_backend_key)
-        actual_keys = [key for key in EtcdConfiguration.list(maintenance_key)]
+        actual_keys = [key for key in Configuration.list(maintenance_key)]
         expected_keys = ['nr_of_agents', 'config']
         assert set(actual_keys) == set(expected_keys),\
             'Actual keys: {0} - Expected keys: {1}'.format(actual_keys, expected_keys)
@@ -363,7 +363,7 @@ class GeneralAlba(object):
         assert len(alba_nodes) > 0,\
             'Could not find any ALBA nodes in the model'
         alba_node_key = '/ovs/alba/asdnodes'
-        actual_keys = [key for key in EtcdConfiguration.list(alba_node_key)]
+        actual_keys = [key for key in Configuration.list(alba_node_key)]
         assert len(alba_nodes) == len(actual_keys),\
             'Amount of ALBA nodes in model: {0} >< amount of ALBA nodes in ETCD: {1}.'.format(len(alba_nodes),
                                                                                               len(actual_keys))
@@ -371,12 +371,12 @@ class GeneralAlba(object):
             assert alba_node.node_id in actual_keys,\
                 'ALBA node with ID {0} not present in ETCD'.format(alba_node.node_id)
 
-            actual_asdnode_keys = [key for key in EtcdConfiguration.list('{0}/{1}'.format(alba_node_key, alba_node.node_id))]
+            actual_asdnode_keys = [key for key in Configuration.list('{0}/{1}'.format(alba_node_key, alba_node.node_id))]
             expected_asdnode_keys = ['config']
             assert actual_asdnode_keys == expected_asdnode_keys,\
                 'Actual keys: {0} - Expected keys: {1}'.format(actual_asdnode_keys, expected_asdnode_keys)
 
-            actual_config_keys = [key for key in EtcdConfiguration.list('{0}/{1}/config'.format(alba_node_key, alba_node.node_id))]
+            actual_config_keys = [key for key in Configuration.list('{0}/{1}/config'.format(alba_node_key, alba_node.node_id))]
             expected_config_keys = ['main', 'network']
             assert set(actual_config_keys) == set(expected_config_keys),\
                 'Actual keys: {0} - Expected keys: {1}'.format(actual_config_keys, expected_config_keys)
@@ -385,15 +385,15 @@ class GeneralAlba(object):
         # Validate Arakoon ETCD structure
         arakoon_abm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name)
         arakoon_nsm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.nsm_services[0].service.name)
-        assert EtcdConfiguration.exists(key=arakoon_abm_key, raw=True) is True,\
+        assert Configuration.exists(key=arakoon_abm_key, raw=True) is True,\
             'Etcd key {0} does not exists'.format(arakoon_abm_key)
-        assert EtcdConfiguration.exists(key=arakoon_nsm_key, raw=True) is True,\
+        assert Configuration.exists(key=arakoon_nsm_key, raw=True) is True,\
             'Etcd key {0} does not exists'.format(arakoon_nsm_key)
         # @TODO: Add validation for config values
 
         # Validate maintenance agents
         actual_amount_agents = len([service for node_services in [alba_node.client.list_maintenance_services() for alba_node in alba_nodes] for service in node_services])
-        expected_amount_agents = EtcdConfiguration.get('/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend.guid))
+        expected_amount_agents = Configuration.get('/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend.guid))
         assert actual_amount_agents == expected_amount_agents,\
             'Amount of maintenance agents is incorrect. Found {0} - Expected {1}'.format(actual_amount_agents,
                                                                                          expected_amount_agents)
@@ -412,7 +412,7 @@ class GeneralAlba(object):
                     'Service {0} not deployed on Storage Router {1}'.format(service_name, storagerouter.name)
                 assert GeneralService.get_service_status(name=service_name, client=root_client) is True,\
                     'Service {0} not running on Storage Router {1}'.format(service_name, storagerouter.name)
-                out, err, _ = General.execute_command('arakoon --who-master -config {0}'.format(GeneralArakoon.ETCD_CONFIG_PATH.format(abm_service_name)))
+                out, err, _ = General.execute_command('arakoon --who-master -config {0}'.format(Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_service_name))))
                 assert out.strip() in machine_ids,\
                     'Arakoon master is {0}, but should be 1 of "{1}"'.format(out.strip(), ', '.join(machine_ids))
 
@@ -488,12 +488,12 @@ class GeneralAlba(object):
 
         # Validate ALBA backend ETCD structure
         alba_backend_key = '/ovs/alba/backends'
-        actual_etcd_keys = [key for key in EtcdConfiguration.list(alba_backend_key)]
+        actual_etcd_keys = [key for key in Configuration.list(alba_backend_key)]
         assert alba_backend_guid not in actual_etcd_keys,\
             'Etcd still contains an entry in {0} with guid {1}'.format(alba_backend_key, alba_backend_guid)
 
         # Validate Arakoon ETCD structure
-        arakoon_keys = [key for key in EtcdConfiguration.list('/ovs/arakoon') if key.startswith(alba_backend_name)]
+        arakoon_keys = [key for key in Configuration.list('/ovs/arakoon') if key.startswith(alba_backend_name)]
         assert len(arakoon_keys) == 0,\
             'Etcd still contains configurations for clusters: {0}'.format(', '.join(arakoon_keys))
 
