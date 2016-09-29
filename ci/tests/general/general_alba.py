@@ -303,11 +303,6 @@ class GeneralAlba(object):
             'Backend type for ALBA backend is {0}'.format(alba_backend.backend.backend_type.code)
         assert alba_backend.backend.status == 'RUNNING',\
             'Status for ALBA backend is {0}'.format(alba_backend.backend.status)
-        assert isinstance(alba_backend.metadata_information, dict) is True,\
-            'ALBA backend {0} metadata information is not a dictionary'.format(alba_backend.backend.name)
-        Toolbox.verify_required_params(actual_params=alba_backend.metadata_information,
-                                       required_params={'nsm_partition_guids': (list, Toolbox.regex_guid)},
-                                       exact_match=True)
 
         # Validate ABM and NSM services
         storagerouters = GeneralStorageRouter.get_storage_routers()
@@ -320,8 +315,8 @@ class GeneralAlba(object):
 
         # Validate ALBA backend ETCD structure
         alba_backend_key = '/ovs/alba/backends'
-        assert Configuration.exists(key=alba_backend_key, raw=True) is True,\
-            'Etcd does not contain key {0}'.format(alba_backend_key)
+        assert Configuration.dir_exists(key=alba_backend_key) is True,\
+            'Configuration does not contain key {0}'.format(alba_backend_key)
 
         actual_config_keys = [key for key in Configuration.list(alba_backend_key)]
         expected_config_keys = ['verification_schedule', 'global_gui_error_interval', alba_backend.guid,
@@ -386,9 +381,9 @@ class GeneralAlba(object):
         arakoon_abm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name)
         arakoon_nsm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.nsm_services[0].service.name)
         assert Configuration.exists(key=arakoon_abm_key, raw=True) is True,\
-            'Etcd key {0} does not exists'.format(arakoon_abm_key)
+            'Configuration key {0} does not exists'.format(arakoon_abm_key)
         assert Configuration.exists(key=arakoon_nsm_key, raw=True) is True,\
-            'Etcd key {0} does not exists'.format(arakoon_nsm_key)
+            'Configuration key {0} does not exists'.format(arakoon_nsm_key)
         # @TODO: Add validation for config values
 
         # Validate maintenance agents
