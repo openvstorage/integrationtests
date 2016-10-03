@@ -25,7 +25,6 @@ import random
 import tempfile
 from ci.tests.general.connection import Connection
 from ci.tests.general.general import General
-from ci.tests.general.general_arakoon import GeneralArakoon
 from ci.tests.general.general_backend import GeneralBackend
 from ci.tests.general.general_disk import GeneralDisk
 from ci.tests.general.general_service import GeneralService
@@ -100,7 +99,7 @@ class GeneralAlba(object):
         :param alba_backend: ALBA backend
         :return: Configuration string
         """
-        return '--config etcd://127.0.0.1:2379/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name)
+        return '--config ' + Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name))
 
     @staticmethod
     def prepare_alba_backend(name=None):
@@ -279,8 +278,8 @@ class GeneralAlba(object):
             if wait is True:
                 GeneralAlba.wait_for_alba_backend_status(alba_backend)
 
-        out, err, _ = General.execute_command('etcdctl ls /ovs/alba/asdnodes')
-        if err == '' and len(out):
+        alba_nodes = [alba_node for alba_node in Configuration.list('/ovs/alba/asdnodes')]
+        if len(alba_nodes):
             AlbaNodeController.model_local_albanode()
 
         return GeneralAlba.get_by_name(name)
@@ -313,7 +312,7 @@ class GeneralAlba(object):
         assert len(alba_backend.nsm_services) == len(storagerouters_with_db_role),\
             'Not enough NSM services found'
 
-        # Validate ALBA backend ETCD structure
+        # Validate ALBA backend configuration structure
         alba_backend_key = '/ovs/alba/backends'
         assert Configuration.dir_exists(key=alba_backend_key) is True,\
             'Configuration does not contain key {0}'.format(alba_backend_key)
@@ -353,18 +352,18 @@ class GeneralAlba(object):
             'Actual keys: {0} - Expected keys: {1}'.format(actual_keys, expected_keys)
         # @TODO: Add validation for config values
 
-        # Validate ASD node ETCD structure
+        # Validate ASD node configuration structure
         alba_nodes = GeneralAlba.get_alba_nodes()
         assert len(alba_nodes) > 0,\
             'Could not find any ALBA nodes in the model'
         alba_node_key = '/ovs/alba/asdnodes'
         actual_keys = [key for key in Configuration.list(alba_node_key)]
         assert len(alba_nodes) == len(actual_keys),\
-            'Amount of ALBA nodes in model: {0} >< amount of ALBA nodes in ETCD: {1}.'.format(len(alba_nodes),
-                                                                                              len(actual_keys))
+            'Amount of ALBA nodes in model: {0} >< amount of ALBA nodes in configuration: {1}.'.format(len(alba_nodes),
+                                                                                                       len(actual_keys))
         for alba_node in alba_nodes:
             assert alba_node.node_id in actual_keys,\
-                'ALBA node with ID {0} not present in ETCD'.format(alba_node.node_id)
+                'ALBA node with ID {0} not present in configuration'.format(alba_node.node_id)
 
             actual_asdnode_keys = [key for key in Configuration.list('{0}/{1}'.format(alba_node_key, alba_node.node_id))]
             expected_asdnode_keys = ['config']
@@ -377,7 +376,7 @@ class GeneralAlba(object):
                 'Actual keys: {0} - Expected keys: {1}'.format(actual_config_keys, expected_config_keys)
             # @TODO: Add validation for main and network values
 
-        # Validate Arakoon ETCD structure
+        # Validate Arakoon configuration structure
         arakoon_abm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name)
         arakoon_nsm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.nsm_services[0].service.name)
         assert Configuration.exists(key=arakoon_abm_key, raw=True) is True,\
@@ -388,7 +387,7 @@ class GeneralAlba(object):
 
         # Validate maintenance agents
         actual_amount_agents = len([service for node_services in [alba_node.client.list_maintenance_services() for alba_node in alba_nodes] for service in node_services])
-        expected_amount_agents = Configuration.get('/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend.guid))
+        expected_amount_agents = 1
         assert actual_amount_agents == expected_amount_agents,\
             'Amount of maintenance agents is incorrect. Found {0} - Expected {1}'.format(actual_amount_agents,
                                                                                          expected_amount_agents)
@@ -398,15 +397,16 @@ class GeneralAlba(object):
         abm_service_name = alba_backend.abm_services[0].service.name
         nsm_service_name = alba_backend.nsm_services[0].service.name
         for storagerouter in storagerouters_with_db_role:
-            root_client = SSHClient(endpoint=storagerouter,
-                                    username='root')
+            root_client = SSHClient(endpoint=storagerouter, username='root')
             abm_arakoon_service_name = 'ovs-arakoon-{0}'.format(abm_service_name)
             nsm_arakoon_service_name = 'ovs-arakoon-{0}'.format(nsm_service_name)
             for service_name in [abm_arakoon_service_name, nsm_arakoon_service_name]:
                 assert GeneralService.has_service(name=service_name, client=root_client) is True,\
                     'Service {0} not deployed on Storage Router {1}'.format(service_name, storagerouter.name)
-                assert GeneralService.get_service_status(name=service_name, client=root_client) is True,\
-                    'Service {0} not running on Storage Router {1}'.format(service_name, storagerouter.name)
+                exitcode, output = GeneralService.get_service_status(name=service_name, client=root_client)
+                assert exitcode is True,\
+                    'Service {0} not running on Storage Router {1} - {2}'.format(service_name, storagerouter.name,
+                                                                                 output)
                 out, err, _ = General.execute_command('arakoon --who-master -config {0}'.format(Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_service_name))))
                 assert out.strip() in machine_ids,\
                     'Arakoon master is {0}, but should be 1 of "{1}"'.format(out.strip(), ', '.join(machine_ids))
@@ -481,16 +481,16 @@ class GeneralAlba(object):
             assert service.name.startswith('{0}-nsm_'.format(alba_backend_name)) is False,\
                 'An NamespaceManager service has been found with name {0}'.format(alba_backend_name)
 
-        # Validate ALBA backend ETCD structure
+        # Validate ALBA backend configuration structure
         alba_backend_key = '/ovs/alba/backends'
-        actual_etcd_keys = [key for key in Configuration.list(alba_backend_key)]
-        assert alba_backend_guid not in actual_etcd_keys,\
-            'Etcd still contains an entry in {0} with guid {1}'.format(alba_backend_key, alba_backend_guid)
+        actual_configuration_keys = [key for key in Configuration.list(alba_backend_key)]
+        assert alba_backend_guid not in actual_configuration_keys,\
+            'Configuration still contains an entry in {0} with guid {1}'.format(alba_backend_key, alba_backend_guid)
 
-        # Validate Arakoon ETCD structure
+        # Validate Arakoon configuration structure
         arakoon_keys = [key for key in Configuration.list('/ovs/arakoon') if key.startswith(alba_backend_name)]
         assert len(arakoon_keys) == 0,\
-            'Etcd still contains configurations for clusters: {0}'.format(', '.join(arakoon_keys))
+            'Configuration still contains configurations for clusters: {0}'.format(', '.join(arakoon_keys))
 
         # Validate services
         for storagerouter in GeneralStorageRouter.get_storage_routers():
@@ -830,7 +830,7 @@ class GeneralAlba(object):
         Perform a maintenance agent checkup
         :return: None
         """
-        AlbaNodeController.checkup_maintenance_agents()
+        AlbaController.checkup_maintenance_agents()
 
     @staticmethod
     def get_maintenance_services_for_alba_backend(alba_backend):
