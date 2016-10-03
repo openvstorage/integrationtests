@@ -273,7 +273,7 @@ class GeneralVPool(object):
         expected_vpool_config = copy.deepcopy(generic_settings['config_params'])
         for key, value in vpool_config.iteritems():
             if key == 'dtl_enabled' or key == 'tlog_multiplier' or key == 'dtl_config_mode':
-                    continue
+                continue
             if key not in expected_vpool_config:
                 raise ValueError('Expected settings does not contain key {0}'.format(key))
 
