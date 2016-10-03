@@ -355,8 +355,7 @@ class GeneralVPool(object):
                           'master': ['ovs-arakoon-voldrv']}
         sd_partitions = {'DB': ['MD', 'MDS', 'TLOG'],
                          'READ': ['None'],
-                         'WRITE': ['FD', 'DTL', 'SCO'],
-                         'SCRUB': ['None']}
+                         'WRITE': ['FD', 'DTL', 'SCO']}
 
         if backend_type == 'alba':
             backend_metadata = {'name': (str, None),
@@ -480,7 +479,7 @@ class GeneralVPool(object):
 
         for role, sub_roles in sd_partitions.iteritems():
             for sub_role in sub_roles:
-                GeneralVPool.logger.info('Not a single Storage Driver found with partition role {0} and sub-role {1}'.format(role, sub_role))
+                raise ValueError('Not a single Storage Driver found with partition role {0} and sub-role {1}'.format(role, sub_role))
 
     @staticmethod
     def check_vpool_cleanup(vpool_info, storagerouters=None):
