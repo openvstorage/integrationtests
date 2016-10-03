@@ -77,7 +77,7 @@ class LogHandler(object):
                'validation': 'validation',
                'vdisks': 'vdisk',
                'vmachines': 'vmachine',
-               'vpool': 'vpool'}
+               'vpools': 'vpool'}
 
     def __init__(self, source, name=None, propagate=False):
         """

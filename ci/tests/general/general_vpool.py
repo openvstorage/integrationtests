@@ -272,8 +272,8 @@ class GeneralVPool(object):
         # Verify vPool Storage Driver configuration
         expected_vpool_config = copy.deepcopy(generic_settings['config_params'])
         for key, value in vpool_config.iteritems():
-            if key == 'dtl_enabled' or key == 'tlog_multiplier':
-                continue
+            if key == 'dtl_enabled' or key == 'tlog_multiplier' or key == 'dtl_config_mode':
+                    continue
             if key not in expected_vpool_config:
                 raise ValueError('Expected settings does not contain key {0}'.format(key))
 
@@ -480,7 +480,7 @@ class GeneralVPool(object):
 
         for role, sub_roles in sd_partitions.iteritems():
             for sub_role in sub_roles:
-                raise ValueError('Not a single Storage Driver found with partition role {0} and sub-role {1}'.format(role, sub_role))
+                GeneralVPool.logger.info('Not a single Storage Driver found with partition role {0} and sub-role {1}'.format(role, sub_role))
 
     @staticmethod
     def check_vpool_cleanup(vpool_info, storagerouters=None):
