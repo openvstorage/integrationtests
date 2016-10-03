@@ -56,7 +56,7 @@ class GeneralArakoon(object):
     @staticmethod
     def delete_config(cluster_name):
         """
-        Remove the etcd entry for arakoon cluster_name
+        Remove the configuration entry for arakoon cluster_name
         :param cluster_name: Name of the arakoon cluster
         :return: None
         """

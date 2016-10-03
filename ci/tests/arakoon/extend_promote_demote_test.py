@@ -93,10 +93,10 @@ class TestArakoon(object):
     @staticmethod
     def verify_arakoon_structure(client, cluster_name, config_present, dir_present):
         """
-        Verify the expected arakoon structure and etcd configuration
+        Verify the expected arakoon structure and configuration
         :param client: SSHClient object
         :param cluster_name: Name of the arakoon cluster
-        :param config_present: Etcd configuration presence expectancy
+        :param config_present: configuration presence expectancy
         :param dir_present: Directory structure presence expectancy
         :return: True if correct
         """
@@ -105,10 +105,10 @@ class TestArakoon(object):
 
         key_exists = Configuration.exists(GeneralArakoon.CONFIG_KEY.format(cluster_name), raw=True)
         assert key_exists is config_present,\
-            "Arakoon configuration in Etcd was {0} expected".format('' if config_present else 'not ')
+            "Arakoon configuration was {0} expected".format('' if config_present else 'not ')
         for directory in [tlog_dir, home_dir]:
             assert client.dir_exists(directory) is dir_present,\
-                "Arakoon directory {0} was {1}expected".format(directory, '' if dir_present else 'not ')
+                "Arakoon directory {0} was {1} expected".format(directory, '' if dir_present else 'not ')
 
     @staticmethod
     def validate_arakoon_config_files(storagerouters, cluster_name=None):
@@ -434,14 +434,9 @@ class TestArakoon(object):
                     arakoon_clusters.append(service.name.replace('arakoon-', ''))
 
             for arakoon_cluster in arakoon_clusters:
-                arakoon_conf_file = '/etc/init/ovs-arakoon-{0}.conf'.format(arakoon_cluster)
                 arakoon_config_path = Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(arakoon_cluster))
                 tlog_location = '/opt/OpenvStorage/db/arakoon/{0}/tlogs'.format(arakoon_cluster)
-                # read_conf_settings
-                conf_contents = root_client.file_read(arakoon_conf_file)
-                for split_item in conf_contents.splitlines()[-1].split():
-                    if 'etcd' in split_item:
-                        config_path = split_item
+
                 # read_tlog_dir
                 with remote(node_ip, [Configuration]) as rem:
                     config_contents = rem.Configuration.get('/ovs/arakoon/{0}/config'.format(arakoon_cluster), raw=True)
@@ -454,10 +449,9 @@ class TestArakoon(object):
                 if root_client.file_exists('/'.join([tlog_location, 'head.db'])):
                     old_headdb_timestamp = root_client.run('stat --format=%Y {0}/{1}'.format(tlog_location, 'head.db'))
                 if nr_of_tlogs <= 2:
-                    # run_arakoon_benchmark
                     benchmark_command = 'arakoon --benchmark -n_clients 1 -max_n 5_000 -config {0}'.format(arakoon_config_path)
                     root_client.run(benchmark_command)
-                # run_collapse
+
                 ScheduledTaskController.collapse_arakoon()
 
                 nr_of_tlogs = TestArakoon.get_nr_of_tlogs_in_folder(root_client, tlog_location)

@@ -272,7 +272,7 @@ class GeneralVPool(object):
         # Verify vPool Storage Driver configuration
         expected_vpool_config = copy.deepcopy(generic_settings['config_params'])
         for key, value in vpool_config.iteritems():
-            if key == 'dtl_enabled' or key == 'tlog_multiplier':
+            if key == 'dtl_enabled' or key == 'tlog_multiplier' or key == 'dtl_config_mode':
                 continue
             if key not in expected_vpool_config:
                 raise ValueError('Expected settings does not contain key {0}'.format(key))
@@ -355,8 +355,7 @@ class GeneralVPool(object):
                           'master': ['ovs-arakoon-voldrv']}
         sd_partitions = {'DB': ['MD', 'MDS', 'TLOG'],
                          'READ': ['None'],
-                         'WRITE': ['FD', 'DTL', 'SCO'],
-                         'SCRUB': ['None']}
+                         'WRITE': ['FD', 'DTL', 'SCO']}
 
         if backend_type == 'alba':
             backend_metadata = {'name': (str, None),
@@ -371,8 +370,7 @@ class GeneralVPool(object):
                                 'backend_info': (dict, {'policies': (list, None),
                                                         'sco_size': (float, None),
                                                         'frag_size': (float, None),
-                                                        'total_size': (float, None),
-                                                        'nsm_partition_guids': (list, Toolbox.regex_guid)})}
+                                                        'total_size': (float, None)})}
             required = {'backend': (dict, backend_metadata),
                         'backend_aa': (dict, backend_metadata, False)}
             Toolbox.verify_required_params(required_params=required,
@@ -400,11 +398,11 @@ class GeneralVPool(object):
             storagerouter = storagedriver.storagerouter
             root_client = SSHClient(storagerouter, username='root')
 
-            assert Configuration.exists('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id), raw=True), 'vPool config not found in etcd'
+            assert Configuration.exists('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id), raw=True), 'vPool config not found in configuration'
             # @todo: replace next lines with implementation defined in: http://jira.openvstorage.com/browse/OVS-4577
             # current_config_sections = set([item for item in Configuration.list('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id))])
-            # assert not current_config_sections.difference(set(expected_config.keys())), 'New section appeared in the storage driver config in etcd'
-            # assert not set(expected_config.keys()).difference(current_config_sections), 'Config section expected for storage driver, but not found in etcd'
+            # assert not current_config_sections.difference(set(expected_config.keys())), 'New section appeared in the storage driver config in configuration'
+            # assert not set(expected_config.keys()).difference(current_config_sections), 'Config section expected for storage driver, but not found in configuration'
             #
             # for key, values in expected_config.iteritems():
             #     current_config = Configuration.get('/ovs/vpools/{0}/hosts/{1}/config/{2}'.format(vpool.guid, storagedriver.storagedriver_id, key))
@@ -421,14 +419,14 @@ class GeneralVPool(object):
                 for service_name in vpool_services['all'] + vpool_services['master']:
                     if service_name == 'ovs-arakoon-voldrv' and GeneralStorageDriver.has_role(storagedriver, 'DB') is False:
                         continue
-                    if ServiceManager.get_service_status(name=service_name,
-                                                         client=root_client) is not True:
-                        raise ValueError('Service {0} is not running on node {1}'.format(service_name, storagerouter.ip))
+                    exitcode, output = ServiceManager.get_service_status(name=service_name, client=root_client)
+                    if exitcode is not True:
+                        raise ValueError('Service {0} is not running on node {1} - {2}'.format(service_name, storagerouter.ip, output))
             else:
                 for service_name in vpool_services['all'] + vpool_services['extra']:
-                    if ServiceManager.get_service_status(name=service_name,
-                                                         client=root_client) is not True:
-                        raise ValueError('Service {0} is not running on node {1}'.format(service_name, storagerouter.ip))
+                    exitcode, output = ServiceManager.get_service_status(name=service_name, client=root_client)
+                    if exitcode is not True:
+                        raise ValueError('Service {0} is not running on node {1} - {2}'.format(service_name, storagerouter.ip, output))
 
             # Check arakoon config
             if not voldrv_config.has_section(storagerouter.machine_id):
@@ -535,7 +533,7 @@ class GeneralVPool(object):
         if vpool_type == 'alba':
             vpool_services.append('ovs-albaproxy_{0}'.format(vpool_name))
 
-        # Check etcd
+        # Check configuration
         if vpool is None:
             assert Configuration.exists('/ovs/vpools/{0}'.format(vpool_guid), raw=True) is False, 'vPool config still found in etcd'
         else:

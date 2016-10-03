@@ -184,23 +184,25 @@ class TestVMachine(object):
             VDiskController.delete_snapshot(vdisk.guid, snapshot['guid'])
 
         # starting scrubber
-        ScheduledTaskController.gather_scrub_work()
-        # waiting for model to catch up
-        counter = initial_counter
-        while counter > 0:
-            time.sleep(step)
-            vdisk.invalidate_dynamics(['statistics'])
-            # checking result of scrub work
-            if vdisk.statistics['stored'] < disk_backend_data:
-                GeneralVMachine.logger.info("It took {0} seconds for the value to change from {1} to {2}\n".format((initial_counter - counter) * step,
-                                                                                                                   disk_backend_data,
-                                                                                                                   vdisk.statistics['stored']))
-                break
-            counter -= step
-        # removing vdisk
-        GeneralVMachine.logger.info("Removing vpool vdisks from {0} vpool".format(vpool_name))
-        out, err, _ = General.execute_command("rm -rf /mnt/{0}/*.raw".format(vpool_name))
-        if err:
-            GeneralVMachine.logger.error("Error while removing vdisk: {0}".format(err))
+        try:
+            ScheduledTaskController.execute_scrub()
+            # waiting for model to catch up
+            counter = initial_counter
+            while counter > 0:
+                time.sleep(step)
+                vdisk.invalidate_dynamics(['statistics'])
+                # checking result of scrub work
+                if vdisk.statistics['stored'] < disk_backend_data:
+                    GeneralVMachine.logger.info("It took {0} seconds for the value to change from {1} to {2}\n".format((initial_counter - counter) * step,
+                                                                                                                       disk_backend_data,
+                                                                                                                       vdisk.statistics['stored']))
+                    break
+                counter -= step
+        finally:
+            # removing vdisk
+            GeneralVMachine.logger.info("Removing vpool vdisks from {0} vpool".format(vpool_name))
+            out, err, _ = General.execute_command("rm -rf /mnt/{0}/*.raw".format(vpool_name))
+            if err:
+                GeneralVMachine.logger.error("Error while removing vdisk: {0}".format(err))
 
         assert counter > 0, "Scrubbing didn't run as expected, backend size of vdisk remained at {0}:\n".format(disk_backend_data)
