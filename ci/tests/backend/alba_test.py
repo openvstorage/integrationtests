@@ -29,7 +29,7 @@ from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.hybrids.albanode import AlbaNode
 from ovs.dal.hybrids.albadisk import AlbaDisk
 from ovs.dal.hybrids.backend import Backend
-from ovs.extensions.db.etcd.configuration import EtcdConfiguration
+from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.albascheduledtask import AlbaScheduledTaskController
 
@@ -118,7 +118,7 @@ class TestALBA(object):
     def be_0001_add_and_remove_backend_test():
         """
         Create an ALBA backend and verify its status
-        Validate services, etcd, arakoon without claiming disks
+        Validate services, configuration, arakoon without claiming disks
         Claim some disks and validate whether backend can be used for storing objects in namespaces
         """
         alba_backend = GeneralAlba.get_by_name(TestALBA.backend_name)
@@ -379,20 +379,20 @@ class TestALBA(object):
 
             return result
 
-        def _validate_actual_and_requested(requested):
-            EtcdConfiguration.set(etcd_key, requested)
+        def _validate_actual_and_requested(requested, final):
+            Configuration.set(config_key, requested)
             GeneralAlba.checkup_maintenance_agents()
             actual_nr_of_agents = int(_get_agent_distribution()['total'])
 
-            assert actual_nr_of_agents == requested, \
-                'Actual {0} and requested {1} nr of agents does not match'.format(actual_nr_of_agents, requested)
+            assert actual_nr_of_agents == final, \
+                'Actual {0} and final {1} nr of agents does not match'.format(actual_nr_of_agents, final)
 
-        etcd_key = '/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend.guid)
-        current_nr_of_agents = EtcdConfiguration.get(etcd_key)
+        config_key = '/ovs/alba/backends/{0}/maintenance/nr_of_agents'.format(alba_backend.guid)
+        current_nr_of_agents = Configuration.get(config_key)
 
-        _validate_actual_and_requested(current_nr_of_agents)
-        _validate_actual_and_requested(0)
-        _validate_actual_and_requested(12)
-        _validate_actual_and_requested(5)
-        _validate_actual_and_requested(10)
-        _validate_actual_and_requested(current_nr_of_agents)
+        _validate_actual_and_requested(0, 1)
+        _validate_actual_and_requested(12, 3)
+        _validate_actual_and_requested(5, 3)
+
+        Configuration.set(config_key, current_nr_of_agents)
+        GeneralAlba.checkup_maintenance_agents()

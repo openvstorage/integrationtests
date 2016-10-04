@@ -281,7 +281,8 @@ class TestAfterCare(object):
                         '/opt/OpenvStorage/webapps/frontend/css/',
                         '/opt/OpenvStorage/webapps/frontend/lib/',
                         '/opt/OpenvStorage/ovs/extensions/db/arakoon/arakoon/arakoon/',
-                        '/opt/OpenvStorage/ovs/extensions/db/arakoon/pyrakoon/pyrakoon/']
+                        '/opt/OpenvStorage/ovs/extensions/db/arakoon/pyrakoon/pyrakoon/',
+                        '/opt/asd-manager/source/tools/pyrakoon/pyrakoon/']
         include_dirs = ['/opt/OpenvStorage/webapps/frontend/lib/ovs/']
         exclude_files = ['/opt/OpenvStorage/ovs/extensions/generic/fakesleep.py']
         include_files = ['/opt/OpenvStorage/webapps/frontend/css/ovs.css']

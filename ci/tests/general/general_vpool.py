@@ -36,7 +36,7 @@ from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.hybrids.vpool import VPool
 from ovs.dal.lists.backendlist import BackendList
 from ovs.dal.lists.vpoollist import VPoolList
-from ovs.extensions.db.etcd.configuration import EtcdConfiguration
+from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.service import ServiceManager
 from ovs.extensions.storageserver.storagedriver import StorageDriverClient
@@ -211,7 +211,7 @@ class GeneralVPool(object):
         for storagedriver in vpool.storagedrivers:
             files = set()
             if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
-                volumedriver_mode = EtcdConfiguration.get('/ovs/framework/hosts/{0}/storagedriver|vmware_mode'.format(storagedriver.storagerouter.machine_id))
+                volumedriver_mode = Configuration.get('/ovs/framework/hosts/{0}/storagedriver|vmware_mode'.format(storagedriver.storagerouter.machine_id))
                 if volumedriver_mode == 'ganesha':
                     files.add('/opt/OpenvStorage/config/storagedriver/storagedriver/{0}_ganesha.conf'.format(vpool.name))
             for partition in storagedriver.partitions:
@@ -231,7 +231,7 @@ class GeneralVPool(object):
         for storagedriver in vpool.storagedrivers:
             directories = set()
             directories.add('/mnt/{0}'.format(vpool.name))
-            directories.add('{0}/{1}'.format(EtcdConfiguration.get('/ovs/framework/hosts/{0}/storagedriver|rsp'.format(storagedriver.storagerouter.machine_id)), vpool.name))
+            directories.add('{0}/{1}'.format(Configuration.get('/ovs/framework/hosts/{0}/storagedriver|rsp'.format(storagedriver.storagerouter.machine_id)), vpool.name))
             for partition in storagedriver.partitions:
                 if partition.role != DiskPartition.ROLES.READ:
                     directories.add(partition.path)
@@ -272,7 +272,7 @@ class GeneralVPool(object):
         # Verify vPool Storage Driver configuration
         expected_vpool_config = copy.deepcopy(generic_settings['config_params'])
         for key, value in vpool_config.iteritems():
-            if key == 'dtl_enabled' or key == 'tlog_multiplier':
+            if key == 'dtl_enabled' or key == 'tlog_multiplier' or key == 'dtl_config_mode':
                 continue
             if key not in expected_vpool_config:
                 raise ValueError('Expected settings does not contain key {0}'.format(key))
@@ -355,8 +355,7 @@ class GeneralVPool(object):
                           'master': ['ovs-arakoon-voldrv']}
         sd_partitions = {'DB': ['MD', 'MDS', 'TLOG'],
                          'READ': ['None'],
-                         'WRITE': ['FD', 'DTL', 'SCO'],
-                         'SCRUB': ['None']}
+                         'WRITE': ['FD', 'DTL', 'SCO']}
 
         if backend_type == 'alba':
             backend_metadata = {'name': (str, None),
@@ -371,8 +370,7 @@ class GeneralVPool(object):
                                 'backend_info': (dict, {'policies': (list, None),
                                                         'sco_size': (float, None),
                                                         'frag_size': (float, None),
-                                                        'total_size': (float, None),
-                                                        'nsm_partition_guids': (list, Toolbox.regex_guid)})}
+                                                        'total_size': (float, None)})}
             required = {'backend': (dict, backend_metadata),
                         'backend_aa': (dict, backend_metadata, False)}
             Toolbox.verify_required_params(required_params=required,
@@ -388,7 +386,7 @@ class GeneralVPool(object):
             expected_config['backend_connection_manager'].update({'backend_type': u'LOCAL',
                                                                   'local_connection_path': u'{0}'.format(generic_settings['distributed_mountpoint'])})
 
-        assert EtcdConfiguration.exists('/ovs/arakoon/voldrv/config', raw=True), 'Volumedriver arakoon does not exist'
+        assert Configuration.exists('/ovs/arakoon/voldrv/config', raw=True), 'Volumedriver arakoon does not exist'
 
         # Do some verifications for all SDs
         storage_ip = None
@@ -400,14 +398,14 @@ class GeneralVPool(object):
             storagerouter = storagedriver.storagerouter
             root_client = SSHClient(storagerouter, username='root')
 
-            assert EtcdConfiguration.exists('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id), raw=True), 'vPool config not found in etcd'
+            assert Configuration.exists('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id), raw=True), 'vPool config not found in configuration'
             # @todo: replace next lines with implementation defined in: http://jira.openvstorage.com/browse/OVS-4577
-            # current_config_sections = set([item for item in EtcdConfiguration.list('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id))])
-            # assert not current_config_sections.difference(set(expected_config.keys())), 'New section appeared in the storage driver config in etcd'
-            # assert not set(expected_config.keys()).difference(current_config_sections), 'Config section expected for storage driver, but not found in etcd'
+            # current_config_sections = set([item for item in Configuration.list('/ovs/vpools/{0}/hosts/{1}/config'.format(vpool.guid, storagedriver.storagedriver_id))])
+            # assert not current_config_sections.difference(set(expected_config.keys())), 'New section appeared in the storage driver config in configuration'
+            # assert not set(expected_config.keys()).difference(current_config_sections), 'Config section expected for storage driver, but not found in configuration'
             #
             # for key, values in expected_config.iteritems():
-            #     current_config = EtcdConfiguration.get('/ovs/vpools/{0}/hosts/{1}/config/{2}'.format(vpool.guid, storagedriver.storagedriver_id, key))
+            #     current_config = Configuration.get('/ovs/vpools/{0}/hosts/{1}/config/{2}'.format(vpool.guid, storagedriver.storagedriver_id, key))
             #     assert set(current_config.keys()).union(set(values.keys())) == set(values.keys()), 'Not all expected keys match for key "{0}" on Storage Driver {1}'.format(key, storagedriver.name)
             #
             #     for sub_key, value in current_config.iteritems():
@@ -421,14 +419,14 @@ class GeneralVPool(object):
                 for service_name in vpool_services['all'] + vpool_services['master']:
                     if service_name == 'ovs-arakoon-voldrv' and GeneralStorageDriver.has_role(storagedriver, 'DB') is False:
                         continue
-                    if ServiceManager.get_service_status(name=service_name,
-                                                         client=root_client) is not True:
-                        raise ValueError('Service {0} is not running on node {1}'.format(service_name, storagerouter.ip))
+                    exitcode, output = ServiceManager.get_service_status(name=service_name, client=root_client)
+                    if exitcode is not True:
+                        raise ValueError('Service {0} is not running on node {1} - {2}'.format(service_name, storagerouter.ip, output))
             else:
                 for service_name in vpool_services['all'] + vpool_services['extra']:
-                    if ServiceManager.get_service_status(name=service_name,
-                                                         client=root_client) is not True:
-                        raise ValueError('Service {0} is not running on node {1}'.format(service_name, storagerouter.ip))
+                    exitcode, output = ServiceManager.get_service_status(name=service_name, client=root_client)
+                    if exitcode is not True:
+                        raise ValueError('Service {0} is not running on node {1} - {2}'.format(service_name, storagerouter.ip, output))
 
             # Check arakoon config
             if not voldrv_config.has_section(storagerouter.machine_id):
@@ -535,12 +533,12 @@ class GeneralVPool(object):
         if vpool_type == 'alba':
             vpool_services.append('ovs-albaproxy_{0}'.format(vpool_name))
 
-        # Check etcd
+        # Check configuration
         if vpool is None:
-            assert EtcdConfiguration.exists('/ovs/vpools/{0}'.format(vpool_guid), raw=True) is False, 'vPool config still found in etcd'
+            assert Configuration.exists('/ovs/vpools/{0}'.format(vpool_guid), raw=True) is False, 'vPool config still found in etcd'
         else:
             remaining_sd_ids = set([storagedriver.storagedriver_id for storagedriver in vpool.storagedrivers])
-            current_sd_ids = set([item for item in EtcdConfiguration.list('/ovs/vpools/{0}/hosts'.format(vpool_guid))])
+            current_sd_ids = set([item for item in Configuration.list('/ovs/vpools/{0}/hosts'.format(vpool_guid))])
             assert not remaining_sd_ids.difference(current_sd_ids), 'There are more storagedrivers modelled than present in etcd'
             assert not current_sd_ids.difference(remaining_sd_ids), 'There are more storagedrivers in etcd than present in model'
 
