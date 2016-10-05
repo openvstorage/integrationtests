@@ -22,6 +22,7 @@ import os
 import re
 import json
 import time
+import ssl
 import urllib
 import urllib2
 from ci.tests.general.general import General
@@ -58,6 +59,11 @@ class Connection(object):
         self.ip = ip
         self.username = username
         self.password = password
+        if hasattr(ssl, 'create_default_context'):
+            self.ctx = ssl.create_default_context()
+            self.ctx.check_hostname = False
+            self.ctx.verify_mode = ssl.CERT_NONE
+
         self.headers = {'Accept': 'application/json; version=3'}
         if os.path.exists(self.TOKEN_CACHE_FILENAME) \
                 and (time.time() - os.path.getmtime(self.TOKEN_CACHE_FILENAME) > 3600.0):
@@ -72,6 +78,11 @@ class Connection(object):
 
         if 'Authorization' not in self.headers.keys():
             self.authenticate()
+
+    def _get_response(self, request, data=None):
+        if hasattr(ssl, 'create_default_context'):
+            return urllib2.urlopen(request, data=None, context=self.ctx)
+        return urllib2.urlopen(request, data)
 
     def authenticate(self):
         """
@@ -88,7 +99,7 @@ class Connection(object):
                                                          'username': self.username,
                                                          'password': self.password}),
                                   headers=self.headers)
-        response = urllib2.urlopen(request).read()
+        response = self._get_response(request).read()
 
         self.token = json.loads(response)['access_token']
         self.headers['Authorization'] = 'Bearer {0}'.format(self.token)
@@ -103,7 +114,7 @@ class Connection(object):
         """
         base_url = 'https://{0}/api/{1}/'.format(self.ip, component)
         request = urllib2.Request(base_url, None, headers=self.headers)
-        response = urllib2.urlopen(request).read()
+        response = self._get_response(request).read()
         return json.loads(response)['data']
 
     def fetch(self, component, guid):
@@ -115,7 +126,7 @@ class Connection(object):
         """
         base_url = 'https://{0}/api/{1}/{2}/'.format(self.ip, component, guid)
         request = urllib2.Request(base_url, None, headers=self.headers)
-        response = urllib2.urlopen(request).read()
+        response = self._get_response(request).read()
         return json.loads(response)
 
     def add(self, component, data):
@@ -128,7 +139,7 @@ class Connection(object):
         base_url = 'https://{0}/api/{1}/'.format(self.ip, component)
         request = urllib2.Request(base_url, json.dumps(data), headers=self.headers)
         request.add_header('Content-Type', 'application/json')
-        response = urllib2.urlopen(request).read()
+        response = self._get_response(request).read()
         return json.loads(response)
 
     def remove(self, component, guid):
@@ -141,7 +152,7 @@ class Connection(object):
         base_url = 'https://{0}/api/{1}/{2}/'.format(self.ip, component, guid)
         request = urllib2.Request(base_url, None, headers=self.headers)
         request.get_method = lambda: 'DELETE'
-        response = urllib2.urlopen(request).read()
+        response = self._get_response(request).read()
         return json.loads(response) if response else ''
 
     def execute_get_action(self, component, guid, action, **kwargs):
@@ -154,7 +165,7 @@ class Connection(object):
         """
         base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.ip, component, guid, action)
         request = urllib2.Request(base_url, None, headers=self.headers)
-        response = urllib2.urlopen(request).read()
+        response = self._get_response(request).read()
         task_id = json.loads(response)
 
         if kwargs.get('wait') is True and re.match(Toolbox.regex_guid, task_id):
@@ -180,7 +191,7 @@ class Connection(object):
         Connection.logger.info('data: {0}'.format(data))
 
         try:
-            response = urllib2.urlopen(request).read()
+            response = Connection._get_response(request).read()
         except urllib2.HTTPError, error:
             Connection.logger.error(str(error.read()))
             raise

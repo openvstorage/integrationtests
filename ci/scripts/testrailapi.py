@@ -16,8 +16,8 @@
 
 import json
 import base64
+import ssl
 import urllib2
-
 
 class TestrailApi:
     """
@@ -37,6 +37,16 @@ class TestrailApi:
         self.projects = self.get_projects()
         self.AT_QUICK_ID = self.get_case_type_by_name('AT_Quick')['id']
 
+        if hasattr(ssl, 'create_default_context'):
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
+    def _get_response(self, request, data):
+        if hasattr(ssl, 'create_default_context'):
+            return urllib2.urlopen(request, data=None, context=TestrailApi.ctx)
+        return urllib2.urlopen(request, data)
+
     def _get_from_testrail(self, testrail_item, main_id=None, url_params=None):
         if main_id:
             url = self.URL % (self.server, '%s/%s' % (testrail_item, main_id))
@@ -49,7 +59,7 @@ class TestrailApi:
         request.add_header("Authorization", "Basic %s" % self.base64_authentication)
 
         try:
-            content = urllib2.urlopen(request).readline()
+            content = TestrailApi._get_response().readline()
         except urllib2.HTTPError as e:
             print e.reason
             raise
@@ -79,7 +89,7 @@ class TestrailApi:
         req.add_header("Authorization", "Basic %s" % self.base64_authentication)
 
         try:
-            response = urllib2.urlopen(req, data)
+            response = TestrailApi._get_response(req, data)
         except urllib2.HTTPError as e:
             print e.reason
             raise
