@@ -16,8 +16,8 @@
 
 import json
 import base64
+import requests
 import urllib2
-
 
 class TestrailApi:
     """
@@ -45,11 +45,11 @@ class TestrailApi:
                     url += "&%s=%s" % (key, url_params[key])
         else:
             url = self.URL % (self.server, testrail_item)
-        request = urllib2.Request(url, headers={'Content-Type': 'application/json'})
-        request.add_header("Authorization", "Basic %s" % self.base64_authentication)
+
+        headers = {'Content-Type': 'application/json', 'Authorization': "Basic %s" % self.base64_authentication}
 
         try:
-            content = urllib2.urlopen(request).readline()
+            content = requests.get(url, headers=headers)
         except urllib2.HTTPError as e:
             print e.reason
             raise
@@ -60,8 +60,7 @@ class TestrailApi:
         except:
             raise
 
-        result = json.loads(content)
-        return result
+        return content.json()
 
     def _add_to_testrail(self, testrail_item, main_id=None, values=None, sub_id=None):
 
@@ -73,13 +72,11 @@ class TestrailApi:
                 url = self.URL % (self.server, '%s/%s' % (testrail_item, main_id))
         else:
             url = self.URL % (self.server, '%s' % testrail_item)
-        data = json.dumps(values)
 
-        req = urllib2.Request(url, headers={'Content-Type': 'application/json'})
-        req.add_header("Authorization", "Basic %s" % self.base64_authentication)
+        headers = {'Content-Type': 'application/json', 'Authorization': "Basic %s" % self.base64_authentication}
 
         try:
-            response = urllib2.urlopen(req, data)
+            content = requests.post(url, json=values, headers=headers)
         except urllib2.HTTPError as e:
             print e.reason
             raise
@@ -89,9 +86,7 @@ class TestrailApi:
         except:
             raise
 
-        content = response.read()
-        result = json.loads(content) if content else None
-        return result
+        return content.json() if content.json() else None
 
     def get_case(self, case_id):
         return self._get_from_testrail("get_case", case_id)

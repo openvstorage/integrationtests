@@ -119,7 +119,6 @@ class TestDiskRoles(object):
         logger.info("Starting removal of disk roles")
         for key, value in config.iteritems():
             for disk_info in value['disks']:
-                roles_list = disk_info['roles']
                 disk_name = disk_info['disk_name']
                 logger.info("Fetching disk with diskname '{0}' for ip '{1}'".format(disk_name, key))
                 disk = GeneralStorageRouter().get_disk_by_ip(disk_name, key)
@@ -173,7 +172,7 @@ class TestDiskRoles(object):
         return successful_iterations == iterations
 
     @staticmethod
-    def extractDiskName(pathstring):
+    def extract_disk_name(pathstring):
         """
         :param pathstring: A string containing a path to a disk (Example: /dev/sda)
         :type pathstring
@@ -181,14 +180,14 @@ class TestDiskRoles(object):
         :return: Returns the diskname without the path (Example: sda)
         :type: str
         """
-        values=re.split(r'\/', pathstring)
+        values = re.split(r'\/', pathstring)
         return values[len(values)-1]
 
     @staticmethod
     def get_first_unused_disk():
-        disks=GeneralDisk.get_unused_disks()
+        disks = GeneralDisk.get_unused_disks()
         if disks[0]:
-            return TestDiskRoles.extractDiskName(disks[0])
+            return TestDiskRoles.extract_disk_name(disks[0])
         else:
             raise ValueError('No available disks, setup is invalid for testing!')
 
@@ -271,7 +270,6 @@ class TestDiskRoles(object):
         # End input validation
 
         # Start setup
-        collection = {}
         if configuration:
             config = configuration
         else:

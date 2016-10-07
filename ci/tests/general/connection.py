@@ -20,9 +20,8 @@ Connection class
 
 import os
 import re
-import json
 import time
-import urllib
+import requests
 import urllib2
 from ci.tests.general.general import General
 from ci.tests.general.logHandler import LogHandler
@@ -42,9 +41,9 @@ class Connection(object):
     disable_warnings(InsecureRequestWarning)
     disable_warnings(SNIMissingWarning)
 
-    logger = LogHandler.get('backend', name='api-connection')
+    logger = LogHandler.get('api', name='api-connection')
 
-    def __init__(self, ip=None, username=None, password=None):
+    def __init__(self, ip=None, username=None, password=None, verify=False):
         if ip is None:
             ip = General.get_config().get('main', 'grid_ip')
             assert ip, "Please specify a valid ip in autotests.cfg for grid_ip"
@@ -58,6 +57,8 @@ class Connection(object):
         self.ip = ip
         self.username = username
         self.password = password
+        self.verify = verify
+
         self.headers = {'Accept': 'application/json; version=3'}
         if os.path.exists(self.TOKEN_CACHE_FILENAME) \
                 and (time.time() - os.path.getmtime(self.TOKEN_CACHE_FILENAME) > 3600.0):
@@ -81,16 +82,14 @@ class Connection(object):
         if 'Authorization' in self.headers.keys():
             self.headers.pop('Authorization')
 
-        auth_url = 'https://{0}/api/oauth2/token/'.format(self.ip)
+        raw_response = requests.post(url='https://{0}/api/oauth2/token/'.format(self.ip),
+                                     data={'grant_type': 'password',
+                                           'username': self.username,
+                                           'password': self.password},
+                                     headers=self.headers,
+                                     verify=self.verify)
 
-        request = urllib2.Request(auth_url,
-                                  data=urllib.urlencode({'grant_type': 'password',
-                                                         'username': self.username,
-                                                         'password': self.password}),
-                                  headers=self.headers)
-        response = urllib2.urlopen(request).read()
-
-        self.token = json.loads(response)['access_token']
+        self.token = raw_response.json()['access_token']
         self.headers['Authorization'] = 'Bearer {0}'.format(self.token)
         with open(self.TOKEN_CACHE_FILENAME, 'w') as token_cache_file:
             token_cache_file.write(self.token)
@@ -102,9 +101,7 @@ class Connection(object):
         :return: List of component guids
         """
         base_url = 'https://{0}/api/{1}/'.format(self.ip, component)
-        request = urllib2.Request(base_url, None, headers=self.headers)
-        response = urllib2.urlopen(request).read()
-        return json.loads(response)['data']
+        return requests.get(base_url, headers=self.headers, verify=self.verify).json()['data']
 
     def fetch(self, component, guid):
         """
@@ -114,9 +111,7 @@ class Connection(object):
         :return: Information about component
         """
         base_url = 'https://{0}/api/{1}/{2}/'.format(self.ip, component, guid)
-        request = urllib2.Request(base_url, None, headers=self.headers)
-        response = urllib2.urlopen(request).read()
-        return json.loads(response)
+        return requests.get(base_url, headers=self.headers, verify=self.verify).json()
 
     def add(self, component, data):
         """
@@ -126,10 +121,7 @@ class Connection(object):
         :return: The new component
         """
         base_url = 'https://{0}/api/{1}/'.format(self.ip, component)
-        request = urllib2.Request(base_url, json.dumps(data), headers=self.headers)
-        request.add_header('Content-Type', 'application/json')
-        response = urllib2.urlopen(request).read()
-        return json.loads(response)
+        return requests.post(base_url, headers=self.headers, data=data, verify=self.verify).json()
 
     def remove(self, component, guid):
         """
@@ -139,10 +131,8 @@ class Connection(object):
         :return: None
         """
         base_url = 'https://{0}/api/{1}/{2}/'.format(self.ip, component, guid)
-        request = urllib2.Request(base_url, None, headers=self.headers)
-        request.get_method = lambda: 'DELETE'
-        response = urllib2.urlopen(request).read()
-        return json.loads(response) if response else ''
+        raw_response = requests.delete(base_url, headers=self.headers, verify=self.verify)
+        return raw_response.json() if raw_response.json() else ''
 
     def execute_get_action(self, component, guid, action, **kwargs):
         """
@@ -153,9 +143,9 @@ class Connection(object):
         :return: Output of the action
         """
         base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.ip, component, guid, action)
-        request = urllib2.Request(base_url, None, headers=self.headers)
-        response = urllib2.urlopen(request).read()
-        task_id = json.loads(response)
+        task_id = str(requests.get(base_url, headers=self.headers, verify=self.verify).json())
+
+        print task_id
 
         if kwargs.get('wait') is True and re.match(Toolbox.regex_guid, task_id):
             return self.wait_for_task(task_id=task_id, timeout=kwargs.get('timeout'))
@@ -171,20 +161,24 @@ class Connection(object):
         :return: Celery task ID
         """
         base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.ip, component, guid, action)
-        request = urllib2.Request(base_url, json.dumps(data), headers=self.headers)
-        request.add_header('Content-Type', 'application/json')
 
+        Connection.logger.info('base_url: {0}'.format(base_url))
         Connection.logger.info('component: {0}'.format(component))
         Connection.logger.info('guid: {0}'.format(guid))
         Connection.logger.info('action: {0}'.format(action))
         Connection.logger.info('data: {0}'.format(data))
 
         try:
-            response = urllib2.urlopen(request).read()
+            response = requests.post(base_url, headers=self.headers, verify=self.verify,
+                                     json=data)
+
+            Connection.logger.info('requests_url: {0}'.format(response.url))
+            task_id = str(response.json())
+            print task_id
+
         except urllib2.HTTPError, error:
             Connection.logger.error(str(error.read()))
             raise
-        task_id = json.loads(response)
 
         if kwargs.get('wait') is True and re.match(Toolbox.regex_guid, task_id):
             return self.wait_for_task(task_id=task_id, timeout=kwargs.get('timeout'))
@@ -203,6 +197,7 @@ class Connection(object):
             if timeout is not None and timeout < (time.time() - start):
                 raise RuntimeError('Waiting for task {0} has timed out.'.format(task_id))
             task_metadata = self.fetch('tasks', task_id)
+            print task_metadata
             if task_metadata['ready'] is False:
                 time.sleep(1)
 
