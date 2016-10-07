@@ -162,14 +162,20 @@ class Connection(object):
         """
         base_url = 'https://{0}/api/{1}/{2}/{3}/'.format(self.ip, component, guid, action)
 
+        Connection.logger.info('base_url: {0}'.format(base_url))
         Connection.logger.info('component: {0}'.format(component))
         Connection.logger.info('guid: {0}'.format(guid))
         Connection.logger.info('action: {0}'.format(action))
         Connection.logger.info('data: {0}'.format(data))
 
         try:
-            task_id = str(requests.post(base_url, headers=self.headers, data=data, verify=self.verify).json())
+            response = requests.post(base_url, headers=self.headers, verify=self.verify,
+                                     json=data)
+
+            Connection.logger.info('requests_url: {0}'.format(response.url))
+            task_id = str(response.json())
             print task_id
+
         except urllib2.HTTPError, error:
             Connection.logger.error(str(error.read()))
             raise
