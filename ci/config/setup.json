@@ -3,6 +3,9 @@
     "setup": true,
     "validation": true,
     "cleanup": false,
+    "retries": 2,
+    "version": "unstable",
+    "hypervisor": "KVM",
     "config_manager": "arakoon",
     "user": {
       "shell": {

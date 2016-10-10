@@ -47,8 +47,10 @@ class BackendSetup(object):
         :rtype: str
         :param api: specify a valid api connection to the setup
         :type api: ci.helpers.api.OVSClient
-        :param timeout: timeout between tries (max. 5 tries)
+        :param timeout: timeout between tries
         :type timeout: int
+        :param max_tries: amount of max. tries to check if a backend has been successfully created
+        :type max_tries: int
         """
 
         # ADD_BACKEND

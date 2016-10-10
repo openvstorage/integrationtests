@@ -28,12 +28,14 @@ from ci.setup.backend import BackendSetup
 from ovs.log.log_handler import LogHandler
 from ci.remove.backend import BackendRemover
 
+CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
+
 
 class Workflow(object):
 
     LOGGER = LogHandler.get(source='workflow', name="ci_workflow")
 
-    def __init__(self, config_path="/opt/OpenvStorage/ci/config/setup.json"):
+    def __init__(self, config_path=CONFIG_LOC):
         with open(config_path, "r") as JSON_CONFIG:
             self.config = json.load(JSON_CONFIG)
         self.api = OVSClient(

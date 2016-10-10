@@ -17,6 +17,7 @@ import time
 
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.dal.hybrids.storagerouter import StorageRouter
+from ovs.extensions.generic.system import System
 from ovs.log.log_handler import LogHandler
 
 
@@ -152,3 +153,25 @@ class StoragerouterHelper(object):
                     d.path = StoragerouterHelper._get_from_disk_cache(diskname, ip)['model']
 
                 return d
+
+    @staticmethod
+    def get_local_storagerouter():
+        """
+        Fetch the local storagerouter settings
+
+        :return: StorageRouter Object
+        :rtype: ovs.dal.hybrids.storagerouter.StorageRouter
+        """
+
+        return System.get_my_storagerouter()
+
+    @staticmethod
+    def get_storagerouter_ips():
+        """
+        Fetch all the ip addresses in this cluster
+
+        :return: list with storagerouter ips
+        :rtype: list
+        """
+
+        return map(lambda storagerouter: storagerouter.ip, StorageRouterList.get_storagerouters())
