@@ -14,6 +14,25 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-"""
-Libraries regarding validation of backends (ALBA, Ceph, Swift, ...)
-"""
+
+class ExampleTest(object):
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def _process_test_results():
+        """
+        Required method that has to follow our json output guideline
+        This data will be sent to testrails to process it thereafter
+        :return:
+        """
+        pass
+
+    @staticmethod
+    def _push_to_testrail():
+        """
+        Required method that has to follouw our testrail pushing guidelines
+        Will send the data to testrail
+        :return:
+        """

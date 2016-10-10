@@ -15,5 +15,5 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-Libraries regarding setting up everything related to framework (vPools, Backends, vDisks, ...)
+Init
 """

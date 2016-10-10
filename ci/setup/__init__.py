@@ -15,5 +15,5 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 """
-Libraries regarding setting up stores (Memcached, pyrakoon, arakoon, ...)
+Init
 """

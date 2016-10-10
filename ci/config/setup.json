@@ -1,0 +1,209 @@
+{
+  "ci": {
+    "setup": true,
+    "validation": true,
+    "cleanup": false,
+    "config_manager": "arakoon",
+    "user": {
+      "shell": {
+        "username": "root",
+        "password": "rooter"
+      },
+      "api": {
+        "username": "admin",
+        "password": "admin"
+      }
+    },
+    "grid_ip": "10.100.199.161"
+  },
+  "setup": {
+    "domains": ["Roubaix", "Gravelines", "Strasbourg"],
+    "backends": [
+      {
+        "name": "mybackend",
+        "domains": {"domain_guids":["Roubaix"]},
+        "scaling": "LOCAL",
+        "presets": [
+          {
+            "name": "mypreset",
+            "compression": "snappy",
+            "encryption": "none",
+            "policies": [
+              [
+                2,2,3,4
+              ]
+            ],
+            "fragment_size": 2097152
+          }
+        ],
+        "osds": {
+          "10.100.199.161": {
+            "sda": 2,
+            "sdb": 2
+          },
+          "10.100.199.162": {
+            "sda": 2,
+            "sdb": 2
+          },
+          "10.100.199.163": {
+            "sda": 2,
+            "sdb": 2
+          }
+        }
+      },
+      {
+        "name": "mybackend02",
+        "domains": {"domain_guids": ["Gravelines"]},
+        "scaling": "LOCAL",
+        "presets": [
+          {
+            "name": "mypreset",
+            "compression": "snappy",
+            "encryption": "none",
+            "policies": [
+              [
+                2,2,3,4
+              ]
+            ],
+            "fragment_size": 1
+          }
+        ],
+        "osds": {
+          "10.100.199.161": {
+            "sdc": 2
+          },
+          "10.100.199.162": {
+            "sdc": 2
+          },
+          "10.100.199.163": {
+            "sdc": 2
+          }
+        }
+      },
+      {
+        "name": "mybackend-global",
+        "domains": {"domain_guids": ["Roubaix", "Gravelines", "Strasbourg"]},
+        "scaling": "GLOBAL",
+        "presets": [
+          {
+            "name": "mypreset",
+            "compression": "snappy",
+            "encryption": "none",
+            "policies": [
+              [
+                1,2,2,3
+              ]
+            ],
+            "fragment_size": 1
+          }
+        ],
+        "osds": {
+          "mybackend": "mypreset",
+          "mybackend02": "mypreset"
+        }
+      }
+    ],
+    "storagerouters": {
+      "10.100.199.161": {
+        "hostname": "ovs-node-1",
+        "domains": {"domain_guids": ["Gravelines"], "recovery_domain_guids": ["Roubaix", "Strasbourg"]},
+        "disks": {
+          "sde": {
+            "roles": [
+              "DB"
+            ]
+          },
+          "sdd": {
+            "roles": [
+              "SCRUB"
+            ]
+          },
+          "sdf": {
+            "roles": [
+              "WRITE"
+            ]
+          },
+          "sdg": {
+            "roles": [
+              "READ"
+            ]
+          }
+        },
+        "vpools": {
+          "myvpool01": {
+            "backend_name": "mybackend-global",
+            "preset": "mypreset",
+            "storage_ip": "10.100.199.161",
+            "fragment_cache": {
+              "strategy": {"cache_on_read":true, "cache_on_write":true},
+              "location": "disk"
+            },
+            "storagedriver": {
+              "sco_size": 4,
+              "cluster_size": 4,
+              "volume_write_buffer": 512,
+              "strategy": "none",
+              "global_write_buffer": 7,
+              "global_read_buffer": 0,
+              "deduplication": "non_dedupe",
+              "dtl_transport": "tcp",
+              "dtl_mode": "a_sync"
+            }
+          }
+        }
+      },
+      "10.100.199.162": {
+        "hostname": "ovs-node-2",
+        "domains": {"domain_guids": ["Roubaix"], "recovery_domain_guids": ["Gravelines", "Strasbourg"]},
+        "disks": {
+          "sde": {
+            "roles": [
+              "DB"
+            ]
+          },
+          "sdd": {
+            "roles": [
+              "SCRUB"
+            ]
+          },
+          "sdf": {
+            "roles": [
+              "WRITE"
+            ]
+          },
+          "sdg": {
+            "roles": [
+              "READ"
+            ]
+          }
+        }
+      },
+      "10.100.199.163": {
+        "hostname": "ovs-node-3",
+        "domains": {"domain_guids": ["Strasbourg"], "recovery_domain_guids": ["Roubaix", "Gravelines"]},
+        "disks": {
+          "sde": {
+            "roles": [
+              "DB"
+            ]
+          },
+          "sdd": {
+            "roles": [
+              "SCRUB"
+            ]
+          },
+          "sdf": {
+            "roles": [
+              "WRITE"
+            ]
+          },
+          "sdg": {
+            "roles": [
+              "READ"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

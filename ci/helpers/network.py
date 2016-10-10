@@ -14,6 +14,19 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-"""
-Validation libraries
-"""
+import re
+
+
+class NetworkHelper(object):
+    """
+    NetworkHelper class
+    """
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def validate_ip(ip):
+        pattern = re.compile(r"^(?<!\S)((\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\b|\.\b){7}(?!\S)$")
+        if not pattern.match(ip):
+            raise ValueError('Not a valid IP address')
