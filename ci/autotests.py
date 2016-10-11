@@ -54,7 +54,8 @@ def run(scenarios=['ALL']):
         module = importlib.import_module('{0}.main'.format(test))
         module_result = module.run()
         results[test] = module_result
-        print module_result
+
+    print results
 
     return
 
@@ -101,12 +102,15 @@ def push_to_testrail(config_path=TESTTRAIL_LOC):
     # fetch test-name based on environment, environment version & datetime
     test_name = "{0}_{1}_{2}".format(_get_test_name(), _get_ovs_version(), datetime.now())
 
+    # create description based on system settings (hardware & linux distro)
+    description = ""
+
     tapi = TestrailApi(testtrail_config['url'], testtrail_config['username'], testtrail_config['password'])
     project_id = tapi.get_project_by_name(testtrail_config['project'])['id']
     suite_id = tapi.get_suite_by_name(project_id, testtrail_config['suite'])['id']
 
     # add plan
-    plan = tapi.add_plan(project_id, test_name)
+    plan = tapi.add_plan(project_id, test_name, description)
     # link suite to plan
     entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'])
 
@@ -148,3 +152,15 @@ def _get_ovs_version():
         return ""
 
     return re.split("\s*", main_pkg[0])[1]
+
+
+def _get_description():
+    """
+    Retrieve extensive information about the machine
+    """
+    description = ""
+
+    # fetch ip information
+
+
+    return description

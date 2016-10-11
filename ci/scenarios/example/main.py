@@ -25,6 +25,7 @@ class ExampleTest(object):
         ExampleTest._execute_test()
         ExampleTest._process_test_results()
         ExampleTest._push_to_testrail()
+        return {'status': 'OK'}
 
     @staticmethod
     def _execute_test():
@@ -52,6 +53,10 @@ class ExampleTest(object):
         :return:
         """
         pass
+
+
+def run():
+    return ExampleTest().main()
 
 if __name__ == "__main__":
     ExampleTest().main()
