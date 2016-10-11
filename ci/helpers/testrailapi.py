@@ -19,7 +19,45 @@ import requests
 import urllib2
 
 
-class TestrailApi:
+class TestrailResult:
+    """
+    Testrail Result class
+    """
+
+    PASSED = 1
+    BLOCKED = 2
+    FAILED = 5
+    SKIPPED = 11
+
+
+class TestrailPriority(object):
+    """
+    Testrail Priority class
+    """
+
+    MUST_TEST_HIGH = 5
+    MUST_TEST_LOW = 4
+    TEST_IF_TIME_HIGH = 3
+    TEST_IF_TIME_LOW = 2
+    DONT_TEST = 1
+
+
+class TestrailCaseType(object):
+    """
+    Testrail Priority class
+    """
+
+    ADMINISTRATION = 'Administration'
+    AT_EXT = 'AT_Extensive'
+    AT_QUICK = 'AT_Quick'
+    FUNCTIONAL = 'Functionality'
+    MANUAL = 'Manual'
+    PERFORMANCE = 'Performance'
+    REGRESSION = 'Regression'
+    STABILITY = 'Stability'
+
+
+class TestrailApi(object):
     """
     Testrail API class
         - on init will load all existing projects
@@ -338,3 +376,16 @@ class TestrailApi:
         if not milestones or len(milestones) > 1:
             raise Exception("No or multiple suites found with name: {0} ".format(name))
         return milestones[0]
+
+    def get_case_by_name(self, project_id, suite_id, name, section_id=None):
+        cases = [case for case in self.get_cases(project_id, suite_id, section_id) if case['title'] == name]
+        if not cases or len(cases) > 1:
+            raise Exception("No or multiple cases found with name: {0} ".format(name))
+        return cases[0]
+
+    def get_test_by_name(self, run_id, name):
+        tests = [test for test in self.get_tests(run_id) if test['title'] == name]
+        if not tests or len(tests) > 1:
+            raise Exception("No or multiple tests found with name: {0} ".format(name))
+        return tests[0]
+

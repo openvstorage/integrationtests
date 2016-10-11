@@ -25,7 +25,7 @@ class ExampleTest(object):
         ExampleTest._execute_test()
         ExampleTest._process_test_results()
         ExampleTest._push_to_testrail()
-        return {'status': 'OK'}
+        return {'status': 'PASSED', 'case_type': 'FUNCTIONAL'}
 
     @staticmethod
     def _execute_test():

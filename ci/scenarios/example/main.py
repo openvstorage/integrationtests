@@ -23,33 +23,16 @@ class ExampleTest(object):
     @staticmethod
     def main():
         ExampleTest._execute_test()
-        ExampleTest._process_test_results()
-        ExampleTest._push_to_testrail()
-        return {'status': 'OK'}
+
+        # status depends on attributes in class: ci.helpers.testtrailapi.TestrailResult
+        # case_type depends on attributes in class: ci.helpers.testtrailapi.TestrailCaseType
+        return {'status': 'PASSED', 'case_type': 'ADMINISTRATION'}
 
     @staticmethod
     def _execute_test():
         """
         Required method that has to follow our json output guideline
         This data will be sent to testrails to process it thereafter
-        :return:
-        """
-        pass
-
-    @staticmethod
-    def _process_test_results():
-        """
-        Required method that has to follow our json output guideline
-        This data will be sent to testrails to process it thereafter
-        :return:
-        """
-        pass
-
-    @staticmethod
-    def _push_to_testrail():
-        """
-        Required method that has to follouw our testrail pushing guidelines
-        Will send the data to testrail
         :return:
         """
         pass

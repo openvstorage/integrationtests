@@ -22,24 +22,28 @@ OVS automatic test lib
 import os
 import re
 import json
+import math
 import importlib
 import subprocess
 from datetime import datetime
-from ci.helpers.testrailapi import TestrailApi
+from ci.helpers.exceptions import SectionNotFoundError
 from ci.helpers.storagerouter import StoragerouterHelper
+from ci.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
 
 TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
 CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
 TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testtrail.json"
 
 
-def run(scenarios=['ALL']):
+def run(scenarios=['ALL'], send_to_testrail=False):
     """
     Run single, multiple or all test scenarios
 
     :param scenarios: run scenarios defined by the test_name, leave empty when ALL test scenarios need to be executed
                       (e.g. ['ci.scenarios.alba.asd_benchmark', 'ci.scenarios.arakoon.collapse'])
     :type scenarios: list
+    :param send_to_testrail: send results of test to testrail in a new testplan
+    :type send_to_testrail: bool
     """
 
     # grab the tests to execute
@@ -55,9 +59,11 @@ def run(scenarios=['ALL']):
         module_result = module.run()
         results[test] = module_result
 
-    print results
+    if send_to_testrail:
+        plan_url = push_to_testrail(results)
+        return results, plan_url
 
-    return
+    return results, None
 
 
 def list_tests():
@@ -80,43 +86,75 @@ def list_tests():
     return scenarios
 
 
-def push_to_testrail(config_path=TESTTRAIL_LOC):
+def push_to_testrail(results, config_path=TESTTRAIL_LOC):
     """
     Push results to testtrail
 
     :param config_path: path to testrail config file
     :type config_path: str
-    :return: Testrail URL
+    :param results: tests and results of test (e.g {'ci.scenarios.arakoon.collapse': {'status': 'NOK'},
+                                                    'ci.scenarios.arakoon.archive': {'status': 'OK'}})
+    :type results: dict
+    :return: Testrail URL to test plan
+    :rtype: str
     """
-
-    TESTRAIL_STATUS_ID_PASSED = '1'
-    TESTRAIL_STATUS_ID_BLOCKED = '2'
-    TESTRAIL_STATUS_ID_FAILED = '5'
-    TESTRAIL_STATUS_ID_SKIPPED = '11'
-    TESTRAIL_KEY = ""
-    TESTRAIL_SERVER = ""
 
     with open(config_path, "r") as JSON_CONFIG:
             testtrail_config = json.load(JSON_CONFIG)
 
     # fetch test-name based on environment, environment version & datetime
-    test_name = "{0}_{1}_{2}".format(_get_test_name(), _get_ovs_version(), datetime.now())
+    test_title = "{0}_{1}_{2}".format(_get_test_name(), _get_ovs_version(), datetime.now())
 
     # create description based on system settings (hardware & linux distro)
-    description = ""
+    description = _get_description()
 
     tapi = TestrailApi(testtrail_config['url'], testtrail_config['username'], testtrail_config['password'])
     project_id = tapi.get_project_by_name(testtrail_config['project'])['id']
     suite_id = tapi.get_suite_by_name(project_id, testtrail_config['suite'])['id']
 
+    # check if test_case & test_section exists in test_suite
+    for test_case, test_result in results.iteritems():
+        test_name = test_case.split('.')[3]
+        test_section = test_case.split('.')[2].title()
+        try:
+            tapi.get_case_by_name(project_id, suite_id, test_name)
+        except Exception:
+            # check if section exists
+            try:
+                section = tapi.get_section_by_name(project_id, suite_id, test_section)
+            except Exception:
+                raise SectionNotFoundError("Section `{0}` is not available in testrail, "
+                                           "please add or correct your mistake.".format(test_section))
+
+            if hasattr(TestrailCaseType, test_result['case_type']):
+                case_type_id = tapi.get_case_type_by_name(getattr(TestrailCaseType, test_result['case_type']))['id']
+            else:
+                raise AttributeError("Attribute `{0}` does not exists as case_type "
+                                     "in TestrailCaseType".format(test_result['case_type']))
+            # add case to existing section
+            tapi.add_case(section_id=section['id'], title=test_name, type_id=case_type_id)
+
     # add plan
-    plan = tapi.add_plan(project_id, test_name, description)
+    plan = tapi.add_plan(project_id, test_title, description)
     # link suite to plan
     entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'])
 
+    # add results to test cases
+    run_id = entry['runs'][0]['id']
+    for test_case, test_result in results.iteritems():
+        # check if test exists
+        test_name = test_case.split('.')[3]
+        test_id = tapi.get_test_by_name(run_id, test_name)['id']
 
+        if hasattr(TestrailResult, test_result['status']):
+            test_status_id = getattr(TestrailResult, test_result['status'])
+        else:
+            raise AttributeError("Attribute `{0}` does not exists as test_status in TestrailResult"
+                                 .format(test_result['status']))
+        # add results to test cases
+        tapi.add_result(test_id, test_status_id)
 
-    return
+    return plan['url']
 
 
 def _get_package_info():
@@ -161,6 +199,59 @@ def _get_description():
     description = ""
 
     # fetch ip information
+    description += "# IP INFO \n"
+    for ip in StoragerouterHelper.get_storagerouter_ips():
+        description += "* {0}\n".format(ip)
 
+    description += "\n"
+
+    # hypervisor information
+    with open(CONFIG_LOC, "r") as JSON_CONFIG:
+            ci_config = json.load(JSON_CONFIG)
+    description += "# HYPERVISOR INFO \n{0}\n".format(ci_config['ci']['hypervisor'])
+
+    description += "\n"
+
+    # fetch hardware information
+    description += "# HARDWARE INFO \n"
+
+    # board information
+    description += "### Base Board Information \n"
+    output = subprocess.check_output("dmidecode -t 2", shell=True).replace("#", "")
+    description += "{0}\n".format(output)
+
+    description += "\n"
+
+    # fetch cpu information
+    description += "### Processor Information \n"
+    output = subprocess.Popen("grep 'model name'", stdin=
+                              subprocess.Popen("cat /proc/cpuinfo", stdout=subprocess.PIPE, shell=True).stdout,
+                              stdout=subprocess.PIPE, shell=True)
+    cpus = subprocess.check_output("cut -d ':' -f 2", stdin=output.stdout, shell=True).strip().split('\n')
+    description += "* Type: {0} \n".format(cpus[0])
+    description += "* Amount: {0} \n".format(len(cpus))
+
+    description += "\n"
+
+    # fetch memory information
+    description += "### Memory Information \n"
+    output = math.ceil(float(subprocess.check_output("grep MemTotal", stdin=
+                                                     subprocess.Popen("cat /proc/meminfo", stdout=subprocess.PIPE,
+                                                                      shell=True)
+                                                     .stdout, shell=True).strip().split()[1]) / 1024 / 1024)
+    description += "* {0}GiB System Memory\n".format(int(output))
+
+    description += "\n"
+
+    # fetch disk information
+    description += "### Disk Information \n"
+    output = subprocess.check_output("lsblk", shell=True)
+    description += output
+
+    description += "\n"
+
+    # package info
+    description += "# PACKAGE INFO \n"
+    description += "{0}\n".format(_get_package_info())
 
     return description
