@@ -15,18 +15,18 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 
-class ExampleTest(object):
+class ArakoonArchiving(object):
 
     def __init__(self):
         pass
 
     @staticmethod
     def main():
-        ExampleTest._execute_test()
+        ArakoonArchiving.test_archiving()
         return {'status': 'PASSED', 'case_type': 'FUNCTIONAL'}
 
     @staticmethod
-    def _execute_test():
+    def test_archiving():
         """
         Required method that has to follow our json output guideline
         This data will be sent to testrails to process it thereafter
@@ -35,7 +35,7 @@ class ExampleTest(object):
 
 
 def run():
-    return ExampleTest().main()
+    return ArakoonArchiving().main()
 
 if __name__ == "__main__":
     run()

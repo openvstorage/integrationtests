@@ -26,7 +26,7 @@ class ExampleTest(object):
 
         # status depends on attributes in class: ci.helpers.testtrailapi.TestrailResult
         # case_type depends on attributes in class: ci.helpers.testtrailapi.TestrailCaseType
-        return {'status': 'PASSED', 'case_type': 'ADMINISTRATION'}
+        return {'status': 'PASSED', 'case_type': 'FUNCTIONAL', 'errors': None}
 
     @staticmethod
     def _execute_test():

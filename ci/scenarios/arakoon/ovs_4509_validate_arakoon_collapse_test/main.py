@@ -41,8 +41,8 @@ class ArakoonCollapse(object):
     @staticmethod
     def test_collapse():
         """
-        Required method that has to follow our json output guideline
-        This data will be sent to testrails to process it thereafter
+        Test the arakoon collapsing
+
         :return:
         """
         node_ips = StoragerouterHelper.get_storagerouter_ips()
