@@ -20,6 +20,7 @@
 # Depends upon a json-stylized configuration file
 
 import json
+from ci import autotests
 from ci.helpers.api import OVSClient
 from ci.setup.roles import RoleSetup
 from ci.setup.vpool import VPoolSetup
@@ -44,7 +45,25 @@ class Workflow(object):
             self.config['ci']['user']['api']['password']
         )
 
+    def run(self):
+
+        for i in xrange(self.config['ci']['setup_retries']):
+            self.setup()
+            self.validate()
+            for j in xrange(self.config['ci']['scenario_retries']):
+                self.scenario()
+            self.cleanup()
+
+            # if cleanup of items is False, stop another try
+            if not self.config['ci']['cleanup']:
+                break
+
     def setup(self):
+        """
+        Setup a Open vStorage cluster based on a config file
+
+        :return: None
+        """
 
         if self.config['ci']['setup']:
 
@@ -137,10 +156,22 @@ class Workflow(object):
             Workflow.LOGGER.info("Skipping setup")
 
     def validate(self):
-        pass
+        """
+        Execute custom scenarios on a Open vStorage environment
+
+        :return: None
+        """
+        if self.config['ci']['validation']:
+            pass
 
     def scenario(self):
-        pass
+        """
+        Execute custom scenarios on a Open vStorage environment
+
+        :return: None
+        """
+        if self.config['ci']['scenarios']:
+            print autotests.run(scenarios=self.config['scenarios'], send_to_testrail=self.config['send_to_testrail'])
 
     def cleanup(self):
         if self.config['ci']['cleanup']:
@@ -173,10 +204,7 @@ class Workflow(object):
     @staticmethod
     def main(*args, **kwargs):
         w = Workflow()
-        w.setup()
-        w.validate()
-        w.scenario()
-        # w.cleanup()
+        w.run()
 
 if __name__ == "__main__":
     Workflow.main()
