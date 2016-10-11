@@ -67,22 +67,16 @@ class GeneralVDisk(object):
         try:
             if loop_device is not None:
                 root_client.run('umount /mnt/{0} | echo true'.format(loop_device))
-                root_client.run('losetup -d /dev/{0} | echo true'.format(loop_device))
-                root_client.run('rm {0} | echo true'.format(location))
                 root_client.run('truncate -s {0}G {1}'.format(size, location))
-                root_client.run('losetup /dev/{0} {1}'.format(loop_device, location))
                 root_client.dir_create('/mnt/{0}'.format(loop_device))
-                root_client.run('parted /dev/{0} mklabel gpt'.format(loop_device))
-                root_client.run('parted -a optimal /dev/{0} mkpart primary ext4 0% 100%'.format(loop_device))
-                root_client.run('partprobe; echo true')
-                root_client.run('mkfs.ext4 /dev/{0}'.format(loop_device))
-                root_client.run('mount -t ext4 /dev/{0} /mnt/{0}'.format(loop_device))
+                root_client.run('mkfs.ext4 -F {0}'.format(location))
+                root_client.run('mount -o loop {0} /mnt/{1} '.format(location, loop_device))
             else:
                 root_client.run('truncate -s {0}G {1}'.format(size, location))
         except CalledProcessError as cpe:
             GeneralVDisk.logger.error(str(cpe))
             if loop_device is not None:
-                root_client.run("""umount /mnt/{0}; losetup -d /dev/{0}; rm {1}""".format(loop_device, location))
+                root_client.run("""umount /mnt/{0}; rm {1}; rmdir /mnt/{0}""".format(loop_device, location))
             raise
 
         vdisk = None
@@ -150,14 +144,11 @@ class GeneralVDisk(object):
 
             try:
                 if loop_device is not None:
-                    root_client.run('losetup /dev/{0} {1}'.format(loop_device, location))
                     root_client.dir_create('/mnt/{0}'.format(loop_device))
-                    root_client.run('mount -t ext4 /dev/{0} /mnt/{0}'.format(loop_device))
+                    root_client.run('mount -o loop {0} /mnt/{1}'.format(location, loop_device))
             except CalledProcessError as cpe:
                 GeneralVDisk.logger.error(str(cpe))
-                cmd = """umount /mnt/{0}; losetup -d /dev/{0}; rmdir /mnt/{0}""".format(loop_device)
-                root_client.run(cmd)
-                # raise
+                root_client.run("""umount /mnt/{0}; rmdir /mnt/{0}""".format(loop_device))
 
     @staticmethod
     def disconnect_volume(loop_device, root_client=None):
@@ -172,12 +163,11 @@ class GeneralVDisk(object):
 
         try:
             if loop_device is not None:
-                root_client.run('umount /mnt/{0}; losetup -d /dev/{0}; rmdir /mnt/{0}'.format(loop_device))
+                root_client.run("""umount /mnt/{0}; rmdir /mnt/{0}""".format(loop_device))
             else:
                 root_client.run('rmdir /mnt/{0}'.format(loop_device))
         except CalledProcessError as cpe:
             GeneralVDisk.logger.error(str(cpe))
-            # raise
 
     @staticmethod
     def write_to_volume(vdisk=None, vpool=None, location=None, count=1024, bs='1M', input_type='random',
