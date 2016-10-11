@@ -23,8 +23,6 @@ class ExampleTest(object):
     @staticmethod
     def main():
         ExampleTest._execute_test()
-        ExampleTest._process_test_results()
-        ExampleTest._push_to_testrail()
         return {'status': 'PASSED', 'case_type': 'FUNCTIONAL'}
 
     @staticmethod
@@ -34,25 +32,6 @@ class ExampleTest(object):
         This data will be sent to testrails to process it thereafter
         :return:
         """
-        pass
-
-    @staticmethod
-    def _process_test_results():
-        """
-        Required method that has to follow our json output guideline
-        This data will be sent to testrails to process it thereafter
-        :return:
-        """
-        pass
-
-    @staticmethod
-    def _push_to_testrail():
-        """
-        Required method that has to follouw our testrail pushing guidelines
-        Will send the data to testrail
-        :return:
-        """
-        pass
 
 
 def run():
