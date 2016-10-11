@@ -44,6 +44,8 @@ def run(scenarios=['ALL'], send_to_testrail=False):
     :type scenarios: list
     :param send_to_testrail: send results of test to testrail in a new testplan
     :type send_to_testrail: bool
+    :returns: results and possible testrail url
+    :rtype: tuple
     """
 
     # grab the tests to execute
@@ -69,6 +71,9 @@ def run(scenarios=['ALL'], send_to_testrail=False):
 def list_tests():
     """
     Lists all the test scenarios
+
+    :returns: all available test scenarios
+    :rtype: list
     """
 
     # collect sections
@@ -160,6 +165,9 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC):
 def _get_package_info():
     """
     Retrieve package information for installation
+
+    :returns: package information of openvstorage, volumedriver, alba, arakoon & python-celery
+    :rtype: str
     """
     command = "dpkg-query -W -f='${binary:Package} ${Version}\t${Description}\n' " \
               "| grep '^openvstorage\|^volumedriver\|^alba\|^arakoon\|^python-celery'"
@@ -174,6 +182,9 @@ def _get_package_info():
 def _get_test_name():
     """
     Retrieve a structured environment test name
+
+    :returns: a structured environment based test name
+    :rtype: str
     """
     number_of_nodes = len(StoragerouterHelper.get_storagerouter_ips())
     split_ip = StoragerouterHelper.get_local_storagerouter().ip.split('.')
@@ -183,6 +194,9 @@ def _get_test_name():
 def _get_ovs_version():
     """
     Retrieve version of ovs installation
+
+    :returns: openvstorage package version
+    :rtype: str
     """
     packages = _get_package_info()
     main_pkg = [pck for pck in packages.splitlines() if "openvstorage " in pck]
@@ -195,6 +209,9 @@ def _get_ovs_version():
 def _get_description():
     """
     Retrieve extensive information about the machine
+
+    :returns: a extensive description of the local machine
+    :rtype: str
     """
     description = ""
 
