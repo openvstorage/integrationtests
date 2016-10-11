@@ -74,7 +74,6 @@ class TestSanity(object):
             "rabbitmq-server": """ps -ef|grep rabbitmq-|grep -v grep""",
             "memcached": """ps -ef|grep memcached|grep -v grep""",
             "ovs-arakoon-ovsdb": """initctl list| grep ovsdb""",
-            "ovs-snmp": """initctl list| grep ovs-snmp""",
             "ovs-support-agent": """initctl list| grep support""",
             "ovs-volumerouter-consumer": """initctl list| grep volumerou""",
             "ovs-watcher-framework": """initctl list| grep watcher-fr"""
