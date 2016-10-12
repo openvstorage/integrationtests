@@ -20,7 +20,7 @@ Extended testsuite
 
 import os
 import time
-from ci.tests.general.general import General
+from ci.tests.general.general_system import GeneralSystem
 from ci.tests.general.logHandler import LogHandler
 
 logger = LogHandler.get('api', name='setup')
@@ -48,10 +48,7 @@ class TestExtended(object):
 
         non_running_services = ''
         while wait_time > 0:
-            out = General.execute_command_on_node(rebooted_host, "initctl list | grep ovs-*")
-            statuses = out.splitlines()
-
-            non_running_services = [s for s in statuses if 'start/running' not in s]
+            non_running_services = GeneralSystem.list_non_running_ovs_services(rebooted_host)
             if len(non_running_services) == 0:
                 break
 
