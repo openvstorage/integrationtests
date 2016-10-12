@@ -25,7 +25,7 @@ class BackendHelper(object):
     """
     BackendHelper class
     """
-    LOGGER = LogHandler.get(source='helpers', name="ci_helper")
+    LOGGER = LogHandler.get(source='helpers', name="ci_backend")
 
     def __init__(self):
         pass

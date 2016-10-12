@@ -157,7 +157,7 @@ class Workflow(object):
 
     def validate(self):
         """
-        Execute custom scenarios on a Open vStorage environment
+        validate that the created setup works, then send the results to testrail
 
         :return: None
         """

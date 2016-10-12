@@ -103,6 +103,8 @@ class BackendSetup(object):
         :type preset_details: dict
         :param api: specify a valid api connection to the setup
         :type api: ci.helpers.api.OVSClient
+        :param timeout: amount of max time that preset may take to be added
+        :type timeout: int
         :return: albabackend_name, preset_name
         :rtype: tuple
         """

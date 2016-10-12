@@ -186,3 +186,25 @@ class StoragerouterHelper(object):
         """
 
         return StorageRouterList.get_storagerouters()
+
+    @staticmethod
+    def get_master_storagerouters():
+        """
+        Fetch the master storagerouters
+
+        :return: list with master storagerouters
+        :rtype: list
+        """
+
+        return StorageRouterList.get_masters()
+
+    @staticmethod
+    def get_master_storagerouter_ips():
+        """
+        Fetch the master storagerouters ips
+
+        :return: list with master storagerouters ips
+        :rtype: list
+        """
+
+        return map(lambda storagerouter: storagerouter.ip, StorageRouterList.get_masters())

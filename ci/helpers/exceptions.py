@@ -38,3 +38,10 @@ class ArakoonClusterNotFoundError(Exception):
     Raised when an object was queries that doesn't exist
     """
     pass
+
+
+class UnsupportedInitManager(Exception):
+    """
+    Raised when an object was queries that doesn't exist
+    """
+    pass
