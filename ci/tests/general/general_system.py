@@ -27,26 +27,27 @@ class GeneralSystem(object):
     Support for init(upstart) / systemd
     """
 
-    INIT_SYSTEM = General.execute_command_on_node('127.0.0.1', 'cat /proc/1/comm')
+    IP = General.get_config().get('main', 'grid_ip')
+    INIT_SYSTEM = General.execute_command_on_node(IP, 'cat /proc/1/comm')
     if INIT_SYSTEM not in ['init', 'systemd']:
         raise RuntimeError('Unsupported init system: {0}'.format(INIT_SYSTEM))
 
     @staticmethod
-    def list_ovs_services(host='127.0.0.1'):
+    def list_ovs_services(host=IP):
         if GeneralSystem.INIT_SYSTEM == 'init':
             return General.execute_command_on_node(host, "initctl list | grep ovs-*").splitlines()
         elif GeneralSystem.INIT_SYSTEM == 'systemd':
             return General.execute_command_on_node(host, "systemctl -l | grep ovs-").splitlines()
 
     @staticmethod
-    def list_running_ovs_services(host='127.0.0.1'):
+    def list_running_ovs_services(host=IP):
         if GeneralSystem.INIT_SYSTEM == 'init':
             return [s for s in GeneralSystem.list_ovs_services(host) if 'start/running' in s]
         elif GeneralSystem.INIT_SYSTEM == 'systemd':
             return [s for s in GeneralSystem.list_ovs_services(host) if 'loaded active' in s]
 
     @staticmethod
-    def list_non_running_ovs_services(host='127.0.0.1'):
+    def list_non_running_ovs_services(host=IP):
         if GeneralSystem.INIT_SYSTEM == 'init':
             return [s for s in GeneralSystem.list_ovs_services(host) if 'start/running' not in s]
         elif GeneralSystem.INIT_SYSTEM == 'systemd':
