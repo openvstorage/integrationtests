@@ -171,7 +171,8 @@ class Workflow(object):
         :return: None
         """
         if self.config['ci']['scenarios']:
-            print autotests.run(scenarios=self.config['scenarios'], send_to_testrail=self.config['send_to_testrail'])
+            print autotests.run(scenarios=self.config['scenarios'], send_to_testrail=self.config['send_to_testrail'],
+                                fail_on_failed_scenario=self.config['fail_on_failed_scenario'])
 
     def cleanup(self):
         if self.config['ci']['cleanup']:

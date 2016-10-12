@@ -175,3 +175,14 @@ class StoragerouterHelper(object):
         """
 
         return map(lambda storagerouter: storagerouter.ip, StorageRouterList.get_storagerouters())
+
+    @staticmethod
+    def get_storagerouters():
+        """
+        Fetch the storagerouters
+
+        :return: list with storagerouters
+        :rtype: list
+        """
+
+        return StorageRouterList.get_storagerouters()

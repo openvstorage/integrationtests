@@ -35,7 +35,7 @@ CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
 TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testtrail.json"
 
 
-def run(scenarios=['ALL'], send_to_testrail=False):
+def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False):
     """
     Run single, multiple or all test scenarios
 
@@ -44,6 +44,8 @@ def run(scenarios=['ALL'], send_to_testrail=False):
     :type scenarios: list
     :param send_to_testrail: send results of test to testrail in a new testplan
     :type send_to_testrail: bool
+    :param fail_on_failed_scenario: the run will block all other tests if one scenario would fail
+    :type fail_on_failed_scenario: bool
     :returns: results and possible testrail url
     :rtype: tuple
     """
@@ -52,13 +54,44 @@ def run(scenarios=['ALL'], send_to_testrail=False):
     if scenarios == ['ALL']:
         tests = list_tests()
     else:
-        tests = scenarios
+        complete_scenarios = []
+        # check if a scenario is specified with a section
+        for scenario in scenarios:
+            if len(scenario.split('.')) == 3:
+                # a full section needs to be added to the scenarios
+                for test in os.listdir("{0}/{1}".format(TEST_SCENARIO_LOC, scenario.split('.')[2])):
+                    if test != "__init__.pyc" and test != "__init__.py" and test != "main.py" and test != "main.pyc":
+                        # check if the scenario already exists in the tests
+                        scenario_fullname = "{0}.{1}".format(scenario, test)
+                        if scenario_fullname not in complete_scenarios:
+                            complete_scenarios.append(scenario_fullname)
+            else:
+                # check if the scenario already exists in the tests
+                if scenario not in complete_scenarios:
+                    complete_scenarios.append(scenario)
+
+        tests = complete_scenarios
 
     # execute the tests
     results = {}
+    blocked = False
     for test in tests:
         module = importlib.import_module('{0}.main'.format(test))
-        module_result = module.run()
+
+        # check if the tests are not blocked by a previous test
+        if not blocked:
+            module_result = module.run()
+        else:
+            module_result = module.run(blocked=True)
+
+        # check if a test has failed, if it has failed check if we should block all other tests
+        if hasattr(TestrailResult, module_result['status']):
+            if getattr(TestrailResult, module_result['status']) == TestrailResult.FAILED and fail_on_failed_scenario:
+                blocked = True
+        else:
+            raise AttributeError("Attribute `{0}` does not exists as status "
+                                 "in TestrailResult".format(module_result['status']))
+
         results[test] = module_result
 
     if send_to_testrail:
@@ -91,7 +124,7 @@ def list_tests():
     return scenarios
 
 
-def push_to_testrail(results, config_path=TESTTRAIL_LOC):
+def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True):
     """
     Push results to testtrail
 
@@ -100,6 +133,8 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC):
     :param results: tests and results of test (e.g {'ci.scenarios.arakoon.collapse': {'status': 'NOK'},
                                                     'ci.scenarios.arakoon.archive': {'status': 'OK'}})
     :type results: dict
+    :param skip_on_no_results: set the untested tests on SKIPPED
+    :type skip_on_no_results: bool
     :return: Testrail URL to test plan
     :rtype: str
     """
@@ -156,8 +191,17 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC):
         else:
             raise AttributeError("Attribute `{0}` does not exists as test_status in TestrailResult"
                                  .format(test_result['status']))
-        # add results to test cases
-        tapi.add_result(test_id, test_status_id)
+        # add results to test cases, if failed add a comment with errors
+        if getattr(TestrailResult, test_result['status']) == TestrailResult.FAILED:
+            tapi.add_result(test_id, test_status_id, comment=str(test_result['errors']))
+        else:
+            tapi.add_result(test_id, test_status_id)
+
+    # end of adding results to testplan, setting other cases in SKIPPED
+    if skip_on_no_results:
+        for test in tapi.get_tests(run_id):
+            if test['status_id'] == TestrailResult.UNTESTED:
+                tapi.add_result(test['id'], int(TestrailResult.SKIPPED))
 
     return plan['url']
 

@@ -17,16 +17,28 @@
 
 class ExampleTest(object):
 
+    CASE_TYPE = 'FUNCTIONAL'
+
     def __init__(self):
         pass
 
     @staticmethod
-    def main():
-        ExampleTest._execute_test()
+    def main(blocked):
+        """
+        Run all required methods for the test
 
-        # status depends on attributes in class: ci.helpers.testtrailapi.TestrailResult
-        # case_type depends on attributes in class: ci.helpers.testtrailapi.TestrailCaseType
-        return {'status': 'PASSED', 'case_type': 'FUNCTIONAL', 'errors': None}
+        status depends on attributes in class: ci.helpers.testtrailapi.TestrailResult
+        case_type depends on attributes in class: ci.helpers.testtrailapi.TestrailCaseType
+
+        :param blocked: was the test blocked by other test?
+        :return: results of test
+        :rtype: dict
+        """
+        if not blocked:
+            ExampleTest._execute_test()
+            return {'status': 'PASSED', 'case_type': ExampleTest.CASE_TYPE, 'errors': None}
+        else:
+            return {'status': 'BLOCKED', 'case_type': ExampleTest.CASE_TYPE, 'errors': None}
 
     @staticmethod
     def _execute_test():
@@ -38,8 +50,16 @@ class ExampleTest(object):
         pass
 
 
-def run():
-    return ExampleTest().main()
+def run(blocked=False):
+    """
+    Run a test
+
+    :param blocked: was the test blocked by other test?
+    :return: results of test
+    :rtype: dict
+    """
+
+    return ExampleTest().main(blocked)
 
 if __name__ == "__main__":
     ExampleTest().main()

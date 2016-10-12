@@ -5,6 +5,7 @@
     "scenarios": true,
     "cleanup": false,
     "send_to_testrail": true,
+    "fail_on_failed_scenario": true,
     "setup_retries": 2,
     "scenario_retries": 2,
     "version": "unstable",

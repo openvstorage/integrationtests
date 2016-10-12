@@ -19,6 +19,9 @@ from ci.helpers.disk import DiskHelper
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.validate.roles import RoleValidation
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.generic.configuration import Configuration
+from ci.helpers.exceptions import DirectoryNotFoundError, ArakoonClusterNotFoundError
 
 LOGGER = LogHandler.get(source='decorators', name="ci_decorator")
 LOCATION_OPTIONS = ['GLOBAL', 'LOCAL']
@@ -79,3 +82,46 @@ def required_backend(func):
         func(*args, **kwargs)
     return validate
 
+
+def required_cluster_basedir(func):
+    """
+    Validate if a directory exists for a new cluster
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        # check if alba backend exists or not
+        if kwargs['cluster_basedir'] and kwargs['storagerouter_ip']:
+            client = SSHClient(kwargs['storagerouter_ip'], username='root')
+            if client.dir_exists(kwargs['cluster_basedir']):
+                func(*args, **kwargs)
+            else:
+                raise DirectoryNotFoundError("Required base_dir `{0}` not found on storagerouter `{1}`"
+                                             .format(kwargs['cluster_basedir'], kwargs['storagerouter_ip']))
+        else:
+            raise AttributeError("Missing parameter(s): cluster_basedir & storagerouter_ip")
+
+    return validate
+
+
+def required_arakoon_cluster(func):
+    """
+    Validate if a directory exists for a new cluster
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        # check if arakoon cluster exists or not
+        if kwargs['cluster_name']:
+            if kwargs['cluster_name'] in list(Configuration.list('ovs/arakoon')):
+                func(*args, **kwargs)
+            else:
+                raise ArakoonClusterNotFoundError("Arakoon cluster does not exists: {0}".format(kwargs['cluster_name']))
+        else:
+            raise AttributeError("Missing parameter: cluster_name")
+
+    return validate
