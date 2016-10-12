@@ -215,7 +215,6 @@ class TestDiskRoles(object):
         # End input validation
 
         # Start setup
-        collection = {}
         if configuration:
             config = configuration
         else:
