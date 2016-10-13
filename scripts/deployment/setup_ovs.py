@@ -471,7 +471,7 @@ def install_autotests(node_ip, patch_branch=''):
     """
     remote_con = q.remote.system.connect(node_ip, "root", UBUNTU_PASSWORD)
     remote_con.process.execute("apt-get update")
-    remote_con.process.execute("apt-get install unzip openvstorage-test -y --force-yes")
+    remote_con.process.execute("apt-get --allow-unauthenticated install unzip openvstorage-test -y")
 
     if patch_branch != '':
         repo_map = {'integrationtests': {'ci': '/opt/OpenvStorage/ci'}}

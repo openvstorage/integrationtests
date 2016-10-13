@@ -301,7 +301,6 @@ class TestALBA(object):
         abe.save()
 
         ad = AlbaDisk()
-        ad.name = 'ovs3769ad'
         ad.alba_node = an
         ad.save()
 
