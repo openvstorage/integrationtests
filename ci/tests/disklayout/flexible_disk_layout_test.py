@@ -181,11 +181,11 @@ class TestFlexibleDiskLayout(object):
         cmd = 'umount {0}; rmdir {0}'.format(mountpoint)
         General.execute_command_on_node(my_sr.ip, cmd)
 
-        cmd = 'parted -s {0} rm 1'.format(disk.path)
+        cmd = 'parted -s {0} rm 1'.format(disk.aliases[0])
         General.execute_command_on_node(my_sr.ip, cmd)
 
         # wipe partition table to be able to reuse this disk in another test
-        GeneralVDisk.write_to_volume(location=disk.path,
+        GeneralVDisk.write_to_volume(location=disk.aliases[0],
                                      count=64,
                                      bs='1M',
                                      input_type='zero')
