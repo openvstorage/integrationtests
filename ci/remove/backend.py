@@ -24,6 +24,7 @@ class BackendRemover(object):
     LOGGER = LogHandler.get(source="remove", name="ci_backend_remover")
     REMOVE_ASD_TIMEOUT = 60
     REMOVE_DISK_TIMEOUT = 60
+    REMOVE_BACKEND_TIMEOUT = 60
 
     def __init__(self):
         pass
@@ -108,7 +109,8 @@ class BackendRemover(object):
         :type asd_safety: dict
         :param api: specify a valid api connection to the setup
         :type api: ci.helpers.api.OVSClient
-        :param timeout:
+        :param timeout: max. time to wait for a task to complete
+        :type timeout: int
         :return:
         """
 
@@ -132,3 +134,23 @@ class BackendRemover(object):
             data=data
         )
         return api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+    @staticmethod
+    def remove_backend(backend_name, api, timeout=REMOVE_BACKEND_TIMEOUT):
+        """
+        Removes a alba backend from the ovs cluster
+
+        :param backend_name: the name of a existing alba backend
+        :type backend_name: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: max. time to wait for a task to complete
+        :type timeout: int
+        :return: task was succesfull or not
+        :rtype: bool
+        """
+
+        alba_backend_guid = BackendHelper.get_alba_backend_guid_by_name(backend_name)
+        task_guid = api.delete(api='/alba/backends/{0}'.format(alba_backend_guid))
+
+        return api.wait_for_task(task_id=task_guid, timeout=timeout)[0]

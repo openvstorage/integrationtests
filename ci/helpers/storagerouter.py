@@ -26,7 +26,7 @@ class StoragerouterHelper(object):
     """
     StoragerouterHelper class
     """
-    LOGGER = LogHandler.get(source="setup", name="ci_backend_setup")
+    LOGGER = LogHandler.get(source="helpers", name="ci_storagerouter_helper")
 
     cache_timeout = 60
     disk_map_cache = {}

@@ -191,6 +191,13 @@ class OVSClient(object):
                 self._volatile_client.delete(self._key)
             raise
 
+    def delete(self, api):
+        """
+        Executes a DELETE call
+        :param api: Specification for to fill out in the URL, eg: /alba/backends/<albabackend_guid>
+        """
+        return self._call(api=api, params={}, function=requests.delete)
+
     def get(self, api, params=None):
         """
         Executes a GET call

@@ -51,6 +51,8 @@ class BackendSetup(object):
         :type timeout: int
         :param max_tries: amount of max. tries to check if a backend has been successfully created
         :type max_tries: int
+        :returns: creation is successfully succeeded?
+        :rtype: bool
         """
 
         # ADD_BACKEND
@@ -80,7 +82,7 @@ class BackendSetup(object):
             if BackendHelper.get_backend_status_by_name(backend_name) == backend_running_status:
                 BackendSetup.LOGGER.info("Creation of Backend `{0}` and scaling `{1}` succeeded!"
                                          .format(backend_name, scaling))
-                return backend_name
+                return True
             else:
                 tries += 1
                 BackendSetup.LOGGER.warning("Creating backend `{0}`, try {1}. Sleeping for {2} seconds ..."
@@ -90,6 +92,7 @@ class BackendSetup(object):
         BackendSetup.LOGGER.error("Creation of Backend `{0}` and scaling `{1}` failed with status: {2}!"
                                   .format(backend_name, scaling,
                                           BackendHelper.get_backend_status_by_name(backend_name)))
+        return False
 
     @staticmethod
     @required_backend

@@ -159,7 +159,7 @@
         },
         "vpools": {
           "vmstor": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.48",
             "fragment_cache": {
@@ -179,7 +179,7 @@
             }
           },
           "data01": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.48",
             "fragment_cache": {
@@ -189,7 +189,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -199,7 +199,7 @@
             }
           },
           "data02": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.48",
             "fragment_cache": {
@@ -209,7 +209,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -219,7 +219,7 @@
             }
           },
           "data03": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.48",
             "fragment_cache": {
@@ -229,7 +229,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -239,7 +239,7 @@
             }
           },
           "data04": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.48",
             "fragment_cache": {
@@ -249,7 +249,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -282,7 +282,7 @@
         },
         "vpools": {
           "vmstor": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.47",
             "fragment_cache": {
@@ -302,7 +302,7 @@
             }
           },
           "data01": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.47",
             "fragment_cache": {
@@ -312,7 +312,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -322,7 +322,7 @@
             }
           },
           "data02": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.47",
             "fragment_cache": {
@@ -332,7 +332,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -342,7 +342,7 @@
             }
           },
           "data03": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.47",
             "fragment_cache": {
@@ -352,7 +352,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -362,7 +362,7 @@
             }
           },
           "data04": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.47",
             "fragment_cache": {
@@ -372,7 +372,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -405,7 +405,7 @@
         },
         "vpools": {
           "vmstor": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.46",
             "fragment_cache": {
@@ -425,7 +425,7 @@
             }
           },
           "data01": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.46",
             "fragment_cache": {
@@ -435,7 +435,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -445,7 +445,7 @@
             }
           },
           "data02": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.46",
             "fragment_cache": {
@@ -455,7 +455,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -465,7 +465,7 @@
             }
           },
           "data03": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.46",
             "fragment_cache": {
@@ -475,7 +475,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -485,7 +485,7 @@
             }
           },
           "data04": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.46",
             "fragment_cache": {
@@ -495,7 +495,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -528,7 +528,7 @@
         },
         "vpools": {
           "vmstor": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.45",
             "fragment_cache": {
@@ -548,7 +548,7 @@
             }
           },
           "data01": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.45",
             "fragment_cache": {
@@ -558,7 +558,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -568,7 +568,7 @@
             }
           },
           "data02": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.45",
             "fragment_cache": {
@@ -578,7 +578,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -588,7 +588,7 @@
             }
           },
           "data03": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.45",
             "fragment_cache": {
@@ -598,7 +598,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -608,7 +608,7 @@
             }
           },
           "data04": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.45",
             "fragment_cache": {
@@ -618,7 +618,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -651,7 +651,7 @@
         },
         "vpools": {
           "vmstor": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.44",
             "fragment_cache": {
@@ -671,7 +671,7 @@
             }
           },
           "data01": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.44",
             "fragment_cache": {
@@ -681,7 +681,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -691,7 +691,7 @@
             }
           },
           "data02": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.44",
             "fragment_cache": {
@@ -701,7 +701,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -711,7 +711,7 @@
             }
           },
           "data03": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.44",
             "fragment_cache": {
@@ -721,7 +721,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -731,7 +731,7 @@
             }
           },
           "data04": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.44",
             "fragment_cache": {
@@ -741,7 +741,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -774,7 +774,7 @@
         },
         "vpools": {
           "data01": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.43",
             "fragment_cache": {
@@ -784,7 +784,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -794,7 +794,7 @@
             }
           },
           "data02": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.43",
             "fragment_cache": {
@@ -804,7 +804,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -814,7 +814,7 @@
             }
           },
           "data03": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.43",
             "fragment_cache": {
@@ -824,7 +824,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -834,7 +834,7 @@
             }
           },
           "data04": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.43",
             "fragment_cache": {
@@ -844,7 +844,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -877,7 +877,7 @@
         },
         "vpools": {
           "data01": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.42",
             "fragment_cache": {
@@ -887,7 +887,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -897,7 +897,7 @@
             }
           },
           "data02": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.42",
             "fragment_cache": {
@@ -907,7 +907,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -917,7 +917,7 @@
             }
           },
           "data03": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.42",
             "fragment_cache": {
@@ -927,7 +927,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -937,7 +937,7 @@
             }
           },
           "data04": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.42",
             "fragment_cache": {
@@ -947,7 +947,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -980,7 +980,7 @@
         },
         "vpools": {
           "data01": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.41",
             "fragment_cache": {
@@ -990,7 +990,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -1000,7 +1000,7 @@
             }
           },
           "data02": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-01",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.41",
             "fragment_cache": {
@@ -1010,7 +1010,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -1020,7 +1020,7 @@
             }
           },
           "data03": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.41",
             "fragment_cache": {
@@ -1030,7 +1030,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
@@ -1040,7 +1040,7 @@
             }
           },
           "data04": {
-            "backend_name": "mybackend",
+            "backend_name": "mybackend-02",
             "preset": "gigpreset",
             "storage_ip": "10.109.3.41",
             "fragment_cache": {
@@ -1050,7 +1050,7 @@
             "storagedriver": {
               "sco_size": 32,
               "cluster_size": 4,
-              "volume_write_buffer": 512,
+              "volume_write_buffer": 256,
               "strategy": "none",
               "global_write_buffer": 50,
               "global_read_buffer": 0,
