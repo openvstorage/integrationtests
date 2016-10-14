@@ -79,7 +79,7 @@ def required_backend(func):
             LOGGER.error(error_msg)
             raise TypeError(error_msg)
 
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
     return validate
 
 
@@ -96,7 +96,7 @@ def required_cluster_basedir(func):
         if kwargs['cluster_basedir'] and kwargs['storagerouter_ip']:
             client = SSHClient(kwargs['storagerouter_ip'], username='root')
             if client.dir_exists(kwargs['cluster_basedir']):
-                func(*args, **kwargs)
+                return func(*args, **kwargs)
             else:
                 raise DirectoryNotFoundError("Required base_dir `{0}` not found on storagerouter `{1}`"
                                              .format(kwargs['cluster_basedir'], kwargs['storagerouter_ip']))
@@ -118,10 +118,29 @@ def required_arakoon_cluster(func):
         # check if arakoon cluster exists or not
         if kwargs['cluster_name']:
             if kwargs['cluster_name'] in list(Configuration.list('ovs/arakoon')):
-                func(*args, **kwargs)
+                return func(*args, **kwargs)
             else:
                 raise ArakoonClusterNotFoundError("Arakoon cluster does not exists: {0}".format(kwargs['cluster_name']))
         else:
             raise AttributeError("Missing parameter: cluster_name")
 
+    return validate
+
+
+def required_preset(func):
+    """
+    Validate preset exists on existing alba backend
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        # check if preset exists or not on existing alba backend
+        if kwargs['albabackend_name'] and kwargs['preset_name']:
+            BackendHelper.get_preset_by_albabackend(kwargs['preset_name'], kwargs['albabackend_name'])
+        else:
+            raise AttributeError("Missing parameter: albabackend_name or preset_name")
+
+        return func(*args, **kwargs)
     return validate

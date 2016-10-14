@@ -17,7 +17,7 @@ import time
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.storagerouter import StoragerouterHelper
-from ci.validate.decorators import required_roles, required_backend
+from ci.validate.decorators import required_roles, required_backend, required_preset
 
 
 class BackendSetup(object):
@@ -26,6 +26,7 @@ class BackendSetup(object):
     BACKEND_TIMEOUT = 15
     INITIALIZE_DISK_TIMEOUT = 300
     ADD_PRESET_TIMEOUT = 60
+    UPDATE_PRESET_TIMEOUT = 60
     CLAIM_ASD_TIMEOUT = 60
     LINK_BACKEND_TIMEOUT = 60
     MAX_BACKEND_TRIES = 20
@@ -108,8 +109,8 @@ class BackendSetup(object):
         :type api: ci.helpers.api.OVSClient
         :param timeout: amount of max time that preset may take to be added
         :type timeout: int
-        :return: albabackend_name, preset_name
-        :rtype: tuple
+        :return: success or not
+        :rtype: bool
         """
 
         # BUILD_PRESET
@@ -135,7 +136,46 @@ class BackendSetup(object):
         else:
             BackendSetup.LOGGER.info("Creation of preset `{0}` should have succeeded on backend `{1}`"
                                      .format(preset_details['name'], albabackend_name))
-            return albabackend_name, preset_details['name']
+            return True
+
+    @staticmethod
+    @required_preset
+    @required_backend
+    def update_preset(albabackend_name, preset_name, policies, api, timeout=UPDATE_PRESET_TIMEOUT):
+        """
+        Update a existing preset
+
+        :param albabackend_name: albabackend name
+        :type albabackend_name: str
+        :param preset_name: name of a existing preset
+        :type preset_name: str
+        :param policies: policies to be updated (e.g. [[1,1,2,2], [1,1,1,2]])
+        :type policies: list > list
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: amount of max time that preset may take to be added
+        :type timeout: int
+        :return: success or not
+        :rtype: bool
+        """
+
+        task_guid = api.post(
+            api='/alba/backends/{0}/update_preset'
+                .format(BackendHelper.get_alba_backend_guid_by_name(albabackend_name)),
+            data={"name": preset_name, "policies": policies}
+        )
+
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Preset `{0}` has failed to update with policies `{1}` on backend `{2}`"\
+                .format(preset_name, policies, albabackend_name)
+            BackendSetup.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            BackendSetup.LOGGER.info("Update of preset `{0}` should have succeeded on backend `{1}`"
+                                     .format(preset_name, albabackend_name))
+            return True
 
     @staticmethod
     def add_asds(target, disks, scaling, albabackend_name, api):

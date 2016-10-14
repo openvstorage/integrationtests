@@ -17,6 +17,7 @@ import time
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.storagerouter import StoragerouterHelper
+from ci.validate.decorators import required_backend, required_preset
 
 
 class BackendRemover(object):
@@ -25,6 +26,7 @@ class BackendRemover(object):
     REMOVE_ASD_TIMEOUT = 60
     REMOVE_DISK_TIMEOUT = 60
     REMOVE_BACKEND_TIMEOUT = 60
+    REMOVE_PRESET_TIMEOUT = 60
 
     def __init__(self):
         pass
@@ -136,12 +138,13 @@ class BackendRemover(object):
         return api.wait_for_task(task_id=task_guid, timeout=timeout)
 
     @staticmethod
-    def remove_backend(backend_name, api, timeout=REMOVE_BACKEND_TIMEOUT):
+    @required_backend
+    def remove_backend(albabackend_name, api, timeout=REMOVE_BACKEND_TIMEOUT):
         """
         Removes a alba backend from the ovs cluster
 
-        :param backend_name: the name of a existing alba backend
-        :type backend_name: str
+        :param albabackend_name: the name of a existing alba backend
+        :type albabackend_name: str
         :param api: specify a valid api connection to the setup
         :type api: ci.helpers.api.OVSClient
         :param timeout: max. time to wait for a task to complete
@@ -150,7 +153,30 @@ class BackendRemover(object):
         :rtype: bool
         """
 
-        alba_backend_guid = BackendHelper.get_alba_backend_guid_by_name(backend_name)
+        alba_backend_guid = BackendHelper.get_alba_backend_guid_by_name(albabackend_name)
         task_guid = api.delete(api='/alba/backends/{0}'.format(alba_backend_guid))
+
+        return api.wait_for_task(task_id=task_guid, timeout=timeout)[0]
+
+    @staticmethod
+    @required_preset
+    @required_backend
+    def remove_preset(preset_name, albabackend_name, api, timeout=REMOVE_PRESET_TIMEOUT):
+        """
+        Removes a alba backend from the ovs cluster
+
+        :param preset_name: the name of a existing preset on existing backend
+        :type preset_name: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: max. time to wait for a task to complete
+        :type timeout: int
+        :return: task was succesfull or not
+        :rtype: bool
+        """
+
+        alba_backend_guid = BackendHelper.get_alba_backend_guid_by_name(albabackend_name)
+        data = {"name": preset_name}
+        task_guid = api.post(api='/alba/backends/{0}/delete_preset'.format(alba_backend_guid), data=data)
 
         return api.wait_for_task(task_id=task_guid, timeout=timeout)[0]

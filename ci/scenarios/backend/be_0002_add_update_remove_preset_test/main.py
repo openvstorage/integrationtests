@@ -14,96 +14,178 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-import time
-import uuid
+import json
+from ci.main import CONFIG_LOC
+from ci.helpers.api import OVSClient
+from ci.setup.backend import BackendSetup
 from ovs.log.log_handler import LogHandler
-from ci.helpers.init_manager import InitManager
-from ci.helpers.storagerouter import StoragerouterHelper
-from ovs.extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
+from ci.helpers.backend import BackendHelper
+from ci.remove.backend import BackendRemover
 
 
-class ArakoonValidation(object):
+class AddUpdateRemovePreset(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_arakoon_validation")
+    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_add_remove_backend")
 
     def __init__(self):
         pass
 
     @staticmethod
-    def main(blocked):
+    def main(blocked, attempts=2):
         """
         Run all required methods for the test
 
         :param blocked: was the test blocked by other test?
+        :type blocked: bool
+        :param attempts: amount of times to perform the tests (DEFAULT=2)
+        :type attempts: int
         :return: results of test
         :rtype: dict
         """
         if not blocked:
             try:
-                ArakoonValidation.validate_cluster()
-                return {'status': 'PASSED', 'case_type': ArakoonValidation.CASE_TYPE, 'errors': None}
+                # execute tests twice, because of possible leftover constraints
+                AddUpdateRemovePreset.validate_add_update_remove_preset()
+                return {'status': 'PASSED', 'case_type': AddUpdateRemovePreset.CASE_TYPE, 'errors': None}
             except Exception as ex:
-                ArakoonValidation.LOGGER.error("Arakoon collapse failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': ArakoonValidation.CASE_TYPE, 'errors': ex}
+                AddUpdateRemovePreset.LOGGER.error("Backend add-remove failed with error: {0}".format(str(ex)))
+                return {'status': 'FAILED', 'case_type': AddUpdateRemovePreset.CASE_TYPE, 'errors': ex}
         else:
-            return {'status': 'BLOCKED', 'case_type': ArakoonValidation.CASE_TYPE, 'errors': None}
+            return {'status': 'BLOCKED', 'case_type': AddUpdateRemovePreset.CASE_TYPE, 'errors': None}
 
     @staticmethod
-    def validate_cluster(cluster_name='ovsdb'):
+    def validate_add_update_remove_preset(preset_name='integrationtests'):
         """
-        Validate if the chosen cluster is
-         * deployed on all required nodes
-         * running on all required nodes
-         * working correctly on all required nodes
+        Validate if a preset can be added/updated/removed on a existing backend
 
-        :param cluster_name: name of a existing arakoon cluster (DEFAULT=ovsdb)
-        :type cluster_name: str
+        :param preset_name: name of a new preset (DEFAULT=integrationtests)
+        :type preset_name: str
         :return:
         """
-        ArakoonValidation.LOGGER.info("Starting validating arakoon cluster")
-        master_storagerouters = StoragerouterHelper.get_master_storagerouter_ips()
-        assert len(master_storagerouters) >= 2, 'Environment has only `{0}` node(s)'.format(len(master_storagerouters))
+        # test different preset scenario's
+        presets = {
+           "preset_no_compression_no_encryption": {
+              "name": preset_name,
+              "compression": "none",
+              "encryption": "none",
+              "policies": [
+                 [2, 2, 3, 4],
+                 [1, 2, 2, 3]
+              ],
+              "fragment_size": 1048576
+           },
+           "preset_compression_no_encryption": {
+              "name": preset_name,
+              "compression": "snappy",
+              "encryption": "none",
+              "policies": [
+                 [2, 2, 3, 4],
+                 [1, 2, 2, 3]
+              ],
+              "fragment_size": 2097152
+           },
+           "preset_no_compression_encryption": {
+              "name": preset_name,
+              "compression": "none",
+              "encryption": "aes-cbc-256",
+              "policies": [
+                 [2, 2, 3, 4],
+                 [1, 2, 2, 3]
+              ],
+              "fragment_size": 4194304
+           },
+           "preset_compression_encryption": {
+              "name": preset_name,
+              "compression": "bz2",
+              "encryption": "aes-cbc-256",
+              "policies": [
+                 [2, 2, 3, 4],
+                 [1, 2, 2, 3]
+              ],
+              "fragment_size": 8388608
+           }
+        }
 
-        master_storagerouters.sort()
-        arakoon_service_name = "ovs-arakoon-{0}".format(cluster_name)
-        for storagerouter_ip in master_storagerouters:
-            # check if service file is available
-            ArakoonValidation.LOGGER.info("Validating if cluster service `{0}` is available on node `{1}`"
-                                          .format(cluster_name, storagerouter_ip))
-            assert InitManager.service_exists(arakoon_service_name, storagerouter_ip), \
-                "Service file of `{0}` does not exists on storagerouter `{1}`".format(cluster_name, storagerouter_ip)
+        # add_update_remove
+        preset_basic = {
+            "name": preset_name,
+            "compression": "bz2",
+            "encryption": "aes-cbc-256",
+            "policies": [
+              [2, 2, 3, 4],
+              [1, 2, 2, 3]
+            ],
+            "fragment_size": 8388608
+          }
+        preset_altered = {
+            "name": preset_name,
+            "compression": "bz2",
+            "encryption": "aes-cbc-256",
+            "policies": [
+              [2, 2, 3, 4]
+            ],
+            "fragment_size": 8388608
+          }
 
-            # check if service is running on system
-            ArakoonValidation.LOGGER.info("Validating if cluster service `{0}` is running on node `{1}`"
-                                          .format(cluster_name, storagerouter_ip))
-            assert InitManager.service_running(arakoon_service_name, storagerouter_ip), \
-                "Service of `{0}` is not running on storagerouter `{1}`".format(cluster_name, storagerouter_ip)
+        with open(CONFIG_LOC, "r") as JSON_CONFIG:
+            config = json.load(JSON_CONFIG)
 
-        # perform nop, get and set on cluster
-        key = 'integration-tests-{0}'.format(str(uuid.uuid4()))
-        value = str(time.time())
+        api = OVSClient(
+            config['ci']['grid_ip'],
+            config['ci']['user']['api']['username'],
+            config['ci']['user']['api']['password']
+        )
 
-        ArakoonValidation.LOGGER.info("Validating if cluster `{0}` works".format(cluster_name))
+        # fetch existing backends
+        alba_backends = BackendHelper.get_alba_backends()
+        assert len(alba_backends) >= 1, "Not enough alba backends no test"
 
-        # determine if there is a healthy cluster
-        client = PyrakoonStore(cluster_name)
-        client.nop()
+        # choose first alba backend & perform required tests
+        alba_backend = alba_backends[0]
 
-        # perform set, get & compare
-        client.set(key, value)
-        get_value = client.get(key)
-        assert get_value == value, "Value mismatch on cluster `{0}`, get value `{1}`, " \
-                                   "expected value `{2}` on key `{3}`".format(cluster_name, get_value, value, key)
+        # add and remove different presets
+        AddUpdateRemovePreset.LOGGER.info("Started adding and removing different presets")
+        for preset_def, preset_details in presets.iteritems():
+            AddUpdateRemovePreset._add_remove_preset(alba_backend.name, preset_details, preset_def, api)
+        AddUpdateRemovePreset.LOGGER.info("Finished adding and removing different presets")
 
-        # perform delete
-        client.delete(key)
-        try:
-            assert not client.get(key), "Key `{0}` still exists on cluster `{1}` after deleting it"\
-                .format(key, cluster_name)
-        except KeyNotFoundException:
-            # key not found so test has passed
-            assert True
+        # add, update & remove a preset
+        AddUpdateRemovePreset.LOGGER.info("Starting adding, updating & removing a preset")
+        assert BackendSetup.add_preset(albabackend_name=alba_backend.name, preset_details=preset_basic, api=api), \
+            "Adding the preset `preset_basic` has failed"
+        assert BackendSetup.update_preset(albabackend_name=alba_backend.name, preset_name=preset_altered['name'],
+                                          policies=preset_altered['policies'], api=api), \
+            "Updating the preset `preset_basic` has failed"
+        assert BackendRemover.remove_preset(preset_name=preset_details['name'], albabackend_name=alba_backend.name,
+                                            api=api), "Removing the preset `preset_basic` has failed"
+        AddUpdateRemovePreset.LOGGER.info("Finished adding, updating & removing a preset")
+
+
+    @staticmethod
+    def _add_remove_preset(albabackend_name, preset_details, preset_definition, api):
+        """
+        Add & remove a preset
+
+        :param albabackend_name: name of a existing alba backend
+        :type albabackend_name: str
+        :param preset_details: details of a preset
+        :type preset_details: dict
+        :param preset_definition: definition of the preset (e.g. preset_compression_no_encryption)
+        :type preset_definition: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :return:
+        """
+
+        AddUpdateRemovePreset.LOGGER.info("Starting adding `{0}`".format(preset_definition))
+        assert BackendSetup.add_preset(albabackend_name=albabackend_name, preset_details=preset_details, api=api), \
+            "Adding the preset `{0}` has failed".format(preset_definition)
+        AddUpdateRemovePreset.LOGGER.info("Finished adding `{0}`".format(preset_definition))
+        AddUpdateRemovePreset.LOGGER.info("Starting removing `{0}`".format(preset_definition))
+        assert BackendRemover.remove_preset(preset_name=preset_details['name'], albabackend_name=albabackend_name,
+                                            api=api), "Removing the preset `{0}` has failed".format(preset_definition)
+        AddUpdateRemovePreset.LOGGER.info("Finished removing `{0}`".format(preset_definition))
 
 
 def run(blocked=False):
@@ -114,7 +196,7 @@ def run(blocked=False):
     :return: results of test
     :rtype: dict
     """
-    return ArakoonValidation().main(blocked)
+    return AddUpdateRemovePreset().main(blocked)
 
 if __name__ == "__main__":
     run()

@@ -19,6 +19,7 @@ from ovs.dal.lists.backendlist import BackendList
 from ovs.dal.hybrids.albabackend import AlbaBackend
 from ovs.dal.lists.backendtypelist import BackendTypeList
 from ovs.dal.lists.albabackendlist import AlbaBackendList
+from ci.helpers.exceptions import PresetNotFoundError, AlbaBackendNotFoundError
 
 
 class BackendHelper(object):
@@ -153,6 +154,7 @@ class BackendHelper(object):
     def get_backend_local_stack(albabackend_name, api):
         """
         Fetches the local stack property of a backend
+
         :param albabackend_name: backend name
         :type albabackend_name: str
         :param api: specify a valid api connection to the setup
@@ -164,3 +166,36 @@ class BackendHelper(object):
         return api.get(api='/alba/backends/{0}/'.format(BackendHelper.get_alba_backend_guid_by_name(albabackend_name)),
                        params={'queryparams': options}
                        )
+
+    @staticmethod
+    def get_alba_backends():
+        """
+        Fetches all the alba backends on the cluster
+
+        :return: alba backends
+        :rtype: list
+        """
+
+        return AlbaBackendList.get_albabackends()
+
+    @staticmethod
+    def get_preset_by_albabackend(preset_name, albabackend_name):
+        """
+        Fetches preset by albabackend_guid
+
+        :param preset_name: name of a existing preset
+        :type preset_name: str
+        :param albabackend_name: name of a existing alba backend
+        :type albabackend_name: str
+        :return: alba backends
+        :rtype: list
+        """
+
+        try:
+            return [preset for preset in BackendList.get_by_name(albabackend_name).alba_backend.presets
+                    if preset['name'] == preset_name][0]
+        except IndexError:
+            raise PresetNotFoundError("Preset `{0}` on alba backend `{1}` was not found"
+                                      .format(preset_name, albabackend_name))
+        except AttributeError:
+            raise AlbaBackendNotFoundError("Albabackend with name `{0}` does not exist".format(albabackend_name))

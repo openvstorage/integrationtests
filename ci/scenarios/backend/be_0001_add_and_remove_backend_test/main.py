@@ -36,13 +36,13 @@ class AddRemoveBackend(object):
         Run all required methods for the test
 
         :param blocked: was the test blocked by other test?
+        :type blocked: bool
         :return: results of test
         :rtype: dict
         """
         if not blocked:
             try:
                 # execute tests twice, because of possible leftover constraints
-                AddRemoveBackend.validate_add_remove_backend()
                 AddRemoveBackend.validate_add_remove_backend()
                 return {'status': 'PASSED', 'case_type': AddRemoveBackend.CASE_TYPE, 'errors': None}
             except Exception as ex:
@@ -54,10 +54,7 @@ class AddRemoveBackend(object):
     @staticmethod
     def validate_add_remove_backend(backend_name='integrationtests'):
         """
-        Validate if the chosen cluster is
-         * deployed on all required nodes
-         * running on all required nodes
-         * working correctly on all required nodes
+        Validate if a add & remove backend works
 
         :param backend_name: name of a new alba backend (DEFAULT=integrationtests)
         :type backend_name: str
@@ -77,9 +74,11 @@ class AddRemoveBackend(object):
             "Backend `{0}` has failed to create".format(backend_name)
         AddRemoveBackend.LOGGER.info("Finished creation of backend `{0}`".format(backend_name))
         AddRemoveBackend.LOGGER.info("Starting removal of backend `{0}`".format(backend_name))
-        assert BackendRemover.remove_backend(backend_name=backend_name, api=api), \
+        assert BackendRemover.albabackend_name(backend_name=backend_name, api=api), \
             "Backend `{0}` has failed to be removed".format(backend_name)
         AddRemoveBackend.LOGGER.info("Finished removal of backend `{0}`".format(backend_name))
+
+        # @TODO: add global backend, add a local backend, remove it
 
 
 def run(blocked=False):
