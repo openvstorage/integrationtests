@@ -74,7 +74,7 @@ class AddRemoveBackend(object):
             "Backend `{0}` has failed to create".format(backend_name)
         AddRemoveBackend.LOGGER.info("Finished creation of backend `{0}`".format(backend_name))
         AddRemoveBackend.LOGGER.info("Starting removal of backend `{0}`".format(backend_name))
-        assert BackendRemover.albabackend_name(backend_name=backend_name, api=api), \
+        assert BackendRemover.remove_backend(backend_name=backend_name, api=api), \
             "Backend `{0}` has failed to be removed".format(backend_name)
         AddRemoveBackend.LOGGER.info("Finished removal of backend `{0}`".format(backend_name))
 

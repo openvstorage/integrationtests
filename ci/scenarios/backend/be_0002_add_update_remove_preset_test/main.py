@@ -152,18 +152,22 @@ class AddUpdateRemovePreset(object):
         # add, update & remove a preset
         AddUpdateRemovePreset.LOGGER.info("Starting adding, updating & removing a preset")
         assert BackendSetup.add_preset(albabackend_name=alba_backend.name, preset_details=preset_basic, api=api), \
-            "Adding the preset `preset_basic` has failed"
-        assert BackendValidation.check_preset_on_backend(preset_altered['name'], alba_backend.name), \
+            "Adding the preset `{0}` has failed".format(preset_name)
+        assert BackendValidation.check_preset_on_backend(preset_name, alba_backend.name), \
             "Preset `{0}` does not exists but it should on backend `{1}`"\
-            .format(preset_altered['name'], alba_backend.name)
+            .format(preset_name, alba_backend.name)
         assert BackendSetup.update_preset(albabackend_name=alba_backend.name, preset_name=preset_altered['name'],
                                           policies=preset_altered['policies'], api=api), \
-            "Updating the preset `preset_basic` has failed"
-        assert BackendRemover.remove_preset(preset_name=preset_details['name'], albabackend_name=alba_backend.name,
-                                            api=api), "Removing the preset `preset_basic` has failed"
-        assert not BackendValidation.check_preset_on_backend(preset_altered['name'], alba_backend.name), \
+            "Updating the preset `{0}` has failed".format(preset_name)
+        assert BackendValidation.check_policies_on_preset(preset_name=preset_altered['name'],
+                                                          albabackend_name=alba_backend.name,
+                                                          policies=preset_altered['policies']), \
+            "Updating the preset `{0}` has failed".format(preset_name)
+        assert BackendRemover.remove_preset(preset_name=preset_name, albabackend_name=alba_backend.name,
+                                            api=api), "Removing the preset `{0}` has failed".format(preset_name)
+        assert not BackendValidation.check_preset_on_backend(preset_name, alba_backend.name), \
             "Preset `{0}` does exists but it should not be on backend `{1}`"\
-            .format(preset_altered['name'], alba_backend.name)
+            .format(preset_name, alba_backend.name)
         AddUpdateRemovePreset.LOGGER.info("Finished adding, updating & removing a preset")
 
     @staticmethod
