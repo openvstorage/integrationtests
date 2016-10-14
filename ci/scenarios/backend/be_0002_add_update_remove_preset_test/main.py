@@ -21,6 +21,7 @@ from ci.setup.backend import BackendSetup
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.remove.backend import BackendRemover
+from ci.validate.backend import BackendValidation
 
 
 class AddUpdateRemovePreset(object):
@@ -32,14 +33,12 @@ class AddUpdateRemovePreset(object):
         pass
 
     @staticmethod
-    def main(blocked, attempts=2):
+    def main(blocked):
         """
         Run all required methods for the test
 
         :param blocked: was the test blocked by other test?
         :type blocked: bool
-        :param attempts: amount of times to perform the tests (DEFAULT=2)
-        :type attempts: int
         :return: results of test
         :rtype: dict
         """
@@ -154,13 +153,18 @@ class AddUpdateRemovePreset(object):
         AddUpdateRemovePreset.LOGGER.info("Starting adding, updating & removing a preset")
         assert BackendSetup.add_preset(albabackend_name=alba_backend.name, preset_details=preset_basic, api=api), \
             "Adding the preset `preset_basic` has failed"
+        assert BackendValidation.check_preset_on_backend(preset_altered['name'], alba_backend.name), \
+            "Preset `{0}` does not exists but it should on backend `{1}`"\
+            .format(preset_altered['name'], alba_backend.name)
         assert BackendSetup.update_preset(albabackend_name=alba_backend.name, preset_name=preset_altered['name'],
                                           policies=preset_altered['policies'], api=api), \
             "Updating the preset `preset_basic` has failed"
         assert BackendRemover.remove_preset(preset_name=preset_details['name'], albabackend_name=alba_backend.name,
                                             api=api), "Removing the preset `preset_basic` has failed"
+        assert not BackendValidation.check_preset_on_backend(preset_altered['name'], alba_backend.name), \
+            "Preset `{0}` does exists but it should not on backend `{1}`"\
+            .format(preset_altered['name'], alba_backend.name)
         AddUpdateRemovePreset.LOGGER.info("Finished adding, updating & removing a preset")
-
 
     @staticmethod
     def _add_remove_preset(albabackend_name, preset_details, preset_definition, api):
@@ -181,10 +185,16 @@ class AddUpdateRemovePreset(object):
         AddUpdateRemovePreset.LOGGER.info("Starting adding `{0}`".format(preset_definition))
         assert BackendSetup.add_preset(albabackend_name=albabackend_name, preset_details=preset_details, api=api), \
             "Adding the preset `{0}` has failed".format(preset_definition)
+        assert BackendValidation.check_preset_on_backend(preset_details['name'], albabackend_name), \
+            "Preset `{0}` does not exists but it should on backend `{1}`"\
+            .format(preset_details['name'], albabackend_name)
         AddUpdateRemovePreset.LOGGER.info("Finished adding `{0}`".format(preset_definition))
         AddUpdateRemovePreset.LOGGER.info("Starting removing `{0}`".format(preset_definition))
         assert BackendRemover.remove_preset(preset_name=preset_details['name'], albabackend_name=albabackend_name,
                                             api=api), "Removing the preset `{0}` has failed".format(preset_definition)
+        assert BackendValidation.check_preset_on_backend(preset_details['name'], albabackend_name), \
+            "Preset `{0}` does not exists but it should on backend `{1}`"\
+            .format(preset_details['name'], albabackend_name)
         AddUpdateRemovePreset.LOGGER.info("Finished removing `{0}`".format(preset_definition))
 
 

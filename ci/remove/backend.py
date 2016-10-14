@@ -38,20 +38,22 @@ class BackendRemover(object):
     @staticmethod
     def remove_asds(albabackend_name, target, disks, scaling, api):
         """
-                Initialize and claim a new asd
-                :param target: target to add asds too
-                :type target: str
-                :param disks: dict with diskname as key and amount of osds as value
-                :type disks: dict
-                :param scaling: type of scaling (local of global)
-                :type scaling: str
-                :param api: specify a valid api connection to the setup
-                :type api: ci.helpers.api.OVSClient
-                :param albabackend_name: Name of the AlbaBackend to configure
-                :type albabackend_name: str
-                :return: preset_name
-                :rtype: str
-                """
+        Remove all asds from a backend
+
+        :param target: target to add asds too
+        :type target: str
+        :param disks: dict with diskname as key and amount of osds as value
+        :type disks: dict
+        :param scaling: type of scaling (local of global)
+        :type scaling: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param albabackend_name: Name of the AlbaBackend to configure
+        :type albabackend_name: str
+        :return: preset_name
+        :rtype: str
+        """
+
         albabackend_guid = BackendHelper.get_alba_backend_guid_by_name(albabackend_name)
         if scaling == 'LOCAL':
             # target is a node
@@ -103,6 +105,7 @@ class BackendRemover(object):
     @staticmethod
     def _remove_asd(alba_node_guid, asd_id, asd_safety, api, timeout=REMOVE_ASD_TIMEOUT):
         """
+        Remove a asd from a backend
 
         :param alba_node_guid:
         :param asd_id: id of the asd

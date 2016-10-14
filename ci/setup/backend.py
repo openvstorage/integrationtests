@@ -383,4 +383,5 @@ class BackendSetup(object):
                 .format(BackendHelper.get_alba_backend_guid_by_name(globalbackend_name)),
             data=data
         )
+
         return api.wait_for_task(task_id=task_guid, timeout=timeout)
