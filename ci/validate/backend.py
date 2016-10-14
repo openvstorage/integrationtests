@@ -14,6 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
+import ast
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.exceptions import AlbaBackendNotFoundError, PresetNotFoundError
@@ -35,7 +36,7 @@ class BackendValidation(object):
         :type preset_name: str
         :param albabackend_name: name of a backend
         :type albabackend_name: str
-        :return: is vpool available? True = YES, False = NO
+        :return: does preset exist on backend?
         :rtype: bool
         """
 
@@ -46,3 +47,19 @@ class BackendValidation(object):
             return False
         except AlbaBackendNotFoundError:
             return False
+
+    @staticmethod
+    def check_policies_on_preset(preset_name, albabackend_name, policies):
+        """
+        Check if a preset is available on a backend
+
+        :param preset_name: name of a preset
+        :type preset_name: str
+        :param policies: policies that should match with fetched preset
+        :type policies: list
+        :return: do given policies match with fetched preset
+        :rtype: bool
+        """
+
+        preset_policies = BackendHelper.get_preset_by_albabackend(preset_name, albabackend_name)['policies']
+        return [list(ast.literal_eval(policy)) for policy in preset_policies] == policies

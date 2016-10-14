@@ -162,7 +162,7 @@ class AddUpdateRemovePreset(object):
         assert BackendRemover.remove_preset(preset_name=preset_details['name'], albabackend_name=alba_backend.name,
                                             api=api), "Removing the preset `preset_basic` has failed"
         assert not BackendValidation.check_preset_on_backend(preset_altered['name'], alba_backend.name), \
-            "Preset `{0}` does exists but it should not on backend `{1}`"\
+            "Preset `{0}` does exists but it should not be on backend `{1}`"\
             .format(preset_altered['name'], alba_backend.name)
         AddUpdateRemovePreset.LOGGER.info("Finished adding, updating & removing a preset")
 
@@ -192,8 +192,8 @@ class AddUpdateRemovePreset(object):
         AddUpdateRemovePreset.LOGGER.info("Starting removing `{0}`".format(preset_definition))
         assert BackendRemover.remove_preset(preset_name=preset_details['name'], albabackend_name=albabackend_name,
                                             api=api), "Removing the preset `{0}` has failed".format(preset_definition)
-        assert BackendValidation.check_preset_on_backend(preset_details['name'], albabackend_name), \
-            "Preset `{0}` does not exists but it should on backend `{1}`"\
+        assert not BackendValidation.check_preset_on_backend(preset_details['name'], albabackend_name), \
+            "Preset `{0}` does exists but it should not be on backend `{1}`"\
             .format(preset_details['name'], albabackend_name)
         AddUpdateRemovePreset.LOGGER.info("Finished removing `{0}`".format(preset_definition))
 
