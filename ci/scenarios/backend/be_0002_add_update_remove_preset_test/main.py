@@ -138,7 +138,7 @@ class AddUpdateRemovePreset(object):
 
         # fetch existing backends
         alba_backends = BackendHelper.get_alba_backends()
-        assert len(alba_backends) >= 1, "Not enough alba backends no test"
+        assert len(alba_backends) >= 1, "Not enough alba backends to test"
 
         # choose first alba backend & perform required tests
         alba_backend = alba_backends[0]

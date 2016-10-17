@@ -59,3 +59,24 @@ class AlbaBackendNotFoundError(Exception):
     Raised when an object was queries that doesn't exist
     """
     pass
+
+
+class VPoolNotFoundError(Exception):
+    """
+    Raised when an object was queries that doesn't exist
+    """
+    pass
+
+
+class VDiskNotFoundError(Exception):
+    """
+    Raised when an object was queries that doesn't exist
+    """
+    pass
+
+
+class VPoolNotFoundError(Exception):
+    """
+    Raised when an object was queries that doesn't exist
+    """
+    pass

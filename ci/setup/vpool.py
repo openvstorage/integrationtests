@@ -17,6 +17,7 @@
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.storagerouter import StoragerouterHelper
+from ovs.lib.scheduledtask import ScheduledTaskController
 from ci.validate.decorators import required_roles, required_backend
 
 
@@ -118,3 +119,13 @@ class VPoolSetup(object):
             VPoolSetup.LOGGER.info("Creation of vPool `{0}` should have succeeded on storagerouter `{1}`"
                                    .format(vpool_name, storagerouter_ip))
             return storagerouter_ip, "/mnt/{0}".format(vpool_name)
+
+    @staticmethod
+    def execute_scrubbing():
+        """
+        Execute scrubbing on the cluster
+
+        :return:
+        """
+
+        return ScheduledTaskController.execute_scrub()
