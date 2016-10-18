@@ -46,7 +46,7 @@ class PostRebootChecks(object):
                 PostRebootChecks.validate_post_reboot()
                 return {'status': 'PASSED', 'case_type': PostRebootChecks.CASE_TYPE, 'errors': None}
             except Exception as ex:
-                PostRebootChecks.LOGGER.error("Backend add-remove failed with error: {0}".format(str(ex)))
+                PostRebootChecks.LOGGER.error("Post reboot checks failed with error: {0}".format(str(ex)))
                 return {'status': 'FAILED', 'case_type': PostRebootChecks.CASE_TYPE, 'errors': ex}
         else:
             return {'status': 'BLOCKED', 'case_type': PostRebootChecks.CASE_TYPE, 'errors': None}
