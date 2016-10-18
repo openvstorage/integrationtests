@@ -48,3 +48,19 @@ class SystemHelper(object):
             ovs_services = [service for service in client.dir_list(InitManager.SYSTEMD_BASEDIR) if 'ovs-' in service]
             return [ovs_service.split('.')[0] for ovs_service in ovs_services
                     if not InitManager.service_running(ovs_service.split('.')[0], storagerouter_ip)]
+
+    @staticmethod
+    def get_missing_packages(ip, required_packages):
+        """
+        get all missing packages based on required packages
+
+        :param ip: ip address of a server
+        :type ip: str
+        :param required_packages: a list of required packages (e.g. ['openvstorage', 'qemu', 'fio'])
+        :type required_packages: list
+        :return: list of missing packages
+        :rtype: list
+        """
+        client = SSHClient(ip, username='root')
+        return [package for package in required_packages
+                if len(client.run("dpkg -l | grep {0} | tr -s ' '".format(package)).split()) == 0]

@@ -76,3 +76,18 @@ class VDiskRemover(object):
         """
 
         return VDiskController.delete(vdisk_guid)
+
+
+    @staticmethod
+    def remove_vdisk_by_name(vdisk_name, vpool_name):
+        """
+        Remove a vdisk from a vPool
+
+        :param vdisk_name: name of a existing vdisk
+        :type vdisk_name: str
+        :return: if success
+        :rtype: bool
+        """
+
+        vdisk_guid = VDiskHelper.get_vdisk_by_name(vdisk_name, vpool_name).guid
+        return VDiskRemover.remove_vdisk(vdisk_guid)

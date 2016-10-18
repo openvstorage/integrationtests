@@ -25,6 +25,7 @@ from ci.helpers.vpool import VPoolHelper
 from ci.helpers.vdisk import VDiskHelper
 from ci.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
+from ci.helpers.system import SystemHelper
 from ci.helpers.exceptions import VDiskNotFoundError
 from ovs.extensions.generic.sshclient import SSHClient
 
@@ -38,6 +39,7 @@ class ScrubbingChecks(object):
     PREFIX = "integration-tests-scrubbing-"
     MAX_SCRUBBING_CHECKS = 10
     SCRUBBING_TIMEOUT = 45
+    REQUIRED_PACKAGES = ['fio']
 
     def __init__(self):
         pass
@@ -100,6 +102,13 @@ class ScrubbingChecks(object):
         # create vdisks and write some stuff on it
         storagedriver = vpool.storagedrivers[0]  # just pick the first storagedriver you find
         client = SSHClient(storagedriver.storage_ip, username='root')
+
+        # check for possible missing packages
+        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
+                                                             ScrubbingChecks.REQUIRED_PACKAGES)
+        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
+            .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
+
         vdisk_stored_mapper = {}
         for vdisk in xrange(amount_vdisks):
             vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=ScrubbingChecks.PREFIX+str(vdisk), vpool_name=vpool.name,

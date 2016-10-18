@@ -30,6 +30,9 @@ from ovs.log.log_handler import LogHandler
 from ci.remove.backend import BackendRemover
 
 CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
+TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
+SETTINGS_LOC = "/opt/OpenvStorage/ci/config/settings.json"
+TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testtrail.json"
 
 
 class Workflow(object):
