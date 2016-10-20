@@ -273,7 +273,7 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
                 remote_con.process.execute('apt-get install -y ntp')
                 remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/all/job/volumedriver-no-dedup-dev-release-ubuntu-16.04/10/artifact/volumedriver-core/build/debian/volumedriver-no-dedup-base_6.2.0-dev.201609302025.1fbbe1d_amd64.deb')
                 remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/all/job/volumedriver-no-dedup-dev-release-ubuntu-16.04/10/artifact/volumedriver-core/build/debian/volumedriver-no-dedup-server_6.2.0-dev.201609302025.1fbbe1d_amd64.deb')
-                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/alba2/job/alba_docker_generic_package_ubuntu-16.04/lastSuccessfulBuild/artifact/alba_0.9.21_amd64.deb')
+                remote_con.process.execute('cd /tmp; wget https://github.com/openvstorage/alba/releases/download/0.9.21/alba_0.9.21_amd64_ubuntu_1604.deb')
                 remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/alba2/job/arakoon_docker_generic_package_ubuntu-16.04/lastSuccessfulBuild/artifact/arakoon_1.9.13_amd64.deb')
                 remote_con.process.execute('apt-get install -y gdebi-core')
                 remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-no-dedup-base_6.2.0-dev.201609302025.1fbbe1d_amd64.deb')
