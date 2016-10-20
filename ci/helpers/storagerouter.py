@@ -35,69 +35,6 @@ class StoragerouterHelper(object):
         pass
 
     @staticmethod
-    def _clear_disk_cache(ip=None):
-        if ip is None:
-            StoragerouterHelper.disk_map_cache = {}
-        else:
-            StoragerouterHelper.disk_map_cache[ip] = {}
-
-    @staticmethod
-    def _append_to_disk_cache(ip, cache_start=None, diskname=None, mapping=None):
-        if ip not in StoragerouterHelper.disk_map_cache:
-            StoragerouterHelper.disk_map_cache[ip] = {}
-            if cache_start is not None:
-                StoragerouterHelper.disk_map_cache[ip]['cache_start'] = cache_start
-        else:
-            if cache_start is not None:
-                StoragerouterHelper.disk_map_cache[ip]['cache_start'] = cache_start
-        if diskname is not None and mapping is not None:
-            StoragerouterHelper.disk_map_cache[ip][diskname] = mapping
-
-    @staticmethod
-    def _get_from_disk_cache(diskname, ip):
-        if ip in StoragerouterHelper.disk_map_cache:
-            # Get check cache for IP:
-            if StoragerouterHelper.disk_map_cache[ip]['cache_start'] is None or (StoragerouterHelper.disk_map_cache[ip]['cache_start'] + StoragerouterHelper.cache_timeout) - time.time() < 0:
-                # Cache expired
-                StoragerouterHelper._clear_disk_cache(ip)
-                StoragerouterHelper._build_disk_cache(ip)
-        else:
-            # Found no entries, cache must be built
-            StoragerouterHelper._build_disk_cache(ip)
-        if ip in StoragerouterHelper.disk_map_cache and diskname in StoragerouterHelper.disk_map_cache[ip]:
-            return StoragerouterHelper.disk_map_cache[ip][diskname]
-        raise ValueError('Found no entry for {0} in the cache. Rebuilding might have failed. Cache: {1}'.format(diskname, StoragerouterHelper.disk_map_cache))
-
-    @staticmethod
-    def _build_disk_cache(ip):
-        """
-
-        :param ip: ip address
-        :type ip: str
-        :return:
-        """
-        StoragerouterHelper.LOGGER.info('Building cache for {0}'.format(ip))
-        from ovs.extensions.generic.remote import remote
-        import os
-        # Slow because of the remote - caching for future reuse
-        with remote(ip, [os]) as rem:
-            path_mapping = {}
-            for path_type in rem.os.listdir('/dev/disk'):
-                directory = '/dev/disk/{0}'.format(path_type)
-                for symlink in rem.os.listdir(directory):
-                    link = rem.os.path.realpath('{0}/{1}'.format(directory, symlink))
-                    if link not in path_mapping:
-                        path_mapping[link] = {}
-                    # Only want wwn and model
-                    if path_type == 'by-id':
-                        if symlink.startswith('wwn-'):
-                            path_mapping[link]['wwn'] = '{0}/{1}'.format(directory, symlink)
-                        else:
-                            path_mapping[link]['model'] = '{0}/{1}'.format(directory, symlink)
-                        StoragerouterHelper._append_to_disk_cache(ip=ip, cache_start=time.time())
-                        StoragerouterHelper._append_to_disk_cache(ip=ip, diskname=link.rsplit('/', 1)[-1], mapping=path_mapping[link])
-
-    @staticmethod
     def get_storagerouter_guid_by_ip(storagerouter_ip):
         """
 
@@ -146,12 +83,6 @@ class StoragerouterHelper(object):
         disks = StorageRouter(storagerouter_guid).disks
         for d in disks:
             if d.name == diskname:
-                # Pathname could a wwn name (world wide name) - in that case we want to map it to a model name:
-                disk_path_name = d.path.rsplit('/', 1)[-1]
-                if str(disk_path_name).startswith('wwn-'):
-                    # Fetch mapping for the disk
-                    d.path = StoragerouterHelper._get_from_disk_cache(diskname, ip)['model']
-
                 return d
 
     @staticmethod
@@ -173,8 +104,7 @@ class StoragerouterHelper(object):
         :return: list with storagerouter ips
         :rtype: list
         """
-
-        return map(lambda storagerouter: storagerouter.ip, StorageRouterList.get_storagerouters())
+        return [storagerouter.ip for storagerouter in StorageRouterList.get_storagerouters()]
 
     @staticmethod
     def get_storagerouters():
@@ -207,4 +137,25 @@ class StoragerouterHelper(object):
         :rtype: list
         """
 
-        return map(lambda storagerouter: storagerouter.ip, StorageRouterList.get_masters())
+        return [storagerouter.ip for storagerouter in StorageRouterList.get_masters()]
+
+    @staticmethod
+    def sync_disk_with_reality(api, guid=None, ip=None, timeout=None):
+        """
+
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param guid: guid of the storagerouter
+        :type guid: str
+        :param ip: ip of the storagerouter
+        :type ip: str
+        :return:
+        """
+        storagerouter_guid = guid
+        if ip is not None:
+            storagerouter_guid = StoragerouterHelper.get_storagerouter_guid_by_ip(ip)
+        if storagerouter_guid is None:
+            raise ValueError('No guid or ip found.')
+        else:
+            task_id = api.post(api='/storagerouters/{0}/rescan_disks/'.format(storagerouter_guid), data=None)
+            return api.wait_for_task(task_id=task_id, timeout=timeout)

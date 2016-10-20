@@ -126,6 +126,17 @@ class BackendHelper(object):
 
     @staticmethod
     def get_asd_safety(albabackend_guid, asd_id, api):
+        """
+        Request the calculation of the disk safety
+        :param albabackend_guid: guid of the alba backend
+        :type albabackend_guid: str
+        :param asd_id: id of the asd
+        :type asd_id: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :return: task id of celery
+        :rtype: str
+        """
         params = {'asd_id': asd_id}
         return api.get('alba/backends/{0}/calculate_safety'.format(albabackend_guid), params=params)
 

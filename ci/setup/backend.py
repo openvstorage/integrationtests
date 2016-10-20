@@ -201,36 +201,57 @@ class BackendSetup(object):
             node_mapping = BackendHelper._map_alba_nodes(api)
 
             local_stack = BackendHelper.get_backend_local_stack(albabackend_name=albabackend_name, api=api)
+            disk_queue = {}
             for disk, amount_of_osds in disks.iteritems():
                 disk_object = StoragerouterHelper.get_disk_by_ip(ip=target, diskname=disk)
                 # Get the name of the disk out of the path
-                diskname = disk_object.path.rsplit('/', 1)[-1]
+                diskname = disk_object.aliases[0].rsplit('/', 1)[-1]
                 for alba_node_id, alba_node_guid in node_mapping.iteritems():
                     # Check if the alba_node_id has the disk
                     if diskname in local_stack['local_stack'][alba_node_id]:
+                        if alba_node_guid not in disk_queue:
+                            disk_queue[alba_node_guid] = {}
                         # Initialize disk:
-                        BackendSetup.LOGGER.info('Initializing {0} and providing {1} asds.'.format(diskname, amount_of_osds))
-                        BackendSetup._initialize_disk(alba_node_guid=alba_node_guid, diskname=diskname, amount_of_osds=amount_of_osds, api=api)
+                        BackendSetup.LOGGER.info(
+                            'Adding {0} to disk queue for providing {1} asds.'.format(diskname, amount_of_osds))
+                        disk_queue[alba_node_guid][diskname] = amount_of_osds
+            for alba_node_guid, queue in disk_queue.iteritems():
+                BackendSetup.LOGGER.info(
+                    'Posting disk queue {0} for alba_node_guid {1}'.format(disk_queue[alba_node_guid], alba_node_guid))
+                result = BackendSetup._initialize_disk(
+                    alba_node_guid=alba_node_guid,
+                    queue=disk_queue[alba_node_guid],
+                    api=api)
+                BackendSetup.LOGGER.info('Claiming disks was succesfull. Result = {0}'.format(result))
 
             # Restarting iteration to avoid too many local stack calls:
             local_stack = BackendHelper.get_backend_local_stack(albabackend_name=albabackend_name, api=api)
+            asd_queue = {}
             for disk, amount_of_osds in disks.iteritems():
                 disk_object = StoragerouterHelper.get_disk_by_ip(ip=target, diskname=disk)
                 # Get the name of the disk out of the path
-                diskname = disk_object.path.rsplit('/', 1)[-1]
+                diskname = disk_object.aliases[0].rsplit('/', 1)[-1]
                 for alba_node_id, alba_node_guid in node_mapping.iteritems():
                     # Check if the alba_node_id has the disk
                     if diskname in local_stack['local_stack'][alba_node_id]:
                         # Claim asds
                         if diskname in local_stack['local_stack'][alba_node_id]:
-                            for asd_id, asd_info in local_stack['local_stack'][alba_node_id][diskname]['asds'].iteritems():
-                                BackendSetup.LOGGER.info('Claiming asd {0} for disk {1}'.format(asd_id, local_stack['local_stack'][alba_node_id][diskname]['guid']))
-                                BackendSetup._claim_asd(
-                                    alba_backend_name=albabackend_name,
-                                    asd_id=asd_id,
-                                    disk_guid=local_stack['local_stack'][alba_node_id][diskname]['guid'],
-                                    api=api
-                                )
+                            for asd_id, asd_info in local_stack['local_stack'][alba_node_id][diskname][
+                                'asds'].iteritems():
+                                BackendSetup.LOGGER.info('Adding asd {0} for disk {1} to claim queue'.format(asd_id,
+                                                                                                             local_stack[
+                                                                                                                 'local_stack'][
+                                                                                                                 alba_node_id][
+                                                                                                                 diskname][
+                                                                                                                 'guid']))
+                                asd_queue[asd_id] = local_stack['local_stack'][alba_node_id][diskname]['guid']
+            BackendSetup.LOGGER.info('Posting asd queue {0}'.format(asd_queue))
+            BackendSetup._claim_asd(
+                alba_backend_name=albabackend_name,
+                api=api,
+                queue=asd_queue
+            )
+            BackendSetup.LOGGER.info('Claiming asds was succesfull')
 
         elif scaling == 'GLOBAL':
             # target is a backend
@@ -253,12 +274,12 @@ class BackendSetup(object):
         }
         response = api.get(
             api='alba/nodes',
-            params={'queryparams': options}
+            params=options
         )
-        for node_id in response['data']:
+        for node in response['data']:
             api.post(
                 api='alba/nodes',
-                data={'node_id': node_id}
+                data={'node_id': {'node_id': node['node_id']}}
             )
 
     @staticmethod
@@ -300,7 +321,8 @@ class BackendSetup(object):
                        )
 
     @staticmethod
-    def _initialize_disk(alba_node_guid, diskname, amount_of_osds, api, timeout=INITIALIZE_DISK_TIMEOUT):
+    def _initialize_disk(alba_node_guid, api, timeout=INITIALIZE_DISK_TIMEOUT, diskname=None, amount_of_osds=None,
+                         queue=None):
         """
         Initializes a disk to create osds
         :param alba_node_guid:
@@ -309,10 +331,15 @@ class BackendSetup(object):
         :param api: specify a valid api connection to the setup
         :type api: ci.helpers.api.OVSClient
         :param timeout: timeout counter in seconds
+        :param queue: queue of disks
+        :type queue: dict
         :type timeout: int
         :return:
         """
-        data = {'disks': {diskname: amount_of_osds}}
+        if queue is None and (diskname and amount_of_osds is not None):
+            data = {'disks': {diskname: amount_of_osds}}
+        else:
+            data = {'disks': queue}
         task_guid = api.post(
             api='/alba/nodes/{0}/initialize_disks/'.format(alba_node_guid),
             data=data
@@ -320,7 +347,7 @@ class BackendSetup(object):
         return api.wait_for_task(task_id=task_guid, timeout=timeout)
 
     @staticmethod
-    def _claim_asd(alba_backend_name, asd_id, disk_guid, api, timeout=CLAIM_ASD_TIMEOUT):
+    def _claim_asd(alba_backend_name, api, timeout=CLAIM_ASD_TIMEOUT, asd_id=None, disk_guid=None, queue=None):
         """
         Claims a asd
         :param alba_backend_name: backend name
@@ -333,9 +360,14 @@ class BackendSetup(object):
         :type api: ci.helpers.api.OVSClient
         :param timeout: timeout counter in seconds
         :type timeout: int
+        :param queue: queue of asds
+        :type queue: dict
         :return:
         """
-        data = {'osds':{asd_id: disk_guid}}
+        if queue is None and (asd_id and disk_guid is not None):
+            data = {'osds': {asd_id: disk_guid}}
+        else:
+            data = {'osds': queue}
         task_guid = api.post(
             api='/alba/backends/{0}/add_units/'.format(BackendHelper.get_alba_backend_guid_by_name(alba_backend_name)),
             data=data

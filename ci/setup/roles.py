@@ -24,11 +24,13 @@ class RoleSetup(object):
     LOGGER = LogHandler.get(source="setup", name="ci_role_setup")
     CONFIGURE_DISK_TIMEOUT = 300
 
+    MIN_PARTITION_SIZE = 5
+
     def __init__(self):
         pass
 
     @staticmethod
-    def add_disk_role(ip, diskname, roles, api, min_size=10):
+    def add_disk_role(ip, diskname, roles, api, min_size=MIN_PARTITION_SIZE):
         """
         Partition and adds roles to a disk
 
@@ -66,12 +68,12 @@ class RoleSetup(object):
             biggest_unused_partition = None
             if len(unused_partitions) > 0:
                 biggest_unused_partition = disk.partitions[max(xrange(len(unused_partitions)), key=[partition.size for partition in unused_partitions].__getitem__)]
-            if ((disk.size-total_partition_size)/1024/1024/1024) > min_size:
+            if ((disk.size-total_partition_size)/1024**3) > min_size:
                 # disk is still large enough, let the partitioning begin and apply some roles!
                 print "offset = {0}".format(total_partition_size+1)
                 RoleSetup._configure_disk(storagerouter_guid=storagerouter_guid, disk_guid=disk.guid, offset=total_partition_size+1,
                                           size=(disk.size-total_partition_size)-1, roles=roles, api=api)
-            elif biggest_unused_partition is not None and (biggest_unused_partition.size/1024/1024/1024) > min_size:
+            elif biggest_unused_partition is not None and (biggest_unused_partition.size/1024**3) > min_size:
                 RoleSetup._configure_disk(storagerouter_guid=storagerouter_guid, disk_guid=disk.guid, offset=biggest_unused_partition.offset,
                                           size=biggest_unused_partition.size, roles=roles, api=api, partition_guid=biggest_unused_partition.guid)
             else:
