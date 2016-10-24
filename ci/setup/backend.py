@@ -416,4 +416,14 @@ class BackendSetup(object):
             data=data
         )
 
-        return api.wait_for_task(task_id=task_guid, timeout=timeout)
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Linking backend `{0}` to global backend `{1}` has failed".format(albabackend_name,
+                                                                                          globalbackend_name)
+            BackendSetup.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            BackendSetup.LOGGER.info("Linking backend `{0}` to global backend `{1}` should have succeeded"
+                                     .format(albabackend_name, globalbackend_name))
+            return True
