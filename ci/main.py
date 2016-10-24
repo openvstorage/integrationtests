@@ -84,11 +84,11 @@ class Workflow(object):
                 DomainSetup.link_domains_to_storagerouter(storagerouter_details['domains'], storagerouter_ip, self.api)
 
             # Setup disk roles
-            Workflow.LOGGER.info("Setup disk roles")
-            for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
-                for diskname, disk_details in storagerouter_details['disks'].iteritems():
-                    RoleSetup.add_disk_role(ip=storagerouter_ip, diskname=diskname, roles=disk_details['roles'],
-                                            api=self.api)
+            #Workflow.LOGGER.info("Setup disk roles")
+            #for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
+            #    for diskname, disk_details in storagerouter_details['disks'].iteritems():
+            #        RoleSetup.add_disk_role(ip=storagerouter_ip, diskname=diskname, roles=disk_details['roles'],
+            #                                api=self.api)
 
             # Setup LOCAL backends
             Workflow.LOGGER.info("Setup `LOCAL` backends")
@@ -174,8 +174,9 @@ class Workflow(object):
         :return: None
         """
         if self.config['ci']['scenarios']:
-            print autotests.run(scenarios=self.config['scenarios'], send_to_testrail=self.config['send_to_testrail'],
-                                fail_on_failed_scenario=self.config['fail_on_failed_scenario'])
+            print autotests.run(scenarios=self.config['scenarios'],
+                                send_to_testrail=self.config['ci']['send_to_testrail'],
+                                fail_on_failed_scenario=self.config['ci']['fail_on_failed_scenario'])
 
     def cleanup(self):
         if self.config['ci']['cleanup']:
