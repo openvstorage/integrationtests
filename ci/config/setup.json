@@ -21,7 +21,7 @@
         "password": "admin"
       }
     },
-    "grid_ip": "10.100.199.171"
+    "grid_ip": "10.100.199.151"
   },
   "scenarios": ["ALL"],
   "setup": {
@@ -45,20 +45,17 @@
           }
         ],
         "osds": {
-          "10.100.199.171": {
-            "sde": 2,
-            "sdf": 2,
-            "sdg": 2
+          "10.100.199.151": {
+            "sda": 2,
+            "sdb": 2
           },
-          "10.100.199.172": {
-            "sde": 2,
-            "sdf": 2,
-            "sdg": 2
+          "10.100.199.152": {
+            "sda": 2,
+            "sdb": 2
           },
-          "10.100.199.173": {
-            "sde": 2,
-            "sdf": 2,
-            "sdg": 2
+          "10.100.199.153": {
+            "sda": 2,
+            "sdb": 2
           }
         }
       },
@@ -80,13 +77,13 @@
           }
         ],
         "osds": {
-          "10.100.199.171": {
+          "10.100.199.151": {
             "sdc": 2
           },
-          "10.100.199.172": {
+          "10.100.199.152": {
             "sdc": 2
           },
-          "10.100.199.173": {
+          "10.100.199.153": {
             "sdc": 2
           }
         }
@@ -115,26 +112,26 @@
       }
     ],
     "storagerouters": {
-      "10.100.199.171": {
+      "10.100.199.151": {
         "hostname": "ovs-node-1-1604",
         "domains": {"domain_guids": ["Gravelines"], "recovery_domain_guids": ["Roubaix", "Strasbourg"]},
         "disks": {
-          "sda": {
+          "sdd": {
             "roles": [
               "DB"
             ]
           },
-          "sdc": {
+          "sde": {
             "roles": [
               "SCRUB"
             ]
           },
-          "sdb": {
+          "sdf": {
             "roles": [
               "WRITE"
             ]
           },
-          "sdd": {
+          "sdg": {
             "roles": [
               "READ"
             ]
@@ -144,7 +141,7 @@
           "myvpool01": {
             "backend_name": "mybackend-global",
             "preset": "mypreset",
-            "storage_ip": "10.100.199.171",
+            "storage_ip": "10.100.199.151",
             "fragment_cache": {
               "strategy": {"cache_on_read":true, "cache_on_write":true},
               "location": "disk"
@@ -163,26 +160,26 @@
           }
         }
       },
-      "10.100.199.172": {
+      "10.100.199.152": {
         "hostname": "ovs-node-2-1604",
         "domains": {"domain_guids": ["Roubaix"], "recovery_domain_guids": ["Gravelines", "Strasbourg"]},
         "disks": {
-          "sda": {
+          "sdd": {
             "roles": [
               "DB"
             ]
           },
-          "sdc": {
+          "sde": {
             "roles": [
               "SCRUB"
             ]
           },
-          "sdb": {
+          "sdf": {
             "roles": [
               "WRITE"
             ]
           },
-          "sdd": {
+          "sdg": {
             "roles": [
               "READ"
             ]
@@ -192,7 +189,7 @@
           "myvpool02": {
             "backend_name": "mybackend-global",
             "preset": "mypreset",
-            "storage_ip": "10.100.199.172",
+            "storage_ip": "10.100.199.152",
             "fragment_cache": {
               "strategy": {"cache_on_read":true, "cache_on_write":true},
               "location": "backend",
@@ -216,7 +213,7 @@
           "myvpool01": {
             "backend_name": "mybackend-global",
             "preset": "mypreset",
-            "storage_ip": "10.100.199.172",
+            "storage_ip": "10.100.199.152",
             "fragment_cache": {
               "strategy": {"cache_on_read":true, "cache_on_write":true},
               "location": "disk"
@@ -235,26 +232,26 @@
           }
         }
       },
-      "10.100.199.173": {
+      "10.100.199.153": {
         "hostname": "ovs-node-3-1604",
         "domains": {"domain_guids": ["Strasbourg"], "recovery_domain_guids": ["Roubaix", "Gravelines"]},
         "disks": {
-          "sda": {
+          "sdd": {
             "roles": [
               "DB"
             ]
           },
-          "sdc": {
+          "sde": {
             "roles": [
               "SCRUB"
             ]
           },
-          "sdb": {
+          "sdf": {
             "roles": [
               "WRITE"
             ]
           },
-          "sdd": {
+          "sdg": {
             "roles": [
               "READ"
             ]
@@ -264,7 +261,7 @@
           "myvpool01": {
             "backend_name": "mybackend-global",
             "preset": "mypreset",
-            "storage_ip": "10.100.199.173",
+            "storage_ip": "10.100.199.153",
             "fragment_cache": {
               "strategy": {"cache_on_read":true, "cache_on_write":true},
               "location": "disk"

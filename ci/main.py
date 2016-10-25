@@ -75,38 +75,38 @@ class Workflow(object):
             # Start setup
             self.LOGGER.info("Start setup")
 
-            # # Setup domains
-            # Workflow.LOGGER.info("Setup domains")
-            # for domain in self.config['setup']['domains']:
-            #     DomainSetup.add_domain(domain, self.api)
-            #
-            # # Setup storagerouter (recovery) domains
-            # Workflow.LOGGER.info("Setup storagerouter (recovery) domains")
-            # for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
-            #     DomainSetup.link_domains_to_storagerouter(storagerouter_details['domains'], storagerouter_ip, self.api)
-            #
-            # # Setup disk roles
-            # Workflow.LOGGER.info("Setup disk roles")
-            # for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
-            #     for diskname, disk_details in storagerouter_details['disks'].iteritems():
-            #         RoleSetup.add_disk_role(ip=storagerouter_ip, diskname=diskname, roles=disk_details['roles'],
-            #                                 api=self.api)
-            #
+            # Setup domains
+            Workflow.LOGGER.info("Setup domains")
+            for domain in self.config['setup']['domains']:
+                DomainSetup.add_domain(domain, self.api)
+
+            # Setup storagerouter (recovery) domains
+            Workflow.LOGGER.info("Setup storagerouter (recovery) domains")
+            for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
+                DomainSetup.link_domains_to_storagerouter(storagerouter_details['domains'], storagerouter_ip, self.api)
+
+            # Setup disk roles
+            Workflow.LOGGER.info("Setup disk roles")
+            for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
+                for diskname, disk_details in storagerouter_details['disks'].iteritems():
+                    RoleSetup.add_disk_role(ip=storagerouter_ip, diskname=diskname, roles=disk_details['roles'],
+                                            api=self.api)
+
             # Setup LOCAL backends
             Workflow.LOGGER.info("Setup `LOCAL` backends")
             for backend in self.config['setup']['backends']:
                 if backend['scaling'] == "LOCAL":
-                #     BackendSetup.add_backend(backend_name=backend['name'], api=self.api, scaling="LOCAL")
-                #
-                #     # Add domains
-                #     Workflow.LOGGER.info("Add domains")
-                #     DomainSetup.link_domains_to_backend(domain_details=backend['domains'],
-                #                                         albabackend_name=backend['name'], api=self.api)
-                #
-                #     # Add presets
-                #     Workflow.LOGGER.info("Add presets")
-                #     for preset in backend['presets']:
-                #         BackendSetup.add_preset(albabackend_name=backend['name'], preset_details=preset, api=self.api)
+                    BackendSetup.add_backend(backend_name=backend['name'], api=self.api, scaling="LOCAL")
+
+                    # Add domains
+                    Workflow.LOGGER.info("Add domains")
+                    DomainSetup.link_domains_to_backend(domain_details=backend['domains'],
+                                                        albabackend_name=backend['name'], api=self.api)
+
+                    # Add presets
+                    Workflow.LOGGER.info("Add presets")
+                    for preset in backend['presets']:
+                        BackendSetup.add_preset(albabackend_name=backend['name'], preset_details=preset, api=self.api)
 
                     # Initialize and claim asds
                     Workflow.LOGGER.info("Initialize and claim asds")
