@@ -111,8 +111,7 @@ class Workflow(object):
                     # Initialize and claim asds
                     Workflow.LOGGER.info("Initialize and claim asds")
                     for storagenode_ip, disks in backend['osds'].iteritems():
-                        BackendSetup.add_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks,
-                                              scaling=backend['scaling'], api=self.api)
+                        BackendSetup.add_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks, api=self.api)
                 else:
                     pass
 
@@ -196,7 +195,7 @@ class Workflow(object):
                 # Remove asds
                 Workflow.LOGGER.info("Remove asds")
                 for storagenode_ip, disks in backend['osds'].iteritems():
-                    BackendRemover.remove_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks, scaling=backend['scaling'], api=self.api)
+                    BackendRemover.remove_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks, api=self.api)
 
                 # Remove backend
                 Workflow.LOGGER.info("Remove backend")
