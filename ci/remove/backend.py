@@ -62,7 +62,7 @@ class BackendRemover(object):
         for disk, amount_of_osds in disks.iteritems():
             disk_object = StoragerouterHelper.get_disk_by_ip(ip=target, diskname=disk)
             # Get the name of the disk out of the path
-            diskname = disk_object.aliases[0].rsplit('/', 1)[-1]
+            diskname = [x for x in disk_object.aliases if x.rsplit('/', 1)[-1].startswith('ata')][0].rsplit('/', 1)[-1]
             for alba_node_id, alba_node_guid in node_mapping.iteritems():
                 # Check if the alba_node_id has the disk
                 if diskname in local_stack['local_stack'][alba_node_id]:
@@ -79,7 +79,7 @@ class BackendRemover(object):
         for disk, amount_of_osds in disks.iteritems():
             disk_object = StoragerouterHelper.get_disk_by_ip(ip=target, diskname=disk)
             # Get the name of the disk out of the path
-            diskname = disk_object.aliases[0].rsplit('/', 1)[-1]
+            diskname = [x for x in disk_object.aliases if x.rsplit('/', 1)[-1].startswith('ata')][0].rsplit('/', 1)[-1]
             for alba_node_id, alba_node_guid in node_mapping.iteritems():
                 # Check if the alba_node_id has the disk
                 if diskname in local_stack['local_stack'][alba_node_id]:
