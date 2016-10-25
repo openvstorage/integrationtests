@@ -1,7 +1,8 @@
 {
-  "url": "",
-  "username": "",
-  "password": "",
-  "project": "",
-  "suite": ""
+  "url": null,
+  "username": null,
+  "password": null,
+  "key": null,
+  "project": null,
+  "suite": null
 }

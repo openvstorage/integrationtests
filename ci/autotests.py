@@ -148,7 +148,20 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
     # create description based on system settings (hardware & linux distro)
     description = _get_description()
 
-    tapi = TestrailApi(testtrail_config['url'], testtrail_config['username'], testtrail_config['password'])
+    # setup testrail api connection
+    if not testtrail_config['url']:
+        raise RuntimeError("Invalid url for testrail")
+
+    if not testtrail_config['key']:
+        # no key provided so we will continue with username & password
+        if not testtrail_config['username'] and testtrail_config['password']:
+            raise RuntimeError("Invalid username or password specified for testrail")
+        else:
+            tapi = TestrailApi(testtrail_config['url'], username=testtrail_config['username'],
+                               password=testtrail_config['password'])
+    else:
+        tapi = TestrailApi(testtrail_config['url'], key=testtrail_config['key'])
+
     project_id = tapi.get_project_by_name(testtrail_config['project'])['id']
     suite_id = tapi.get_suite_by_name(project_id, testtrail_config['suite'])['id']
 
