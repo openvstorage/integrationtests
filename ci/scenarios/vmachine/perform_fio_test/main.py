@@ -32,7 +32,7 @@ class FioOnVDiskChecks(object):
     AMOUNT_VDISKS = 5
     AMOUNT_TO_WRITE = 10  # in MegaByte
     PREFIX = "integration-tests-fio-"
-    REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'qemu', 'fio']
+    REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'qemu', 'libvirt-bin', 'fio']
 
     def __init__(self):
         pass
