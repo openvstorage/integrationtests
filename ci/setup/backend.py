@@ -203,8 +203,8 @@ class BackendSetup(object):
         disk_queue = {}
         for disk, amount_of_osds in disks.iteritems():
             disk_object = StoragerouterHelper.get_disk_by_ip(ip=target, diskname=disk)
-            # Get the name of the disk out of the path
-            diskname = disk_object.aliases[0].rsplit('/', 1)[-1]
+            # Get the name of the disk out of the path, only expecting one with ata-
+            diskname = [x for x in disk_object.aliases if x.rsplit('/', 1)[-1].startswith('ata')][0].rsplit('/', 1)[-1]
             for alba_node_id, alba_node_guid in node_mapping.iteritems():
                 # Check if the alba_node_id has the disk
                 if diskname in local_stack['local_stack'][alba_node_id]:
@@ -229,7 +229,7 @@ class BackendSetup(object):
         for disk, amount_of_osds in disks.iteritems():
             disk_object = StoragerouterHelper.get_disk_by_ip(ip=target, diskname=disk)
             # Get the name of the disk out of the path
-            diskname = disk_object.aliases[0].rsplit('/', 1)[-1]
+            diskname = [x for x in disk_object.aliases if x.rsplit('/', 1)[-1].startswith('ata')][0].rsplit('/', 1)[-1]
             for alba_node_id, alba_node_guid in node_mapping.iteritems():
                 # Check if the alba_node_id has the disk
                 if diskname in local_stack['local_stack'][alba_node_id]:
@@ -244,12 +244,15 @@ class BackendSetup(object):
                                                                                                              diskname][
                                                                                                              'guid']))
                             asd_queue[asd_id] = local_stack['local_stack'][alba_node_id][diskname]['guid']
-        BackendSetup.LOGGER.info('Posting asd queue {0}'.format(asd_queue))
-        BackendSetup._claim_asd(
-            alba_backend_name=albabackend_name,
-            api=api,
-            queue=asd_queue
-        )
+        if len(asd_queue.keys()) != 0:
+            BackendSetup.LOGGER.info('Posting asd queue {0}'.format(asd_queue))
+            BackendSetup._claim_asd(
+                alba_backend_name=albabackend_name,
+                api=api,
+                queue=asd_queue
+            )
+        else:
+            BackendSetup.LOGGER.info('No asds have to claimed for {0}'.format(albabackend_name))
 
 
     @staticmethod
