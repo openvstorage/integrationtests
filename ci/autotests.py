@@ -94,7 +94,8 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
             raise AttributeError("Attribute `{0}` does not exists as status "
                                  "in TestrailResult".format(module_result['status']))
 
-        results[test] = module_result
+        # add test to results & also remove possible EXCLUDE_FLAGS on test name
+        results[test.replace(EXCLUDE_FLAG, '')] = module_result
 
     if send_to_testrail:
         plan_url = push_to_testrail(results)
