@@ -16,7 +16,10 @@
 
 import json
 import subprocess
+from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
+from ci.helpers.api import OVSClient
+from ci.setup.vdisk import VDiskSetup
 from ci.helpers.vpool import VPoolHelper
 from ci.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
@@ -29,6 +32,7 @@ class FioOnVDiskChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_fio_on_vdisk")
+    VDISK_SIZE = 1073741824  # 1 GB
     AMOUNT_VDISKS = 3
     AMOUNT_TO_WRITE = 10  # in MegaByte
     PREFIX = "integration-tests-fio-"
@@ -76,6 +80,15 @@ class FioOnVDiskChecks(object):
         FioOnVDiskChecks.LOGGER.info("Starting to validate the fio on vdisks")
         with open(SETTINGS_LOC, "r") as JSON_SETTINGS:
             settings = json.load(JSON_SETTINGS)
+
+        with open(CONFIG_LOC, "r") as JSON_CONFIG:
+            config = json.load(JSON_CONFIG)
+
+        api = OVSClient(
+            config['ci']['grid_ip'],
+            config['ci']['user']['api']['username'],
+            config['ci']['user']['api']['password']
+        )
 
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
@@ -126,6 +139,9 @@ class FioOnVDiskChecks(object):
                 client.run("fio --name=test --filename={0} --ioengine=libaio --iodepth=4 --rw=write --bs=4k "
                            "--direct=1 --size={1}M --output-format=json --output={2}.json"
                            .format(tap_dir, amount_to_write, disk_name))
+                client.run("fio --name=test --filename={0} --ioengine=libaio --iodepth=4 --rw=read --bs=4k "
+                           "--direct=1 --size={1}M --output-format=json --output={2}.json"
+                           .format(tap_dir, amount_to_write, disk_name))
                 FioOnVDiskChecks.LOGGER.info("Finished fio test on vdisk `{0}` with blktap `{1}`"
                                              .format(disk_name, tap_dir))
                 # deleting (remaining) tapctl connections
@@ -150,6 +166,14 @@ class FioOnVDiskChecks(object):
                 raise ImageConvertError("Could not convert/tap image `{0}` on `{1}`, failed with error {2}"
                                         .format(image_path, storage_ip, ex))
 
+        # deploy a simple vdisk via api and delete it again
+        api_disk_name = FioOnVDiskChecks.PREFIX+'api.raw'
+        VDiskSetup.create_vdisk(vdisk_name=api_disk_name, vpool_name=vpool.name,
+                                size=FioOnVDiskChecks.VDISK_SIZE,
+                                storagerouter_ip=storagedriver.storagerouter.ip, api=api)
+        VDiskRemover.remove_vdisk_by_name(api_disk_name, vpool.name)
+
+        # @TODO: add tgt
 
 def run(blocked=False):
     """
