@@ -54,7 +54,6 @@ class Workflow(object):
 
         for i in xrange(self.config['ci']['setup_retries']):
             self.setup()
-            self.validate()
             for j in xrange(self.config['ci']['scenario_retries']):
                 self.scenario()
             self.cleanup()
@@ -73,7 +72,7 @@ class Workflow(object):
         if self.config['ci']['setup']:
 
             # Start setup
-            self.LOGGER.info("Start setup")
+            self.LOGGER.info("Starting setup")
 
             # Setup domains
             Workflow.LOGGER.info("Setup domains")
@@ -155,18 +154,9 @@ class Workflow(object):
                                              storagerouter_ip=storagerouter_ip)
                 else:
                     continue
+            Workflow.LOGGER.info("Finished setup")
         else:
-            # Skipping setup
-            Workflow.LOGGER.info("Skipping setup")
-
-    def validate(self):
-        """
-        validate that the created setup works, then send the results to testrail
-
-        :return: None
-        """
-        if self.config['ci']['validation']:
-            pass
+            Workflow.LOGGER.info("Skipped setup")
 
     def scenario(self):
         """
@@ -175,12 +165,17 @@ class Workflow(object):
         :return: None
         """
         if self.config['ci']['scenarios']:
+            Workflow.LOGGER.info("Starting scenario's")
             print autotests.run(scenarios=self.config['scenarios'],
                                 send_to_testrail=self.config['ci']['send_to_testrail'],
                                 fail_on_failed_scenario=self.config['ci']['fail_on_failed_scenario'])
+            Workflow.LOGGER.info("Finished scenario's")
+        else:
+            Workflow.LOGGER.info("Skipped scenario's")
 
     def cleanup(self):
         if self.config['ci']['cleanup']:
+            Workflow.LOGGER.info("Starting removal")
             # Remove vpools
             Workflow.LOGGER.info("Remove vpools")
             for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
@@ -206,6 +201,9 @@ class Workflow(object):
             for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
                 for diskname, disk_details in storagerouter_details['disks'].iteritems():
                     pass
+            Workflow.LOGGER.info("Finished removal")
+        else:
+            Workflow.LOGGER.info("Skipped removal")
 
     @staticmethod
     def main(*args, **kwargs):

@@ -26,10 +26,12 @@ import math
 import importlib
 import subprocess
 from datetime import datetime
+from ovs.log.log_handler import LogHandler
 from ci.helpers.exceptions import SectionNotFoundError
 from ci.helpers.storagerouter import StoragerouterHelper
 from ci.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
 
+LOGGER = LogHandler.get(source='autotests', name="ci_autotests")
 TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
 CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
 TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testrail.json"
@@ -52,6 +54,7 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
     """
 
     # grab the tests to execute
+    LOGGER.info("Collecting tests ...")
     if scenarios == ['ALL']:
         # filter out tests with EXCLUDE_FLAG
         tests = [autotest for autotest in list_tests() if EXCLUDE_FLAG not in autotest]
@@ -74,7 +77,11 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
 
         tests = complete_scenarios
 
+    # print tests to be executed
+    LOGGER.info("Executing the following tests: {0}".format(tests))
+
     # execute the tests
+    LOGGER.info("Starting tests ...")
     results = {}
     blocked = False
     for test in tests:
@@ -97,10 +104,12 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
         # add test to results & also remove possible EXCLUDE_FLAGS on test name
         results[test.replace(EXCLUDE_FLAG, '')] = module_result
 
+    LOGGER.info("Start pushing tests to testrail ...")
     if send_to_testrail:
         plan_url = push_to_testrail(results)
         return results, plan_url
 
+    LOGGER.info("Finished tests...")
     return results, None
 
 
@@ -112,6 +121,7 @@ def list_tests():
     :rtype: list
     """
 
+    LOGGER.info("Listing tests ...")
     # collect sections
     sections = os.listdir(TEST_SCENARIO_LOC)
 
@@ -141,7 +151,7 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
     :return: Testrail URL to test plan
     :rtype: str
     """
-
+    LOGGER.info("Pushing tests to testrail ...")
     with open(config_path, "r") as JSON_CONFIG:
             testtrail_config = json.load(JSON_CONFIG)
 
@@ -219,6 +229,7 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
             if test['status_id'] == TestrailResult.UNTESTED:
                 tapi.add_result(test['id'], int(TestrailResult.SKIPPED))
 
+    LOGGER.info("Finished pushing tests to testrail ...")
     return plan['url']
 
 
