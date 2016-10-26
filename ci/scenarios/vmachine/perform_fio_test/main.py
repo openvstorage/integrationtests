@@ -29,7 +29,7 @@ class FioOnVDiskChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_fio_on_vdisk")
-    AMOUNT_VDISKS = 5
+    AMOUNT_VDISKS = 3
     AMOUNT_TO_WRITE = 10  # in MegaByte
     PREFIX = "integration-tests-fio-"
     REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'qemu', 'fio']
