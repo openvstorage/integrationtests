@@ -32,7 +32,7 @@ from ci.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
 
 TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
 CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
-TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testtrail.json"
+TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testrail.json"
 EXCLUDE_FLAG = "-exclude"
 
 
