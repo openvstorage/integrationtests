@@ -62,6 +62,7 @@ class ArakoonCollapse(object):
         node_ips = StoragerouterHelper.get_storagerouter_ips()
         node_ips.sort()
         for node_ip in node_ips:
+            ArakoonCollapse.LOGGER.info("Fetching arakoons on node `{1}`".format(node_ip))
             arakoon_clusters = []
             root_client = SSHClient(node_ip, username='root')
 
@@ -74,8 +75,9 @@ class ArakoonCollapse(object):
                     arakoon_clusters.append(service.name.replace('arakoon-', ''))
 
             # perform collapse
+            ArakoonCollapse.LOGGER.info("Starting arakoon collapse on node `{1}`".format(node_ip))
             for arakoon_cluster in arakoon_clusters:
-                ArakoonCollapse.LOGGER.info("Fetching `{0}` arakoon".format(arakoon_cluster))
+                ArakoonCollapse.LOGGER.info("Fetching `{0}` arakoon on node `{1}`".format(arakoon_cluster, node_ip))
                 arakoon_config_path = Configuration.get_configuration_path('/ovs/arakoon/{0}/config'
                                                                            .format(arakoon_cluster))
                 tlog_location = '/opt/OpenvStorage/db/arakoon/{0}/tlogs'.format(arakoon_cluster)
@@ -98,7 +100,8 @@ class ArakoonCollapse(object):
                         .format(arakoon_config_path)
                     root_client.run(benchmark_command)
 
-                ArakoonCollapse.LOGGER.info("Collapsing arakoon `{0}` ...".format(arakoon_cluster))
+                ArakoonCollapse.LOGGER.info("Collapsing arakoon `{0}` on node `{1}` ..."
+                                            .format(arakoon_cluster, node_ip))
                 ScheduledTaskController.collapse_arakoon()
 
                 nr_of_tlogs = ArakoonCollapse.get_nr_of_tlogs_in_folder(root_client, tlog_location)
@@ -106,13 +109,17 @@ class ArakoonCollapse(object):
 
                 # perform assertion
                 assert nr_of_tlogs <= 2,\
-                    'Arakoon collapse left {0} tlogs on the environment, expecting less than 2 in `{1}`'\
-                    .format(nr_of_tlogs, arakoon_cluster)
+                    'Arakoon collapse left {0} tlogs on the environment, expecting less than 2 in `{1}` on node `{1}`'\
+                    .format(nr_of_tlogs, arakoon_cluster, node_ip)
                 assert old_headdb_timestamp != new_headdb_timestamp,\
-                    'Timestamp of the head_db file was not changed in the process of collapsing tlogs of arakoon `{0}`'\
-                    .format(arakoon_cluster)
+                    'Timestamp of the head_db file was not changed ' \
+                    'in the process of collapsing tlogs of arakoon `{0}` on node `{1}`'\
+                    .format(arakoon_cluster, node_ip)
 
-                ArakoonCollapse.LOGGER.info("Successfully collapsed arakoon `{0}`".format(arakoon_cluster))
+                ArakoonCollapse.LOGGER.info("Successfully collapsed arakoon `{0}` on node `{1}`"
+                                            .format(arakoon_cluster, node_ip))
+
+        ArakoonCollapse.LOGGER.info("Finished validating arakoon collapsing")
 
     @staticmethod
     def get_nr_of_tlogs_in_folder(root_client, tlog_location):
