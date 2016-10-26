@@ -168,7 +168,7 @@ class AddRemoveVPool(object):
             "cluster_size": 4,
             "volume_write_buffer": 512,
             "strategy": "none",
-            "global_write_buffer": 8,
+            "global_write_buffer": 1,
             "global_read_buffer": 0,
             "deduplication": "non_dedupe",
             "dtl_transport": "tcp",
