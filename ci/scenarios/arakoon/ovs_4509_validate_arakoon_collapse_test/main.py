@@ -62,7 +62,7 @@ class ArakoonCollapse(object):
         node_ips = StoragerouterHelper.get_storagerouter_ips()
         node_ips.sort()
         for node_ip in node_ips:
-            ArakoonCollapse.LOGGER.info("Fetching arakoons on node `{1}`".format(node_ip))
+            ArakoonCollapse.LOGGER.info("Fetching arakoons on node `{0}`".format(node_ip))
             arakoon_clusters = []
             root_client = SSHClient(node_ip, username='root')
 
@@ -75,7 +75,7 @@ class ArakoonCollapse(object):
                     arakoon_clusters.append(service.name.replace('arakoon-', ''))
 
             # perform collapse
-            ArakoonCollapse.LOGGER.info("Starting arakoon collapse on node `{1}`".format(node_ip))
+            ArakoonCollapse.LOGGER.info("Starting arakoon collapse on node `{0}`".format(node_ip))
             for arakoon_cluster in arakoon_clusters:
                 ArakoonCollapse.LOGGER.info("Fetching `{0}` arakoon on node `{1}`".format(arakoon_cluster, node_ip))
                 arakoon_config_path = Configuration.get_configuration_path('/ovs/arakoon/{0}/config'
