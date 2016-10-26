@@ -31,7 +31,7 @@ class InitManager(object):
     BackendHelper class
     """
     LOGGER = LogHandler.get(source='helpers', name="ci_initmanager")
-    SYSTEMD_BASEDIR = "/etc/systemd/system"
+    SYSTEMD_BASEDIR = "/lib/systemd/system"
     UPSTART_BASEDIR = "/etc/init"
 
     RAW_INIT_MANAGER = str(subprocess.check_output('cat /proc/1/comm', shell=True)).strip()
