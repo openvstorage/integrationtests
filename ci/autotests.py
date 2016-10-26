@@ -33,6 +33,7 @@ from ci.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
 TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
 CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
 TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testtrail.json"
+EXCLUDE_FLAG = "-exclude"
 
 
 def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False):
@@ -52,7 +53,8 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
 
     # grab the tests to execute
     if scenarios == ['ALL']:
-        tests = list_tests()
+        # filter out tests with EXCLUDE_FLAG
+        tests = [autotest for autotest in list_tests() if EXCLUDE_FLAG not in autotest]
     else:
         complete_scenarios = []
         # check if a scenario is specified with a section
