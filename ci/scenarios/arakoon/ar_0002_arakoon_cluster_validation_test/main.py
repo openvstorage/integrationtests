@@ -105,6 +105,8 @@ class ArakoonValidation(object):
             # key not found so test has passed
             assert True
 
+        ArakoonValidation.LOGGER.info("Finished validating arakoon cluster")
+
 
 def run(blocked=False):
     """

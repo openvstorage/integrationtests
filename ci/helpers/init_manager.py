@@ -84,10 +84,8 @@ class InitManager(object):
             else:
                 return False
         elif InitManager.INIT_MANAGER == InitManagerSupported.SYSTEMD:
-            output = client.run('systemctl status {0}.service'.format(service_name), shell=True)
-            status_title_index = output.split().index('Active:')
-            status = output.split()[status_title_index+1]
-            if status == 'active':
+            output = client.run('systemctl is-active {0}.service'.format(service_name))
+            if output == 'active':
                 return True
             else:
                 return False

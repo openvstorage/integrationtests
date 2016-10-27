@@ -81,7 +81,7 @@ class SshChecks(object):
             raise RuntimeError("One or more hosts keys not found on certain nodes! "
                                "Please check /var/log/ovs/scenario.log for more information!")
 
-        SshChecks.LOGGER.info('Finshed validating SSH keys')
+        SshChecks.LOGGER.info('Finished validating SSH keys')
 
 
 def run(blocked=False):
