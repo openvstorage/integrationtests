@@ -79,13 +79,14 @@ class InitManager(object):
 
         if InitManager.INIT_MANAGER == InitManagerSupported.INIT:
             output = client.run('service {0} status'.format(service_name))
-            if output.split()[1] == "start/running,":
-                return True
-            else:
-                return False
+            return output.split()[1] == "start/running,"
         elif InitManager.INIT_MANAGER == InitManagerSupported.SYSTEMD:
-            output = client.run('systemctl is-active {0}.service'.format(service_name))
-            if output == 'active':
-                return True
-            else:
+            try:
+                output = client.run('systemctl is-active {0}.service'.format(service_name))
+            except subprocess.CalledProcessError:
+                InitManager.LOGGER.warning("Exception caught when checking service `{0}` on node with ip `{1}`"
+                                           .format(service_name, ip))
                 return False
+
+            # if not failed, check output
+            return output == 'active'
