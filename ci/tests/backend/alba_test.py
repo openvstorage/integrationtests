@@ -302,6 +302,7 @@ class TestALBA(object):
 
         ad = AlbaDisk()
         ad.alba_node = an
+        ad.aliases = ['/mnt/disk1']
         ad.save()
 
         asd = AlbaOSD()
