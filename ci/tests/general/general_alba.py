@@ -280,7 +280,7 @@ class GeneralAlba(object):
 
         alba_nodes = [alba_node for alba_node in Configuration.list('/ovs/alba/asdnodes')]
         if len(alba_nodes):
-            AlbaNodeController.model_local_albanode()
+            AlbaNodeController.model_albanodes()
 
         return GeneralAlba.get_by_name(name)
 
