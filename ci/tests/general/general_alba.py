@@ -318,8 +318,7 @@ class GeneralAlba(object):
             'Configuration does not contain key {0}'.format(alba_backend_key)
 
         actual_config_keys = [key for key in Configuration.list(alba_backend_key)]
-        expected_config_keys = ['verification_schedule', 'global_gui_error_interval', alba_backend.guid,
-                              'default_nsm_hosts']
+        expected_config_keys = ['global_gui_error_interval', alba_backend.guid, 'default_nsm_hosts']
         optional_config_keys = ['verification_factor']
 
         expected_keys_amount = 0
