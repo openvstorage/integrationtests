@@ -267,21 +267,13 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
     if exitcode == 0:
         for key in output.splitlines():
             if key == 'DISTRIB_RELEASE=16.04':
-                remote_con.process.execute('apt-get install -y --allow-unauthenticated etcd')
-                remote_con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
+                remote_con.process.execute('apt-get install -y etcd')
+                remote_con.process.execute('apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 4EFFB1E7')
+                remote_con.process.execute('echo "deb http://apt.openvstorage.com {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
                 remote_con.process.execute('apt-get update')
                 remote_con.process.execute('apt-get install -y ntp')
-                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/all/job/volumedriver-no-dedup-dev-release-ubuntu-16.04/10/artifact/volumedriver-core/build/debian/volumedriver-no-dedup-base_6.2.0-dev.201609302025.1fbbe1d_amd64.deb')
-                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/volumedriver/view/all/job/volumedriver-no-dedup-dev-release-ubuntu-16.04/10/artifact/volumedriver-core/build/debian/volumedriver-no-dedup-server_6.2.0-dev.201609302025.1fbbe1d_amd64.deb')
-                remote_con.process.execute('cd /tmp; wget https://github.com/openvstorage/alba/releases/download/0.9.21/alba_0.9.21_amd64_ubuntu_1604.deb')
-                remote_con.process.execute('cd /tmp; wget http://10.100.129.100:8080/view/alba2/job/arakoon_docker_generic_package_ubuntu-16.04/lastSuccessfulBuild/artifact/arakoon_1.9.13_amd64.deb')
-                remote_con.process.execute('apt-get install -y gdebi-core')
-                remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-no-dedup-base_6.2.0-dev.201609302025.1fbbe1d_amd64.deb')
-                remote_con.process.execute('cd /tmp; gdebi -n ./volumedriver-no-dedup-server_6.2.0-dev.201609302025.1fbbe1d_amd64.deb')
-                remote_con.process.execute('cd /tmp; gdebi -n ./alba_0.9.21_amd64.deb')
-                remote_con.process.execute('cd /tmp; gdebi -n ./arakoon_1.9.13_amd64.deb')
-                remote_con.process.execute('apt-get install -y --allow-unauthenticated python-djangorestframework=2.3.12-1')
-
+                remote_con.process.execute('apt-get install -y python-djangorestframework=2.3.12-1')
+                remote_con.process.execute('apt-get install -y volumedriver-no-dedup-server')
                 break
             elif key == 'DISTRIB_RELEASE=14.04':
                 remote_con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
