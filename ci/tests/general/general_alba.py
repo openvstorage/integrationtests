@@ -684,12 +684,12 @@ class GeneralAlba(object):
             hdds, ssds = GeneralDisk.get_physical_disks(client=root_client)
             if disk_type == 'SATA':
                 for hdd in hdds.values():
-                    # add it to list_of_available_disks only if it's found in the unitialised list for that node
+                    # add it to list_of_available_disks only if it's found in the uninitialised list for that node
                     if hdd['name'] in disk_names[node_id]:
                         list_of_available_disks[node_id].append(hdd)
             if disk_type == 'SSD':
                 for ssd in ssds.values():
-                    # add it to list_of_available_disks only if it's found in the unitialised list for that node
+                    # add it to list_of_available_disks only if it's found in the uninitialised list for that node
                     if ssd['name'] in disk_names[node_id]:
                         list_of_available_disks[node_id].append(ssd)
             disk_count += len(list_of_available_disks[node_id])
@@ -701,9 +701,9 @@ class GeneralAlba(object):
                 # if we still need disks we will add all disks found at the count value index in the list_of_available_disks disk lists
                 if count < amount:
                     if disk_index < len(list_of_available_disks[node_id]):
-                        filtered_disks[node_id].append(list_of_available_disks[node_id][disk_index]['name'])
+                        filtered_disks[node_id].append('/dev/disk/by-id/' + list_of_available_disks[node_id][disk_index]['name'])
                         count += 1
-        # this should run through the whole list even if we havent reached the amount of disks needed
+        # this should run through the whole list even if we haven't reached the amount of disks needed
         return filtered_disks
 
     @staticmethod
@@ -746,7 +746,7 @@ class GeneralAlba(object):
 
         for node_id, disks in disks_to_init.iteritems():
             alba_node = AlbaNodeList.get_albanode_by_node_id(node_id)
-            failures = AlbaNodeController.initialize_disks(alba_node.guid, dict((disk_id, 1) for disk_id in disks))
+            failures = AlbaNodeController.initialize_disks(alba_node.guid, dict(('/dev/disk/by-id/' + disk_id, 1) for disk_id in disks))
             assert not failures,\
                 'Alba disk initialization failed for (some) disks: {0}'.format(failures)
 
@@ -820,7 +820,7 @@ class GeneralAlba(object):
                     data = {'asd_id': osd_id,
                             'safety': current_safety}
                     GeneralAlba.logger.info(GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'reset_asd', data, wait=True))
-                data = {'disk': disk_id}
+                data = {'disk': '/dev/disk/by-id/' + disk_id}
                 GeneralAlba.logger.info(GeneralAlba.api.execute_post_action('alba/nodes', asd_node.guid, 'remove_disk', data, wait=True))
 
     @staticmethod
