@@ -17,6 +17,7 @@
 from ci.helpers.vdisk import VDiskHelper
 from ovs.lib.vdisk import VDiskController
 from ovs.log.log_handler import LogHandler
+from ovs.dal.exceptions import ObjectNotFoundException
 
 
 class VDiskRemover(object):
@@ -75,16 +76,25 @@ class VDiskRemover(object):
         :rtype: bool
         """
 
-        return VDiskController.delete(vdisk_guid)
-
+        VDiskController.delete(vdisk_guid)
+        try:
+            VDiskHelper.get_vdisk_by_guid(vdisk_guid)
+            error_msg = "vDisk with guid `{0}` should be deleted but it isn't!".format(vdisk_guid)
+            VDiskRemover.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        except ObjectNotFoundException:
+            VDiskRemover.LOGGER.info("Successfully deleted vDisk `{0}`".format(vdisk_guid))
+            return True
 
     @staticmethod
     def remove_vdisk_by_name(vdisk_name, vpool_name):
         """
         Remove a vdisk from a vPool
 
-        :param vdisk_name: name of a existing vdisk
+        :param vdisk_name: name of a existing vdisk (e.g. test.raw)
         :type vdisk_name: str
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
         :return: if success
         :rtype: bool
         """

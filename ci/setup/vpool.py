@@ -25,13 +25,14 @@ class VPoolSetup(object):
 
     LOGGER = LogHandler.get(source="setup", name="ci_vpool_setup")
     ADD_VPOOL_TIMEOUT = 500
+    REQUIRED_VPOOL_ROLES = ['DB', 'SCRUB', 'WRITE', 'READ']
 
     def __init__(self):
         pass
 
     @staticmethod
     @required_backend
-    @required_roles(['DB', 'SCRUB', 'WRITE', 'READ'], "LOCAL")
+    @required_roles(REQUIRED_VPOOL_ROLES, "LOCAL")
     def add_vpool(vpool_name, vpool_details, api, storagerouter_ip, albabackend_name, timeout=ADD_VPOOL_TIMEOUT):
         """
         Adds a VPool to a storagerouter
