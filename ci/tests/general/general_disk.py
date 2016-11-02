@@ -195,29 +195,11 @@ class GeneralDisk(object):
         :param storagerouter: Storage Router
         :return: None
         """
-        role_added = False
-        db_partition = None
         for partition in GeneralDisk.get_disk_partitions():
             if partition.disk.storagerouter == storagerouter:
-                if partition.mountpoint and '/mnt/ssd' in partition.mountpoint:
-                    db_partition = partition
-                if partition.mountpoint == '/' or partition.folder == '/mnt/storage':
+                if partition.mountpoint == '/':
                     GeneralDisk.adjust_disk_role(partition, ['DB'])
-                    role_added = True
                     break
-        # LVM partition present on the / mountpoint
-        if db_partition is None and role_added is False:
-            # disks havent been partitioned yet
-            disks_to_partition = [disk for disk in GeneralDisk.get_disks() if disk.storagerouter == storagerouter and
-                                  len(disk.partitions) == 0]
-            disks_to_partition.sort(key=operator.attrgetter('is_ssd'), reverse=True)
-            if len(disks_to_partition):
-                db_partition = GeneralDisk.partition_disk(disks_to_partition[0])
-                GeneralDisk.adjust_disk_role(db_partition, ['DB'])
-            else:
-                raise Exception('No disks capable of receiving a DB role')
-        elif role_added is False:
-            GeneralDisk.adjust_disk_role(db_partition, ['DB'])
 
     @staticmethod
     def partition_disk(disk):
@@ -239,7 +221,7 @@ class GeneralDisk(object):
         return disk.partitions[0]
 
     @staticmethod
-    def unpartition_disk(disk, partitions=None, wait=True):
+    def unpartition_disk(disk, partitions=None):
         """
         Return disk to RAW state
         :param disk: Disk DAL object
