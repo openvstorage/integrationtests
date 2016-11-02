@@ -244,7 +244,7 @@ class BackendSetup(object):
                                 current_retry += 1
                                 BackendSetup.LOGGER.info('ASD {0} for Alba node {1} was not available. Waiting 5 seconds'
                                                          ' to retry (currently {2} retries left).'.format(asd_id, alba_node_id, claim_retries - current_retry))
-                                if current_retry < claim_retries:
+                                if current_retry > claim_retries:
                                     raise RuntimeError('ASD {0} for Alba node {1} did come available after {2} seconds'.format(asd_id, alba_node_id, current_retry * 5))
                                 time.sleep(5)
                                 local_stack = BackendHelper.get_backend_local_stack(albabackend_name=albabackend_name, api=api)
