@@ -17,12 +17,15 @@
 """
 Module for the OVS API client
 """
+import json
 import time
 import urllib
 import hashlib
 import requests
-import json
-
+from requests.packages.urllib3 import disable_warnings
+from requests.packages.urllib3.exceptions import InsecurePlatformWarning
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from requests.packages.urllib3.exceptions import SNIMissingWarning
 
 class HttpException(RuntimeError):
     """
@@ -53,6 +56,10 @@ class OVSClient(object):
     """
     Represents the OVS client
     """
+
+    disable_warnings(InsecurePlatformWarning)
+    disable_warnings(InsecureRequestWarning)
+    disable_warnings(SNIMissingWarning)
 
     def __init__(self, ip, username, password, verify=False, version='*', port=None, raw_response=False):
         """
