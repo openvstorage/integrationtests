@@ -178,9 +178,11 @@ class TestFlexibleDiskLayout(object):
         assert mountpoint, 'New partition was not detected in model'
 
         # cleanup disk partition
-        cmd = 'umount {0}; rmdir {0}'.format(mountpoint)
+        cmd = 'umount {0}; rmdir -f {0}'.format(mountpoint)
         General.execute_command_on_node(my_sr.ip, cmd)
 
+        logger.error('aliases: {0}'.format(disk.aliases[0]))
+        logger.error('disk: {0}'.format(disk))
         cmd = 'parted -s {0} rm 1'.format(disk.aliases[0])
         General.execute_command_on_node(my_sr.ip, cmd)
 
@@ -205,8 +207,8 @@ class TestFlexibleDiskLayout(object):
                 is_partition_removed = False
                 break
 
-        TestFlexibleDiskLayout.logger.info(mountpoint)
-        cmd = 'umount {0}; rmdir {0}'.format(mountpoint)
+        logger.error('mp: {0}'.format(mountpoint))
+        cmd = 'umount {0}; rmdir -f {0}'.format(mountpoint)
         General.execute_command_on_node(my_sr.ip, cmd)
 
         assert is_partition_removed is True,\
