@@ -97,6 +97,7 @@ class PostRebootChecks(object):
                 tries += 1
                 PostRebootChecks.LOGGER.warning('Host `{0}` still not up at try {1}/{2} ...'
                                                 .format(host_to_reboot, tries, PostRebootChecks.SSH_WAIT_TRIES))
+                time.sleep(10)
                 if tries == PostRebootChecks.SSH_WAIT_TRIES:
                     # if we reach max tries, throw exception
                     raise RuntimeError("Max amounts of attempts reached ({0}) for host `{1}`, host still not up ..."
