@@ -15,6 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.system import System
 from ovs.extensions.generic.sshclient import SSHClient
 from ci.helpers.init_manager import InitManager, InitManagerSupported
 
@@ -64,3 +65,14 @@ class SystemHelper(object):
         client = SSHClient(ip, username='root')
         return [package for package in required_packages
                 if len(client.run("dpkg -l | grep {0} | tr -s ' '".format(package)).split()) == 0]
+
+    @staticmethod
+    def get_local_storagerouter():
+        """
+        Fetches the details of a local storagerouter
+
+        :return: a StorageRouter
+        :rtype: ovs.dal.hybrids.storagerouter.StorageRouter
+        """
+
+        return System.get_my_storagerouter()

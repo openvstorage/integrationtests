@@ -21,6 +21,7 @@ from ci.setup.vpool import VPoolSetup
 from ci.remove.vpool import VPoolRemover
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
+from ci.validate.roles import RoleValidation
 from ci.helpers.storagerouter import StoragerouterHelper
 
 
@@ -82,8 +83,20 @@ class AddRemoveVPool(object):
             config['ci']['user']['api']['password']
         )
 
-        storagerouter_ips = StoragerouterHelper.get_storagerouter_ips()
-        assert len(storagerouter_ips) > 1, "We need at least 2 storagerouters!"
+        storagerouter_ips = []
+        for storagerouter_ip in StoragerouterHelper.get_storagerouter_ips():
+            try:
+                RoleValidation.check_required_roles(VPoolSetup.REQUIRED_VPOOL_ROLES, storagerouter_ip, "LOCAL")
+                storagerouter_ips.append(storagerouter_ip)
+                AddRemoveVPool.LOGGER.info("Added `{0}` to list of eligible storagerouters".format(storagerouter_ip))
+            except RuntimeError as ex:
+                AddRemoveVPool.LOGGER.warning("Did not add `{0}` to list of eligible "
+                                              "storagerouters because: {1}".format(storagerouter_ip, ex))
+                pass
+
+        # filter storagerouters without required roles
+
+        assert len(storagerouter_ips) > 1, "We need at least 2 storagerouters with valid roles: {0}".format()
         alba_backends = BackendHelper.get_alba_backends()
         assert len(alba_backends) >= 2, "We need at least 2 or more backends!"
 
