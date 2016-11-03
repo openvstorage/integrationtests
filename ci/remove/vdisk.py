@@ -22,7 +22,7 @@ from ovs.dal.exceptions import ObjectNotFoundException
 
 class VDiskRemover(object):
 
-    LOGGER = LogHandler.get(source="setup", name="ci_vdisk_remover")
+    LOGGER = LogHandler.get(source="remove", name="ci_vdisk_remover")
     REMOVE_SNAPSHOT_TIMEOUT = 60
 
     def __init__(self):
