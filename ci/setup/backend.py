@@ -82,14 +82,20 @@ class BackendSetup(object):
         backend_running_status = "RUNNING"
         tries = 0
         while tries <= max_tries:
-            if BackendHelper.get_backend_status_by_name(backend_name) == backend_running_status:
-                BackendSetup.LOGGER.info("Creation of Backend `{0}` and scaling `{1}` succeeded!"
-                                         .format(backend_name, scaling))
-                return True
-            else:
+            try:
+                if BackendHelper.get_backend_status_by_name(backend_name) == backend_running_status:
+                    BackendSetup.LOGGER.info("Creation of Backend `{0}` and scaling `{1}` succeeded!"
+                                             .format(backend_name, scaling))
+                    return True
+                else:
+                    tries += 1
+                    BackendSetup.LOGGER.warning("Creating backend `{0}`, try {1}. Sleeping for {2} seconds ..."
+                                                .format(backend_name, tries, timeout))
+                    time.sleep(timeout)
+            except AttributeError as ex:
                 tries += 1
-                BackendSetup.LOGGER.warning("Creating backend `{0}`, try {1}. Sleeping for {2} seconds ..."
-                                            .format(backend_name, tries, timeout))
+                BackendSetup.LOGGER.warning("Creating backend `{0}`, try {1} with exception `{2}`. "
+                                            "Sleeping for {3} seconds ...".format(backend_name, tries, ex, timeout))
                 time.sleep(timeout)
 
         BackendSetup.LOGGER.error("Creation of Backend `{0}` and scaling `{1}` failed with status: {2}!"
