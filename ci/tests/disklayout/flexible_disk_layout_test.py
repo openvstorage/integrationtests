@@ -191,6 +191,12 @@ class TestFlexibleDiskLayout(object):
                                      input_type='zero')
         GeneralStorageRouter.sync_with_reality()
 
+        GeneralDisk.configure_disk(storagerouter=my_sr,
+                                   disk=disk,
+                                   offset=0,
+                                   size=int(disk.size),
+                                   roles=[])
+
         # verify partition no longer exists in ovs model
         is_partition_removed = True
         partitions = GeneralDisk.get_disk_partitions()
@@ -199,5 +205,11 @@ class TestFlexibleDiskLayout(object):
                 is_partition_removed = False
                 break
 
+        TestFlexibleDiskLayout.logger.info(mountpoint)
+        cmd = 'umount {0}; rmdir {0}'.format(mountpoint)
+        General.execute_command_on_node(my_sr.ip, cmd)
+
         assert is_partition_removed is True,\
             'New partition was not deleted successfully from system/model!'
+
+
