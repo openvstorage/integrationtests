@@ -183,7 +183,7 @@ class TestFlexibleDiskLayout(object):
                                    roles=[])
 
         # cleanup disk partition
-        cmd = 'umount {0}; rmdir {0}'.format(mountpoint)
+        cmd = 'umount {0}; rmdir {0}; echo 0'.format(mountpoint)
         General.execute_command_on_node(my_sr.ip, cmd)
 
         cmd = 'parted -s /dev/{0} rm 1; echo 0'.format(disk.name)
