@@ -110,108 +110,100 @@ class TestFlexibleDiskLayout(object):
                                                                                                      mdisks[key],
                                                                                                      pdisks[key])
 
-    # @staticmethod
-    # def fdl_0002_add_remove_partition_with_role_and_crosscheck_model_test():
-    #     """
-    #     FDL-0002 - create/remove disk partition using full disk and verify ovs model
-    #         - look for an unused disk
-    #         - add a partition using full disk and assign a DB role to the partition
-    #         - validate ovs model is correctly updated with DB role
-    #         - cleanup that partition
-    #         - verify ovs model is correctly updated
-    #     """
-    #     if TestFlexibleDiskLayout.continue_testing.state is False:
-    #         logger.info('Test suite signaled to stop')
-    #         return
-    #
-    #     my_sr = GeneralStorageRouter.get_local_storagerouter()
-    #
-    #     unused_disks = GeneralDisk.get_unused_disks()
-    #     if not unused_disks:
-    #         logger.info("At least one unused disk should be available for partition testing")
-    #         return
-    #
-    #     hdds = dict()
-    #     ssds = dict()
-    #     mdisks = GeneralDisk.get_disks()
-    #     for disk in mdisks:
-    #         if disk.storagerouter_guid == my_sr.guid:
-    #             if disk.is_ssd:
-    #                 ssds['/dev/' + disk.name] = disk
-    #             else:
-    #                 hdds['/dev/' + disk.name] = disk
-    #
-    #     all_disks = dict(ssds)
-    #     all_disks.update(hdds)
-    #
-    #     # check no partitions are modelled for unused disks
-    #     partitions = GeneralDisk.get_disk_partitions()
-    #     partitions_detected = False
-    #     disk_guid = ''
-    #     for path in unused_disks:
-    #         # @TODO: remove the if when ticket OVS-4503 is solved
-    #         if path in all_disks:
-    #             disk_guid = all_disks[path].guid
-    #             for partition in partitions:
-    #                 if partition.disk_guid == disk_guid:
-    #                     partitions_detected = True
-    #     assert partitions_detected is False, 'Existing partitions detected on unused disks!'
-    #
-    #     # try partition a disk using it's full reported size
-    #     disk = all_disks[unused_disks[0]]
-    #     GeneralDisk.configure_disk(storagerouter=my_sr,
-    #                                disk=disk,
-    #                                offset=0,
-    #                                size=int(disk.size),
-    #                                roles=['DB'])
-    #
-    #     GeneralStorageRouter.sync_with_reality()
-    #
-    #     # lookup partition in model
-    #     mountpoint = None
-    #     partitions = GeneralDisk.get_disk_partitions()
-    #     for partition in partitions:
-    #         if partition.disk_guid == disk.guid and 'DB' in partition.roles:
-    #             mountpoint = partition.mountpoint
-    #             break
-    #
-    #     # cleanup disk partition
-    #     GeneralDisk.configure_disk(storagerouter=my_sr,
-    #                                disk=disk,
-    #                                offset=0,
-    #                                size=int(disk.size),
-    #                                roles=[''])
-    #
-    #     for disk in my_sr.disks:
-    #         for partition in disk.partitions:
-    #             if partition.mountpoint == '/mnt/{0}'.format(mountpoint):
-    #                 partition.delete()
-    #
-    #     cmd = 'umount {0}; rmdir {0}; echo 0'.format(mountpoint)
-    #     General.execute_command_on_node(my_sr.ip, cmd)
-    #
-    #     cmd = 'parted -s /dev/{0} rm 1; echo 0'.format(disk.name)
-    #     General.execute_command_on_node(my_sr.ip, cmd)
-    #
-    #
-    #     # wipe partition table to be able to reuse this disk in another test
-    #     GeneralVDisk.write_to_volume(location=disk.aliases[0],
-    #                                  count=64,
-    #                                  bs='1M',
-    #                                  input_type='zero')
-    #
-    #     GeneralStorageRouter.sync_with_reality()
-    #
-    #     assert mountpoint, 'New partition was not detected in model'
-    #
-    #     # verify partition no longer exists in ovs model
-    #     is_partition_removed = True
-    #     partitions = GeneralDisk.get_disk_partitions()
-    #     for partition in partitions:
-    #         if partition.disk_guid == disk_guid and 'DB' in partition.roles:
-    #             is_partition_removed = False
-    #             break
-    #
-    #     assert is_partition_removed is True,\
-    #         'New partition was not deleted successfully from system/model!'
+    @staticmethod
+    def fdl_0002_add_remove_partition_with_role_and_crosscheck_model_test():
+        """
+        FDL-0002 - create/remove disk partition using full disk and verify ovs model
+            - look for an unused disk
+            - add a partition using full disk and assign a DB role to the partition
+            - validate ovs model is correctly updated with DB role
+            - cleanup that partition
+            - verify ovs model is correctly updated
+        """
+        if TestFlexibleDiskLayout.continue_testing.state is False:
+            logger.info('Test suite signaled to stop')
+            return
 
+        my_sr = GeneralStorageRouter.get_local_storagerouter()
+
+        unused_disks = GeneralDisk.get_unused_disks()
+        if not unused_disks:
+            logger.info("At least one unused disk should be available for partition testing")
+            return
+
+        hdds = dict()
+        ssds = dict()
+        mdisks = GeneralDisk.get_disks()
+        for disk in mdisks:
+            if disk.storagerouter_guid == my_sr.guid:
+                if disk.is_ssd:
+                    ssds['/dev/' + disk.name] = disk
+                else:
+                    hdds['/dev/' + disk.name] = disk
+
+        all_disks = dict(ssds)
+        all_disks.update(hdds)
+
+        # check no partitions are modelled for unused disks
+        partitions = GeneralDisk.get_disk_partitions()
+        partitions_detected = False
+        disk_guid = ''
+        for path in unused_disks:
+            # @TODO: remove the if when ticket OVS-4503 is solved
+            if path in all_disks:
+                disk_guid = all_disks[path].guid
+                for partition in partitions:
+                    if partition.disk_guid == disk_guid:
+                        partitions_detected = True
+        assert partitions_detected is False, 'Existing partitions detected on unused disks!'
+
+        # try partition a disk using it's full reported size
+        disk = all_disks[unused_disks[0]]
+        GeneralDisk.configure_disk(storagerouter=my_sr,
+                                   disk=disk,
+                                   offset=0,
+                                   size=int(disk.size),
+                                   roles=['DB'])
+
+        # lookup partition in model
+        mountpoint = None
+        partitions = GeneralDisk.get_disk_partitions()
+        for partition in partitions:
+            if partition.disk_guid == disk.guid and 'DB' in partition.roles:
+                mountpoint = partition.mountpoint
+                break
+
+        assert mountpoint, 'New partition was not detected in model'
+
+        GeneralDisk.configure_disk(storagerouter=my_sr,
+                                   disk=disk,
+                                   offset=0,
+                                   partition=partition,
+                                   size=int(disk.size),
+                                   roles=[])
+
+        # cleanup disk partition
+        cmd = 'umount {0}; rmdir {0}'.format(mountpoint)
+        General.execute_command_on_node(my_sr.ip, cmd)
+
+        cmd = 'parted -s /dev/{0} rm 1; echo 0'.format(disk.name)
+        General.execute_command_on_node(my_sr.ip, cmd)
+
+        # wipe partition table to be able to reuse this disk in another test
+        GeneralVDisk.write_to_volume(location=disk.aliases[0],
+                                     count=64,
+                                     bs='1M',
+                                     input_type='zero')
+
+        GeneralStorageRouter.sync_with_reality()
+
+        # verify partition no longer exists in ovs model
+        is_partition_removed = True
+        partitions = GeneralDisk.get_disk_partitions()
+        for partition in partitions:
+            if partition.disk_guid == disk_guid and 'DB' in partition.roles:
+                is_partition_removed = False
+                break
+
+        assert is_partition_removed is True,\
+            'New partition was not deleted successfully from system/model!'
