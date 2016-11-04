@@ -19,6 +19,7 @@ Sanity check testsuite
 """
 
 from ci.tests.general.general import General
+from ci.tests.general.general_system import GeneralSystem
 from ci.tests.general.general_storagerouter import GeneralStorageRouter
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.sshclient import SSHClient
@@ -35,12 +36,13 @@ class TestSanity(object):
         """
         issues_found = []
         env_ips = GeneralStorageRouter.get_all_ips()
-        for env_ip_connecting_from in env_ips:
-            out = General.execute_command_on_node(env_ip_connecting_from, "cat ~/.ssh/known_hosts")
-            for env_ip_connecting_to in env_ips:
-                if env_ip_connecting_from != env_ip_connecting_to:
-                    if env_ip_connecting_to not in out:
-                        issues_found.append('Host key verification not found between {0} and {1}'.format(env_ip_connecting_from, env_ip_connecting_to))
+        for env_ip_from in env_ips:
+            out = General.execute_command_on_node(env_ip_from, "cat ~/.ssh/known_hosts")
+            for env_ip_to in env_ips:
+                if env_ip_from != env_ip_to:
+                    if env_ip_to not in out:
+                        issues_found.append('Host key verification not found between {0} and {1}'.format(env_ip_from,
+                                                                                                         env_ip_to))
 
         assert len(issues_found) == 0, 'Following issues were found:\n - {0}'.format('\n - '.join(issues_found))
 
@@ -49,18 +51,13 @@ class TestSanity(object):
         """
         Verify some services
         """
-        # get env ips
         env_ips = GeneralStorageRouter.get_all_ips()
         non_running_services = []
 
         for env_ip in env_ips:
-            non_running_services_on_node = []
-            out = General.execute_command_on_node(env_ip, "initctl list | grep ovs-*")
-            statuses = out.splitlines()
-
-            non_running_services_on_node.extend([s for s in statuses if 'start/running' not in s])
-            if len(non_running_services_on_node):
-                non_running_services.append([env_ip, non_running_services_on_node])
+            non_running_services = GeneralSystem.list_non_running_ovs_services(env_ip)
+            if len(non_running_services):
+                non_running_services.append([env_ip, non_running_services])
 
         assert len(non_running_services) == 0, "Found non running services on {0}".format(non_running_services)
 
@@ -73,11 +70,6 @@ class TestSanity(object):
             "nginx": """ps -efx|grep nginx|grep -v grep""",
             "rabbitmq-server": """ps -ef|grep rabbitmq-|grep -v grep""",
             "memcached": """ps -ef|grep memcached|grep -v grep""",
-            "ovs-arakoon-ovsdb": """initctl list| grep ovsdb""",
-            "ovs-snmp": """initctl list| grep ovs-snmp""",
-            "ovs-support-agent": """initctl list| grep support""",
-            "ovs-volumerouter-consumer": """initctl list| grep volumerou""",
-            "ovs-watcher-framework": """initctl list| grep watcher-fr"""
         }
 
         errors = ''
@@ -96,8 +88,11 @@ class TestSanity(object):
                 else:
                     errors += "Couldn't find {0} running process\n".format(service_to_check)
 
-        print services_checked
-        assert len(errors) == 0, "Found the following errors while checking for the system services:{0}\n".format(errors)
+        for non_running_service in GeneralSystem.list_non_running_ovs_services(grid_ip):
+            errors += str(non_running_service)
+
+        assert len(errors) == 0,\
+            "Found the following errors while checking for the system services:{0}\n".format(errors)
 
     @staticmethod
     def config_files_check_test():
@@ -112,7 +107,7 @@ class TestSanity(object):
         }
 
         for key_to_check in config_keys:
-            if not Configuration.exists(key_to_check, raw = True):
+            if not Configuration.exists(key_to_check, raw=True):
                 issues_found += "Couldn't find {0}\n".format(key_to_check)
 
         config_files = {
@@ -125,7 +120,8 @@ class TestSanity(object):
             if not client.file_exists(config_files[config_file_to_check]):
                 issues_found += "Couldn't find {0}\n".format(config_file_to_check)
 
-        assert issues_found == '', "Found the following issues while checking for the config files:{0}\n".format(issues_found)
+        assert issues_found == '',\
+            "Found the following issues while checking for the config files:{0}\n".format(issues_found)
 
     @staticmethod
     def json_files_check_test():
@@ -136,8 +132,10 @@ class TestSanity(object):
 
         srs = GeneralStorageRouter.get_storage_routers()
         for sr in srs:
-            config_contents = Configuration.get('/ovs/framework/hosts/{0}/setupcompleted'.format(sr.machine_id), raw = True)
+            config_contents = Configuration.get('/ovs/framework/hosts/{0}/setupcompleted'.format(sr.machine_id),
+                                                raw=True)
             if "true" not in config_contents:
                 issues_found += "Setup not completed for node {0}\n".format(sr.name)
 
-        assert issues_found == '', "Found the following issues while checking for the setupcompleted:{0}\n".format(issues_found)
+        assert issues_found == '',\
+            "Found the following issues while checking for the setupcompleted:{0}\n".format(issues_found)

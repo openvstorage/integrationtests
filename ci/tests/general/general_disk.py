@@ -93,7 +93,7 @@ class GeneralDisk(object):
         :return: List of disks not being used
         """
         # @TODO: Make this call possible on all nodes, not only on node executing the tests
-        all_disks = General.execute_command("""fdisk -l 2>/dev/null| awk '/Disk \/.*:/ {gsub(":","",$s);print $2}'""")[0].splitlines()
+        all_disks = General.execute_command("""fdisk -l 2>/dev/null| awk '/Disk \/.*:/ {gsub(":","",$s);print $2}' | grep -v ram""")[0].splitlines()
         out = General.execute_command("df -h | awk '{print $1}'")[0]
 
         return [d for d in all_disks if d not in out and not 'mapper' in d and not General.execute_command("fuser {0}".format(d))[0]]

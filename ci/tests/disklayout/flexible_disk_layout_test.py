@@ -143,8 +143,6 @@ class TestFlexibleDiskLayout(object):
 
         all_disks = dict(ssds)
         all_disks.update(hdds)
-        print all_disks
-        print all_disks.keys()
 
         # check no partitions are modelled for unused disks
         partitions = GeneralDisk.get_disk_partitions()
@@ -177,18 +175,26 @@ class TestFlexibleDiskLayout(object):
 
         assert mountpoint, 'New partition was not detected in model'
 
+        GeneralDisk.configure_disk(storagerouter=my_sr,
+                                   disk=disk,
+                                   offset=0,
+                                   partition=partition,
+                                   size=int(disk.size),
+                                   roles=[])
+
         # cleanup disk partition
-        cmd = 'umount {0}; rmdir {0}'.format(mountpoint)
+        cmd = 'umount {0}; rmdir {0}; echo 0'.format(mountpoint)
         General.execute_command_on_node(my_sr.ip, cmd)
 
-        cmd = 'parted -s {0} rm 1'.format(disk.path)
+        cmd = 'parted -s /dev/{0} rm 1; echo 0'.format(disk.name)
         General.execute_command_on_node(my_sr.ip, cmd)
 
         # wipe partition table to be able to reuse this disk in another test
-        GeneralVDisk.write_to_volume(location=disk.path,
+        GeneralVDisk.write_to_volume(location=disk.aliases[0],
                                      count=64,
                                      bs='1M',
                                      input_type='zero')
+
         GeneralStorageRouter.sync_with_reality()
 
         # verify partition no longer exists in ovs model
