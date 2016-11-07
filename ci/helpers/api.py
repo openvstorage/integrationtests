@@ -254,6 +254,7 @@ class OVSClient(object):
             task_metadata = self.get('/tasks/{0}/'.format(task_id))
             finished = task_metadata['status'] in ('FAILURE', 'SUCCESS')
             if finished is False:
+                print task_metadata
                 time.sleep(1)
             else:
                 return task_metadata['successful'], task_metadata['result']
