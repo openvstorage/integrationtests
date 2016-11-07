@@ -121,8 +121,7 @@ class VDiskSetup(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Creating vdisk `{0}` on vPool `{1}` on storagerouter `{2}` has failed with error {3}"\
-                .format(vdisk_name, vpool_name, storagerouter_ip, task_result[1])
+            error_msg = "Creating vdisk `{0}` on vPool `{1}` on storagerouter `{2}` has failed with error {3}".format(vdisk_name, vpool_name, storagerouter_ip, task_result[1])
             VDiskSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
