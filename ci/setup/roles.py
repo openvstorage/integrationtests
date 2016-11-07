@@ -61,16 +61,17 @@ class RoleSetup(object):
                 # Check if the partition is in use - could possibly write role on unused partition
                 if partition.mountpoint is None:
                     # Means no output -> partition not mounted
-                    # @Todo support partitions thare not sequentional
+                    # @Todo support partitions that are not sequentional
                     unused_partitions.append(partition)
 
             # Elect biggest unused partition as potential candidate
             biggest_unused_partition = None
             if len(unused_partitions) > 0:
-                biggest_unused_partition = disk.partitions[max(xrange(len(unused_partitions)), key=[partition.size for partition in unused_partitions].__getitem__)]
+                # Sort the list based on size
+                unused_partitions.sort(key=lambda x: x.size, reverse=True)
+                biggest_unused_partition = unused_partitions[0]
             if ((disk.size-total_partition_size)/1024**3) > min_size:
                 # disk is still large enough, let the partitioning begin and apply some roles!
-                print "offset = {0}".format(total_partition_size+1)
                 RoleSetup._configure_disk(storagerouter_guid=storagerouter_guid, disk_guid=disk.guid, offset=total_partition_size+1,
                                           size=(disk.size-total_partition_size)-1, roles=roles, api=api)
             elif biggest_unused_partition is not None and (biggest_unused_partition.size/1024**3) > min_size:
@@ -122,8 +123,8 @@ class RoleSetup(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Disk partitioning `{0}` has failed on storagerouter `{1}`"\
-                        .format(disk_guid, storagerouter_guid)
+            error_msg = "Disk partitioning `{0}` has failed on storagerouter `{1}` with error '{2}'"\
+                        .format(disk_guid, storagerouter_guid, task_result[1])
             RoleSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
