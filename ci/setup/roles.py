@@ -123,8 +123,8 @@ class RoleSetup(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Disk partitioning `{0}` has failed on storagerouter `{1}`"\
-                        .format(disk_guid, storagerouter_guid)
+            error_msg = "Disk partitioning `{0}` has failed on storagerouter `{1}` with error '{2}'"\
+                        .format(disk_guid, storagerouter_guid, task_result[1])
             RoleSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
