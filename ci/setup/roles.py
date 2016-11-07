@@ -70,11 +70,8 @@ class RoleSetup(object):
                 # Sort the list based on size
                 unused_partitions.sort(key=lambda x: x.size, reverse=True)
                 biggest_unused_partition = unused_partitions[0]
-                print biggest_unused_partition
-                raise ValueError('REMOVE ME')
             if ((disk.size-total_partition_size)/1024**3) > min_size:
                 # disk is still large enough, let the partitioning begin and apply some roles!
-                print "offset = {0}".format(total_partition_size+1)
                 RoleSetup._configure_disk(storagerouter_guid=storagerouter_guid, disk_guid=disk.guid, offset=total_partition_size+1,
                                           size=(disk.size-total_partition_size)-1, roles=roles, api=api)
             elif biggest_unused_partition is not None and (biggest_unused_partition.size/1024**3) > min_size:
