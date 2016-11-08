@@ -23,6 +23,7 @@ from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
 from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.vdisk import VDisk
+from ovs.extensions.storageserver.storagedriver import StorageDriverClient, StorageDriverConfiguration
 
 
 class TestVDisk(object):
@@ -45,18 +46,18 @@ class TestVDisk(object):
         # vdisk_size in GiB
         vdisk_size = 2
         vdisk = GeneralVDisk.create_volume(size=vdisk_size, vpool=vpool, name=disk_name, loop_device=loop, wait=True)
+        storagedriver_config = StorageDriverConfiguration('storagedriver', vdisk.vpool_guid, vdisk.storagedriver_id)
 
-        metadata_page_capacity = 256
-        # 8 bytes non-dedup'ed, 24 bytes for the dedup'ed flavour
-        individual_page_entry = 24
-        metadata_cache_page_size = metadata_page_capacity * individual_page_entry
-        # metadata_cache_capacity depending on volume_size
-        # 100GiB -> 102400
-        # 2GiB -> 2048
-        metadata_cache_capacity = vdisk_size * 1024
-        default_metadata_cache_size = metadata_cache_capacity * metadata_cache_page_size
+        # "size" of a page = amount of entries in a page (addressable by 6 bits)
+        metadata_page_capacity = 64
+        cluster_size = storagedriver_config.configuration.get('volume_manager', {}).get('default_cluster_size', 4096)
+        cache_capacity = int(min(vdisk.size, 2 * 1024 ** 4) / float(metadata_page_capacity * cluster_size))
+
+        default_metadata_cache_size = StorageDriverClient.DEFAULT_METADATA_CACHE_SIZE
 
         def _validate_setting_cache_value(value_to_verify):
+            if value_to_verify > default_metadata_cache_size:
+                value_to_verify = default_metadata_cache_size
             disk_config_params = GeneralVDisk.get_config_params(vdisk)
             disk_config_params['metadata_cache_size'] = value_to_verify
 
@@ -74,13 +75,10 @@ class TestVDisk(object):
             'Expected default cache size: {0}, got {1}'.format(default_metadata_cache_size, default_implicit_value)
 
         # verify set/get of specific value - larger than default
-        _validate_setting_cache_value(10000 * metadata_cache_page_size)
+        _validate_setting_cache_value(10000 * cache_capacity)
 
         # verify set/get of specific value - default value
         _validate_setting_cache_value(default_metadata_cache_size)
-
-        # verify set/get of specific value - smaller than default value
-        _validate_setting_cache_value(100 * metadata_cache_page_size)
 
         GeneralVDisk.delete_volume(vdisk=vdisk, vpool=vpool, loop_device=loop, wait=True)
 

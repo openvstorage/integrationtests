@@ -81,7 +81,7 @@ class GeneralVPool(object):
             if GeneralStorageRouter.has_roles(storagerouter=sr, roles='DB') is False and sr.node_type == 'MASTER':
                 GeneralDisk.add_db_role(sr)
             if GeneralStorageRouter.has_roles(storagerouter=sr, roles=['READ', 'SCRUB', 'WRITE']) is False:
-                GeneralDisk.add_read_write_scrub_roles(sr)
+                GeneralDisk.add_write_scrub_roles(sr)
 
             task_result = GeneralVPool.api.execute_post_action(component='storagerouters',
                                                                guid=sr.guid,

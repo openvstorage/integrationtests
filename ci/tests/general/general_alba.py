@@ -122,8 +122,8 @@ class GeneralAlba(object):
         for sr in storage_routers:
             if GeneralStorageRouter.has_roles(storagerouter=sr, roles='DB') is False:
                 GeneralDisk.add_db_role(sr)
-            if GeneralStorageRouter.has_roles(storagerouter=sr, roles=['READ', 'SCRUB', 'WRITE']) is False:
-                GeneralDisk.add_read_write_scrub_roles(sr)
+            if GeneralStorageRouter.has_roles(storagerouter=sr, roles=['SCRUB', 'WRITE']) is False:
+                GeneralDisk.add_write_scrub_roles(sr)
         backend = GeneralBackend.get_by_name(name)
         if not backend:
             alba_backend = GeneralAlba.add_alba_backend(name)
