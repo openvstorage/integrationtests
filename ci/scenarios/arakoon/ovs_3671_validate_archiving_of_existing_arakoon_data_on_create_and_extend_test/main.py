@@ -73,11 +73,11 @@ class ArakoonArchiving(object):
         for index, storagerouter_ip in enumerate(storagerouters):
 
             # create required directories in cluster_basedir
-            root_client = SSHClient(storagerouter_ip, username='root')
+            root_client = SSHClient(storagerouter_ip, username='ovs')
             for directory in ['/'.join([cluster_basedir, 'arakoon']), '/var/log/arakoon']:
                 root_client.dir_create(os.path.dirname(directory))
-                root_client.dir_chmod(os.path.dirname(directory), 0755, recursive=True)
-                root_client.dir_chown(os.path.dirname(directory), 'ovs', 'ovs', recursive=True)
+            #    root_client.dir_chmod(os.path.dirname(directory), 0755, recursive=True)
+            #    root_client.dir_chown(os.path.dirname(directory), 'ovs', 'ovs', recursive=True)
 
             # create required files in cluster_basedir
             files_to_create = ['/'.join([cluster_basedir, 'arakoon', cluster_name, 'db', 'one.db']),
@@ -86,8 +86,8 @@ class ArakoonArchiving(object):
             ovs_client = SSHClient(storagerouter_ip, username='ovs')
             for filename in files_to_create:
                 ovs_client.dir_create(os.path.dirname(filename))
-                ovs_client.dir_chmod(os.path.dirname(filename), 0755, recursive=True)
-                ovs_client.dir_chown(os.path.dirname(filename), 'ovs', 'ovs', recursive=True)
+                #ovs_client.dir_chmod(os.path.dirname(filename), 0755, recursive=True)
+                #ovs_client.dir_chown(os.path.dirname(filename), 'ovs', 'ovs', recursive=True)
 
             ovs_client.file_create(files_to_create)
             for filename in files_to_create:
