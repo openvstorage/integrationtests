@@ -130,11 +130,6 @@
             "roles": [
               "WRITE"
             ]
-          },
-          "sdg": {
-            "roles": [
-              "READ"
-            ]
           }
         },
         "vpools": {
@@ -150,10 +145,7 @@
               "sco_size": 4,
               "cluster_size": 4,
               "volume_write_buffer": 512,
-              "strategy": "none",
               "global_write_buffer": 2,
-              "global_read_buffer": 0,
-              "deduplication": "non_dedupe",
               "dtl_transport": "tcp",
               "dtl_mode": "a_sync"
             }
@@ -178,11 +170,6 @@
             "roles": [
               "WRITE"
             ]
-          },
-          "sdg": {
-            "roles": [
-              "READ"
-            ]
           }
         },
         "vpools": {
@@ -202,10 +189,7 @@
               "sco_size": 4,
               "cluster_size": 4,
               "volume_write_buffer": 512,
-              "strategy": "none",
               "global_write_buffer": 3,
-              "global_read_buffer": 0,
-              "deduplication": "non_dedupe",
               "dtl_transport": "tcp",
               "dtl_mode": "a_sync"
             }
@@ -222,10 +206,7 @@
               "sco_size": 4,
               "cluster_size": 4,
               "volume_write_buffer": 512,
-              "strategy": "none",
               "global_write_buffer": 4,
-              "global_read_buffer": 0,
-              "deduplication": "non_dedupe",
               "dtl_transport": "tcp",
               "dtl_mode": "a_sync"
             }
@@ -250,11 +231,6 @@
             "roles": [
               "WRITE"
             ]
-          },
-          "sdg": {
-            "roles": [
-              "READ"
-            ]
           }
         },
         "vpools": {
@@ -270,10 +246,7 @@
               "sco_size": 4,
               "cluster_size": 4,
               "volume_write_buffer": 512,
-              "strategy": "none",
               "global_write_buffer": 7,
-              "global_read_buffer": 0,
-              "deduplication": "non_dedupe",
               "dtl_transport": "tcp",
               "dtl_mode": "a_sync"
             }

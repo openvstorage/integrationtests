@@ -25,7 +25,7 @@ class VPoolSetup(object):
 
     LOGGER = LogHandler.get(source="setup", name="ci_vpool_setup")
     ADD_VPOOL_TIMEOUT = 500
-    REQUIRED_VPOOL_ROLES = ['DB', 'SCRUB', 'WRITE', 'READ']
+    REQUIRED_VPOOL_ROLES = ['DB', 'SCRUB', 'WRITE']
 
     def __init__(self):
         pass
@@ -55,50 +55,35 @@ class VPoolSetup(object):
         call_parameters = {
             "call_parameters": {
                 "vpool_name": vpool_name,
-                "type": "alba",
-                "backend_connection_info": {
-                    "host": "",
-                    "port": 80,
-                    "username": "",
-                    "password": "",
-                    "backend": {
-                        "backend": BackendHelper.get_albabackend_by_name(vpool_details['backend_name']).guid,
-                        "metadata": vpool_details['preset']
-                    }
-                },
+                "backend_info": {"alba_backend_guid":
+                                 BackendHelper.get_albabackend_by_name(vpool_details['backend_name']).guid,
+                                 "preset": vpool_details['preset']},
+                "connection_info": {"host": "", "port": "", "client_id": "", "client_secret": ""},
                 "storage_ip": vpool_details['storage_ip'],
                 "storagerouter_ip": storagerouter_ip,
-                "readcache_size": int(vpool_details['storagedriver']['global_read_buffer']),
                 "writecache_size": int(vpool_details['storagedriver']['global_write_buffer']),
                 "fragment_cache_on_read": vpool_details['fragment_cache']['strategy']['cache_on_read'],
                 "fragment_cache_on_write": vpool_details['fragment_cache']['strategy']['cache_on_write'],
                 "config_params": {
                     "dtl_mode": vpool_details['storagedriver']['dtl_mode'],
                     "sco_size": int(vpool_details['storagedriver']['sco_size']),
-                    "dedupe_mode": vpool_details['storagedriver']['deduplication'],
                     "cluster_size": int(vpool_details['storagedriver']['cluster_size']),
                     "write_buffer": int(vpool_details['storagedriver']['volume_write_buffer']),
-                    "dtl_transport": vpool_details['storagedriver']['dtl_transport'],
-                    "cache_strategy": vpool_details['storagedriver']['strategy']
+                    "dtl_transport": vpool_details['storagedriver']['dtl_transport']
                 }
             }
         }
 
         # Setting possible alba accelerated alba
         if vpool_details['fragment_cache']['location'] == "backend":
-            aa = {
-                    "host": "",
-                    "port": 80,
-                    "username": "",
-                    "password": "",
-                    "backend": {
-                        "backend":
-                            BackendHelper.get_albabackend_by_name(vpool_details['fragment_cache']['backend']['name'])
-                                .guid,
-                        "metadata": vpool_details['fragment_cache']['backend']['preset']
-                    }
-                 }
-            call_parameters['call_parameters']['backend_connection_info_aa'] = aa
+            backend_info_aa = {
+                "alba_backend_guid":
+                BackendHelper.get_albabackend_by_name(vpool_details['fragment_cache']['backend']['name']).guid,
+                "preset": vpool_details['fragment_cache']['backend']['preset']
+            }
+            connection_info_aa = {"host": "", "port": "", "client_id": "", "client_secret": ""}
+            call_parameters['call_parameters']['backend_info_aa'] = backend_info_aa
+            call_parameters['call_parameters']['connection_info_aa'] = connection_info_aa
         elif vpool_details['fragment_cache']['location'] == "disk":
             pass
         else:
