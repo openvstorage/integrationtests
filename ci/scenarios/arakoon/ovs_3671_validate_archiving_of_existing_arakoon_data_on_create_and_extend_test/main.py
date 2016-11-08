@@ -73,25 +73,19 @@ class ArakoonArchiving(object):
         for index, storagerouter_ip in enumerate(storagerouters):
 
             # create required directories in cluster_basedir
-            root_client = SSHClient(storagerouter_ip, username='ovs')
+            ovs_client = SSHClient(storagerouter_ip, username='ovs')
             for directory in ['/'.join([cluster_basedir, 'arakoon']), '/var/log/arakoon']:
-                root_client.dir_create(os.path.dirname(directory))
-            #    root_client.dir_chmod(os.path.dirname(directory), 0755, recursive=True)
-            #    root_client.dir_chown(os.path.dirname(directory), 'ovs', 'ovs', recursive=True)
+                ovs_client.dir_create(os.path.dirname(directory))
 
             # create required files in cluster_basedir
             files_to_create = ['/'.join([cluster_basedir, 'arakoon', cluster_name, 'db', 'one.db']),
                                '/'.join([cluster_basedir, 'arakoon', cluster_name, 'tlogs', 'one.tlog'])]
-
-            ovs_client = SSHClient(storagerouter_ip, username='ovs')
             for filename in files_to_create:
                 ovs_client.dir_create(os.path.dirname(filename))
-                #ovs_client.dir_chmod(os.path.dirname(filename), 0755, recursive=True)
-                #ovs_client.dir_chown(os.path.dirname(filename), 'ovs', 'ovs', recursive=True)
 
             ovs_client.file_create(files_to_create)
             for filename in files_to_create:
-                assert ovs_client.file_exists(filename) is True, 'File `{0}` not present on storagerouter `{1}`'\
+                assert ovs_client.file_exists(filename), 'File `{0}` is not present on storagerouter `{1}`'\
                     .format(filename, storagerouter_ip)
 
             archived_files = ['/'.join(['/var/log/arakoon', cluster_name, 'archive', 'one.log'])]
@@ -128,6 +122,8 @@ class ArakoonArchiving(object):
             for filename in files_to_create:
                 assert ovs_client.file_exists(filename) is False, 'File `{0}` is missing on storagerouter `{1}`'\
                     .format(filename, storagerouter_ip)
+            # remove cluster_base_dir
+            ovs_client.dir_delete(os.path.dirname("{0}/arakoon".format(cluster_basedir)))
 
     @staticmethod
     def check_archived_directory(client, archived_files):
