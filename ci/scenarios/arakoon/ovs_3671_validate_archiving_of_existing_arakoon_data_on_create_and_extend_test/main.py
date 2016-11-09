@@ -123,7 +123,7 @@ class ArakoonArchiving(object):
                 assert ovs_client.file_exists(filename) is False, 'File `{0}` is missing on storagerouter `{1}`'\
                     .format(filename, storagerouter_ip)
             # remove cluster_base_dir
-            ovs_client.dir_delete(os.path.dirname("{0}/arakoon".format(cluster_basedir)))
+            ovs_client.dir_delete("{0}/arakoon".format(cluster_basedir))
 
     @staticmethod
     def check_archived_directory(client, archived_files):
