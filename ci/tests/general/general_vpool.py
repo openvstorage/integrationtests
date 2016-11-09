@@ -80,9 +80,10 @@ class GeneralVPool(object):
             vpool_name = storagerouter_param_map[sr]['vpool_name']
             if GeneralStorageRouter.has_roles(storagerouter=sr, roles='DB') is False and sr.node_type == 'MASTER':
                 GeneralDisk.add_db_role(sr)
-            if GeneralStorageRouter.has_roles(storagerouter=sr, roles=['READ', 'SCRUB', 'WRITE']) is False:
-                GeneralDisk.add_read_write_scrub_roles(sr)
+            if GeneralStorageRouter.has_roles(storagerouter=sr, roles=['SCRUB', 'WRITE']) is False:
+                GeneralDisk.add_write_scrub_roles(sr)
 
+            print storagerouter_param_map[sr]
             task_result = GeneralVPool.api.execute_post_action(component='storagerouters',
                                                                guid=sr.guid,
                                                                action='add_vpool',
@@ -169,11 +170,9 @@ class GeneralVPool(object):
                         'storagerouter_ip': storagerouter.ip,
                         'config_params': {'dtl_mode': kwargs.get('dtl_mode', config_params.get('dtl_mode', 'a_sync')),
                                           'sco_size': kwargs.get('sco_size', config_params.get('sco_size', 4)),
-                                          'dedupe_mode': kwargs.get('dedupe_mode', config_params.get('dedupe_mode', 'dedupe')),
                                           'cluster_size': kwargs.get('cluster_size', config_params.get('cluster_size', 4)),
                                           'write_buffer': kwargs.get('write_buffer', config_params.get('write_buffer', 128)),
-                                          'dtl_transport': kwargs.get('dtl_transport', config_params.get('dtl_transport', 'tcp')),
-                                          'cache_strategy': kwargs.get('cache_strategy', config_params.get('cache_strategy', 'on_read'))},
+                                          'dtl_transport': kwargs.get('dtl_transport', config_params.get('dtl_transport', 'tcp'))},
                         'backend_connection_info': {'host': ''}}
         if vpool_type not in ['local', 'distributed']:
             vpool_params['backend_connection_info'] = {'host': kwargs.get('alba_connection_host', test_config.get('vpool', 'alba_connection_host')),
@@ -214,9 +213,6 @@ class GeneralVPool(object):
                 volumedriver_mode = Configuration.get('/ovs/framework/hosts/{0}/storagedriver|vmware_mode'.format(storagedriver.storagerouter.machine_id))
                 if volumedriver_mode == 'ganesha':
                     files.add('/opt/OpenvStorage/config/storagedriver/storagedriver/{0}_ganesha.conf'.format(vpool.name))
-            for partition in storagedriver.partitions:
-                if partition.role == DiskPartition.ROLES.READ:
-                    files.add('{0}/read.dat'.format(partition.path))
             all_files[storagedriver.storagerouter.guid] = files
         return all_files
 
@@ -231,12 +227,8 @@ class GeneralVPool(object):
         for storagedriver in vpool.storagedrivers:
             directories = set()
             directories.add('/mnt/{0}'.format(vpool.name))
-            directories.add('{0}/{1}'.format(Configuration.get('/ovs/framework/hosts/{0}/storagedriver|rsp'.format(storagedriver.storagerouter.machine_id)), vpool.name))
             for partition in storagedriver.partitions:
-                if partition.role != DiskPartition.ROLES.READ:
-                    directories.add(partition.path)
-            if vpool.backend_type.code == 'distributed' and storagedriver.mountpoint_dfs is not None:
-                directories.add('{0}/fd-{1}-{2}'.format(storagedriver.mountpoint_dfs, vpool.name, vpool.guid))
+                directories.add(partition.path)
             all_directories[storagedriver.storagerouter.guid] = directories
         return all_directories
 
@@ -264,7 +256,6 @@ class GeneralVPool(object):
 
         # Verify some basic vPool attributes
         assert vpool.name == vpool_name, 'Expected name {0} for vPool'.format(vpool_name)
-        assert vpool.backend_type.code == backend_type, 'Expected backend type {0}'.format(backend_type)
         assert vpool.status == VPool.STATUSES.RUNNING, 'vPool does not have RUNNING status'
         assert vpool.rdma_enabled == rdma_enabled, 'RDMA enabled setting is incorrect'
         assert set(expected_settings.keys()) == set([sd.storagerouter for sd in vpool.storagedrivers]), "vPool storagerouters don't match the expected Storage Routers"
@@ -288,11 +279,9 @@ class GeneralVPool(object):
         config = generic_settings['config_params']
         dtl_mode = config['dtl_mode']
         sco_size = config['sco_size']
-        dedupe_mode = config['dedupe_mode']
         cluster_size = config['cluster_size']
         write_buffer = config['write_buffer']
         dtl_transport = config['dtl_transport']
-        cache_strategy = config['cache_strategy']
         # @TODO: Add more validations for other expected settings (instead of None)
         expected_config = {'backend_connection_manager': {'backend_interface_retries_on_error': 5,
                                                           'backend_interface_retry_interval_secs': 1,
@@ -329,8 +318,6 @@ class GeneralVPool(object):
                                               'metadata_path': None,
                                               'non_disposable_scos_factor': float(write_buffer) / StorageDriverClient.TLOG_MULTIPLIER_MAP[sco_size] / sco_size,
                                               'number_of_scos_in_tlog': StorageDriverClient.TLOG_MULTIPLIER_MAP[sco_size],
-                                              'read_cache_default_behaviour': StorageDriverClient.VPOOL_CACHE_MAP[cache_strategy],
-                                              'read_cache_default_mode': StorageDriverClient.VPOOL_DEDUPE_MAP[dedupe_mode],
                                               'tlog_path': None},
                            'volume_registry': {'vregistry_arakoon_cluster_id': u'voldrv',
                                                'vregistry_arakoon_cluster_nodes': None},
@@ -354,37 +341,7 @@ class GeneralVPool(object):
                           'extra': [],
                           'master': ['ovs-arakoon-voldrv']}
         sd_partitions = {'DB': ['MD', 'MDS', 'TLOG'],
-                         'READ': ['None'],
                          'WRITE': ['FD', 'DTL', 'SCO']}
-
-        if backend_type == 'alba':
-            backend_metadata = {'name': (str, None),
-                                'preset': (str, Toolbox.regex_preset),
-                                'backend_guid': (str, Toolbox.regex_guid),
-                                'arakoon_config': (dict, None),
-                                'connection': (dict, {'host': (str, Toolbox.regex_ip, False),
-                                                      'port': (int, {'min': 1, 'max': 65535}),
-                                                      'client_id': (str, Toolbox.regex_guid),
-                                                      'client_secret': (str, None),
-                                                      'local': (bool, None)}),
-                                'backend_info': (dict, {'policies': (list, None),
-                                                        'sco_size': (float, None),
-                                                        'frag_size': (float, None),
-                                                        'total_size': (float, None)})}
-            required = {'backend': (dict, backend_metadata),
-                        'backend_aa': (dict, backend_metadata, False)}
-            Toolbox.verify_required_params(required_params=required,
-                                           actual_params=vpool.metadata)
-            vpool_services['all'].append("ovs-albaproxy_{0}".format(vpool.name))
-            sd_partitions['WRITE'].append('FCACHE')
-            expected_config['backend_connection_manager'].update({'alba_connection_host': None,
-                                                                  'alba_connection_port': None,
-                                                                  'alba_connection_preset': None,
-                                                                  'alba_connection_timeout': 15,
-                                                                  'backend_type': u'{0}'.format(vpool.backend_type.code.upper())})
-        elif backend_type == 'distributed':
-            expected_config['backend_connection_manager'].update({'backend_type': u'LOCAL',
-                                                                  'local_connection_path': u'{0}'.format(generic_settings['distributed_mountpoint'])})
 
         assert Configuration.exists('/ovs/arakoon/voldrv/config', raw=True), 'Volumedriver arakoon does not exist'
 

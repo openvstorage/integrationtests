@@ -121,7 +121,6 @@ class GeneralStorageRouter(object):
         Retrieve metadata for a Storage Router
         Example return value:
             {'ipaddresses': ['10.100.174.254', '172.22.1.100', '192.168.122.1'],
-             'mountpoints': ['/mnt/ssd1', '/mnt/ssd2'],
              'partitions': {'BACKEND': [{'available': 1000202043392,
                                          'guid': '9ec473ad-5c3f-4fdb-a4ef-c99bb4449025',
                                          'in_use': False,
@@ -136,13 +135,6 @@ class GeneralStorageRouter(object):
                                     'size': 425200713728,
                                     'ssd': False,
                                     'storagerouter_guid': u'f5155bc2-b238-4a94-b6ce-b5600e65607a'}],
-                            'READ': [{'available': 60016295936,
-                                      'guid': '56cab190-8a16-4c05-bf8c-13d2aae06371',
-                                      'in_use': False,
-                                      'mountpoint': u'/mnt/ssd1',
-                                      'size': 60016295936,
-                                      'ssd': True,
-                                      'storagerouter_guid': u'f5155bc2-b238-4a94-b6ce-b5600e65607a'}],
                             'SCRUB': [{'available': 340160570983,
                                        'guid': 'c0064548-c0be-474d-a66b-da65639831f8',
                                        'in_use': False,
@@ -157,9 +149,7 @@ class GeneralStorageRouter(object):
                                        'size': 60016295936,
                                        'ssd': True,
                                        'storagerouter_guid': u'f5155bc2-b238-4a94-b6ce-b5600e65607a'}]},
-             'readcache_size': 60016295936,
              'scrub_available': True,
-             'shared_size': 0,
              'writecache_size': 60016295936}
 
         :param storagerouter: Storage Router to retrieve metadata for
@@ -174,13 +164,10 @@ class GeneralStorageRouter(object):
         assert result is True, 'Retrieving metadata failed for Storage Router {0}'.format(storagerouter.name)
 
         required_params = {'ipaddresses': (list, Toolbox.regex_ip),
-                           'mountpoints': (list, str),
                            'partitions': (dict, None),
-                           'readcache_size': (int, {'min': 0}),
                            'scrub_available': (bool, None),
-                           'shared_size': (int, {'min': 0}),
                            'writecache_size': (int, {'min': 0})}
-        Toolbox.verify_required_params(required_params = required_params,
+        Toolbox.verify_required_params(required_params=required_params,
                                        actual_params=metadata,
                                        exact_match=True)
         return metadata

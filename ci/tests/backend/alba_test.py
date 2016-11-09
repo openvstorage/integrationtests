@@ -353,7 +353,14 @@ class TestALBA(object):
     @staticmethod
     def ovs_3977_maintenance_agent_test():
         """
-        Test maintenance agent processes
+        Test maintenance agent processes distribution:
+        Logic:
+        - local backend:
+        -- only on nodes who have an asd claimed for a backend
+        -- up to nr in config key
+        -- at least one if not a single asd node has an asd claimed
+        - global backend: nr gets deployed as requested as claimed asds does not matter in this case,
+          if sufficient asdnodes are available
         """
         alba_backend = GeneralAlba.get_by_name(TestALBA.backend_name)
         alba_node_ips = [node.ip for node in GeneralAlba.get_alba_nodes()]
