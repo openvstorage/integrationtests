@@ -473,6 +473,17 @@ def _get_description(plan_comment="", durations=""):
     if child_process.returncode != 0:
         sysinfo = "NO MOTHERBOARD INFORMATION FOUND"
 
+    child_process = subprocess.Popen(args="cat /etc/lsb-release",
+                                     shell=True,
+                                     stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+    osinfo, _ = child_process.communicate()
+    if child_process.returncode != 0:
+        osinfo = "NO OS INFORMATION FOUND"
+
+    sysinfo += osinfo
+
     child_process = subprocess.Popen(args="lshw -short",
                                      shell=True,
                                      stdin=subprocess.PIPE,
