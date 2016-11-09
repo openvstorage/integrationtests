@@ -274,7 +274,7 @@ class GeneralDisk(object):
     @staticmethod
     def add_write_scrub_roles(storagerouter):
         """
-        Add READ, WRITE, SCRUB roles to a Storage Router
+        Add WRITE, SCRUB roles to a Storage Router
         :param storagerouter: Storage Router
         :return: None
         """
