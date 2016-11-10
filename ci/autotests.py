@@ -38,7 +38,7 @@ TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testrail.json"
 EXCLUDE_FLAG = "-exclude"
 
 
-def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False):
+def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True):
     """
     Run single, multiple or all test scenarios
 
@@ -49,6 +49,8 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
     :type send_to_testrail: bool
     :param fail_on_failed_scenario: the run will block all other tests if one scenario would fail
     :type fail_on_failed_scenario: bool
+    :param only_add_given_results: ONLY ADD the given cases in results
+    :type only_add_given_results: bool
     :returns: results and possible testrail url
     :rtype: tuple
     """
@@ -106,7 +108,7 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
 
     LOGGER.info("Start pushing tests to testrail ...")
     if send_to_testrail:
-        plan_url = push_to_testrail(results)
+        plan_url = push_to_testrail(results, only_add_given_cases=only_add_given_results)
         return results, plan_url
 
     LOGGER.info("Finished tests...")
@@ -137,17 +139,19 @@ def list_tests():
     return scenarios
 
 
-def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True):
+def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True, only_add_given_cases=False):
     """
     Push results to testtrail
 
     :param config_path: path to testrail config file
     :type config_path: str
-    :param results: tests and results of test (e.g {'ci.scenarios.arakoon.collapse': {'status': 'NOK'},
-                                                    'ci.scenarios.arakoon.archive': {'status': 'OK'}})
+    :param results: tests and results of test (e.g {'ci.scenarios.arakoon.collapse': {'status': 'FAILED'},
+                                                    'ci.scenarios.arakoon.archive': {'status': 'PASSED'}})
     :type results: dict
     :param skip_on_no_results: set the untested tests on SKIPPED
     :type skip_on_no_results: bool
+    :param only_add_given_cases: ONLY ADD the given cases in results
+    :type only_add_given_cases: bool
     :return: Testrail URL to test plan
     :rtype: str
     """
@@ -170,7 +174,7 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
         if not testtrail_config['username'] and testtrail_config['password']:
             raise RuntimeError("Invalid username or password specified for testrail")
         else:
-            tapi = TestrailApi(testtrail_config['url'], username=testtrail_config['username'],
+            tapi = TestrailApi(server=testtrail_config['url'], user=testtrail_config['username'],
                                password=testtrail_config['password'])
     else:
         tapi = TestrailApi(testtrail_config['url'], key=testtrail_config['key'])
@@ -203,7 +207,21 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
     # add plan
     plan = tapi.add_plan(project_id, test_title, description)
     # link suite to plan
-    entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'])
+
+    if not only_add_given_cases:
+        # add all tests to the test_suite, regardless of execution
+        entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'])
+    else:
+        # collect case_ids of executed tests
+        executed_case_ids = []
+        for test_case in results.iterkeys():
+            section_id = tapi.get_section_by_name(project_id, suite_id, test_case.split('.')[2].title().strip())['id']
+            executed_case_ids.append(tapi.get_case_by_name(project_id=project_id, suite_id=suite_id,
+                                                           name=test_case.split('.')[3], section_id=section_id)['id'])
+        print executed_case_ids
+        # only add tests to test_suite that have been executed
+        entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'], case_ids=executed_case_ids,
+                                    include_all=False)
 
     # add results to test cases
     run_id = entry['runs'][0]['id']
