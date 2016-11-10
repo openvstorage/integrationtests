@@ -111,7 +111,8 @@ class FioOnVDiskChecks(object):
             .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
 
         # check if image exists
-        assert client.file_exists(images[0]), "Image `{0}` does not exists!".format(images[0])
+        assert client.file_exists(images[0]), "Image `{0}` does not exists on `{1}`!"\
+            .format(images[0], storagedriver.storage_ip)
         image_path = images[0]
 
         # deploy vdisks via edge & link blktap
@@ -165,15 +166,6 @@ class FioOnVDiskChecks(object):
             except subprocess.CalledProcessError as ex:
                 raise ImageConvertError("Could not convert/tap image `{0}` on `{1}`, failed with error {2}"
                                         .format(image_path, storage_ip, ex))
-
-        # deploy a simple vdisk via api and delete it again
-        api_disk_name = FioOnVDiskChecks.PREFIX+'api.raw'
-        VDiskSetup.create_vdisk(vdisk_name=api_disk_name, vpool_name=vpool.name,
-                                size=FioOnVDiskChecks.VDISK_SIZE,
-                                storagerouter_ip=storagedriver.storagerouter.ip, api=api)
-        VDiskRemover.remove_vdisk_by_name(api_disk_name, vpool.name)
-
-        # @TODO: add tgt
 
 
 def run(blocked=False):
