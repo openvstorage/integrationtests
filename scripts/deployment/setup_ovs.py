@@ -273,13 +273,11 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
                 remote_con.process.execute('apt-get update')
                 remote_con.process.execute('apt-get install -y ntp')
                 remote_con.process.execute('apt-get install -y python-djangorestframework=2.3.12-1')
-                remote_con.process.execute('apt-get install -y volumedriver-no-dedup-server')
                 break
             elif key == 'DISTRIB_RELEASE=14.04':
                 remote_con.process.execute('echo "deb http://apt.openvstorage.org {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
                 remote_con.process.execute('apt-get update')
                 remote_con.process.execute('apt-get install -y ntp')
-                remote_con.process.execute('apt-get install -y --allow-unauthenticated volumedriver-no-dedup-server')
                 break
 
     # qemu / libvirt ovs specific changes
