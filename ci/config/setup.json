@@ -31,6 +31,44 @@
         "name": "mybackend",
         "domains": {"domain_guids":["Roubaix"]},
         "scaling": "LOCAL",
+        "external_arakoon": {
+            "10.100.199.151": {
+                "ssd_roub_abm": {
+                   "type": "ABM",
+                   "base_dir": "/mnt/hdd1/ovh/"
+                },
+                "ssd_roub_nsm_1": {
+                   "type": "NSM",
+                   "base_dir": "/mnt/hdd1/ovh/"
+                },
+                "ssd_roub_nsm_2": {
+                   "type": "NSM",
+                   "base_dir": "/mnt/hdd1/ovh/"
+                },
+                "ssd_roub_nsm_3": {
+                   "type": "NSM",
+                   "base_dir": "/mnt/hdd1/ovh/"
+                }
+            },
+            "10.100.199.152": {
+                "ssd_roub_abm": {
+                   "type": "ABM",
+                   "base_dir": "/mnt/hdd1/ovh/"
+                },
+                "ssd_roub_nsm_1": {
+                   "type": "NSM",
+                   "base_dir": "/mnt/hdd1/ovh/"
+                },
+                "ssd_roub_nsm_2": {
+                   "type": "NSM",
+                   "base_dir": "/mnt/hdd1/ovh/"
+                },
+                "ssd_roub_nsm_3": {
+                   "type": "NSM",
+                   "base_dir": "/mnt/hdd1/ovh/"
+                }
+            }
+        },
         "presets": [
           {
             "name": "mypreset",

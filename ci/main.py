@@ -27,6 +27,7 @@ from ci.helpers.api import OVSClient
 from ci.setup.roles import RoleSetup
 from ci.setup.vpool import VPoolSetup
 from ci.setup.domain import DomainSetup
+from ci.setup.arakoon import ArakoonSetup
 from ci.setup.backend import BackendSetup
 from ovs.log.log_handler import LogHandler
 from ci.remove.backend import BackendRemover
@@ -62,6 +63,43 @@ class Workflow(object):
             if not self.config['ci']['cleanup']:
                 break
 
+    @staticmethod
+    def setup_external_arakoons(backend):
+        """
+        Setup external arakoons for a backend
+
+        :param backend: all backend details
+        :type backend: dict
+        :return: mapped external arakoons
+        :rtype: dict
+        """
+
+        external_arakoon_mapping = {}
+        for ip, arakoons in backend['external_arakoon'].iteritems():
+            for arakoon_name, arakoon_settings in arakoons.iteritems():
+                # check if we already created one or not
+                if arakoon_name not in external_arakoon_mapping:
+                    # if not created yet, create one and map it
+                    external_arakoon_mapping[arakoon_name] = {}
+                    external_arakoon_mapping[arakoon_name]['master'] = ip
+                    external_arakoon_mapping[arakoon_name]['all'] = [ip]
+                    ArakoonSetup.add_arakoon(cluster_name=arakoon_name, storagerouter_ip=ip,
+                                             cluster_basedir=arakoon_settings['base_dir'],
+                                             service_type=arakoon_settings['type'])
+                else:
+                    # if created, extend it and map it
+                    external_arakoon_mapping[arakoon_name]['all'].append(ip)
+                    ArakoonSetup.extend_arakoon(cluster_name=arakoon_name,
+                                                master_storagerouter_ip=
+                                                external_arakoon_mapping[arakoon_name]['master'],
+                                                storagerouter_ip=ip,
+                                                cluster_basedir=arakoon_settings['base_dir'],
+                                                service_type=arakoon_settings['type'],
+                                                clustered_nodes=
+                                                external_arakoon_mapping[arakoon_name]['all'])
+
+        return external_arakoon_mapping
+
     def setup(self):
         """
         Setup a Open vStorage cluster based on a config file
@@ -95,6 +133,12 @@ class Workflow(object):
             Workflow.LOGGER.info("Setup `LOCAL` backends")
             for backend in self.config['setup']['backends']:
                 if backend['scaling'] == "LOCAL":
+                    # check if possibly we need to setup external arakoons
+                    if 'external_arakoon' in backend:
+                        Workflow.LOGGER.info("Add external arakoons")
+                        self.setup_external_arakoons(backend)
+                        Workflow.LOGGER.info("Finished adding external arakoons")
+
                     BackendSetup.add_backend(backend_name=backend['name'], api=self.api, scaling="LOCAL")
 
                     # Add domains
@@ -110,7 +154,8 @@ class Workflow(object):
                     # Initialize and claim asds
                     Workflow.LOGGER.info("Initialize and claim asds")
                     for storagenode_ip, disks in backend['osds'].iteritems():
-                        BackendSetup.add_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks, api=self.api)
+                        BackendSetup.add_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks,
+                                              api=self.api)
                 else:
                     pass
 
@@ -118,6 +163,12 @@ class Workflow(object):
             Workflow.LOGGER.info("Setup `GLOBAL` backends")
             for backend in self.config['setup']['backends']:
                 if backend['scaling'] == "GLOBAL":
+                    # check if possibly we need to setup external arakoons
+                    if 'external_arakoon' in backend:
+                        Workflow.LOGGER.info("Add external arakoons")
+                        self.setup_external_arakoons(backend)
+                        Workflow.LOGGER.info("Finished adding external arakoons")
+
                     BackendSetup.add_backend(backend_name=backend['name'], api=self.api, scaling="GLOBAL")
 
                     # Add domains
@@ -190,7 +241,8 @@ class Workflow(object):
                 # Remove asds
                 Workflow.LOGGER.info("Remove asds")
                 for storagenode_ip, disks in backend['osds'].iteritems():
-                    BackendRemover.remove_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks, api=self.api)
+                    BackendRemover.remove_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks,
+                                               api=self.api)
 
                 # Remove backend
                 Workflow.LOGGER.info("Remove backend")

@@ -221,7 +221,6 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
                                                   .strip())['id']
             executed_case_ids.append(tapi.get_case_by_name(project_id=project_id, suite_id=suite_id,
                                                            name=test_case.split('.')[3], section_id=section_id)['id'])
-        print executed_case_ids
         # only add tests to test_suite that have been executed
         entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'], case_ids=executed_case_ids,
                                     include_all=False)
