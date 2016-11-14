@@ -223,7 +223,7 @@ class TestDiskRoles(object):
                 ip: {
                     "disks": [{
                         "disk_name": TestDiskRoles.get_first_unused_disk(),
-                        "roles": ["WRITE", "READ", "SCRUB"]
+                        "roles": ["WRITE", "SCRUB"]
                     }]
                 }
             }
@@ -276,7 +276,7 @@ class TestDiskRoles(object):
                 ip: {
                     "disks": [{
                         "disk_name": TestDiskRoles.get_first_unused_disk(),
-                        "roles": ["WRITE", "READ", "SCRUB"]
+                        "roles": ["WRITE", "SCRUB"]
                     }]
                 }
             }

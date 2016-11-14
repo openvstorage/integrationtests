@@ -136,7 +136,7 @@ class TestVMachine(object):
         """
         Check scrubbing of vdisks test
         """
-        initial_counter = 300
+        initial_counter = 100
         step = 5
         vdisk = None
         vpool_name = General.get_config().get('vpool', 'name')

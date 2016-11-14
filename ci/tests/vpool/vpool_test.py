@@ -63,7 +63,6 @@ class TestVPool(object):
         # Retrieve vPool information before removal
         guid = vpool.guid
         name = vpool.name
-        backend_type = vpool.backend_type.code
         files = GeneralVPool.get_related_files(vpool)
         directories = GeneralVPool.get_related_directories(vpool)
         storagerouters = [sd.storagerouter for sd in vpool.storagedrivers]
@@ -74,72 +73,10 @@ class TestVPool(object):
         assert vpool is None, 'vPool {0} was not deleted'.format(vpool_name)
         GeneralVPool.check_vpool_cleanup(vpool_info={'guid': guid,
                                                      'name': name,
-                                                     'type': backend_type,
+                                                     'type': 'alba',
                                                      'files': files,
                                                      'directories': directories},
                                          storagerouters=storagerouters)
-
-    @staticmethod
-    def add_remove_distributed_vpool_test():
-        """
-        Create a vPool with 'distributed' BackendType and remove it
-        Related ticket: http://jira.cloudfounders.com/browse/OVS-4050
-        """
-        # Verify if an unused disk is available to mount
-        unused_disks = GeneralDisk.get_unused_disks()
-        if len(unused_disks) == 0:
-            GeneralVPool.logger.info('No available disks found to mount locally for the distributed backend')
-            return
-
-        # Raise if vPool already exists
-        vpool_name = 'add-remove-distr-vpool'
-        vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
-        if vpool is not None:
-            raise RuntimeError('vPool with name "{0}" still exists'.format(vpool_name))
-
-        unused_disk = unused_disks[0]
-        if not unused_disk.startswith('/dev/'):
-            raise ValueError('Unused disk must be absolute path')
-
-        # Create a partition on the disk
-        local_sr = GeneralStorageRouter.get_local_storagerouter()
-        disk = GeneralDisk.get_disk_by_devicename(storagerouter=local_sr,
-                                                  device_name=unused_disk)
-        partition = GeneralDisk.partition_disk(disk=disk)
-
-        # Mount the unused disk
-        if partition.mountpoint is None:
-            GeneralDisk.configure_disk(storagerouter=local_sr, disk=disk, offset=0, size=disk.size, roles=[],
-                                       partition=partition)
-            partition.discard()  # Re-initializes the object
-
-        # Add vPool and validate health
-        vpool, vpool_params = GeneralVPool.add_vpool(vpool_parameters={'vpool_name': vpool_name,
-                                                                       'type': 'distributed',
-                                                                       'distributed_mountpoint': partition.mountpoint},
-                                                     storagerouters=[local_sr])
-        assert vpool is not None, 'vPool {0} was not created'.format(vpool_name)
-        GeneralVPool.validate_vpool_sanity(expected_settings=vpool_params)
-
-        # Retrieve vPool information before removal
-        guid = vpool.guid
-        name = vpool.name
-        backend_type = vpool.backend_type.code
-        files = GeneralVPool.get_related_files(vpool)
-        directories = GeneralVPool.get_related_directories(vpool)
-        storagerouters = [sd.storagerouter for sd in vpool.storagedrivers]
-
-        # Remove vPool and validate removal
-        GeneralVPool.remove_vpool(vpool=vpool)
-        vpool = GeneralVPool.get_vpool_by_name(vpool_name=vpool_name)
-        assert vpool is None, 'vPool {0} was not deleted'.format(vpool_name)
-        GeneralVPool.check_vpool_cleanup(vpool_info={'guid': guid,
-                                                     'name': name,
-                                                     'type': backend_type,
-                                                     'files': files,
-                                                     'directories': directories},
-                                         storagerouters=storagerouters)
-        GeneralDisk.unpartition_disk(disk)
 
     @staticmethod
     def ovs_2263_verify_alba_namespace_cleanup_test():

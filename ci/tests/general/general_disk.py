@@ -272,9 +272,9 @@ class GeneralDisk(object):
             raise RuntimeError('Removing partitions failed for disk:\n {0} '.format(disk.name))
 
     @staticmethod
-    def add_read_write_scrub_roles(storagerouter):
+    def add_write_scrub_roles(storagerouter):
         """
-        Add READ, WRITE, SCRUB roles to a Storage Router
+        Add WRITE, SCRUB roles to a Storage Router
         :param storagerouter: Storage Router
         :return: None
         """
@@ -285,7 +285,7 @@ class GeneralDisk(object):
         if len(disks) == 1:
             disk = disks[0]
             if len(disk.partitions) == 0:
-                partition_roles[GeneralDisk.partition_disk(disk)] = ['READ', 'WRITE', 'SCRUB']
+                partition_roles[GeneralDisk.partition_disk(disk)] = ['WRITE', 'SCRUB']
         elif len(disks) > 1:
             disks_to_partition = [disk for disk in disks if disk.storagerouter == storagerouter and
                                   not disk.partitions_guids and disk.is_ssd]
@@ -299,12 +299,12 @@ class GeneralDisk(object):
             if len(ssds) == 0:
                 if len(hdds) < 2:
                     raise ValueError('Insufficient hard disks found on storagerouter {0}. Expected 2'.format(storagerouter.name))
-                partition_roles[hdds[0].partitions[0]] = ['READ']
-                partition_roles[hdds[1].partitions[0]] = ['WRITE', 'SCRUB']
+                partition_roles[hdds[0].partitions[0]] = ['WRITE']
+                partition_roles[hdds[1].partitions[0]] = ['SCRUB']
             elif len(ssds) == 1:
-                partition_roles[ssds[0].partitions[0]] = ['WRITE', 'READ', 'SCRUB']
+                partition_roles[ssds[0].partitions[0]] = ['WRITE', 'SCRUB']
             elif len(ssds) >= 2:
-                partition_roles[ssds[0].partitions[0]] = ['READ', 'SCRUB']
+                partition_roles[ssds[0].partitions[0]] = ['SCRUB']
                 partition_roles[ssds[1].partitions[0]] = ['WRITE']
 
         for partition, roles in partition_roles.iteritems():
