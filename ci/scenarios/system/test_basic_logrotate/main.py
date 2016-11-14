@@ -38,7 +38,7 @@ class LogrotateChecks(object):
         """
         if not blocked:
             try:
-                LogrotateChecks.validate_add_append_remove_roles()
+                LogrotateChecks.validate_basic_log_rotate()
                 return {'status': 'PASSED', 'case_type': LogrotateChecks.CASE_TYPE, 'errors': None}
             except Exception as ex:
                 LogrotateChecks.LOGGER.error("Checking basic logrotated failed with error: {0}".format(str(ex)))
@@ -47,11 +47,9 @@ class LogrotateChecks(object):
             return {'status': 'BLOCKED', 'case_type': LogrotateChecks.CASE_TYPE, 'errors': None}
 
     @staticmethod
-    def validate_add_append_remove_roles():
+    def validate_basic_log_rotate():
         """
-        Validate a add role, remove roles and append
-
-        You need at least 1 free partition on a storagerouter
+        Validate that a basic logrotate script works
 
         :return:
         """

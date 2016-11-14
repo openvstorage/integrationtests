@@ -28,7 +28,7 @@ from ovs.extensions.generic.sshclient import SSHClient
 
 class VDiskDeploymentChecks(object):
 
-    CASE_TYPE = 'FUNCTIONALITY'
+    CASE_TYPE = 'FUNCTIONAL'
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_vdisk_deployment")
     PREFIX = "integration-tests-deployment-"
     VDISK_SIZES = [2147483648000, 4294967296000, 8589934592000, 17179869184000, 34359738368000, 68719476736000]
