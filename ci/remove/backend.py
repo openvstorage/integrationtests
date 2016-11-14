@@ -16,6 +16,7 @@
 import time
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
+from ci.helpers.albanode import AlbaNodeHelper
 from ci.helpers.storagerouter import StoragerouterHelper
 from ci.validate.decorators import required_backend, required_preset
 
@@ -56,20 +57,20 @@ class BackendRemover(object):
 
         albabackend_guid = BackendHelper.get_alba_backend_guid_by_name(albabackend_name)
         # target is a node
-        node_mapping = BackendHelper._map_alba_nodes(api)
+        node_mapping = AlbaNodeHelper._map_alba_nodes(api)
 
         local_stack = BackendHelper.get_backend_local_stack(albabackend_name=albabackend_name, api=api)
         for disk, amount_of_osds in disks.iteritems():
-            disk_object = StoragerouterHelper.get_disk_by_ip(ip=target, diskname=disk)
-            # Get the name of the disk out of the path
-            diskname = [x for x in disk_object.aliases if x.rsplit('/', 1)[-1].startswith('ata')][0].rsplit('/', 1)[-1]
+            disk_object = AlbaNodeHelper.get_disk_by_ip(ip=target, diskname=disk)
+            # Get the name of the disk out of the path, only expecting one with ata-
+            disk_path = [x for x in disk_object["aliases"] if x.rsplit('/', 1)[-1].startswith('ata')][0].rsplit('/', 1)[-1]
             for alba_node_id, alba_node_guid in node_mapping.iteritems():
                 # Check if the alba_node_id has the disk
-                if diskname in local_stack['local_stack'][alba_node_id]:
+                if disk_path in local_stack['local_stack'][alba_node_id]:
                     # Remove asds
-                    if diskname in local_stack['local_stack'][alba_node_id]:
-                        for asd_id, asd_info in local_stack['local_stack'][alba_node_id][diskname]['asds'].iteritems():
-                            BackendRemover.LOGGER.info('Removing asd {0} for disk {1}'.format(asd_id, local_stack['local_stack'][alba_node_id][diskname]['guid']))
+                    if disk_path in local_stack['local_stack'][alba_node_id]:
+                        for asd_id, asd_info in local_stack['local_stack'][alba_node_id][disk_path]['asds'].iteritems():
+                            BackendRemover.LOGGER.info('Removing asd {0} for disk {1}'.format(asd_id, local_stack['local_stack'][alba_node_id][disk_path]['guid']))
                             asd_safety = BackendHelper.get_asd_safety(albabackend_guid=albabackend_guid, asd_id=asd_id, api=api)[1]
                             BackendRemover._remove_asd(alba_node_guid=alba_node_guid,asd_id=asd_id,asd_safety=asd_safety,api=api)
 
@@ -77,15 +78,15 @@ class BackendRemover(object):
         local_stack = BackendHelper.get_backend_local_stack(albabackend_name=albabackend_name,
                                                             api=api)
         for disk, amount_of_osds in disks.iteritems():
-            disk_object = StoragerouterHelper.get_disk_by_ip(ip=target, diskname=disk)
-            # Get the name of the disk out of the path
-            diskname = [x for x in disk_object.aliases if x.rsplit('/', 1)[-1].startswith('ata')][0].rsplit('/', 1)[-1]
+            disk_object = AlbaNodeHelper.get_disk_by_ip(ip=target, diskname=disk)
+            # Get the name of the disk out of the path, only expecting one with ata-
+            disk_path = [x for x in disk_object["aliases"] if x.rsplit('/', 1)[-1].startswith('ata')][0].rsplit('/', 1)[-1]
             for alba_node_id, alba_node_guid in node_mapping.iteritems():
                 # Check if the alba_node_id has the disk
-                if diskname in local_stack['local_stack'][alba_node_id]:
+                if disk_path in local_stack['local_stack'][alba_node_id]:
                     # Initialize disk:
-                    BackendRemover.LOGGER.info('Removing {0}.'.format(diskname))
-                    BackendRemover._remove_disk(alba_node_guid=alba_node_guid,diskname=diskname,api=api)
+                    BackendRemover.LOGGER.info('Removing {0}.'.format(disk_path))
+                    BackendRemover._remove_disk(alba_node_guid=alba_node_guid,diskname=disk_path,api=api)
 
     @staticmethod
     def _remove_asd(alba_node_guid, asd_id, asd_safety, api, timeout=REMOVE_ASD_TIMEOUT):

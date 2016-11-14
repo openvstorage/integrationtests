@@ -141,27 +141,6 @@ class BackendHelper(object):
         return api.get('alba/backends/{0}/calculate_safety'.format(albabackend_guid), params=params)
 
     @staticmethod
-    def _map_alba_nodes(api):
-        """
-        Will map the alba_node_id with its guid counterpart and return the map dict
-        :param api: specify a valid api connection to the setup
-        :type api: ci.helpers.api.OVSClient
-        """
-        mapping = {}
-
-        options = {
-            'contents': 'node_id,_relations',
-        }
-        response = api.get(
-            api='alba/nodes',
-            params=options
-        )
-        for node in response['data']:
-            mapping[node['node_id']] = node['guid']
-
-        return mapping
-
-    @staticmethod
     def get_backend_local_stack(albabackend_name, api):
         """
         Fetches the local stack property of a backend
