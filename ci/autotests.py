@@ -26,6 +26,7 @@ import math
 import importlib
 import subprocess
 from datetime import datetime
+from ci.helpers.system import SystemHelper
 from ovs.log.log_handler import LogHandler
 from ci.helpers.exceptions import SectionNotFoundError
 from ci.helpers.storagerouter import StoragerouterHelper
@@ -185,7 +186,7 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
     # check if test_case & test_section exists in test_suite
     for test_case, test_result in results.iteritems():
         test_name = test_case.split('.')[3]
-        test_section = test_case.split('.')[2].title()
+        test_section = SystemHelper.upper_case_first_letter(test_case.split('.')[2])
         try:
             tapi.get_case_by_name(project_id, suite_id, test_name)
         except Exception:
@@ -215,7 +216,9 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
         # collect case_ids of executed tests
         executed_case_ids = []
         for test_case in results.iterkeys():
-            section_id = tapi.get_section_by_name(project_id, suite_id, test_case.split('.')[2].title().strip())['id']
+            section_id = tapi.get_section_by_name(project_id, suite_id,
+                                                  SystemHelper.upper_case_first_letter(test_case.split('.')[2])
+                                                  .strip())['id']
             executed_case_ids.append(tapi.get_case_by_name(project_id=project_id, suite_id=suite_id,
                                                            name=test_case.split('.')[3], section_id=section_id)['id'])
         print executed_case_ids

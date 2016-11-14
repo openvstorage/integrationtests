@@ -76,3 +76,16 @@ class SystemHelper(object):
         """
 
         return System.get_my_storagerouter()
+
+    @staticmethod
+    def upper_case_first_letter(x):
+        """
+        Upper case the first letter of a string
+
+        :param x: a normal string
+        :type x: str
+        :return: a normal string with the first letter uppercases
+        :rtype: str
+        """
+
+        return x[0].upper() + x[1:]
