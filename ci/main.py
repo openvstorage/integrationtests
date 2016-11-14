@@ -141,6 +141,11 @@ class Workflow(object):
 
                     BackendSetup.add_backend(backend_name=backend['name'], api=self.api, scaling="LOCAL")
 
+                    # checkup amount nsm_hosts for a backend if external_arakoon is specified
+                    if 'min_nsm_arakoons' in backend:
+                        ArakoonSetup.checkup_nsm_hosts(albabackend_name=backend['name'],
+                                                       amount=backend['min_nsm_arakoons'])
+
                     # Add domains
                     Workflow.LOGGER.info("Add domains")
                     DomainSetup.link_domains_to_backend(domain_details=backend['domains'],
@@ -170,6 +175,11 @@ class Workflow(object):
                         Workflow.LOGGER.info("Finished adding external arakoons")
 
                     BackendSetup.add_backend(backend_name=backend['name'], api=self.api, scaling="GLOBAL")
+
+                    # checkup amount nsm_hosts for a backend if external_arakoon is specified
+                    if 'min_nsm_arakoons' in backend:
+                        ArakoonSetup.checkup_nsm_hosts(albabackend_name=backend['name'],
+                                                       amount=backend['min_nsm_arakoons'])
 
                     # Add domains
                     Workflow.LOGGER.info("Add domains")

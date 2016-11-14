@@ -31,6 +31,7 @@
         "name": "mybackend",
         "domains": {"domain_guids":["Roubaix"]},
         "scaling": "LOCAL",
+        "min_nsm_arakoons": 3,
         "external_arakoon": {
             "10.100.199.151": {
                 "ssd_roub_abm": {

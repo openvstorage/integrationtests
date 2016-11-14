@@ -15,10 +15,12 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 from ovs.log.log_handler import LogHandler
+from ci.helpers.backend import BackendHelper
+from ovs.lib.albacontroller import AlbaController
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
-from ci.validate.decorators import required_cluster_basedir, required_arakoon_cluster
+from ci.validate.decorators import required_backend, required_arakoon_cluster
 
 
 class ArakoonSetup(object):
@@ -138,3 +140,19 @@ class ArakoonSetup(object):
         ArakoonSetup.LOGGER.info("Finished extending arakoon cluster with name `{0}`, master_ip `{1}`,"
                                  " slave_ip `{2}`, base_dir `{3}`".format(cluster_name, master_storagerouter_ip,
                                                                           storagerouter_ip, cluster_basedir))
+
+    @staticmethod
+    @required_backend
+    def checkup_nsm_hosts(albabackend_name, amount):
+        """
+        Checkup the NSM hosts for a certain alba backend
+
+        :param albabackend_name: name of a existing alba backend
+        :type albabackend_name: str
+        :param amount: amount of min. NSM hosts for a certain backend
+        :type amount: int
+        :return:
+        """
+
+        alba_backend_guid = BackendHelper.get_alba_backend_guid_by_name(albabackend_name)
+        return AlbaController.nsm_checkup(backend_guid=alba_backend_guid, min_nsms=int(amount))
