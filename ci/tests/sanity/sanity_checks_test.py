@@ -79,7 +79,7 @@ class TestSanity(object):
         client = SSHClient(grid_ip, username='root', password=ssh_pass)
 
         for service_to_check in services_to_commands.iterkeys():
-            out, err = client.run(services_to_commands[service_to_check], debug=True)
+            out, err = client.run([services_to_commands[service_to_check]], debug=True)
             if len(err):
                 errors += "Error when trying to run {0}:\n{1}".format(services_to_commands[service_to_check], err)
             else:

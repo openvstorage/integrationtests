@@ -201,7 +201,7 @@ class General(object):
         :param client: SSHClient object
         :return: Loop device information
         """
-        return [entry.split()[0] for entry in client.run('lsblk').splitlines() if 'loop' in entry]
+        return [entry.split()[0] for entry in client.run(['lsblk']).splitlines() if 'loop' in entry]
 
     @staticmethod
     def get_mountpoints(client):
@@ -211,7 +211,7 @@ class General(object):
         :return: List of mountpoints
         """
         mountpoints = []
-        for mountpoint in client.run('mount -v').strip().splitlines():
+        for mountpoint in client.run(['mount -v']).strip().splitlines():
             mp = mountpoint.split(' ')[2] if len(mountpoint.split(' ')) > 2 else None
             if mp and not mp.startswith('/dev') and not mp.startswith('/proc') and not mp.startswith('/sys') and not mp.startswith('/run') and not mp.startswith('/mnt/alba-asd') and mp != '/':
                 mountpoints.append(mp)
@@ -228,7 +228,7 @@ class General(object):
         client_mountpoints = General.get_mountpoints(root_client)
         for mountpoint in client_mountpoints:
             if partition.mountpoint == mountpoint:
-                root_client.run("umount {0}".format(partition.mountpoint))
+                root_client.run(['umount', partition.mountpoint])
 
     @staticmethod
     def list_os():

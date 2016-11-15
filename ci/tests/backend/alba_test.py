@@ -371,7 +371,7 @@ class TestALBA(object):
             for sr in GeneralStorageRouter.get_storage_routers():
                 count = 0
                 client = SSHClient(endpoint=sr)
-                all_processes = client.run('ps -ef')
+                all_processes = client.run(['ps -ef'])
                 for process in all_processes.splitlines():
                     if '/usr/bin/alba maintenance' in process and '{0}/maintenance/config'.format(alba_backend.guid) in process:
                         count += 1

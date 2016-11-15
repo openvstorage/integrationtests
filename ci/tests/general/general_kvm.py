@@ -238,11 +238,11 @@ class Sdk(object):
 
         if self.ssh_client is None:
             self.ssh_client = SSHClient(self.host, username='root')
-        vm_filename = self.ssh_client.run("grep -l '<uuid>{0}</uuid>' {1}*.xml".format(vm_object.UUIDString(), ROOT_PATH))
+        vm_filename = self.ssh_client.run(["grep -l '<uuid>", vm_object.UUIDString(), "</uuid>' ", ROOT_PATH, "*.xml"])
         vm_filename = vm_filename.strip().split('/')[-1]
         vm_location = System.get_my_machine_id(self.ssh_client)
         vm_datastore = None
-        possible_datastores = self.ssh_client.run("find /mnt -name '{0}'".format(vm_filename)).split('\n')
+        possible_datastores = self.ssh_client.run(["find /mnt -name '\"", vm_filename, "\"'"]).split('\n')
         for datastore in possible_datastores:
             # Filter results so only the correct machineid/xml combinations are left over
             if '{0}/{1}'.format(vm_location, vm_filename) in datastore.strip():
@@ -389,7 +389,7 @@ class Sdk(object):
         """
         if self.ssh_client is None:
             self.ssh_client = SSHClient(self.host, username='root')
-        return self.ssh_client.run("[ -d {0} ] && echo 'yes' || echo 'no'".format(mountpoint)) == 'yes'
+        return self.ssh_client.run(["[ -d ", mountpoint, " ] && echo 'yes' || echo 'no'"]) == 'yes'
 
     @authenticated
     def clone_vm(self, vmid, name, disks, mountpoint):
@@ -408,7 +408,7 @@ class Sdk(object):
         """
         if self.ssh_client.file_exists(location):
             raise RuntimeError('File already exists at %s' % location)
-        command = 'truncate -s {0}G "{1}"'.format(size, location)
+        command = ['truncate -s ', size, 'G "', location, '"']
         output = self.ssh_client.run(command)
         if not self.ssh_client.file_exists(location):
             raise RuntimeError('Cannot create file %s. Output: %s' % (location, output))
@@ -422,7 +422,7 @@ class Sdk(object):
         if not self.ssh_client.file_exists(location):
             self._logger.error('File already deleted at %s' % location)
             return
-        command = 'rm "{0}"'.format(location)
+        command = ['rm "', location, '"']
         output = self.ssh_client.run(command)
         self._logger.info('Command {0}. Output {1}'.format(command, output))
         if self.ssh_client.file_exists(location):
@@ -436,7 +436,7 @@ class Sdk(object):
         """
         if not self.ssh_client.file_exists(location):
             raise RuntimeError('Volume not found at %s, use create_volume first.' % location)
-        command = 'truncate -s {0}G "{1}"'.format(size, location)
+        command = ['truncate -s ', size, 'G "', location, '"']
         output = self.ssh_client.run(command)
         self._logger.info('Command {0}. Output {1}'.format(command, output))
 
@@ -535,6 +535,6 @@ class Sdk(object):
                 options.append('--network {}'.format(','.join(network)))
         if self.ssh_client is None:
             self.ssh_client = SSHClient(self.host, username='root')
-        self.ssh_client.run('{0} {1}'.format(command, ' '.join(options)))
+        self.ssh_client.run([command, ' '.join(options)])
         if start is False:
-            self.ssh_client.run('virsh destroy {0}'.format(name))
+            self.ssh_client.run(['virsh destroy', name])

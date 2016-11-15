@@ -39,5 +39,5 @@ class GeneralManagementCenter(object):
         """
         client = SSHClient('127.0.0.1', username='root')
         is_openstack = ServiceManager.has_service(OSManager.get_openstack_cinder_service_name(), client)
-        is_devstack = 'stack' in str(client.run('ps aux | grep SCREEN | grep stack | grep -v grep || true'))
+        is_devstack = 'stack' in str(client.run(['ps aux | grep SCREEN | grep stack | grep -v grep || true']))
         return is_openstack or is_devstack
