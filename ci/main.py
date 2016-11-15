@@ -30,6 +30,7 @@ from ci.setup.domain import DomainSetup
 from ci.setup.arakoon import ArakoonSetup
 from ci.setup.backend import BackendSetup
 from ovs.log.log_handler import LogHandler
+from ci.remove.roles import RoleRemover
 from ci.remove.backend import BackendRemover
 
 CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
@@ -262,7 +263,7 @@ class Workflow(object):
             Workflow.LOGGER.info("Remove disk roles")
             for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
                 for diskname, disk_details in storagerouter_details['disks'].iteritems():
-                    pass
+                    RoleRemover.remove_role(ip=storagerouter_ip, diskname=diskname, api=self.api)
             Workflow.LOGGER.info("Finished removal")
         else:
             Workflow.LOGGER.info("Skipped removal")
@@ -270,7 +271,7 @@ class Workflow(object):
     @staticmethod
     def main(*args, **kwargs):
         w = Workflow()
-        w.run()
+        w.cleanup()
 
 if __name__ == "__main__":
     Workflow.main()
