@@ -17,13 +17,14 @@
 import logging
 import re
 from subprocess import check_output
-from ci.tests.general.general_fstab import FstabHelper
-from ci.tests.general.general_disk import GeneralDisk
-from ci.tests.general.general_storagerouter import GeneralStorageRouter
-from ci.tests.general.logHandler import LogHandler
+from ovs.dal.exceptions import ObjectNotFoundException
 from ci.tests.general.general import General
-from ci.tests.general.general_network import GeneralNetwork
 from ovs.extensions.generic.system import System
+from ci.tests.general.logHandler import LogHandler
+from ci.tests.general.general_disk import GeneralDisk
+from ci.tests.general.general_fstab import FstabHelper
+from ci.tests.general.general_network import GeneralNetwork
+from ci.tests.general.general_storagerouter import GeneralStorageRouter
 
 logger = LogHandler.get('disklayout', name='alba')
 
@@ -212,15 +213,19 @@ class TestDiskRoles(object):
         for key, value in collection.iteritems():
             iterations += 1
             # Fetch partition matching key
-            partition = GeneralDisk.get_disk_partition(key)
-            # Check if roles are the same
-            logger.info("Comparing roles on the partition '{0}'...".format(key))
-            logger.info("Found '{0}' on partition and predefined roles: '{1}'".format(partition.roles, value))
-            if sorted(partition.roles) == sorted(value):
+            try:
+                partition = GeneralDisk.get_disk_partition(key)
+                # Check if roles are the same
+                logger.info("Comparing roles on the partition '{0}'...".format(key))
+                logger.info("Found '{0}' on partition and predefined roles: '{1}'".format(partition.roles, value))
+                if sorted(partition.roles) == sorted(value):
+                    successful_iterations += 1
+                else:
+                    logger.error("The role '{0}' for partition '{1}' was not set correctly!".format(value, key))
+                    logger.error("Found '{0}' and expected '{1}'!".format(partition.roles, value))
+            except ObjectNotFoundException:
+                logger.info('Partition was removed meaning that all roles are deleted.')
                 successful_iterations += 1
-            else:
-                logger.error("The role '{0}' for partition '{1}' was not set correctly!".format(value, key))
-                logger.error("Found '{0}' and expected '{1}'!".format(partition.roles, value))
         return successful_iterations == iterations
 
     @staticmethod
