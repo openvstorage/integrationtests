@@ -16,12 +16,15 @@
 
 import logging
 import re
-from ci.tests.general.general_disk import GeneralDisk
-from ci.tests.general.general_storagerouter import GeneralStorageRouter
-from ci.tests.general.logHandler import LogHandler
+from subprocess import check_output
+from ovs.dal.exceptions import ObjectNotFoundException
 from ci.tests.general.general import General
-from ci.tests.general.general_network import GeneralNetwork
 from ovs.extensions.generic.system import System
+from ci.tests.general.logHandler import LogHandler
+from ci.tests.general.general_disk import GeneralDisk
+from ci.tests.general.general_fstab import FstabHelper
+from ci.tests.general.general_network import GeneralNetwork
+from ci.tests.general.general_storagerouter import GeneralStorageRouter
 
 logger = LogHandler.get('disklayout', name='alba')
 
@@ -101,6 +104,37 @@ class TestDiskRoles(object):
         return collection
 
     @staticmethod
+    def _umount(mountpoint):
+        """
+        Unmount the given partition
+        :param mountpoint: Location where the mountpoint is mounted
+        :type mountpoint: str
+        :return:
+        """
+        try:
+            check_output('umount {0}'.format(mountpoint), shell=True)
+        except Exception:
+            logger.exception('Unable to umount mountpoint {0}'.format(mountpoint))
+            raise RuntimeError('Could not unmount {0}'.format(mountpoint))
+
+    @staticmethod
+    def _remove_filesystem(device, alias_part_label):
+        """
+        :param alias_part_label: eg /dev/disk/by-partlabel/ata-QEMU_HARDDISK_QM00011
+        :type alias_part_label: str
+        :return:
+        """
+        try:
+            partition_cmd = "udevadm info --name={0} | awk -F '=' '/ID_PART_ENTRY_NUMBER/{{print $NF}}'".format(
+                alias_part_label)
+            partition_number = check_output(partition_cmd, shell=True)
+            format_cmd = 'parted {0} rm {1}'.format(device, partition_number)
+            check_output(format_cmd, shell=True)
+        except Exception:
+            logger.exception('Unable to remove filesystem of {0}'.format(alias_part_label))
+            raise RuntimeError('Could not remove filesystem of {0}'.format(alias_part_label))
+
+    @staticmethod
     def remove_roles_from_config(config, number_of_roles_to_remain=0):
         """
 
@@ -122,11 +156,30 @@ class TestDiskRoles(object):
                 disk_name = disk_info['disk_name']
                 logger.info("Fetching disk with diskname '{0}' for ip '{1}'".format(disk_name, key))
                 disk = GeneralStorageRouter().get_disk_by_ip(disk_name, key)
-                logger.info("Fetching or creating new partitions for disk '{0}'".format(disk.guid))
+                logger.info("Fetching partition of disk '{0}'".format(disk.guid))
                 partition = GeneralDisk.partition_disk(disk)
                 if number_of_roles_to_remain == 0:
                     # When number_of_roles_to_remain ==0, everything should have been removed
                     remaining_roles = []
+                    logger.info("Removing roles '{0}' from partition '{1}'".format(remaining_roles, partition.guid))
+                    GeneralDisk.adjust_disk_role(partition, remaining_roles, 'SET')
+                    # Set back to pristine condition:
+                    # Unmount partition
+                    logger.info("Umounting disk {2}".format(partition.roles, partition.guid, disk_name))
+                    TestDiskRoles._umount(partition.mountpoint)
+                    # Remove from fstab
+                    logger.info(
+                        "Removing {0} from fstab".format(partition.mountpoint, partition.guid, disk_name))
+                    FstabHelper().remove_by_mountpoint(partition.mountpoint)
+                    # Remove filesystem
+                    logger.info(
+                        "Removing filesystem on partition {0} on disk {1}".format(partition.guid, disk_name))
+                    alias = partition.aliases[0]
+                    device = '/dev/{0}'.format(disk_name)
+                    TestDiskRoles._remove_filesystem(device, alias)
+                    # Remove partition from model
+                    logger.info("Removing partition {0} on disk {1} from model".format(partition.guid, disk_name))
+                    partition.delete()
                 else:
                     if len(partition.roles) < number_of_roles_to_remain:
                         logger.warning("Number of roles that should remain exceed the number of roles that are present!"
@@ -135,8 +188,8 @@ class TestDiskRoles(object):
                     else:
                         roles_list = partition.roles[number_of_roles_to_remain:]
                     remaining_roles = General.remove_list_from_list(partition.roles, roles_list)
-                logger.info("Removing roles '{0}' from partition '{1}'".format(remaining_roles, partition.guid))
-                GeneralDisk.adjust_disk_role(partition, remaining_roles, 'SET')
+                    logger.info("Removing roles '{0}' from partition '{1}'".format(remaining_roles, partition.guid))
+                    GeneralDisk.adjust_disk_role(partition, remaining_roles, 'SET')
                 # Will test if the role is an empty list
                 collection[partition.guid] = remaining_roles
         return collection
@@ -160,15 +213,19 @@ class TestDiskRoles(object):
         for key, value in collection.iteritems():
             iterations += 1
             # Fetch partition matching key
-            partition = GeneralDisk.get_disk_partition(key)
-            # Check if roles are the same
-            logger.info("Comparing roles on the partition '{0}'...".format(key))
-            logger.info("Found '{0}' on partition and predefined roles: '{1}'".format(partition.roles, value))
-            if sorted(partition.roles) == sorted(value):
+            try:
+                partition = GeneralDisk.get_disk_partition(key)
+                # Check if roles are the same
+                logger.info("Comparing roles on the partition '{0}'...".format(key))
+                logger.info("Found '{0}' on partition and predefined roles: '{1}'".format(partition.roles, value))
+                if sorted(partition.roles) == sorted(value):
+                    successful_iterations += 1
+                else:
+                    logger.error("The role '{0}' for partition '{1}' was not set correctly!".format(value, key))
+                    logger.error("Found '{0}' and expected '{1}'!".format(partition.roles, value))
+            except ObjectNotFoundException:
+                logger.info('Partition was removed meaning that all roles are deleted.')
                 successful_iterations += 1
-            else:
-                logger.error("The role '{0}' for partition '{1}' was not set correctly!".format(value, key))
-                logger.error("Found '{0}' and expected '{1}'!".format(partition.roles, value))
         return successful_iterations == iterations
 
     @staticmethod
