@@ -271,7 +271,7 @@ class Workflow(object):
     @staticmethod
     def main(*args, **kwargs):
         w = Workflow()
-        w.cleanup()
+        w.run()
 
 if __name__ == "__main__":
     Workflow.main()
