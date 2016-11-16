@@ -90,7 +90,7 @@ class General(object):
         return out, error, child_process.returncode
 
     @staticmethod
-    def execute_command_on_node(host, command, password=None):
+    def execute_command_on_node(host, command, password=None, allow_nonzero=False, allow_insecure=False):
         """
         Execute a command on a specific host
         :param host: Host to execute command on
@@ -99,7 +99,7 @@ class General(object):
         :return: Output of command
         """
         cl = SSHClient(host, username='root', password=password)
-        return cl.run(command)
+        return cl.run(command, allow_nonzero=str(allow_nonzero), allow_insecure=str(allow_insecure))
 
     @staticmethod
     def check_file_is_link(file_path, host, username=None, password=None):

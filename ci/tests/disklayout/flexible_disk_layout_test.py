@@ -163,17 +163,15 @@ class TestFlexibleDiskLayout(object):
                                    disk=disk,
                                    offset=0,
                                    size=int(disk.size),
-                                   roles=['DB'])
+                                   roles=['WRITE'])
 
         # lookup partition in model
         mountpoint = None
         partitions = GeneralDisk.get_disk_partitions()
         for partition in partitions:
-            if partition.disk_guid == disk.guid and 'DB' in partition.roles:
+            if partition.disk_guid == disk.guid and 'WRITE' in partition.roles:
                 mountpoint = partition.mountpoint
                 break
-
-        assert mountpoint, 'New partition was not detected in model'
 
         GeneralDisk.configure_disk(storagerouter=my_sr,
                                    disk=disk,
@@ -183,11 +181,14 @@ class TestFlexibleDiskLayout(object):
                                    roles=[])
 
         # cleanup disk partition
-        cmd = 'umount {0}; rmdir {0}; echo 0'.format(mountpoint)
-        General.execute_command_on_node(my_sr.ip, cmd)
+        cmd = ['umount', mountpoint, ';rmdir', mountpoint, ';echo', '0']
+        General.execute_command_on_node(my_sr.ip, cmd, allow_nonzero=True)
 
-        cmd = 'parted -s /dev/{0} rm 1; echo 0'.format(disk.name)
-        General.execute_command_on_node(my_sr.ip, cmd)
+        cmd = ['rmdir', mountpoint]
+        General.execute_command_on_node(my_sr.ip, cmd, allow_nonzero=True)
+
+        cmd = ['parted', '-s', '/dev/' + disk.name, 'rm', '1']
+        General.execute_command_on_node(my_sr.ip, cmd, allow_nonzero=True)
 
         # wipe partition table to be able to reuse this disk in another test
         GeneralVDisk.write_to_volume(location=disk.aliases[0],
@@ -201,9 +202,11 @@ class TestFlexibleDiskLayout(object):
         is_partition_removed = True
         partitions = GeneralDisk.get_disk_partitions()
         for partition in partitions:
-            if partition.disk_guid == disk_guid and 'DB' in partition.roles:
+            if partition.disk_guid == disk_guid and 'WRITE' in partition.roles:
                 is_partition_removed = False
                 break
 
         assert is_partition_removed is True,\
             'New partition was not deleted successfully from system/model!'
+
+        assert mountpoint, 'New partition was not detected in model'

@@ -66,17 +66,17 @@ class GeneralVDisk(object):
 
         try:
             if loop_device is not None:
-                root_client.run(['umount', '/mnt/', loop_device, '| echo true'])
+                root_client.run(['umount', '/mnt/', loop_device, '; echo 0'])
                 root_client.run(['truncate', '-s', size, 'G ', location, ''])
                 root_client.dir_create(['/mnt/', loop_device])
                 root_client.run(['mkfs.ext4', '-F', location])
                 root_client.run(['mount', '-o', 'loop', location, '/mnt/', loop_device])
             else:
-                root_client.run(['truncate', '-s', size, 'G', location])
+                root_client.run(['truncate', '-s', str(size) + 'G', location])
         except CalledProcessError as cpe:
             GeneralVDisk.logger.error(str(cpe))
             if loop_device is not None:
-                root_client.run(["umount", "/mnt/", loop_device, ";rm", location, ";rmdir", "/mnt/", loop_device, ""])
+                root_client.run('umount /mnt/{0}; rm {1}; rmdir /mnt/{0}; echo 0'.format(loop_device, location), allow_insecure=True)
             raise
 
         vdisk = None

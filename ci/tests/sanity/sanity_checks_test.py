@@ -37,7 +37,7 @@ class TestSanity(object):
         issues_found = []
         env_ips = GeneralStorageRouter.get_all_ips()
         for env_ip_from in env_ips:
-            out = General.execute_command_on_node(env_ip_from, "cat ~/.ssh/known_hosts")
+            out = General.execute_command_on_node(env_ip_from, "cat ~/.ssh/known_hosts", allow_insecure=True)
             for env_ip_to in env_ips:
                 if env_ip_from != env_ip_to:
                     if env_ip_to not in out:
@@ -79,7 +79,7 @@ class TestSanity(object):
         client = SSHClient(grid_ip, username='root', password=ssh_pass)
 
         for service_to_check in services_to_commands.iterkeys():
-            out, err = client.run([services_to_commands[service_to_check]], debug=True)
+            out, err = client.run(services_to_commands[service_to_check], debug=True, allow_insecure=True)
             if len(err):
                 errors += "Error when trying to run {0}:\n{1}".format(services_to_commands[service_to_check], err)
             else:

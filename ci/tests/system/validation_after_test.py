@@ -39,7 +39,7 @@ class TestAfterCare(object):
         """
         Check ALBA warning presence
         """
-        out = General.execute_command_on_node('127.0.0.1', 'grep "warning: syncfs" /var/log/upstart/*-asd-*.log | wc -l')
+        out = General.execute_command_on_node('127.0.0.1', 'grep "warning: syncfs" /var/log/upstart/*-asd-*.log | wc -l', allow_insecure=True)
         assert out == '0', \
             "syncfs warnings detected in asd logs\n:{0}".format(out.splitlines())
 
@@ -53,7 +53,7 @@ class TestAfterCare(object):
         gridips = GeneralStorageRouter.get_all_ips()
 
         for gridip in gridips:
-            out = General.execute_command_on_node(gridip, command + " | wc -l")
+            out = General.execute_command_on_node(gridip, command + " | wc -l", allow_insecure=True)
             if not out == '0':
                 errorlist += "node %s \n:{0}\n\n".format(General.execute_command_on_node(gridip, command).splitlines()) % gridip
 
