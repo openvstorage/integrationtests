@@ -48,7 +48,7 @@ def setup():
     for sr in GeneralStorageRouter.get_storage_routers():
         root_client = SSHClient(sr, username='root')
         for location in TEST_CLEANUP:
-            root_client.run(['rm -rf', location])
+            root_client.run(['rm', '-rf', location])
 
 
 def teardown():
@@ -65,7 +65,7 @@ def teardown():
                                          client=root_client)
 
         for location in TEST_CLEANUP:
-            root_client.run(['rm -rf ', location])
+            root_client.run(['rm', '-rf', location])
 
     for key in KEY_CLEANUP:
         if Configuration.exists('{0}/{1}'.format(GeneralArakoon.CONFIG_ROOT, key), raw=True):

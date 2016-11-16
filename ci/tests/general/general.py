@@ -211,7 +211,7 @@ class General(object):
         :return: List of mountpoints
         """
         mountpoints = []
-        for mountpoint in client.run(['mount -v']).strip().splitlines():
+        for mountpoint in client.run(['mount', '-v']).strip().splitlines():
             mp = mountpoint.split(' ')[2] if len(mountpoint.split(' ')) > 2 else None
             if mp and not mp.startswith('/dev') and not mp.startswith('/proc') and not mp.startswith('/sys') and not mp.startswith('/run') and not mp.startswith('/mnt/alba-asd') and mp != '/':
                 mountpoints.append(mp)

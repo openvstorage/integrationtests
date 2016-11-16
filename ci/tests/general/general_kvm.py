@@ -238,11 +238,11 @@ class Sdk(object):
 
         if self.ssh_client is None:
             self.ssh_client = SSHClient(self.host, username='root')
-        vm_filename = self.ssh_client.run(["grep -l '<uuid>", vm_object.UUIDString(), "</uuid>' ", ROOT_PATH, "*.xml"])
+        vm_filename = self.ssh_client.run(["grep", "-l",  "'<uuid>" + vm_object.UUIDString() + "</uuid>'", ROOT_PATH, "*.xml"])
         vm_filename = vm_filename.strip().split('/')[-1]
         vm_location = System.get_my_machine_id(self.ssh_client)
         vm_datastore = None
-        possible_datastores = self.ssh_client.run(["find /mnt -name '\"", vm_filename, "\"'"]).split('\n')
+        possible_datastores = self.ssh_client.run(["find", "/mnt", "-name'\"" + vm_filename + "\"'"]).split('\n')
         for datastore in possible_datastores:
             # Filter results so only the correct machineid/xml combinations are left over
             if '{0}/{1}'.format(vm_location, vm_filename) in datastore.strip():
@@ -408,7 +408,7 @@ class Sdk(object):
         """
         if self.ssh_client.file_exists(location):
             raise RuntimeError('File already exists at %s' % location)
-        command = ['truncate -s ', size, 'G "', location, '"']
+        command = ['truncate', '-s', str(size) + 'G', location]
         output = self.ssh_client.run(command)
         if not self.ssh_client.file_exists(location):
             raise RuntimeError('Cannot create file %s. Output: %s' % (location, output))
@@ -422,7 +422,7 @@ class Sdk(object):
         if not self.ssh_client.file_exists(location):
             self._logger.error('File already deleted at %s' % location)
             return
-        command = ['rm "', location, '"']
+        command = ['rm"', location, '"']
         output = self.ssh_client.run(command)
         self._logger.info('Command {0}. Output {1}'.format(command, output))
         if self.ssh_client.file_exists(location):
@@ -436,7 +436,7 @@ class Sdk(object):
         """
         if not self.ssh_client.file_exists(location):
             raise RuntimeError('Volume not found at %s, use create_volume first.' % location)
-        command = ['truncate -s ', size, 'G "', location, '"']
+        command = ['truncate', '-s ', str(size) + 'G', location]
         output = self.ssh_client.run(command)
         self._logger.info('Command {0}. Output {1}'.format(command, output))
 

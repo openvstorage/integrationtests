@@ -447,15 +447,15 @@ class TestArakoon(object):
                 nr_of_tlogs = TestArakoon.get_nr_of_tlogs_in_folder(root_client, tlog_location)
                 old_headdb_timestamp = 0
                 if root_client.file_exists('/'.join([tlog_location, 'head.db'])):
-                    old_headdb_timestamp = root_client.run(['stat --format=%Y', tlog_location, '/', 'head.db'])
+                    old_headdb_timestamp = root_client.run(['stat', '--format=%Y', tlog_location + '/head.db'])
                 if nr_of_tlogs <= 2:
-                    benchmark_command = ['arakoon --benchmark -n_clients 1 -max_n 5_000 -config', arakoon_config_path]
+                    benchmark_command = ['arakoon', '--benchmark', '-n_clients 1', '-max_n 5_000', '-config', arakoon_config_path]
                     root_client.run(benchmark_command)
 
                 ScheduledTaskController.collapse_arakoon()
 
                 nr_of_tlogs = TestArakoon.get_nr_of_tlogs_in_folder(root_client, tlog_location)
-                new_headdb_timestamp = root_client.run(['stat --format=%Y', tlog_location, '/head.db'])
+                new_headdb_timestamp = root_client.run(['stat --format=%Y', tlog_location + '/head.db'])
                 assert nr_of_tlogs <= 2,\
                     'Arakoon collapse left {0} tlogs on the environment, expecting less than 2'.format(nr_of_tlogs)
                 assert old_headdb_timestamp != new_headdb_timestamp,\
