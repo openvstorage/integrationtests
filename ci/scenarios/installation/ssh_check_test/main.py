@@ -65,18 +65,22 @@ class SshChecks(object):
         for user in SshChecks.CHECK_USERS:
             for env_ip_from in storagerouter_ips:
                 client = SSHClient(env_ip_from, username=user)
-                out = client.run("cat ~/.ssh/known_hosts")
-                for env_ip_to in storagerouter_ips:
-                    if env_ip_from != env_ip_to:
-                        if env_ip_to not in out:
-                            error_msg = "Host key verification NOT FOUND between `{0}` and `{1}` for user `{2}`"\
-                                .format(env_ip_from, env_ip_to, user)
-                            SshChecks.LOGGER.error(error_msg)
-                            issues_found.append(error_msg)
-                        else:
-                            SshChecks.LOGGER.info("Host key verification found between `{0}` and `{1}` for user `{2}`"
-                                                  .format(env_ip_from, env_ip_to, user))
-
+                cwd = client.run(['pwd'])
+                # Check if the home dir is opt/OpenvStorage
+                if cwd == 'opt/OpenvStorage':
+                    out = client.run(["cat", "./.ssh/known_hosts"])
+                    for env_ip_to in storagerouter_ips:
+                        if env_ip_from != env_ip_to:
+                            if env_ip_to not in out:
+                                error_msg = "Host key verification NOT FOUND between `{0}` and `{1}` for user `{2}`"\
+                                    .format(env_ip_from, env_ip_to, user)
+                                SshChecks.LOGGER.error(error_msg)
+                                issues_found.append(error_msg)
+                            else:
+                                SshChecks.LOGGER.info("Host key verification found between `{0}` and `{1}` for user `{2}`"
+                                                      .format(env_ip_from, env_ip_to, user))
+                else:
+                    SshChecks.LOGGER.error("Could not open ~/.ssh/known_hosts. Current working directory for user {0} is {1}".format(user, cwd))
         if len(issues_found) != 0:
             raise RuntimeError("One or more hosts keys not found on certain nodes! "
                                "Please check /var/log/ovs/scenario.log for more information!")

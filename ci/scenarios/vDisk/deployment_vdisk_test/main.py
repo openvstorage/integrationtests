@@ -95,8 +95,7 @@ class VDiskDeploymentChecks(object):
         client = SSHClient(storagedriver.storage_ip, username='root')
 
         # check if there are missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
-                                                             VDiskDeploymentChecks.REQUIRED_PACKAGES)
+        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip, VDiskDeploymentChecks.REQUIRED_PACKAGES)
         assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
             .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
 
@@ -121,8 +120,7 @@ class VDiskDeploymentChecks(object):
         # ========
         for size in VDiskDeploymentChecks.VDISK_SIZES:
             qemu_disk_name = VDiskDeploymentChecks.PREFIX+str(size)+'-qemu'
-            create_command = "qemu-img create openvstorage+{0}:{1}:{2}/{3} {4}B".format(protocol, storage_ip, edge_port,
-                                                                                        qemu_disk_name, size)
+            create_command = ["qemu-img", "create", "openvstorage+{0}:{1}:{2}/{3}".format(protocol, storage_ip, edge_port, qemu_disk_name), "{0}B".format(size)]
             VDiskDeploymentChecks.LOGGER.info("Starting to create vdisk `{0}` on node `{1}` "
                                               "with edgeport `{2}` and size `{3}` via `{4}`"
                                               .format(qemu_disk_name, storage_ip, edge_port, size, protocol))
@@ -141,7 +139,7 @@ class VDiskDeploymentChecks(object):
             VDiskDeploymentChecks.LOGGER.info("Starting to create vdisk `{0}` on vPool `{1}` on node `{2}` "
                                               "with size `{3}`".format(truncate_disk_name, vpool.name,
                                                                        storagedriver.storage_ip, size))
-            client.run("truncate -s {0} /mnt/{1}/{2}.raw".format(size, vpool.name, truncate_disk_name))
+            client.run(["truncate", "-s", str(size), "/mnt/{0}/{1}.raw".format(vpool.name, truncate_disk_name)])
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(truncate_disk_name))
             time.sleep(VDiskDeploymentChecks.VDISK_SLEEP_BEFORE_DELETE)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(truncate_disk_name))

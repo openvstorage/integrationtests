@@ -78,11 +78,11 @@ class InitManager(object):
         client = SSHClient(ip, username='root')
 
         if InitManager.INIT_MANAGER == InitManagerSupported.INIT:
-            output = client.run('service {0} status'.format(service_name))
+            output = client.run(['service', 'service_name', 'status'])
             return output.split()[1] == "start/running,"
         elif InitManager.INIT_MANAGER == InitManagerSupported.SYSTEMD:
             try:
-                output = client.run('systemctl is-active {0}.service'.format(service_name))
+                output = client.run(['systemctl', 'is-active',  '{0}.service'.format(service_name)])
             except subprocess.CalledProcessError:
                 InitManager.LOGGER.warning("Exception caught when checking service `{0}` on node with ip `{1}`"
                                            .format(service_name, ip))

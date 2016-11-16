@@ -128,32 +128,27 @@ class FioOnVDiskChecks(object):
                                              "protocol `{3}` & diskname `{4}`"
                                              .format(image_path, storage_ip, edge_port, protocol, disk_name))
                 FioOnVDiskChecks.LOGGER.info("Converting image...")
-                client.run("qemu-img convert {0} openvstorage+{1}:{2}:{3}/{4}"
-                           .format(image_path, protocol, storage_ip, edge_port, disk_name))
+                client.run(["qemu-img", "convert", image_path, "openvstorage+{0}:{1}:{2}/{3}".format(protocol, storage_ip, edge_port, disk_name)])
                 FioOnVDiskChecks.LOGGER.info("Creating a tap blk device for image...")
-                tap_dir = client.run("tap-ctl create -a openvstorage+{0}:{1}:{2}/{3}".format(protocol, storage_ip,
-                                                                                             edge_port, disk_name))
+                tap_dir = client.run(["tap-ctl", "create", "-a", "openvstorage+{0}:{1}:{2}/{3}".format(protocol, storage_ip,edge_port, disk_name)])
                 FioOnVDiskChecks.LOGGER.info("Created a tap blk device at location `{0}`".format(tap_dir))
                 FioOnVDiskChecks.LOGGER.info("Finished putting vdisk `{0}` in the vPool!".format(disk_name))
-                FioOnVDiskChecks.LOGGER.info("Starting fio test on vdisk `{0}` with blktap `{1}`"
-                                             .format(disk_name, tap_dir))
-                client.run("fio --name=test --filename={0} --ioengine=libaio --iodepth=4 --rw=write --bs=4k "
-                           "--direct=1 --size={1}M --output-format=json --output={2}.json"
-                           .format(tap_dir, amount_to_write, disk_name))
-                client.run("fio --name=test --filename={0} --ioengine=libaio --iodepth=4 --rw=read --bs=4k "
-                           "--direct=1 --size={1}M --output-format=json --output={2}.json"
-                           .format(tap_dir, amount_to_write, disk_name))
+                FioOnVDiskChecks.LOGGER.info("Starting fio test on vdisk `{0}` with blktap `{1}`".format(disk_name, tap_dir))
+                client.run(["fio", "--name=test", "--filename={0}".format(tap_dir), "--ioengine=libaio",  "--iodepth=4", "--rw=write", "--bs=4k"
+                           "--direct=1", "--size={0}M".format(amount_to_write), "--output-format=json", "--output={0}.json".format(disk_name)])
+                client.run(["fio", "--name=test", "--filename={0}".format(tap_dir), "--ioengine=libaio", "--iodepth=4", "--rw=read", "--bs=4k",
+                           "--direct=1", "--size={0}M".format(amount_to_write), "--output-format=json", "--output={0}.json".format(disk_name)])
                 FioOnVDiskChecks.LOGGER.info("Finished fio test on vdisk `{0}` with blktap `{1}`"
                                              .format(disk_name, tap_dir))
                 # deleting (remaining) tapctl connections
-                tap_conn = client.run("tap-ctl list | grep {0}".format(FioOnVDiskChecks.PREFIX)).split()
+                tap_conn = client.run("tap-ctl list | grep {0}".format(FioOnVDiskChecks.PREFIX), allow_insecure=True).split()
                 if len(tap_conn) != 0:
                     FioOnVDiskChecks.LOGGER.info("Deleting tapctl connections ...".format(disk_name, tap_dir))
                     for index, tap_c in enumerate(tap_conn):
                         if 'pid' in tap_c:
                             pid = tap_c.split('=')[1]
                             minor = tap_conn[index+1].split('=')[1]
-                            client.run("tap-ctl destroy -p {0} -m {1}".format(pid, minor))
+                            client.run(["tap-ctl", "destroy", "-p", pid, "-m", minor])
                 else:
                     error_msg = "At least 1 blktap connection should be available " \
                                 "but we found none on ip address `{0}`!".format(storage_ip)

@@ -52,7 +52,7 @@ class VPoolRemover(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Deleting vPool `{0}` on storagerouter `{1}` has failed".format(vpool_name, storagerouter_ip)
+            error_msg = "Deleting vPool `{0}` on storagerouter `{1}` has failed with error {2}".format(vpool_name, storagerouter_ip, task_result[1])
             VPoolRemover.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:

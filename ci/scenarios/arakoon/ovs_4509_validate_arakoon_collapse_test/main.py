@@ -93,11 +93,9 @@ class ArakoonCollapse(object):
                 nr_of_tlogs = ArakoonCollapse.get_nr_of_tlogs_in_folder(root_client, tlog_location)
                 old_headdb_timestamp = 0
                 if root_client.file_exists('/'.join([tlog_location, 'head.db'])):
-                    old_headdb_timestamp = root_client.run('stat --format=%Y {0}/{1}'.format(tlog_location,
-                                                                                             'head.db'))
+                    old_headdb_timestamp = root_client.run(['stat', '--format=%Y', '{0}/{1}'.format(tlog_location, 'head.db')])
                 if nr_of_tlogs <= 2:
-                    benchmark_command = 'arakoon --benchmark -n_clients 1 -max_n 5_000 -config {0}'\
-                        .format(arakoon_config_path)
+                    benchmark_command = ['arakoon', '--benchmark', '-n_clients', '1', '-max_n', '5_000', '-config', arakoon_config_path]
                     root_client.run(benchmark_command)
 
                 ArakoonCollapse.LOGGER.info("Collapsing arakoon `{0}` on node `{1}` ..."
@@ -105,7 +103,7 @@ class ArakoonCollapse(object):
                 ScheduledTaskController.collapse_arakoon()
 
                 nr_of_tlogs = ArakoonCollapse.get_nr_of_tlogs_in_folder(root_client, tlog_location)
-                new_headdb_timestamp = root_client.run('stat --format=%Y {0}/{1}'.format(tlog_location, 'head.db'))
+                new_headdb_timestamp = root_client.run(['stat', '--format=%Y', '{0}/{1}'.format(tlog_location, 'head.db')])
 
                 # perform assertion
                 assert nr_of_tlogs <= 2,\
