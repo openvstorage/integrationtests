@@ -64,7 +64,7 @@ class SystemHelper(object):
         """
         client = SSHClient(ip, username='root')
         return [package for package in required_packages
-                if len(client.run("dpkg -l | grep {0} | tr -s ' '".format(package)).split()) == 0]
+                if len(client.run("dpkg -l | grep {0} | tr -s ' '".format(package), allow_insecure=True).split()) == 0]
 
     @staticmethod
     def get_local_storagerouter():

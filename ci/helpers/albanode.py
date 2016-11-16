@@ -17,7 +17,6 @@ from ovs.log.log_handler import LogHandler
 from ovs.dal.hybrids.albanode import AlbaNode
 from ovs.dal.lists.albanodelist import AlbaNodeList
 from ci.helpers.asdmanager import ASDManagerClient
-from ovs.extensions.generic.sshclient import SSHClient
 
 class AlbaNodeHelper(object):
     """

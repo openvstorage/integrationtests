@@ -71,11 +71,9 @@ class ArakoonSetup(object):
         info = ArakoonInstaller.create_cluster(cluster_name, service_type, storagerouter_ip, cluster_basedir, plugins,
                                                locked=False, internal=False)
         if service_type == ServiceType.ARAKOON_CLUSTER_TYPES.ABM:
-            client.run('ln -s /usr/lib/alba/albamgr_plugin.cmxs {0}/arakoon/{1}/db'
-                       .format(cluster_basedir, cluster_name))
+            client.run(['ln', '-s', '/usr/lib/alba/albamgr_plugin.cmxs', '{0}/arakoon/{1}/db'.format(cluster_basedir, cluster_name)])
         elif service_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
-            client.run('ln -s /usr/lib/alba/nsm_host_plugin.cmxs {0}/arakoon/{1}/db'
-                       .format(cluster_basedir, cluster_name))
+            client.run(['ln', '-s', '/usr/lib/alba/nsm_host_plugin.cmxs', '{0}/arakoon/{1}/db'.format(cluster_basedir, cluster_name)])
         ArakoonInstaller.start_cluster(cluster_name=cluster_name, master_ip=storagerouter_ip, filesystem=False)
         ArakoonInstaller.unclaim_cluster(cluster_name=cluster_name, master_ip=storagerouter_ip, filesystem=False,
                                          metadata=info['metadata'])
@@ -123,11 +121,9 @@ class ArakoonSetup(object):
         ArakoonInstaller.extend_cluster(master_storagerouter_ip, storagerouter_ip, cluster_name, cluster_basedir,
                                         locked=False, filesystem=False)
         if service_type == ServiceType.ARAKOON_CLUSTER_TYPES.ABM:
-            client.run('ln -s /usr/lib/alba/albamgr_plugin.cmxs {0}/arakoon/{1}/db'
-                       .format(cluster_basedir, cluster_name))
+            client.run(['ln', '-s', '/usr/lib/alba/albamgr_plugin.cmxs', '{0}/arakoon/{1}/db'.format(cluster_basedir, cluster_name)])
         elif service_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
-            client.run('ln -s /usr/lib/alba/nsm_host_plugin.cmxs {0}/arakoon/{1}/db'
-                       .format(cluster_basedir, cluster_name))
+            client.run(['ln', '-s', '/usr/lib/alba/nsm_host_plugin.cmxs', '{0}/arakoon/{1}/db'.format(cluster_basedir, cluster_name)])
 
         # checking if we need to restart the given nodes
         if len(clustered_nodes) != 0:

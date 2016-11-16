@@ -117,9 +117,8 @@ class ScrubbingChecks(object):
             try:
                 # write the double amount of possible diskspace
                 for _ in xrange(2):
-                    client.run("fio --name=test --filename=/mnt/{0}/{1}.raw "
-                               "--ioengine=libaio --iodepth=4 --rw=write --bs=4k --direct=1 --size={2}b"
-                               .format(vpool.name, ScrubbingChecks.PREFIX+str(vdisk), ScrubbingChecks.SIZE_VDISK))
+                    client.run(["fio", "--name=test", "--filename=/mnt/{0}/{1}.raw".format(vpool.name, ScrubbingChecks.PREFIX+str(vdisk)),
+                                "--ioengine=libaio", "--iodepth=4", "--rw=write", "--bs=4k", "--direct=1", "--size={0}b".format(ScrubbingChecks.SIZE_VDISK)])
 
             except subprocess.CalledProcessError:
                 raise VDiskNotFoundError("VDisk `/mnt/{0}/{1}.raw` does not seem to be present "
@@ -133,8 +132,7 @@ class ScrubbingChecks(object):
                                        api=api, consistent=False, sticky=False)
 
             # save the stored data to the mapper
-            stored_data = vdisk_obj.storagedriver_client.\
-                info_volume(str(vdisk_obj.volume_id)).stored
+            stored_data = vdisk_obj.storagedriver_client.info_volume(str(vdisk_obj.volume_id)).stored
             vdisk_stored_mapper[vdisk_guid] = stored_data
             ScrubbingChecks.LOGGER.info("Logged `{0}` stored data for VDisk `{1}` in mapper"
                                         .format(stored_data, vdisk_guid))
