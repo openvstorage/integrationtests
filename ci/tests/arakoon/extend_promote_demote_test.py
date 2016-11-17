@@ -83,7 +83,7 @@ class TestArakoon(object):
                 # checking just the last file
                 file_name = files_in_directory[-1]
                 if file_name.endswith('.tgz'):
-                    out = client.run(['tar -tf', archived_directory, '/', file_name])
+                    out = client.run(['tar', '-tf', '/'.join([archived_directory, file_name])])
                     if archived_file_name in out:
                         file_found = True
             if file_found is False:

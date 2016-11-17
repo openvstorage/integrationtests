@@ -67,10 +67,10 @@ class GeneralVDisk(object):
         try:
             if loop_device is not None:
                 root_client.run(['umount', '/mnt/', loop_device, '; echo 0'])
-                root_client.run(['truncate', '-s', size, 'G ', location, ''])
+                root_client.run(['truncate', '-s', size, 'G ', location])
                 root_client.dir_create(['/mnt/', loop_device])
                 root_client.run(['mkfs.ext4', '-F', location])
-                root_client.run(['mount', '-o', 'loop', location, '/mnt/', loop_device])
+                root_client.run(['mount', '-o', 'loop', location, '/mnt/' + loop_device])
             else:
                 root_client.run(['truncate', '-s', str(size) + 'G', location])
         except CalledProcessError as cpe:
@@ -148,7 +148,7 @@ class GeneralVDisk(object):
                     root_client.run(['mount', '-o', 'loop', location, '/mnt/' + loop_device])
             except CalledProcessError as cpe:
                 GeneralVDisk.logger.error(str(cpe))
-                root_client.run(['umount', '/mnt/' + loop_device, ';rmdir', '/mnt/' + loop_device])
+                root_client.run("""umount /mnt/{0}; rmdir /mnt/{0}""".format(loop_device), allow_insecure=True)
 
     @staticmethod
     def disconnect_volume(loop_device, root_client=None):
@@ -163,7 +163,7 @@ class GeneralVDisk(object):
 
         try:
             if loop_device is not None:
-                root_client.run(['umount', '/mnt/' + loop_device, ';rmdir /mnt/' + loop_device])
+                root_client.run("""umount /mnt/{0}; rmdir /mnt/{0}""".format(loop_device), allow_insecure=True)
             else:
                 root_client.run(['rmdir', '/mnt/' + loop_device])
         except CalledProcessError as cpe:

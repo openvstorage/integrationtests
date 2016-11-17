@@ -389,7 +389,7 @@ class Sdk(object):
         """
         if self.ssh_client is None:
             self.ssh_client = SSHClient(self.host, username='root')
-        return self.ssh_client.run(["[ -d ", mountpoint, " ] && echo 'yes' || echo 'no'"]) == 'yes'
+            return self.ssh_client.run("[ -d {0} ] && echo 'yes' || echo 'no'".format(mountpoint), allow_insecure=True) == 'yes'
 
     @authenticated
     def clone_vm(self, vmid, name, disks, mountpoint):
@@ -422,7 +422,7 @@ class Sdk(object):
         if not self.ssh_client.file_exists(location):
             self._logger.error('File already deleted at %s' % location)
             return
-        command = ['rm"', location, '"']
+        command = ['rm', location]
         output = self.ssh_client.run(command)
         self._logger.info('Command {0}. Output {1}'.format(command, output))
         if self.ssh_client.file_exists(location):
@@ -436,7 +436,7 @@ class Sdk(object):
         """
         if not self.ssh_client.file_exists(location):
             raise RuntimeError('Volume not found at %s, use create_volume first.' % location)
-        command = ['truncate', '-s ', str(size) + 'G', location]
+        command = ['truncate', '-s', str(size) + 'G', location]
         output = self.ssh_client.run(command)
         self._logger.info('Command {0}. Output {1}'.format(command, output))
 
@@ -535,6 +535,6 @@ class Sdk(object):
                 options.append('--network {}'.format(','.join(network)))
         if self.ssh_client is None:
             self.ssh_client = SSHClient(self.host, username='root')
-        self.ssh_client.run([command, ' '.join(options)])
+            self.ssh_client.run('{0} {1}'.format(command, ' '.join(options)), allow_insecure=True)
         if start is False:
             self.ssh_client.run(['virsh destroy', name])

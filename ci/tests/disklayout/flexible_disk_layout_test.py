@@ -181,11 +181,8 @@ class TestFlexibleDiskLayout(object):
                                    roles=[])
 
         # cleanup disk partition
-        cmd = ['umount', mountpoint, ';rmdir', mountpoint, ';echo', '0']
-        General.execute_command_on_node(my_sr.ip, cmd, allow_nonzero=True)
-
-        cmd = ['rmdir', mountpoint]
-        General.execute_command_on_node(my_sr.ip, cmd, allow_nonzero=True)
+        cmd = 'umount {0}; rmdir {0}; echo 0'.format(mountpoint)
+        General.execute_command_on_node(my_sr.ip, cmd, allow_insecure=True)
 
         cmd = ['parted', '-s', '/dev/' + disk.name, 'rm', '1']
         General.execute_command_on_node(my_sr.ip, cmd, allow_nonzero=True)
