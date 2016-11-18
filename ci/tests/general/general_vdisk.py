@@ -77,7 +77,7 @@ class GeneralVDisk(object):
             GeneralVDisk.logger.error(str(cpe))
             if loop_device is not None:
                 root_client.run('umount /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
-                root_client.run('rm {1}'.format(location), allow_nonzero=True, allow_insecure=True)
+                root_client.run('rm {0}'.format(location), allow_nonzero=True, allow_insecure=True)
                 root_client.run('rmdir /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
             raise
 
