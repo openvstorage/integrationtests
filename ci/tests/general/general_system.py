@@ -35,9 +35,9 @@ class GeneralSystem(object):
     @staticmethod
     def list_ovs_services(host=IP):
         if GeneralSystem.INIT_SYSTEM == 'init':
-            return General.execute_command_on_node(host, ['initctl', 'list', '|grep', 'ovs-*']).splitlines()
+            return General.execute_command_on_node(host, ['initctl list | grep ovs-*'], allow_insecure=True).splitlines()
         elif GeneralSystem.INIT_SYSTEM == 'systemd':
-            return General.execute_command_on_node(host, ['systemctl', '-l', '|grep', 'ovs-']).splitlines()
+            return General.execute_command_on_node(host, ['systemctl -l | grep ovs-'], allow_insecure=True).splitlines()
 
     @staticmethod
     def list_running_ovs_services(host=IP):

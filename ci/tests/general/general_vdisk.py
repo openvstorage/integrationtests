@@ -66,7 +66,7 @@ class GeneralVDisk(object):
 
         try:
             if loop_device is not None:
-                root_client.run(['umount', '/mnt/', loop_device, '; echo 0'])
+                root_client.run('umount /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
                 root_client.run(['truncate', '-s', size, 'G ', location])
                 root_client.dir_create(['/mnt/', loop_device])
                 root_client.run(['mkfs.ext4', '-F', location])
@@ -76,7 +76,9 @@ class GeneralVDisk(object):
         except CalledProcessError as cpe:
             GeneralVDisk.logger.error(str(cpe))
             if loop_device is not None:
-                root_client.run('umount /mnt/{0}; rm {1}; rmdir /mnt/{0}; echo 0'.format(loop_device, location), allow_insecure=True)
+                root_client.run('umount /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
+                root_client.run('rm {1}'.format(location), allow_nonzero=True, allow_insecure=True)
+                root_client.run('rmdir /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
             raise
 
         vdisk = None
@@ -148,7 +150,8 @@ class GeneralVDisk(object):
                     root_client.run(['mount', '-o', 'loop', location, '/mnt/' + loop_device])
             except CalledProcessError as cpe:
                 GeneralVDisk.logger.error(str(cpe))
-                root_client.run("""umount /mnt/{0}; rmdir /mnt/{0}""".format(loop_device), allow_insecure=True)
+                root_client.run('umount /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
+                root_client.run('rmdir /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
 
     @staticmethod
     def disconnect_volume(loop_device, root_client=None):
@@ -201,7 +204,8 @@ class GeneralVDisk(object):
                 raise ValueError('File {0} does not exist on Storage Router {1}'.format(location, root_client.ip))
         if not isinstance(count, int) or count < 1:
             raise ValueError('Count must be an integer > 0')
-        root_client.run(['dd', 'conv=notrunc', 'if=/dev/' + input_type, 'of=' + location, 'bs=' + bs, 'count=' + str(count)])
+        root_client.run(['dd', 'conv=notrunc', 'if=/dev/{0}'.format(input_type), 'of={0}'.format(location),
+                         'bs={0}'.format(bs), 'count={0}'.format(count)])
 
     @staticmethod
     def create_snapshot(vdisk, snapshot_name, timestamp=None, consistent=False, automatic=True, sticky=False):
