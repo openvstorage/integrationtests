@@ -37,7 +37,8 @@ class GeneralSystem(object):
         if GeneralSystem.INIT_SYSTEM == 'init':
             return General.execute_command_on_node(host, 'initctl list | grep ovs-*', allow_insecure=True).splitlines()
         elif GeneralSystem.INIT_SYSTEM == 'systemd':
-            return General.execute_command_on_node(host, 'systemctl -l | grep ovs-', allow_insecure=True).splitlines()
+            return General.execute_command_on_node(host, ['systemctl', '-l', '--no-legend', '--no-pager', 'list-units',
+                                                          'ovs-*']).splitlines()
 
     @staticmethod
     def list_running_ovs_services(host=IP):
