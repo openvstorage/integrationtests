@@ -119,7 +119,7 @@ class GeneralVPool(object):
         if GeneralHypervisor.get_hypervisor_type() == 'VMWARE':
             root_client = SSHClient(storage_driver.storagerouter, username='root')
             if storage_driver.mountpoint in General.get_mountpoints(root_client):
-                root_client.run('umount {0}'.format(storage_driver.mountpoint))
+                root_client.run(['umount', 'storage_driver.mountpoint'])
         task_result = GeneralVPool.api.execute_post_action(component='vpools',
                                                            guid=vpool.guid,
                                                            action='shrink_vpool',
@@ -514,7 +514,7 @@ class GeneralVPool(object):
 
             # Check KVM vpool
             if GeneralHypervisor.get_hypervisor_type() == 'KVM':
-                vpool_overview = root_client.run('virsh pool-list --all').splitlines()
+                vpool_overview = root_client.run(['virsh', 'pool-list', '--all']).splitlines()
                 vpool_overview.pop(1)
                 vpool_overview.pop(0)
                 for vpool_info in vpool_overview:
@@ -537,7 +537,7 @@ class GeneralVPool(object):
             for error_type in ['error', 'fatal']:
                 cmd = "cat -vet /var/log/ovs/volumedriver/{0}.log | tail -1000 | grep ' {1} '; echo true > /dev/null".format(vpool_name, error_type)
                 errors = []
-                for line in root_client.run(cmd).splitlines():
+                for line in root_client.run(cmd, allow_insecure=True).splitlines():
                     if "HierarchicalArakoon" in line:
                         continue
                     errors.append(line)
@@ -557,7 +557,7 @@ class GeneralVPool(object):
         """
         mountpoint = '/mnt/{0}'.format(vpool.name)
         if mountpoint not in General.get_mountpoints(root_client):
-            root_client.run('mount 127.0.0.1:{0} {0}'.format(mountpoint))
+            root_client.run(['mount', '127.0.0.1:' + mountpoint, mountpoint])
 
     @staticmethod
     def unmount_vpool(vpool, root_client):
@@ -569,4 +569,4 @@ class GeneralVPool(object):
         """
         mountpoint = '/mnt/{0}'.format(vpool.name)
         if mountpoint in General.get_mountpoints(root_client):
-            root_client.run('umount {0}'.format(mountpoint))
+            root_client.run(['umount', mountpoint])

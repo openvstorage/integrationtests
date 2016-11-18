@@ -36,7 +36,7 @@ class TestVMachine(object):
 
 
     @staticmethod
-    def vms_with_fio_test():
+    def perform_fio_test():
         """
         Test virtual machines with FIO
         """

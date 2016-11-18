@@ -106,13 +106,13 @@ class GeneralDisk(object):
         :return: Physical disk information
         """
         disk_by_id = dict()
-        result = client.run('ls -la /dev/disk/by-id/')
+        result = client.run(['ls', '-la', '/dev/disk/by-id/'])
         for entry in result.splitlines():
             if 'ata-' in entry or 'scsi-' in entry:
                 device = entry.split()
                 disk_by_id[device[10][-3:]] = device[8]
 
-        result = client.run('lsblk -n -o name,type,size,rota')
+        result = client.run(['lsblk', '-n', '-o', 'name,type,size,rota'])
         hdds = dict()
         ssds = dict()
         for entry in result.splitlines():
@@ -258,7 +258,7 @@ class GeneralDisk(object):
         root_client = SSHClient(disk.storagerouter, username='root')
         for partition in partitions:
             General.unmount_partition(root_client, partition)
-        root_client.run("parted -s /dev/{0} mklabel gpt".format(disk.name))
+        root_client.run(['parted', '-s', '/dev/' + disk.name, 'mklabel', 'gpt'])
         GeneralStorageRouter.sync_with_reality(disk.storagerouter)
         counter = 0
         timeout = 60

@@ -66,17 +66,19 @@ class GeneralVDisk(object):
 
         try:
             if loop_device is not None:
-                root_client.run('umount /mnt/{0} | echo true'.format(loop_device))
-                root_client.run('truncate -s {0}G {1}'.format(size, location))
-                root_client.dir_create('/mnt/{0}'.format(loop_device))
-                root_client.run('mkfs.ext4 -F {0}'.format(location))
-                root_client.run('mount -o loop {0} /mnt/{1} '.format(location, loop_device))
+                root_client.run('umount /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
+                root_client.run(['truncate', '-s', '{0}G'.format(size), location])
+                root_client.dir_create(['/mnt/{0}'.format(loop_device)])
+                root_client.run(['mkfs.ext4', '-F', location])
+                root_client.run(['mount', '-o', 'loop', location, '/mnt/{0}'.format(loop_device)])
             else:
-                root_client.run('truncate -s {0}G {1}'.format(size, location))
+                root_client.run(['truncate', '-s', '{0}G'.format(size), location])
         except CalledProcessError as cpe:
             GeneralVDisk.logger.error(str(cpe))
             if loop_device is not None:
-                root_client.run("""umount /mnt/{0}; rm {1}; rmdir /mnt/{0}""".format(loop_device, location))
+                root_client.run('umount /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
+                root_client.run('rm {0}'.format(location), allow_nonzero=True, allow_insecure=True)
+                root_client.run('rmdir /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
             raise
 
         vdisk = None
@@ -145,10 +147,11 @@ class GeneralVDisk(object):
             try:
                 if loop_device is not None:
                     root_client.dir_create('/mnt/{0}'.format(loop_device))
-                    root_client.run('mount -o loop {0} /mnt/{1}'.format(location, loop_device))
+                    root_client.run(['mount', '-o', 'loop', location, '/mnt/' + loop_device])
             except CalledProcessError as cpe:
                 GeneralVDisk.logger.error(str(cpe))
-                root_client.run("""umount /mnt/{0}; rmdir /mnt/{0}""".format(loop_device))
+                root_client.run('umount /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
+                root_client.run('rmdir /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
 
     @staticmethod
     def disconnect_volume(loop_device, root_client=None):
@@ -163,9 +166,10 @@ class GeneralVDisk(object):
 
         try:
             if loop_device is not None:
-                root_client.run("""umount /mnt/{0}; rmdir /mnt/{0}""".format(loop_device))
+                root_client.run(['umount', '/mnt/{0}'.format(loop_device)], allow_nonzero=True)
+                root_client.run(['rmdir', '/mnt/{0}'.format(loop_device)], allow_nonzero=True)
             else:
-                root_client.run('rmdir /mnt/{0}'.format(loop_device))
+                root_client.run(['rmdir', '/mnt/{0}'.format(loop_device)], allow_nonzero=True)
         except CalledProcessError as cpe:
             GeneralVDisk.logger.error(str(cpe))
 
@@ -201,7 +205,8 @@ class GeneralVDisk(object):
                 raise ValueError('File {0} does not exist on Storage Router {1}'.format(location, root_client.ip))
         if not isinstance(count, int) or count < 1:
             raise ValueError('Count must be an integer > 0')
-        root_client.run('dd conv=notrunc if=/dev/{0} of={1} bs={2} count={3}'.format(input_type, location, bs, count))
+        root_client.run(['dd', 'conv=notrunc', 'if=/dev/{0}'.format(input_type), 'of={0}'.format(location),
+                         'bs={0}'.format(bs), 'count={0}'.format(count)])
 
     @staticmethod
     def create_snapshot(vdisk, snapshot_name, timestamp=None, consistent=False, automatic=True, sticky=False):
@@ -252,7 +257,7 @@ class GeneralVDisk(object):
         """
         if root_client is None:
             root_client = SSHClient('127.0.0.1', username='root')
-        root_client.run('truncate -s {0} {1}'.format(size, full_name))
+        root_client.run(['truncate', '-s', size, full_name])
         random_hash = ''.join(random.choice(string.ascii_letters + string.digits) for _ in xrange(1024))
         with open(full_name, 'wb') as datafile:
             for x in xrange(size * 1024):

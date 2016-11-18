@@ -90,7 +90,7 @@ class General(object):
         return out, error, child_process.returncode
 
     @staticmethod
-    def execute_command_on_node(host, command, password=None):
+    def execute_command_on_node(host, command, password=None, allow_nonzero=False, allow_insecure=False):
         """
         Execute a command on a specific host
         :param host: Host to execute command on
@@ -99,7 +99,7 @@ class General(object):
         :return: Output of command
         """
         cl = SSHClient(host, username='root', password=password)
-        return cl.run(command)
+        return cl.run(command, allow_nonzero=str(allow_nonzero), allow_insecure=str(allow_insecure))
 
     @staticmethod
     def check_file_is_link(file_path, host, username=None, password=None):
@@ -201,7 +201,7 @@ class General(object):
         :param client: SSHClient object
         :return: Loop device information
         """
-        return [entry.split()[0] for entry in client.run('lsblk').splitlines() if 'loop' in entry]
+        return [entry.split()[0] for entry in client.run(['lsblk']).splitlines() if 'loop' in entry]
 
     @staticmethod
     def get_mountpoints(client):
@@ -211,7 +211,7 @@ class General(object):
         :return: List of mountpoints
         """
         mountpoints = []
-        for mountpoint in client.run('mount -v').strip().splitlines():
+        for mountpoint in client.run(['mount', '-v']).strip().splitlines():
             mp = mountpoint.split(' ')[2] if len(mountpoint.split(' ')) > 2 else None
             if mp and not mp.startswith('/dev') and not mp.startswith('/proc') and not mp.startswith('/sys') and not mp.startswith('/run') and not mp.startswith('/mnt/alba-asd') and mp != '/':
                 mountpoints.append(mp)
@@ -228,7 +228,7 @@ class General(object):
         client_mountpoints = General.get_mountpoints(root_client)
         for mountpoint in client_mountpoints:
             if partition.mountpoint == mountpoint:
-                root_client.run("umount {0}".format(partition.mountpoint))
+                root_client.run(['umount', partition.mountpoint])
 
     @staticmethod
     def list_os():
