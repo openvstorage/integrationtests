@@ -166,10 +166,10 @@ class GeneralVDisk(object):
 
         try:
             if loop_device is not None:
-                root_client.run('umount /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
-                root_client.run('rmdir /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
+                root_client.run(['umount', '/mnt/{0}'.format(loop_device)], allow_nonzero=True)
+                root_client.run(['rmdir', '/mnt/{0}'.format(loop_device)], allow_nonzero=True)
             else:
-                root_client.run('rmdir /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
+                root_client.run(['rmdir', '/mnt/{0}'.format(loop_device)], allow_nonzero=True)
         except CalledProcessError as cpe:
             GeneralVDisk.logger.error(str(cpe))
 
