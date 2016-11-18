@@ -67,12 +67,12 @@ class GeneralVDisk(object):
         try:
             if loop_device is not None:
                 root_client.run('umount /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
-                root_client.run(['truncate', '-s', size, 'G ', location])
-                root_client.dir_create(['/mnt/', loop_device])
+                root_client.run(['truncate', '-s', '{0}G'.format(size), location])
+                root_client.dir_create(['/mnt/{0}'.format(loop_device)])
                 root_client.run(['mkfs.ext4', '-F', location])
-                root_client.run(['mount', '-o', 'loop', location, '/mnt/' + loop_device])
+                root_client.run(['mount', '-o', 'loop', location, '/mnt/{0}'.format(loop_device)])
             else:
-                root_client.run(['truncate', '-s', str(size) + 'G', location])
+                root_client.run(['truncate', '-s', '{0}G'.format(size), location])
         except CalledProcessError as cpe:
             GeneralVDisk.logger.error(str(cpe))
             if loop_device is not None:
@@ -166,9 +166,10 @@ class GeneralVDisk(object):
 
         try:
             if loop_device is not None:
-                root_client.run("""umount /mnt/{0}; rmdir /mnt/{0}""".format(loop_device), allow_insecure=True)
+                root_client.run('umount /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
+                root_client.run('rmdir /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
             else:
-                root_client.run(['rmdir', '/mnt/' + loop_device])
+                root_client.run('rmdir /mnt/{0}'.format(loop_device), allow_nonzero=True, allow_insecure=True)
         except CalledProcessError as cpe:
             GeneralVDisk.logger.error(str(cpe))
 
