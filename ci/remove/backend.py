@@ -71,8 +71,8 @@ class BackendRemover(object):
                     if disk_path in local_stack['local_stack'][alba_node_id]:
                         for asd_id, asd_info in local_stack['local_stack'][alba_node_id][disk_path]['asds'].iteritems():
                             BackendRemover.LOGGER.info('Removing asd {0} for disk {1}'.format(asd_id, local_stack['local_stack'][alba_node_id][disk_path]['guid']))
-                            asd_safety = BackendHelper.get_asd_safety(albabackend_guid=albabackend_guid, asd_id=asd_id, api=api)[1]
-                            BackendRemover._remove_asd(alba_node_guid=alba_node_guid,asd_id=asd_id,asd_safety=asd_safety,api=api)
+                            asd_safety = BackendHelper.get_asd_safety(albabackend_guid=albabackend_guid, asd_id=asd_id, api=api)
+                            BackendRemover._remove_asd(alba_node_guid=alba_node_guid,asd_id=asd_id, asd_safety=asd_safety, api=api)
 
         # Restarting iteration to avoid too many local stack calls:
         local_stack = BackendHelper.get_backend_local_stack(albabackend_name=albabackend_name,

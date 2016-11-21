@@ -75,8 +75,7 @@ class ArakoonSetup(object):
         elif service_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
             client.run(['ln', '-s', '/usr/lib/alba/nsm_host_plugin.cmxs', '{0}/arakoon/{1}/db'.format(cluster_basedir, cluster_name)])
         ArakoonInstaller.start_cluster(cluster_name=cluster_name, master_ip=storagerouter_ip, filesystem=False)
-        ArakoonInstaller.unclaim_cluster(cluster_name=cluster_name, master_ip=storagerouter_ip, filesystem=False,
-                                         metadata=info['metadata'])
+        ArakoonInstaller.unclaim_cluster(cluster_name=cluster_name, master_ip=storagerouter_ip, filesystem=False,metadata=info['metadata'])
         ArakoonSetup.LOGGER.info("Finished creation of new arakoon cluster with name `{0}`, servicetype `{1}`,"
                                  " ip `{2}`, base_dir `{3}`".format(cluster_name, service_type, storagerouter_ip,
                                                                     cluster_basedir))
