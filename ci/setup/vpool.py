@@ -25,7 +25,7 @@ class VPoolSetup(object):
 
     LOGGER = LogHandler.get(source="setup", name="ci_vpool_setup")
     ADD_VPOOL_TIMEOUT = 500
-    REQUIRED_VPOOL_ROLES = ['DB', 'SCRUB', 'WRITE']
+    REQUIRED_VPOOL_ROLES = ['DB', 'WRITE']
 
     def __init__(self):
         pass
