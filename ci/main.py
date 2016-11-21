@@ -103,6 +103,8 @@ class Workflow(object):
                                                     external_arakoon_mapping[arakoon_name]['all'])
             return external_arakoon_mapping
         else:
+            Workflow.LOGGER.info("Skipping external arakoon creation because backend `{0}` already exists"
+                                 .format(backend['name']))
             return
 
     def setup(self):
