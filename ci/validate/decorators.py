@@ -14,11 +14,10 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from functools import wraps
-from ci.helpers.disk import DiskHelper
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.validate.roles import RoleValidation
+from ci.validate.backend import BackendValidation
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.configuration import Configuration
 from ci.helpers.exceptions import DirectoryNotFoundError, ArakoonClusterNotFoundError
@@ -143,4 +142,65 @@ def required_preset(func):
             raise AttributeError("Missing parameter: albabackend_name or preset_name")
 
         return func(*args, **kwargs)
+    return validate
+
+
+def check_role_on_disk(func):
+    """
+    Validate role(s) on disk
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        if kwargs['storagerouter_ip'] and kwargs['roles'] and kwargs['diskname']:
+            if not RoleValidation.check_role_on_disk(kwargs['roles'], kwargs['storagerouter_ip'], kwargs['diskname']):
+                # if the disk is not yet initialized with the required role execute the method
+                return func(*args, **kwargs)
+            else:
+                return
+        else:
+            raise AttributeError("Missing parameter: storagerouter_ip or roles or diskname")
+    return validate
+
+
+def check_backend(func):
+    """
+    Check if a backend is already present
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        if kwargs['backend_name']:
+            if not BackendValidation.check_backend(kwargs['backend_name']):
+                # if the backend is not yet created, create it
+                return func(*args, **kwargs)
+            else:
+                return
+        else:
+            raise AttributeError("Missing parameter: backend_name")
+    return validate
+
+
+def check_preset(func):
+    """
+    Check if a preset is already present on a backend
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        if kwargs['albabackend_name'] and kwargs['preset_details']:
+            if not BackendValidation.check_preset_on_backend(preset_name=kwargs['preset_details']['name'],
+                                                             albabackend_name=kwargs['albabackend_name']):
+                # if the preset is not yet created, create it
+                return func(*args, **kwargs)
+            else:
+                return
+        else:
+            raise AttributeError("Missing parameter: backend_name")
     return validate

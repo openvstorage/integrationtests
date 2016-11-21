@@ -14,9 +14,9 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from ci.helpers.disk import DiskHelper
-from ovs.log.log_handler import LogHandler
 from ci.helpers.roles import RoleHelper
+from ovs.log.log_handler import LogHandler
+from ci.validate.decorators import check_role_on_disk
 from ci.helpers.storagerouter import StoragerouterHelper
 
 
@@ -31,12 +31,13 @@ class RoleSetup(object):
         pass
 
     @staticmethod
-    def add_disk_role(ip, diskname, roles, api, min_size=MIN_PARTITION_SIZE):
+    @check_role_on_disk
+    def add_disk_role(storagerouter_ip, diskname, roles, api, min_size=MIN_PARTITION_SIZE):
         """
         Partition and adds roles to a disk
 
-        :param ip: storagerouter ip where the disk is located
-        :type ip: str
+        :param storagerouter_ip: ip address of a existing storagerouter
+        :type storagerouter_ip: str
         :param diskname: shortname of a disk (e.g. sdb)
         :type diskname: str
         :param roles: list of roles you want to add to the disk
@@ -45,14 +46,12 @@ class RoleSetup(object):
         :type api: ci.helpers.api.OVSClient
         :param min_size: minimum total_partition_size that is required to allocate the disk role
         :type min_size: int
-        :param config: configuration file
-        :type config: dict
         :return:
         """
 
         # Fetch information
-        storagerouter_guid = StoragerouterHelper.get_storagerouter_guid_by_ip(ip)
-        disk = StoragerouterHelper.get_disk_by_ip(ip, diskname)
+        storagerouter_guid = StoragerouterHelper.get_storagerouter_guid_by_ip(storagerouter_ip)
+        disk = StoragerouterHelper.get_disk_by_ip(storagerouter_ip, diskname)
         # Check if there are any partitions on the disk, if so check if there is enough space
         unused_partitions = []
         if len(disk.partitions) > 0:
@@ -81,7 +80,7 @@ class RoleSetup(object):
             else:
                 # disk is too small
                 raise RuntimeError("Disk `{0}` on node `{1}` is too small for role(s) `{2}`, min. total_partition_size is `{3}`"
-                                   .format(diskname, ip, roles, min_size))
+                                   .format(diskname, storagerouter_ip, roles, min_size))
         else:
             # there are no partitions on the disk, go nuke it!
             RoleHelper._configure_disk(storagerouter_guid, disk.guid, 0, disk.size, roles, api)

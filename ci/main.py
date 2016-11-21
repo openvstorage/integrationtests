@@ -26,12 +26,13 @@ from ci import autotests
 from ci.helpers.api import OVSClient
 from ci.setup.roles import RoleSetup
 from ci.setup.vpool import VPoolSetup
+from ci.remove.roles import RoleRemover
 from ci.setup.domain import DomainSetup
 from ci.setup.arakoon import ArakoonSetup
 from ci.setup.backend import BackendSetup
 from ovs.log.log_handler import LogHandler
-from ci.remove.roles import RoleRemover
 from ci.remove.backend import BackendRemover
+from ci.validate.backend import BackendValidation
 
 CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
 TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
@@ -75,31 +76,36 @@ class Workflow(object):
         :rtype: dict
         """
 
-        external_arakoon_mapping = {}
-        for ip, arakoons in backend['external_arakoon'].iteritems():
-            for arakoon_name, arakoon_settings in arakoons.iteritems():
-                # check if we already created one or not
-                if arakoon_name not in external_arakoon_mapping:
-                    # if not created yet, create one and map it
-                    external_arakoon_mapping[arakoon_name] = {}
-                    external_arakoon_mapping[arakoon_name]['master'] = ip
-                    external_arakoon_mapping[arakoon_name]['all'] = [ip]
-                    ArakoonSetup.add_arakoon(cluster_name=arakoon_name, storagerouter_ip=ip,
-                                             cluster_basedir=arakoon_settings['base_dir'],
-                                             service_type=arakoon_settings['type'])
-                else:
-                    # if created, extend it and map it
-                    external_arakoon_mapping[arakoon_name]['all'].append(ip)
-                    ArakoonSetup.extend_arakoon(cluster_name=arakoon_name,
-                                                master_storagerouter_ip=
-                                                external_arakoon_mapping[arakoon_name]['master'],
-                                                storagerouter_ip=ip,
-                                                cluster_basedir=arakoon_settings['base_dir'],
-                                                service_type=arakoon_settings['type'],
-                                                clustered_nodes=
-                                                external_arakoon_mapping[arakoon_name]['all'])
-
-        return external_arakoon_mapping
+        # if backend does not exists, deploy the external arakoons
+        if not BackendValidation.check_backend(backend_name=backend['name']):
+            external_arakoon_mapping = {}
+            for ip, arakoons in backend['external_arakoon'].iteritems():
+                for arakoon_name, arakoon_settings in arakoons.iteritems():
+                    # check if we already created one or not
+                    if arakoon_name not in external_arakoon_mapping:
+                        # if not created yet, create one and map it
+                        external_arakoon_mapping[arakoon_name] = {}
+                        external_arakoon_mapping[arakoon_name]['master'] = ip
+                        external_arakoon_mapping[arakoon_name]['all'] = [ip]
+                        ArakoonSetup.add_arakoon(cluster_name=arakoon_name, storagerouter_ip=ip,
+                                                 cluster_basedir=arakoon_settings['base_dir'],
+                                                 service_type=arakoon_settings['type'])
+                    else:
+                        # if created, extend it and map it
+                        external_arakoon_mapping[arakoon_name]['all'].append(ip)
+                        ArakoonSetup.extend_arakoon(cluster_name=arakoon_name,
+                                                    master_storagerouter_ip=
+                                                    external_arakoon_mapping[arakoon_name]['master'],
+                                                    storagerouter_ip=ip,
+                                                    cluster_basedir=arakoon_settings['base_dir'],
+                                                    service_type=arakoon_settings['type'],
+                                                    clustered_nodes=
+                                                    external_arakoon_mapping[arakoon_name]['all'])
+            return external_arakoon_mapping
+        else:
+            Workflow.LOGGER.info("Skipping external arakoon creation because backend `{0}` already exists"
+                                 .format(backend['name']))
+            return
 
     def setup(self):
         """
@@ -127,7 +133,7 @@ class Workflow(object):
             Workflow.LOGGER.info("Setup disk roles")
             for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
                 for diskname, disk_details in storagerouter_details['disks'].iteritems():
-                    RoleSetup.add_disk_role(ip=storagerouter_ip, diskname=diskname, roles=disk_details['roles'],
+                    RoleSetup.add_disk_role(storagerouter_ip=storagerouter_ip, diskname=diskname, roles=disk_details['roles'],
                                             api=self.api)
 
             # Setup LOCAL backends
