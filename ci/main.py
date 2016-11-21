@@ -127,7 +127,7 @@ class Workflow(object):
             Workflow.LOGGER.info("Setup disk roles")
             for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
                 for diskname, disk_details in storagerouter_details['disks'].iteritems():
-                    RoleSetup.add_disk_role(ip=storagerouter_ip, diskname=diskname, roles=disk_details['roles'],
+                    RoleSetup.add_disk_role(storagerouter_ip=storagerouter_ip, diskname=diskname, roles=disk_details['roles'],
                                             api=self.api)
 
             # Setup LOCAL backends

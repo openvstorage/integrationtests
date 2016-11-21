@@ -63,3 +63,15 @@ class BackendValidation(object):
 
         preset_policies = BackendHelper.get_preset_by_albabackend(preset_name, albabackend_name)['policies']
         return [list(ast.literal_eval(policy)) for policy in preset_policies] == policies
+
+    @staticmethod
+    def check_backend(backend_name):
+        """
+        Check if a backend is available on the cluster
+
+        :param backend_name: name of a existing backend
+        :type backend_name: str
+        :return:
+        """
+
+        return BackendHelper.get_backend_by_name(backend_name) is not None

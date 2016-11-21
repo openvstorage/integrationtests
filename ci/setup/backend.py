@@ -17,8 +17,7 @@ import time
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.albanode import AlbaNodeHelper
-from ci.helpers.storagerouter import StoragerouterHelper
-from ci.validate.decorators import required_roles, required_backend, required_preset
+from ci.validate.decorators import required_roles, required_backend, required_preset, check_backend, check_preset
 
 
 class BackendSetup(object):
@@ -39,6 +38,7 @@ class BackendSetup(object):
         pass
 
     @staticmethod
+    @check_backend
     @required_roles(['DB'])
     def add_backend(backend_name, api, scaling='LOCAL', timeout=BACKEND_TIMEOUT, max_tries=MAX_BACKEND_TRIES):
         """
@@ -106,6 +106,7 @@ class BackendSetup(object):
         return False
 
     @staticmethod
+    @check_preset
     @required_backend
     def add_preset(albabackend_name, preset_details, api, timeout=ADD_PRESET_TIMEOUT):
         """
@@ -255,7 +256,7 @@ class BackendSetup(object):
                             current_retry += 1
                             BackendSetup.LOGGER.info('ASD {0} for Alba node {1} was not available. Waiting 5 seconds'
                                                      ' to retry (currently {2} retries left).'.format(asd_id, alba_node_id, claim_retries - current_retry))
-                            if current_retry > claim_retries:
+                            if current_retry >= claim_retries:
                                 raise RuntimeError('ASD {0} for Alba node {1} did come available after {2} seconds'.format(asd_id, alba_node_id, current_retry * 5))
                             time.sleep(5)
                             local_stack = BackendHelper.get_backend_local_stack(albabackend_name=albabackend_name, api=api)

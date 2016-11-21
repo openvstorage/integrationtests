@@ -56,3 +56,45 @@ class DiskHelper(object):
             storagerouter_guid = StoragerouterHelper.get_storagerouter_guid_by_ip(storagerouter_ip)
             return [partition.roles for disk in DiskList.get_disks()
                     if disk.storagerouter_guid == storagerouter_guid for partition in disk.partitions]
+
+    @staticmethod
+    def get_disk_by_diskname(storagerouter_ip, disk_name):
+        """
+        Get a disk object by storagerouter ip and disk name
+
+        :param storagerouter_ip: ip address of a storage router
+        :type storagerouter_ip: str
+        :param disk_name: name of a disk (e.g. sda)
+        :type disk_name: str
+        :return: disk object
+        :rtype: ovs.dal.hybrids.Disk
+        """
+
+        storagerouter = StoragerouterHelper.get_storagerouter_by_ip(storagerouter_ip=storagerouter_ip)
+        for disk in storagerouter.disks:
+            if disk.name == disk_name:
+                return disk
+
+    @staticmethod
+    def get_roles_from_disk(storagerouter_ip, disk_name):
+        """
+        Get the roles from a certain disk
+
+        :param storagerouter_ip: ip address of a storage router
+        :type storagerouter_ip: str
+        :param disk_name: name of a disk (e.g. sda)
+        :type disk_name: str
+        :return: list of roles of all partitions on a certain disk
+        :rtype: list
+        """
+
+        disk = DiskHelper.get_disk_by_diskname(storagerouter_ip, disk_name)
+        roles_on_disk = []
+        if disk:
+            for diskpartition in disk.partitions:
+                for role in diskpartition.roles:
+                    roles_on_disk.append(role)
+            return roles_on_disk
+        else:
+            raise RuntimeError("Disk with name `{0}` not found on storagerouter `{1}`".format(disk_name,
+                                                                                              storagerouter_ip))

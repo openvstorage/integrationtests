@@ -69,3 +69,20 @@ class RoleValidation(object):
             raise RuntimeError(error_msg)
         else:
             return
+
+    @staticmethod
+    def check_role_on_disk(roles, storagerouter_ip, disk_name):
+        """
+        Check if a certain role(s) is available on a certain disk
+
+        :param roles: roles that should or should not be on a disk
+        :type roles: list
+        :param storagerouter_ip: ip address of a existing storagerouter
+        :type storagerouter_ip: str
+        :param disk_name: name of a certain disk on the given storagerouter
+        :type disk_name: str
+        :return: if available on disk
+        :rtype: bool
+        """
+
+        return DiskHelper.get_roles_from_disk(storagerouter_ip, disk_name) == roles
