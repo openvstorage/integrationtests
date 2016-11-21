@@ -208,11 +208,11 @@ class BackendHelper(object):
         """
         alias_prefixes = ['ata', 'scsi']
         for type in alias_prefixes:
-            found_aliases = [x for x in disk_object["aliases"] if x.rsplit('/', 1)[-1].startswith(type)][0].rsplit('/',1)
+            found_aliases = [x for x in disk_object["aliases"] if x.rsplit('/', 1)[-1].startswith(type)]
             if len(found_aliases) == 0:
                 continue
             else:
-                return found_aliases[-1]
+                return found_aliases[0].rsplit('/',1)[-1]
         raise RuntimeError(
             'Could not find a suitable disk alias to use. Only looking for {0} and object has {1}'.format(
                 alias_prefixes, disk_object))
