@@ -134,11 +134,18 @@ class BackendHelper(object):
         :type asd_id: str
         :param api: specify a valid api connection to the setup
         :type api: ci.helpers.api.OVSClient
-        :return: task id of celery
-        :rtype: str
+        :return: asd safety
+        :rtype: dict
         """
         params = {'asd_id': asd_id}
-        return api.get('alba/backends/{0}/calculate_safety'.format(albabackend_guid), params=params)
+        task_guid = api.get('alba/backends/{0}/calculate_safety'.format(albabackend_guid), params=params)
+        result = api.wait_for_task(task_id=task_guid, timeout=30)
+
+        if result[0] is False:
+            errormsg = "Calculate safety for '{0}' failed with '{1}'".format(asd_id, result[1])
+            BackendHelper.LOGGER.error(errormsg)
+            raise RuntimeError(errormsg)
+        return result[1]
 
     @staticmethod
     def get_backend_local_stack(albabackend_name, api):
