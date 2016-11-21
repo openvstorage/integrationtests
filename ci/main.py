@@ -171,7 +171,7 @@ class Workflow(object):
                                                   api=self.api)
                         except RuntimeError as ex:
                             Workflow.LOGGER.error("Problem during add asd of backend `{0}`: {1}"
-                                                  .format(backend['name']), ex)
+                                                  .format(backend['name'], ex))
                 else:
                     pass
 
