@@ -166,8 +166,12 @@ class Workflow(object):
                     # Initialize and claim asds
                     Workflow.LOGGER.info("Initialize and claim asds")
                     for storagenode_ip, disks in backend['osds'].iteritems():
-                        BackendSetup.add_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks,
-                                              api=self.api)
+                        try:
+                            BackendSetup.add_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks,
+                                                  api=self.api)
+                        except RuntimeError as ex:
+                            Workflow.LOGGER.error("Problem during add asd of backend `{0}`: {1}"
+                                                  .format(backend['name']), ex)
                 else:
                     pass
 

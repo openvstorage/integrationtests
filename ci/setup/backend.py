@@ -189,7 +189,6 @@ class BackendSetup(object):
             return True
 
     @staticmethod
-    @check_backend
     def add_asds(target, disks, albabackend_name, api, claim_retries=MAX_CLAIM_RETRIES):
         """
         Initialize and claim a new asd
