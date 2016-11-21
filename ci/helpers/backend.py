@@ -196,3 +196,23 @@ class BackendHelper(object):
                                       .format(preset_name, albabackend_name))
         except AttributeError:
             raise AlbaBackendNotFoundError("Albabackend with name `{0}` does not exist".format(albabackend_name))
+
+    @staticmethod
+    def get_local_stack_alias(disk_object):
+        """
+        Fetches the object with the alias that is present in the local_stack object
+        :param disk_object: object with disk info
+        :type disk_object: dict
+        :return: dict with disk info
+        :rtype: dict
+        """
+        alias_prefixes = ['ata', 'scsi']
+        for type in alias_prefixes:
+            found_aliases = [x for x in disk_object["aliases"] if x.rsplit('/', 1)[-1].startswith(type)]
+            if len(found_aliases) == 0:
+                continue
+            else:
+                return found_aliases[0].rsplit('/',1)[-1]
+        raise RuntimeError(
+            'Could not find a suitable disk alias to use. Only looking for {0} and object has {1}'.format(
+                alias_prefixes, disk_object))
