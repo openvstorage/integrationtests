@@ -212,7 +212,7 @@ class BackendHelper(object):
             if len(found_aliases) == 0:
                 continue
             else:
-                return found_aliases[0].rsplit('/', 1)[-1]
+                return found_aliases[0].rsplit('/',1)[-1]
         raise RuntimeError(
             'Could not find a suitable disk alias to use. Only looking for {0} and object has {1}'.format(
                 alias_prefixes, disk_object))

@@ -150,8 +150,12 @@ class Workflow(object):
 
                     # checkup amount nsm_hosts for a backend if external_arakoon is specified
                     if 'min_nsm_arakoons' in backend:
+                        Workflow.LOGGER.info("Setting min. {0} NSM hosts for {1}"
+                                             .format(backend['min_nsm_arakoons'], backend['name']))
                         ArakoonSetup.checkup_nsm_hosts(albabackend_name=backend['name'],
                                                        amount=backend['min_nsm_arakoons'])
+                        Workflow.LOGGER.info("Finished setting min. {0} NSM hosts for {1}"
+                                             .format(backend['min_nsm_arakoons'], backend['name']))
 
                     # Add domains
                     Workflow.LOGGER.info("Add domains")
@@ -166,8 +170,12 @@ class Workflow(object):
                     # Initialize and claim asds
                     Workflow.LOGGER.info("Initialize and claim asds")
                     for storagenode_ip, disks in backend['osds'].iteritems():
-                        BackendSetup.add_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks,
-                                              api=self.api)
+                        try:
+                            BackendSetup.add_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks,
+                                                  api=self.api)
+                        except RuntimeError as ex:
+                            Workflow.LOGGER.error("Problem during add asd of backend `{0}`: {1}"
+                                                  .format(backend['name'], ex))
                 else:
                     pass
 
@@ -185,8 +193,12 @@ class Workflow(object):
 
                     # checkup amount nsm_hosts for a backend if external_arakoon is specified
                     if 'min_nsm_arakoons' in backend:
+                        Workflow.LOGGER.info("Setting min. {0} NSM hosts for {1}"
+                                             .format(backend['min_nsm_arakoons'], backend['name']))
                         ArakoonSetup.checkup_nsm_hosts(albabackend_name=backend['name'],
                                                        amount=backend['min_nsm_arakoons'])
+                        Workflow.LOGGER.info("Finished setting min. {0} NSM hosts for {1}"
+                                             .format(backend['min_nsm_arakoons'], backend['name']))
 
                     # Add domains
                     Workflow.LOGGER.info("Add domains")

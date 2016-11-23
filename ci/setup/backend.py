@@ -196,8 +196,8 @@ class BackendSetup(object):
         :type target: str
         :param disks: dict with diskname as key and amount of osds as value
         :type disks: dict
-        :param scaling: type of scaling (local of global)
-        :type scaling: str
+        :param claim_retries: Maximum amount of claim retries
+        :type claim_retries: int
         :param api: specify a valid api connection to the setup
         :type api: ci.helpers.api.OVSClient
         :param albabackend_name: Name of the AlbaBackend to configure
