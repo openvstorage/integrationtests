@@ -14,6 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
+from ci.helpers.vdisk import VDiskHelper
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.validate.roles import RoleValidation
@@ -100,7 +101,7 @@ def required_cluster_basedir(func):
                 raise DirectoryNotFoundError("Required base_dir `{0}` not found on storagerouter `{1}`"
                                              .format(kwargs['cluster_basedir'], kwargs['storagerouter_ip']))
         else:
-            raise AttributeError("Missing parameter(s): cluster_basedir & storagerouter_ip")
+            raise AttributeError("Missing parameter(s): cluster_basedir or storagerouter_ip")
 
     return validate
 
@@ -145,6 +146,46 @@ def required_preset(func):
     return validate
 
 
+def required_vdisk(func):
+    """
+    Validate if vdisk exists on a vpool
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        # check if preset exists or not on existing alba backend
+        if kwargs['vpool_name'] and kwargs['vdisk_name']:
+            VDiskHelper.get_vdisk_by_name(vdisk_name=kwargs['vdisk_name'], vpool_name=kwargs['vpool_name'])
+        else:
+            raise AttributeError("Missing parameter: vdisk_name or vpool_name")
+
+        return func(*args, **kwargs)
+    return validate
+
+
+def required_snapshot(func):
+    """
+    Validate if snapshot exists for vdisk
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        # check if snapshot_id is set, if so it has to be checked if the snapshot actually exists
+        if 'snapshot_id' in kwargs:
+            if kwargs['snapshot_id'] and kwargs['vpool_name'] and kwargs['vdisk_name']:
+                VDiskHelper.get_snapshot_by_guid(snapshot_guid=kwargs['snapshot_id'], vdisk_name=kwargs['vdisk_name'],
+                                                 vpool_name=kwargs['vpool_name'])
+            else:
+                raise AttributeError("Missing parameter: snapshot_id, vpool_name or vdisk_name")
+
+        return func(*args, **kwargs)
+    return validate
+
+
 def check_role_on_disk(func):
     """
     Validate role(s) on disk
@@ -161,7 +202,7 @@ def check_role_on_disk(func):
             else:
                 return
         else:
-            raise AttributeError("Missing parameter: storagerouter_ip or roles or diskname")
+            raise AttributeError("Missing parameter: storagerouter_ip, roles or diskname")
     return validate
 
 
