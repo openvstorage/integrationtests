@@ -72,11 +72,11 @@ class MigrateTester(object):
         # flow : add blocktap device
         # Execute fio on it
         # do a API move call
-        with open(SETTINGS_LOC, "r") as JSON_SETTINGS:
-            settings = json.load(JSON_SETTINGS)
+        with open(SETTINGS_LOC, "r") as settings_file:
+            settings = json.load(settings_file)
 
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
+        with open(CONFIG_LOC, "r") as config_file:
+            config = json.load(config_file)
 
         api = OVSClient(
             config['ci']['grid_ip'],
