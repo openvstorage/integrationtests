@@ -56,8 +56,8 @@ class VDiskCloneChecks(object):
                 VDiskCloneChecks.validate_vdisk_clone()
                 return {'status': 'PASSED', 'case_type': VDiskCloneChecks.CASE_TYPE, 'errors': None}
             except Exception as ex:
-                VDiskCloneChecks.LOGGER.error("Fio on vdisk checks failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': VDiskCloneChecks.CASE_TYPE, 'errors': ex}
+                VDiskCloneChecks.LOGGER.error("Clone vdisk checks failed with error: {0}".format(str(ex)))
+                return {'status': 'FAILED', 'case_type': VDiskCloneChecks.CASE_TYPE, 'errors': str(ex)}
         else:
             return {'status': 'BLOCKED', 'case_type': VDiskCloneChecks.CASE_TYPE, 'errors': None}
 
@@ -98,7 +98,8 @@ class VDiskCloneChecks(object):
 
         # create required vdisk for test
         vdisk_name = VDiskCloneChecks.PREFIX+'1'
-        assert VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, size=10737418240, api=api,
+        assert VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
+                                       size=VDiskCloneChecks.VDISK_SIZE, api=api,
                                        storagerouter_ip=storagedriver_source.storagerouter.ip) is not None
         time.sleep(VDiskCloneChecks.CLONE_SLEEP_AFTER_CREATE)
 

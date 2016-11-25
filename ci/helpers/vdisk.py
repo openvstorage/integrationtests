@@ -81,9 +81,8 @@ class VDiskHelper(object):
         """
 
         vdisk = VDiskHelper.get_vdisk_by_name(vdisk_name=vdisk_name, vpool_name=vpool_name)
-        snapshotlist = [snapshot for snapshot in vdisk.snapshots if snapshot['guid'] == snapshot_guid]
-        if len(snapshotlist) == 1:
-            return [snapshot for snapshot in vdisk.snapshots if snapshot['guid'] == snapshot_guid][0]
-        else:
-            raise RuntimeError("Did not found snapshot with guid `{0}` on vdisk `{1}` on vpool `{2}`"
+        try:
+            return next((snapshot for snapshot in vdisk.snapshots if snapshot['guid'] == snapshot_guid))
+        except StopIteration:
+            raise RuntimeError("Did not find snapshot with guid `{0}` on vdisk `{1}` on vpool `{2}`"
                                .format(snapshot_guid, vdisk_name, vpool_name))

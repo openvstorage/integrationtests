@@ -167,7 +167,7 @@ def required_vdisk(func):
 
 def required_snapshot(func):
     """
-    Validate if vdisk exists on a vpool
+    Validate if snapshot exists for vdisk
 
     :param func: function
     :type func: Function
