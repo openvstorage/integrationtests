@@ -14,7 +14,6 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 from subprocess import check_output
-from ci.helpers.roles import RoleHelper
 from ovs.log.log_handler import LogHandler
 from ci.helpers.fstab import FstabHelper
 from ci.helpers.storagerouter import StoragerouterHelper
@@ -23,6 +22,7 @@ from ci.helpers.storagerouter import StoragerouterHelper
 class RoleRemover(object):
 
     LOGGER = LogHandler.get(source="remove", name="ci_role_remover")
+    CONFIGURE_DISK_TIMEOUT = 300
 
     @staticmethod
     def _umount(mountpoint):
@@ -69,13 +69,13 @@ class RoleRemover(object):
                 # Remove all partitions that have roles
                 if set(partition.roles).issubset(allowed_roles) and len(partition.roles) > 0:
                     RoleRemover.LOGGER.info("Removing {0} from partition {1} on disk {2}".format(partition.roles, partition.guid, diskname))
-                    RoleHelper._configure_disk(storagerouter_guid=storagerouter_guid,
-                                               disk_guid=disk.guid,
-                                               offset=partition.offset,
-                                               size=disk.size,
-                                               roles=[],
-                                               api=api,
-                                               partition_guid=partition.guid)
+                    RoleRemover.configure_disk(storagerouter_guid=storagerouter_guid,
+                                              disk_guid=disk.guid,
+                                              offset=partition.offset,
+                                              size=disk.size,
+                                              roles=[],
+                                              api=api,
+                                              partition_guid=partition.guid)
                     # Unmount partition
                     RoleRemover.LOGGER.info("Umounting disk {2}".format(partition.roles, partition.guid, diskname))
                     RoleRemover._umount(partition.mountpoint)
@@ -94,3 +94,51 @@ class RoleRemover(object):
                     RoleRemover.LOGGER.info("Found no roles on partition {1} on disk {2}".format(partition.roles, partition.guid, diskname))
         else:
             RoleRemover.LOGGER.info("Found no partition on the disk.")
+
+    @staticmethod
+    def configure_disk(storagerouter_guid, disk_guid, offset, size, roles, api, partition_guid=None,
+                       timeout=CONFIGURE_DISK_TIMEOUT):
+        """
+        Partition a disk and add roles to it
+
+        :param storagerouter_guid: guid of a storagerouter
+        :type storagerouter_guid: str
+        :param disk_guid: guid of a disk
+        :type disk_guid: str
+        :param offset: start of the partition
+        :type offset: int
+        :param size: size of the partition
+        :type size: int
+        :param roles: roles to add to a partition (e.g. ['DB', 'WRITE'])
+        :type roles: list
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: time to wait for the task to complete
+        :type timeout: int
+        :param partition_guid: guid of the partition
+        :type partition_guid: str
+        :return: tuple that consists of disk_guid and storagerouter_guid
+        :rtype: tuple
+        """
+        data = {
+            'disk_guid': disk_guid,
+            'offset': offset,
+            'size': size,
+            'roles': roles,
+            'partition_guid': partition_guid
+        }
+        task_guid = api.post(
+            api='/storagerouters/{0}/configure_disk/'.format(storagerouter_guid),
+            data=data
+        )
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Adjusting disk `{0}` has failed on storagerouter `{1}` with error '{2}'" \
+                .format(disk_guid, storagerouter_guid, task_result[1])
+            RoleRemover.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            RoleRemover.LOGGER.info("Adjusting disk `{0}` should have succeeded on storagerouter `{1}`"
+                                   .format(disk_guid, storagerouter_guid))
+            return disk_guid, storagerouter_guid

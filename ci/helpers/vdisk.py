@@ -60,7 +60,7 @@ class VDiskHelper(object):
         :param vdisk_guid: guid of a existing vdisk
         :type vdisk_guid: str
         :return: a vdisk object
-        :rtype: ovs.dal.hybrids.vdisk
+        :rtype: ovs.dal.hybrids.vdisk.VDISK
         """
 
         return VDisk(vdisk_guid)

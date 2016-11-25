@@ -97,8 +97,8 @@ class VDiskSetup(object):
         :type timeout: int
         :param vpool_name: name of a existing vpool
         :type vpool_name: str
-        :return: if success
-        :rtype: bool
+        :return: vdisk guid
+        :rtype: str
         """
         vpool_guid = VPoolHelper.get_vpool_by_name(vpool_name).guid
         storagerouter_guid = StoragerouterHelper.get_storagerouter_by_ip(storagerouter_ip).guid

@@ -14,7 +14,6 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from ci.helpers.roles import RoleHelper
 from ovs.log.log_handler import LogHandler
 from ci.validate.decorators import check_role_on_disk
 from ci.helpers.storagerouter import StoragerouterHelper
@@ -72,10 +71,10 @@ class RoleSetup(object):
                 biggest_unused_partition = unused_partitions[0]
             if ((disk.size-total_partition_size)/1024**3) > min_size:
                 # disk is still large enough, let the partitioning begin and apply some roles!
-                RoleHelper._configure_disk(storagerouter_guid=storagerouter_guid, disk_guid=disk.guid, offset=total_partition_size+1,
+                RoleSetup.configure_disk(storagerouter_guid=storagerouter_guid, disk_guid=disk.guid, offset=total_partition_size + 1,
                                           size=(disk.size-total_partition_size)-1, roles=roles, api=api)
             elif biggest_unused_partition is not None and (biggest_unused_partition.size/1024**3) > min_size:
-                RoleHelper._configure_disk(storagerouter_guid=storagerouter_guid, disk_guid=disk.guid, offset=biggest_unused_partition.offset,
+                RoleSetup.configure_disk(storagerouter_guid=storagerouter_guid, disk_guid=disk.guid, offset=biggest_unused_partition.offset,
                                           size=biggest_unused_partition.size, roles=roles, api=api, partition_guid=biggest_unused_partition.guid)
             else:
                 # disk is too small
@@ -83,4 +82,52 @@ class RoleSetup(object):
                                    .format(diskname, storagerouter_ip, roles, min_size))
         else:
             # there are no partitions on the disk, go nuke it!
-            RoleHelper._configure_disk(storagerouter_guid, disk.guid, 0, disk.size, roles, api)
+            RoleSetup.configure_disk(storagerouter_guid, disk.guid, 0, disk.size, roles, api)
+
+    @staticmethod
+    def configure_disk(storagerouter_guid, disk_guid, offset, size, roles, api, partition_guid=None,
+                       timeout=CONFIGURE_DISK_TIMEOUT):
+        """
+        Partition a disk and add roles to it
+
+        :param storagerouter_guid: guid of a storagerouter
+        :type storagerouter_guid: str
+        :param disk_guid: guid of a disk
+        :type disk_guid: str
+        :param offset: start of the partition
+        :type offset: int
+        :param size: size of the partition
+        :type size: int
+        :param roles: roles to add to a partition (e.g. ['DB', 'WRITE'])
+        :type roles: list
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: time to wait for the task to complete
+        :type timeout: int
+        :param partition_guid: guid of the partition
+        :type partition_guid: str
+        :return: tuple that consists of disk_guid and storagerouter_guid
+        :rtype: tuple
+        """
+        data = {
+            'disk_guid': disk_guid,
+            'offset': offset,
+            'size': size,
+            'roles': roles,
+            'partition_guid': partition_guid
+        }
+        task_guid = api.post(
+            api='/storagerouters/{0}/configure_disk/'.format(storagerouter_guid),
+            data=data
+        )
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Adjusting disk `{0}` has failed on storagerouter `{1}` with error '{2}'" \
+                .format(disk_guid, storagerouter_guid, task_result[1])
+            RoleSetup.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            RoleSetup.LOGGER.info("Adjusting disk `{0}` should have succeeded on storagerouter `{1}`"
+                                  .format(disk_guid, storagerouter_guid))
+            return disk_guid, storagerouter_guid
