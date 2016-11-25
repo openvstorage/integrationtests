@@ -84,13 +84,10 @@ class VDiskCloneChecks(object):
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
 
-        vpool = None
-        for pos_vpool in vpools:
-            if len(pos_vpool.storagedrivers) >= 2:
-                vpool = pos_vpool
-                break
-
-        assert vpool is not None, "Not enough Storagedrivers to test"
+        try:
+            vpool = next((vpool for vpool in vpools if len(vpool.storagedrivers) >= 2))
+        except StopIteration:
+            assert False, "Not enough Storagedrivers to test"
 
         # setup base information
         storagedriver_source = vpool.storagedrivers[0]
