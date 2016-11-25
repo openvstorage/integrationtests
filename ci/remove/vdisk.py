@@ -18,12 +18,14 @@ from ci.helpers.vdisk import VDiskHelper
 from ovs.lib.vdisk import VDiskController
 from ovs.log.log_handler import LogHandler
 from ovs.dal.exceptions import ObjectNotFoundException
+from ci.validate.decorators import required_vtemplate
 
 
 class VDiskRemover(object):
 
     LOGGER = LogHandler.get(source="remove", name="ci_vdisk_remover")
     REMOVE_SNAPSHOT_TIMEOUT = 60
+    REMOVE_VTEMPLATE_TIMEOUT = 60
 
     def __init__(self):
         pass
@@ -61,7 +63,7 @@ class VDiskRemover(object):
             VDiskRemover.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
-            VDiskRemover.LOGGER.info("Creating snapshot `{0}` for vdisk `{1}` should have succeeded"
+            VDiskRemover.LOGGER.info("Deleting snapshot `{0}` for vdisk `{1}` should have succeeded"
                                      .format(snapshot_guid, vdisk_name))
             return True
 
@@ -101,3 +103,36 @@ class VDiskRemover(object):
 
         vdisk_guid = VDiskHelper.get_vdisk_by_name(vdisk_name, vpool_name).guid
         return VDiskRemover.remove_vdisk(vdisk_guid)
+
+    @staticmethod
+    @required_vtemplate
+    def remove_vtemplate_by_name(vdisk_name, vpool_name, api, timeout=REMOVE_VTEMPLATE_TIMEOUT):
+        """
+        Remove a vTemplate from a cluster
+
+        :param vdisk_name: name of a existing vdisk (e.g. test.raw)
+        :type vdisk_name: str
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: time to wait for the task to complete
+        :type timeout: int
+        :return: if success
+        :rtype: bool
+        """
+
+        vdisk_guid = VDiskHelper.get_vdisk_by_name(vdisk_name, vpool_name).guid
+
+        task_guid = api.post(
+            api='/vdisks/{0}/delete_vtemplate/'.format(vdisk_guid)
+        )
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Deleting vTemplate `{0}` has failed".format(vdisk_name)
+            VDiskRemover.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            VDiskRemover.LOGGER.info("Deleting vTemplate `{0}` should have succeeded".format(vdisk_name))
+            return True
