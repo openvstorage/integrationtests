@@ -18,6 +18,7 @@ from ci.helpers.vdisk import VDiskHelper
 from ci.helpers.vpool import VPoolHelper
 from ovs.log.log_handler import LogHandler
 from ci.helpers.storagerouter import StoragerouterHelper
+from ci.validate.decorators import required_vdisk, required_snapshot
 
 
 class VDiskSetup(object):
@@ -25,6 +26,7 @@ class VDiskSetup(object):
     LOGGER = LogHandler.get(source="setup", name="ci_vdisk_setup")
     CREATE_SNAPSHOT_TIMEOUT = 60
     CREATE_VDISK_TIMEOUT = 60
+    CREATE_CLONE_TIMEOUT = 60
 
     def __init__(self):
         pass
@@ -51,7 +53,7 @@ class VDiskSetup(object):
         :param vpool_name: name of a existing vpool
         :type vpool_name: str
         :return: if success
-        :rtype: bool
+        :rtype: str
         """
         vdisk_guid = VDiskHelper.get_vdisk_by_name(vdisk_name, vpool_name).guid
 
@@ -121,10 +123,77 @@ class VDiskSetup(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Creating vdisk `{0}` on vPool `{1}` on storagerouter `{2}` has failed with error {3}".format(vdisk_name, vpool_name, storagerouter_ip, task_result[1])
+            error_msg = "Creating vdisk `{0}` on vPool `{1}` on storagerouter `{2}` has failed with error {3}"\
+                .format(vdisk_name, vpool_name, storagerouter_ip, task_result[1])
             VDiskSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
             VDiskSetup.LOGGER.info("Creating vdisk `{0}` on vPool `{1}` on storagerouter `{2}` should have succeeded"
                                    .format(vdisk_name, vpool_name, storagerouter_ip))
+            return task_result[1]
+
+    @staticmethod
+    @required_vdisk
+    @required_snapshot
+    def create_clone(vdisk_name, vpool_name, new_vdisk_name, storagerouter_ip, api, snapshot_id=None,
+                     timeout=CREATE_CLONE_TIMEOUT):
+        """
+        Create a new vDisk on a certain vPool/storagerouter
+
+        :param vdisk_name: location of a vdisk on a vpool
+                           (e.g. /mnt/vpool/test.raw = test.raw, /mnt/vpool/volumes/test.raw = volumes/test.raw )
+        :type vdisk_name: str
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
+        :param new_vdisk_name: location of the NEW vdisk on the vpool
+                           (e.g. /mnt/vpool/test.raw = test.raw, /mnt/vpool/volumes/test.raw = volumes/test.raw )
+        :type new_vdisk_name: str
+        :param storagerouter_ip: ip address of a existing storagerouter where the clone will be deployed
+        :type storagerouter_ip: str
+        :param snapshot_id: GUID of a existing snapshot (DEFAULT=None -> will create new snapshot)
+        :type snapshot_id: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: time to wait for the task to complete
+        :type timeout: int
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
+        :return: if success
+        :rtype: bool
+        """
+
+        # fetch the requirements
+        vdisk = VDiskHelper.get_vdisk_by_name(vdisk_name, vpool_name)
+        storagerouter_guid = StoragerouterHelper.get_storagerouter_by_ip(storagerouter_ip).guid
+
+        # remove .raw or .vmdk if present
+        if '.raw' in new_vdisk_name or '.vmdk' in new_vdisk_name:
+            official_new_vdisk_name = new_vdisk_name.split('.')[0]
+        else:
+            official_new_vdisk_name = new_vdisk_name
+
+        if not snapshot_id:
+            data = {"name": official_new_vdisk_name,
+                    "storagerouter_guid": storagerouter_guid}
+        else:
+            data = {"name": official_new_vdisk_name,
+                    "storagerouter_guid": storagerouter_guid,
+                    "snapshot_id": snapshot_id}
+
+        task_guid = api.post(
+            api='/vdisks/{0}/clone'.format(vdisk.guid),
+            data=data
+        )
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Creating clone `{0}` with snapshot_id `{4}` on vPool `{1}` on storagerouter `{2}` " \
+                        "has failed with error {3}".format(vdisk_name, vpool_name, storagerouter_ip,
+                                                           task_result[1], snapshot_id)
+            VDiskSetup.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            VDiskSetup.LOGGER.info("Creating clone `{0}` with snapshot_id `{3}` on vPool `{1}` on storagerouter `{2}` "
+                                   "should have succeeded".format(vdisk_name, vpool_name, storagerouter_ip,
+                                                                  snapshot_id))
             return task_result[1]

@@ -64,3 +64,26 @@ class VDiskHelper(object):
         """
 
         return VDisk(vdisk_guid)
+
+    @staticmethod
+    def get_snapshot_by_guid(snapshot_guid, vdisk_name, vpool_name):
+        """
+        Fetch vdisk object by vdisk guid
+
+        :param snapshot_guid: guid of a existing snapshot
+        :type snapshot_guid: str
+        :param vdisk_name: name of a existing vdisk
+        :type vdisk_name: str
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
+        :return: a vdisk object
+        :rtype: ovs.dal.hybrids.vdisk
+        """
+
+        vdisk = VDiskHelper.get_vdisk_by_name(vdisk_name=vdisk_name, vpool_name=vpool_name)
+        snapshotlist = [snapshot for snapshot in vdisk.snapshots if snapshot['guid'] == snapshot_guid]
+        if len(snapshotlist) == 1:
+            return [snapshot for snapshot in vdisk.snapshots if snapshot['guid'] == snapshot_guid][0]
+        else:
+            raise RuntimeError("Did not found snapshot with guid `{0}` on vdisk `{1}` on vpool `{2}`"
+                               .format(snapshot_guid, vdisk_name, vpool_name))
