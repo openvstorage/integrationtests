@@ -38,7 +38,12 @@ class MigrateTester(object):
     AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SLEEP_TIME = 30
-    REQUIRED_PACKAGES = ['blktap-openvstorage-utils']
+    REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'fio']
+    # RW mixes for Fio, bs for dd
+    DATA_TEST_CASES = {
+        'dd': [1 * 1024**2],
+        'fio': [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]
+    }
 
     def __init__(self):
         pass
@@ -71,9 +76,6 @@ class MigrateTester(object):
         This data will be sent to testrails to process it thereafter
         :return:
         """
-        # flow : add blocktap device
-        # Execute fio on it
-        # do a API move call
         with open(SETTINGS_LOC, "r") as settings_file:
             settings = json.load(settings_file)
 
@@ -118,69 +120,73 @@ class MigrateTester(object):
         assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}" \
             .format(len(missing_packages), storagedriver_1.storage_ip, missing_packages)
 
-        # Create a new vdisk to test
-        vdisk_name = "{0}_vdisk01".format(MigrateTester.TEST_NAME)
-        try:
-            vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, size=10*1024**3,
-                                                 storagerouter_ip=storagedriver_1.storagerouter.ip, api=api)
-            # Fetch to validate if it was properly created
-            vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
-            protocol = storagedriver_1.cluster_node_config['network_server_uri'].split(':')[0]
-            values_to_check['vdisk'] = vdisk.serialize()
+        for cmd_type, configurations in MigrateTester.DATA_TEST_CASES.iteritems():
+            for configuration in configurations:
+                # Create a new vdisk to test
+                vdisk_name = "{0}_vdisk01".format(MigrateTester.TEST_NAME)
+                try:
+                    vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, size=10*1024**3,
+                                                         storagerouter_ip=storagedriver_1.storagerouter.ip, api=api)
+                    # Fetch to validate if it was properly created
+                    vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
+                    protocol = storagedriver_1.cluster_node_config['network_server_uri'].split(':')[0]
+                    values_to_check['vdisk'] = vdisk.serialize()
 
-            # Setup blocktap
-            MigrateTester.LOGGER.info("Creating a tap blk device for the vdisk")
-            tap_dir = client.run(["tap-ctl", "create", "-a", "openvstorage+{0}:{1}:{2}/{3}".format(protocol, storagedriver_1.storage_ip, storagedriver_1.ports['edge'], vdisk_name)])
-            MigrateTester.LOGGER.info("Created a tap blk device at location `{0}`".format(tap_dir))
-        except Exception as ex:
-            # Attempt to cleanup test
-            MigrateTester.LOGGER.info("Creation of vdisk failed. Cleaning up test")
-            try:
-                MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client, False)
-                MigrateTester._cleanup_vdisk(vdisk_name, vpool.name, False)
-            except:
-                pass
-            raise
+                    # Setup blocktap
+                    MigrateTester.LOGGER.info("Creating a tap blk device for the vdisk")
+                    tap_dir = client.run(["tap-ctl", "create", "-a", "openvstorage+{0}:{1}:{2}/{3}".format(protocol, storagedriver_1.storage_ip, storagedriver_1.ports['edge'], vdisk_name)])
+                    MigrateTester.LOGGER.info("Created a tap blk device at location `{0}`".format(tap_dir))
+                except Exception as ex:
+                    # Attempt to cleanup test
+                    MigrateTester.LOGGER.info("Creation of vdisk failed. Cleaning up test")
+                    try:
+                        MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client, False)
+                        MigrateTester._cleanup_vdisk(vdisk_name, vpool.name, False)
+                    except:
+                        pass
+                    raise
 
-        # Start threading
-        threads = []
-        # Monitor IOPS activity
-        iops_activity = {
-            "down": [],
-            "descending": [],
-            "rising": [],
-            "highest": None,
-            "lowest": None
-        }
-        threads.append(MigrateTester._start_thread(MigrateTester._check_downtimes, name='iops', args=[iops_activity, vdisk]))
-        # Run write data on a thread
-        threads.append(MigrateTester._start_thread(target=MigrateTester._write_data, name='fio', args=[client, vdisk_name, tap_dir, amount_to_write]))
-        time.sleep(MigrateTester.SLEEP_TIME)
-        try:
-            VDiskSetup.move_vdisk(vdisk_guid, storagedriver_2.storagerouter_guid, api)
-            # Validate move
-            MigrateTester._validate_move(values_to_check)
-            # Stop writing after 30 more s
-            time.sleep(MigrateTester.SLEEP_TIME)
-            MigrateTester.LOGGER.info('Writing and monitoring for another {0}s.'.format(MigrateTester.SLEEP_TIME))
-            for thread_pair in threads:
-                if thread_pair[0].isAlive():
-                    thread_pair[1].set()
-
-            MigrateTester.LOGGER.info('IOPS monitoring: {0}'.format(iops_activity))
-            # Validate downtime
-            # Each log means +-4s downtime and slept twice
-            if len(iops_activity["down"]) * 4 >= MigrateTester.SLEEP_TIME * 2:
-                raise ValueError("Thread did not cause any IOPS to happen.")
-        except Exception as ex:
-            raise
-        finally:
-            # Stop all threads
-            for thread_pair in threads:
-                if thread_pair[1].isSet():
-                    thread_pair[1].set()
-            MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client)
-            MigrateTester._cleanup_vdisk(vdisk_name, vpool.name)
+                # Start threading
+                threads = []
+                # Monitor IOPS activity
+                iops_activity = {
+                    "down": [],
+                    "descending": [],
+                    "rising": [],
+                    "highest": None,
+                    "lowest": None
+                }
+                threads.append(MigrateTester._start_thread(MigrateTester._check_downtimes, name='iops', args=[iops_activity, vdisk]))
+                # Run write data on a thread
+                threads.append(MigrateTester._start_thread(target=MigrateTester._write_data, name='fio', args=[client, vdisk_name, tap_dir, amount_to_write, cmd_type, configuration]))
+                time.sleep(MigrateTester.SLEEP_TIME)
+                try:
+                    VDiskSetup.move_vdisk(vdisk_guid, storagedriver_2.storagerouter_guid, api)
+                    # Validate move
+                    MigrateTester._validate_move(values_to_check)
+                    # Stop writing after 30 more s
+                    time.sleep(MigrateTester.SLEEP_TIME)
+                    MigrateTester.LOGGER.info('Writing and monitoring for another {0}s.'.format(MigrateTester.SLEEP_TIME))
+                    for thread_pair in threads:
+                        if thread_pair[0].isAlive():
+                            thread_pair[1].set()
+                    # Sleep to let the threads die
+                    time.sleep(5)
+                    MigrateTester.LOGGER.info('IOPS monitoring: {0}'.format(iops_activity))
+                    # Validate downtime
+                    # Each log means +-4s downtime and slept twice
+                    if len(iops_activity["down"]) * 4 >= MigrateTester.SLEEP_TIME * 2:
+                        raise ValueError("Thread did not cause any IOPS to happen.")
+                except Exception as ex:
+                    MigrateTester.LOGGER.failure('Failed during {0} with configuration {1}'.format(cmd_type, configuration))
+                    raise
+                finally:
+                    # Stop all threads
+                    for thread_pair in threads:
+                        if thread_pair[1].isSet():
+                            thread_pair[1].set()
+                    MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client)
+                    MigrateTester._cleanup_vdisk(vdisk_name, vpool.name)
 
     @staticmethod
     def _validate_move(values_to_check):
@@ -292,7 +298,7 @@ class MigrateTester(object):
                 pass
 
     @staticmethod
-    def _write_data(client, vdisk_name, blocktap_dir, write_amount, stop_event):
+    def _write_data(client, vdisk_name, blocktap_dir, write_amount, cmd_type, configuration, stop_event):
         """
         Runs a dd on a blocktap dir for a specific vdisk
         :param client: ovs ssh client
@@ -307,11 +313,20 @@ class MigrateTester(object):
         :type stop_event: threading._Event
         :return:
         """
+
         bs = 1 * 1024**2
         count = math.ceil(float(write_amount) / bs)
         MigrateTester.LOGGER.info("Starting to write on vdisk `{0}` with blktap `{1}`".format(vdisk_name, blocktap_dir))
-        while not stop_event.is_set() and count > 0:
+        if cmd_type == 'dd':
             cmd = ['dd', 'if=/dev/urandom', 'of={0}'.format(blocktap_dir), 'bs={0}'.format(bs), 'count=1']
+        elif cmd_type == 'fio':
+            cmd = ["fio", "--name=test", "--filename={0}".format(blocktap_dir), "--ioengine=libaio", "--iodepth=4",
+                   "--rw=readwrite", "--bs={0}".format(bs), "--direct=1", "--size={0}".format(bs),
+                   "--rwmixread={0}".format(configuration[0]), "--rwmixwrite={0}".format(configuration[1])]
+        else:
+            raise ValueError('{0} is not supported for writing data.'.format(cmd_type))
+        MigrateTester.LOGGER.info(" ".join(cmd))
+        while not stop_event.is_set() and count > 0:
             client.run(cmd)
             count -= 1
         MigrateTester.LOGGER.info("Finished writing data on vdisk `{0}` with blktap `{1}`".format(vdisk_name, blocktap_dir))
