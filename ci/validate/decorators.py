@@ -165,6 +165,30 @@ def required_vdisk(func):
     return validate
 
 
+def required_vtemplate(func):
+    """
+    Validate if vdisk is a vTemplate
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        # check if preset exists or not on existing alba backend
+        if kwargs['vpool_name'] and kwargs['vdisk_name']:
+            if not VDiskHelper.get_vdisk_by_name(vdisk_name=kwargs['vdisk_name'], vpool_name=kwargs['vpool_name'])\
+                    .is_vtemplate:
+                error_msg = "Given vDisk `{0}` on vPool `{1}` is not a vTemplate".format(kwargs['vdisk_name'],
+                                                                                         kwargs['vpool_name'])
+                LOGGER.error(error_msg)
+                raise RuntimeError(error_msg)
+        else:
+            raise AttributeError("Missing parameter: vdisk_name or vpool_name")
+
+        return func(*args, **kwargs)
+    return validate
+
+
 def required_snapshot(func):
     """
     Validate if snapshot exists for vdisk
