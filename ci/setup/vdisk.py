@@ -128,3 +128,31 @@ class VDiskSetup(object):
             VDiskSetup.LOGGER.info("Creating vdisk `{0}` on vPool `{1}` on storagerouter `{2}` should have succeeded"
                                    .format(vdisk_name, vpool_name, storagerouter_ip))
             return task_result[1]
+
+    @staticmethod
+    def move_vdisk(vdisk_guid, target_storagerouter_guid, api, timeout=60):
+        """
+        Moves a vdisk
+        :param vdisk_guid: guid of the vdisk
+        :param target_storagerouter_guid: guid of the storuagerouter to move to
+        :param api: instance of ovs client
+        :param timeout: timeout in seconds
+        :return:
+        """
+        data = {"target_storagerouter_guid": target_storagerouter_guid}
+
+        task_guid = api.post(
+            api='/vdisks/{0}/move/'.format(vdisk_guid),
+            data=data
+        )
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Moving vdisk {0} to {1} has failed with {2}.".format(
+                vdisk_guid, target_storagerouter_guid, task_result[1])
+            VDiskSetup.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            VDiskSetup.LOGGER.info(
+                "Vdisk {0} should have been moved to {1}.".format(vdisk_guid, target_storagerouter_guid))
+            return task_result[1]

@@ -17,9 +17,11 @@ import json
 import math
 import time
 import threading
+from datetime import datetime
 from ci.helpers.api import OVSClient
 from ci.helpers.vpool import VPoolHelper
 from ci.helpers.vdisk import VDiskHelper
+from ci.helpers.storagedriver import StoragedriverHelper
 from ci.helpers.system import SystemHelper
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
@@ -33,9 +35,9 @@ class MigrateTester(object):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_hypervisor_live_migrate"
-    AMOUNT_TO_WRITE = 1*1024**3  # in MegaByte
+    AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
-
+    SLEEP_TIME = 30
     REQUIRED_PACKAGES = ['blktap-openvstorage-utils']
 
     def __init__(self):
@@ -105,6 +107,12 @@ class MigrateTester(object):
         storagedriver_2 = [st for st in vpool.storagedrivers if st != storagedriver_1][0]
         client = SSHClient(storagedriver_1.storage_ip, username='root')
 
+        # Cache to validate properties
+        values_to_check = {
+            'source_std': storagedriver_1.serialize(),
+            'target_std': storagedriver_2.serialize()
+        }
+
         # Check if there are missing packages
         missing_packages = SystemHelper.get_missing_packages(storagedriver_1.storage_ip, MigrateTester.REQUIRED_PACKAGES)
         assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}" \
@@ -118,6 +126,7 @@ class MigrateTester(object):
             # Fetch to validate if it was properly created
             vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
             protocol = storagedriver_1.cluster_node_config['network_server_uri'].split(':')[0]
+            values_to_check['vdisk'] = vdisk.serialize()
 
             # Setup blocktap
             MigrateTester.LOGGER.info("Creating a tap blk device for the vdisk")
@@ -127,95 +136,165 @@ class MigrateTester(object):
             # Attempt to cleanup test
             MigrateTester.LOGGER.info("Creation of vdisk failed. Cleaning up test")
             try:
-                MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client)
-                MigrateTester._cleanup_vdisk(vdisk_name, vpool.name)
+                MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client, False)
+                MigrateTester._cleanup_vdisk(vdisk_name, vpool.name, False)
             except:
                 pass
             raise
 
         # Start threading
+        threads = []
+        # Monitor IOPS activity
+        iops_activity = {
+            "down": [],
+            "descending": [],
+            "rising": [],
+            "highest": None,
+            "lowest": None
+        }
+        threads.append(MigrateTester._start_thread(MigrateTester._check_downtimes, name='iops', args=[iops_activity, vdisk]))
         # Run write data on a thread
-        thread, event = MigrateTester._start_thread(target=MigrateTester._write_data, name='fio', args=[client, vdisk_name, tap_dir, amount_to_write])
-        # Wait 30 sec before moving
-        time.sleep(30)
+        threads.append(MigrateTester._start_thread(target=MigrateTester._write_data, name='fio', args=[client, vdisk_name, tap_dir, amount_to_write]))
+        time.sleep(MigrateTester.SLEEP_TIME)
         try:
-            MigrateTester.move_vdisk(vdisk_guid, storagedriver_2.storagerouter_guid, api)
+            VDiskSetup.move_vdisk(vdisk_guid, storagedriver_2.storagerouter_guid, api)
             # Validate move
-
+            MigrateTester._validate_move(values_to_check)
             # Stop writing after 30 more s
-            thread.join(30)
-            if thread.isAlive():
-                # Thread should have died. Stop thread either way
-                event.set()
-            MigrateTester._validate_move(vdisk, storagedriver_2)
+            time.sleep(MigrateTester.SLEEP_TIME)
+            MigrateTester.LOGGER.info('Writing and monitoring for another {0}s.'.format(MigrateTester.SLEEP_TIME))
+            for thread_pair in threads:
+                if thread_pair[0].isAlive():
+                    thread_pair[1].set()
+
+            MigrateTester.LOGGER.info('IOPS monitoring: {0}'.format(iops_activity))
+            # Validate downtime
+            # Each log means +-4s downtime and slept twice
+            if len(iops_activity["down"]) * 4 >= MigrateTester.SLEEP_TIME * 2:
+                raise ValueError("Thread did not cause any IOPS to happen.")
         except Exception as ex:
             raise
         finally:
-            # Stop the writing
-            if event.isSet() is False:
-                event.set()
+            # Stop all threads
+            for thread_pair in threads:
+                if thread_pair[1].isSet():
+                    thread_pair[1].set()
             MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client)
             MigrateTester._cleanup_vdisk(vdisk_name, vpool.name)
 
     @staticmethod
-    def _validate_move(vdisk, move_target):
+    def _validate_move(values_to_check):
         """
-        Validates the move test. Checks IO,
-        :param vdisk: vdisk object
-        :type vdisk: ovs.dal.hybrids.vdisk.VDISK
-        :param move_target: object of target to move to
-        :type move_target: ovs.dal.hybrids.storagedriver.STORAGEDRIVER
+        Validates the move test. Checks IO, and checks for dal changes
+        :param values_to_check: dict with values to validate if they updated
+        :type values_to_check: dict
         :return:
         """
-        std = move_target
-
-        pass
+        # Fetch dal object
+        source_std = StoragedriverHelper.get_storagedriver_by_guid(values_to_check['source_std']['guid'])
+        target_std = StoragedriverHelper.get_storagedriver_by_guid(values_to_check['target_std']['guid'])
+        try:
+            MigrateTester._validate_dal(values_to_check)
+        except ValueError as ex:
+            MigrateTester.LOGGER.warning('DAL did not automatically change after a move. Should be reported to engineers. Got {0}'.format(ex))
+            source_std.invalidate_dynamics([])
+            target_std.invalidate_dynamics([])
+            # Properties should have been reloaded
+            values_to_check['source_std'] = StoragedriverHelper.get_storagedriver_by_guid(values_to_check['source_std']['guid']).serialize()
+            values_to_check['target_std'] = StoragedriverHelper.get_storagedriver_by_guid(values_to_check['target_std']['guid']).serialize()
+            MigrateTester._validate_dal(values_to_check)
 
     @staticmethod
-    def _cleanup_blktap(vdisk_name, storage_ip, client):
+    def _validate_dal(values):
+        """
+        Validates the move test. Checks for dal changes
+        :param values: dict with values to validate if they updated
+        :type values: dict
+        :return:
+        """
+        # Fetch them from the dal
+        source_std = StoragedriverHelper.get_storagedriver_by_guid(values['source_std']['guid'])
+        target_std = StoragedriverHelper.get_storagedriver_by_guid(values['target_std']['guid'])
+        vdisk = VDiskHelper.get_vdisk_by_guid(values['vdisk']['guid'])
+        if values['source_std'] == source_std.serialize():
+            # DAL values did not update - expecting a change in vdisks_guids
+            raise ValueError('Expecting changes in the target Storagedriver but nothing changed.')
+        else:
+            # Expecting changes in vdisks_guids
+            if vdisk.guid in source_std.vdisks_guids:
+                raise ValueError('Vdisks guids were not updated after move for source storagedriver.')
+            else:
+                MigrateTester.LOGGER.info('All properties are updated for source storagedriver.')
+        if values['target_std'] == target_std.serialize():
+            raise ValueError('Expecting changes in the target Storagedriver but nothing changed.')
+        else:
+            if vdisk.guid not in target_std.vdisks_guids:
+                raise ValueError('Vdisks guids were not updated after move for target storagedriver.')
+            else:
+                MigrateTester.LOGGER.info('All properties are updated for target storagedriver.')
+        if values["vdisk"] == vdisk.serialize():
+            raise ValueError('Expecting changes in the vdisk but nothing changed.')
+        else:
+            if vdisk.storagerouter_guid == target_std.storagerouter.guid:
+                MigrateTester.LOGGER.info('All properties are updated for vdisk.')
+            else:
+                ValueError('Expected {0} but found {1} for vdisk.storagerouter_guid'.format(vdisk.storagerouter_guid, vdisk.storagerouter_guid))
+        MigrateTester.LOGGER.info('Move vdisk was successful according to the dal (which fetches volumedriver info).')
+
+    @staticmethod
+    def _cleanup_blktap(vdisk_name, storage_ip, client, blocking=True):
+        """
+        Attempts to cleanup all blocktap links
+        :param vdisk_name: name of the vdisk
+        :param storage_ip: ip of the storagerouter
+        :param client: instance of ssh client
+        :param blocking: boolean to determine whether errors should raise or not
+        :return:
+        """
         # deleting (remaining) tapctl connections
-        tap_conn = client.run("tap-ctl list | grep {0}".format(vdisk_name), allow_insecure=True).split()
-        if len(tap_conn) != 0:
-            MigrateTester.LOGGER.info("Deleting tapctl connections.")
-            for index, tap_c in enumerate(tap_conn):
-                if 'pid' in tap_c:
-                    pid = tap_c.split('=')[1]
-                    minor = tap_conn[index + 1].split('=')[1]
-                    client.run(["tap-ctl", "destroy", "-p", pid, "-m", minor])
-        else:
-            error_msg = "At least 1 blktap connection should be available " \
-                        "but we found none on ip address `{0}`!".format(storage_ip)
-            MigrateTester.LOGGER.error(error_msg)
-            raise RuntimeError(error_msg)
+        try:
+            tap_conn = client.run("tap-ctl list | grep {0}".format(vdisk_name), allow_insecure=True).split()
+            if len(tap_conn) != 0:
+                MigrateTester.LOGGER.info("Deleting tapctl connections.")
+                for index, tap_c in enumerate(tap_conn):
+                    if 'pid' in tap_c:
+                        pid = tap_c.split('=')[1]
+                        minor = tap_conn[index + 1].split('=')[1]
+                        client.run(["tap-ctl", "destroy", "-p", pid, "-m", minor])
+            else:
+                error_msg = "At least 1 blktap connection should be available but we found none on ip address `{0}`!".format(storage_ip)
+                MigrateTester.LOGGER.error(error_msg)
+                raise RuntimeError(error_msg)
+        except Exception as ex:
+            MigrateTester.LOGGER.error(str(ex))
+            if blocking is True:
+                raise
+            else:
+                pass
 
     @staticmethod
-    def _cleanup_vdisk(vdisk_name, vpool_name):
+    def _cleanup_vdisk(vdisk_name, vpool_name, blocking=True):
+        """
+        Attempt to cleanup vdisk
+        :param vdisk_name: name of the vdisk
+        :param vpool_name: name of the vpool
+        :param blocking: boolean to determine whether errors should raise or not
+        :return:
+        """
         # Cleanup vdisk
-        VDiskRemover.remove_vdisk_by_name('{0}.raw'.format(vdisk_name), vpool_name)
-
-    @staticmethod
-    def move_vdisk(vdisk_guid, target_storagerouter_guid, api, timeout=60):
-        data = {"target_storagerouter_guid": target_storagerouter_guid}
-
-        task_guid = api.post(
-            api='/vdisks/{0}/move/'.format(vdisk_guid),
-            data=data
-        )
-        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
-
-        if not task_result[0]:
-            error_msg = "Moving vdisk {0} to {1} has failed with {2}.".format(
-                vdisk_guid, target_storagerouter_guid, task_result[1])
-            VDiskSetup.LOGGER.error(error_msg)
-            raise RuntimeError(error_msg)
-        else:
-            VDiskSetup.LOGGER.info("Vdisk {0} should have been moved to {1}.".format(vdisk_guid, target_storagerouter_guid))
-            return task_result[1]
+        try:
+            VDiskRemover.remove_vdisk_by_name('{0}.raw'.format(vdisk_name), vpool_name)
+        except Exception as ex:
+            MigrateTester.LOGGER.error(str(ex))
+            if blocking is True:
+                raise
+            else:
+                pass
 
     @staticmethod
     def _write_data(client, vdisk_name, blocktap_dir, write_amount, stop_event):
         """
-        Runs a fio scenario on a blocktap dir for a specific vdisk
+        Runs a dd on a blocktap dir for a specific vdisk
         :param client: ovs ssh client
         :type client: ovs.extensions.generic.sshclient.SSHClient
         :param vdisk_name: name of the vdisk
@@ -224,6 +303,8 @@ class MigrateTester(object):
         :type blocktap_dir: str
         :param write_amount: amount of bytes to write
         :type write_amount: int
+        :param stop_event: Threading event to watch for
+        :type stop_event: threading._Event
         :return:
         """
         bs = 1 * 1024**2
@@ -234,6 +315,37 @@ class MigrateTester(object):
             client.run(cmd)
             count -= 1
         MigrateTester.LOGGER.info("Finished writing data on vdisk `{0}` with blktap `{1}`".format(vdisk_name, blocktap_dir))
+
+    @staticmethod
+    def _check_downtimes(results, vdisk, stop_event):
+        """
+        Threading method that will check for IOPS downtimes
+        :param results: variable reserved for this thread
+        :type results: dict
+        :param vdisk: vdisk object
+        :type vdisk: ovs.dal.hybrids.vdisk.VDISK
+        :param stop_event: Threading event to watch for
+        :type stop_event: threading._Event
+        :return:
+        """
+        last_recorded_iops = None
+        while not stop_event.is_set():
+            now = datetime.today().strftime("%Y-%m-%d %H:%M:%S")
+            current_iops = vdisk.statistics['operations']
+            if current_iops == 0:
+                results["down"].append((now, current_iops))
+            else:
+                if last_recorded_iops >= current_iops:
+                    results["rising"].append((now, current_iops))
+                else:
+                    results["descending"].append((now, current_iops))
+                if current_iops > results['highest'] or results['highest'] is None:
+                    results['highest'] = current_iops
+                if current_iops < results['lowest'] or results['lowest'] is None:
+                    results['lowest'] = current_iops
+            # Sleep to avoid caching
+            last_recorded_iops = current_iops
+            time.sleep(4)
 
     @staticmethod
     def _start_thread(target, name, args=[]):
