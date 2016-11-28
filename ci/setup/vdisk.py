@@ -18,7 +18,7 @@ from ci.helpers.vdisk import VDiskHelper
 from ci.helpers.vpool import VPoolHelper
 from ovs.log.log_handler import LogHandler
 from ci.helpers.storagerouter import StoragerouterHelper
-from ci.validate.decorators import required_vdisk, required_snapshot
+from ci.validate.decorators import required_vdisk, required_snapshot, required_vtemplate
 
 
 class VDiskSetup(object):
@@ -27,6 +27,7 @@ class VDiskSetup(object):
     CREATE_SNAPSHOT_TIMEOUT = 60
     CREATE_VDISK_TIMEOUT = 60
     CREATE_CLONE_TIMEOUT = 60
+    SET_VDISK_AS_TEMPLATE_TIMEOUT = 60
 
     def __init__(self):
         pass
@@ -196,4 +197,87 @@ class VDiskSetup(object):
             VDiskSetup.LOGGER.info("Creating clone `{0}` with snapshot_id `{3}` on vPool `{1}` on storagerouter `{2}` "
                                    "should have succeeded".format(vdisk_name, vpool_name, storagerouter_ip,
                                                                   snapshot_id))
+            return task_result[1]
+
+    @staticmethod
+    @required_vdisk
+    def set_vdisk_as_template(vdisk_name, vpool_name, api, timeout=SET_VDISK_AS_TEMPLATE_TIMEOUT):
+        """
+        Create a new vDisk on a certain vPool/storagerouter
+        Set a existing vDisk as vTemplate
+
+        :param vdisk_name: location of a vdisk on a vpool
+                           (e.g. /mnt/vpool/test.raw = test.raw, /mnt/vpool/volumes/test.raw = volumes/test.raw )
+        :type vdisk_name: str
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: time to wait for the task to complete
+        """
+
+        # fetch the requirements
+        vdisk = VDiskHelper.get_vdisk_by_name(vdisk_name, vpool_name)
+
+        task_guid = api.post(
+            api='/vdisks/{0}/set_as_template'.format(vdisk.guid)
+        )
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Creating vTemplate `{0}` has failed with error {1}".format(vdisk_name, task_result[1])
+            VDiskSetup.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            VDiskSetup.LOGGER.info("Creating vTemplate `{0}` should have succeeded".format(vdisk_name))
+            return task_result[1]
+
+    @staticmethod
+    @required_vtemplate
+    def create_from_template(vdisk_name, vpool_name, new_vdisk_name, storagerouter_ip, api,
+                             timeout=SET_VDISK_AS_TEMPLATE_TIMEOUT):
+        """
+        Create a new vDisk on a certain vPool/storagerouter
+        Set a existing vDisk as vTemplate
+
+        :param vdisk_name: location of a vdisk on a vpool
+                           (e.g. /mnt/vpool/test.raw = test.raw, /mnt/vpool/volumes/test.raw = volumes/test.raw )
+        :type vdisk_name: str
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
+        :param new_vdisk_name: location of the NEW vdisk on the vpool
+                           (e.g. /mnt/vpool/test.raw = test.raw, /mnt/vpool/volumes/test.raw = volumes/test.raw )
+        :type new_vdisk_name: str
+        :param storagerouter_ip: ip address of a existing storagerouter where the clone will be deployed
+        :type storagerouter_ip: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: time to wait for the task to complete
+        """
+
+        # fetch the requirements
+        vdisk = VDiskHelper.get_vdisk_by_name(vdisk_name, vpool_name)
+        storagerouter_guid = StoragerouterHelper.get_storagerouter_by_ip(storagerouter_ip).guid
+
+        # remove .raw or .vmdk if present
+        if '.raw' in new_vdisk_name or '.vmdk' in new_vdisk_name:
+            official_new_vdisk_name = new_vdisk_name.split('.')[0]
+        else:
+            official_new_vdisk_name = new_vdisk_name
+
+        data = {"name": official_new_vdisk_name,
+                "storagerouter_guid": storagerouter_guid}
+
+        task_guid = api.post(
+            api='/vdisks/{0}/create_from_template'.format(vdisk.guid),
+            data=data
+        )
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Creating vTemplate `{0}` has failed with error {1}".format(vdisk_name, task_result[1])
+            VDiskSetup.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            VDiskSetup.LOGGER.info("Creating vTemplate `{0}` should have succeeded".format(vdisk_name))
             return task_result[1]
