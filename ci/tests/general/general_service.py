@@ -130,4 +130,4 @@ class GeneralService(object):
         """
         pid = GeneralService.get_service_pid(name, client)
         if pid != -1:
-            client.run('kill -9 {0}'.format(pid))
+            client.run(['kill', '-9', pid])

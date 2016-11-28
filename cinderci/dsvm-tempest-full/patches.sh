@@ -28,7 +28,7 @@ index 916be39..0a4f6e0 100644
 +                                    path = item
                      if path is None:
                          path = device_path
-                     sectors = int(client.run('cat /sys/block/{0}/size'.format(device_name)))
+                     sectors = int(client.run(['cat /sys/block/', device_name, '/size']))
 
 " | sudo tee /opt/OpenvStorage/patch_disk.diff
 sudo patch /opt/OpenvStorage/ovs/lib/disk.py /opt/OpenvStorage/patch_disk.diff

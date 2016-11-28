@@ -28,16 +28,17 @@ class GeneralSystem(object):
     """
 
     IP = General.get_config().get('main', 'grid_ip')
-    INIT_SYSTEM = General.execute_command_on_node(IP, 'cat /proc/1/comm')
+    INIT_SYSTEM = General.execute_command_on_node(IP, ['cat', '/proc/1/comm'])
     if INIT_SYSTEM not in ['init', 'systemd']:
         raise RuntimeError('Unsupported init system: {0}'.format(INIT_SYSTEM))
 
     @staticmethod
     def list_ovs_services(host=IP):
         if GeneralSystem.INIT_SYSTEM == 'init':
-            return General.execute_command_on_node(host, "initctl list | grep ovs-*").splitlines()
+            return General.execute_command_on_node(host, 'initctl list | grep ovs-*', allow_insecure=True).splitlines()
         elif GeneralSystem.INIT_SYSTEM == 'systemd':
-            return General.execute_command_on_node(host, "systemctl -l | grep ovs-").splitlines()
+            return General.execute_command_on_node(host, ['systemctl', '-l', '--no-legend', '--no-pager', 'list-units',
+                                                          'ovs-*']).splitlines()
 
     @staticmethod
     def list_running_ovs_services(host=IP):
