@@ -22,7 +22,7 @@ from ci.helpers.storagerouter import StoragerouterHelper
 class VPoolRemover(object):
 
     LOGGER = LogHandler.get(source="remove", name="ci_vpool_remover")
-    REMOVE_VPOOL_TIMEOUT = 240
+    REMOVE_VPOOL_TIMEOUT = 500
 
     def __init__(self):
         pass
