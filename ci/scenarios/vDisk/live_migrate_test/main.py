@@ -17,6 +17,7 @@ import json
 import math
 import time
 import threading
+import subprocess
 from datetime import datetime
 from ci.helpers.api import OVSClient
 from ci.helpers.vpool import VPoolHelper
@@ -65,7 +66,7 @@ class MigrateTester(object):
                 MigrateTester._execute_test()
                 return {'status': 'PASSED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
             except Exception as ex:
-                return {'status': 'FAILED', 'case_type': MigrateTester.CASE_TYPE, 'errors': ex.message}
+                return {'status': 'FAILED', 'case_type': MigrateTester.CASE_TYPE, 'errors': str(ex)}
         else:
             return {'status': 'BLOCKED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
 
@@ -103,9 +104,10 @@ class MigrateTester(object):
             if SystemHelper.get_local_storagerouter().guid == std.storagerouter_guid:
                 storagedriver_1 = std
                 break
-        if storagedriver_1 is None:
-            raise ValueError('Could not find the right storagedriver for storagerouter {0}'.format(SystemHelper.get_local_storagerouter().guid))
+        assert storagedriver_1 is not None, 'Could not find the right storagedriver for storagerouter {0}'.format(SystemHelper.get_local_storagerouter().guid)
         # Get a random other storagedriver to migrate to
+        other_stds = [st for st in vpool.storagedrivers if st != storagedriver_1]
+        assert len(other_stds) >= 1, 'Only found one storagedriver for vpool {0}. This tests requires at least 2.'.format(vpool.name)
         storagedriver_2 = [st for st in vpool.storagedrivers if st != storagedriver_1][0]
         client = SSHClient(storagedriver_1.storage_ip, username='root')
 
@@ -117,8 +119,7 @@ class MigrateTester(object):
 
         # Check if there are missing packages
         missing_packages = SystemHelper.get_missing_packages(storagedriver_1.storage_ip, MigrateTester.REQUIRED_PACKAGES)
-        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}" \
-            .format(len(missing_packages), storagedriver_1.storage_ip, missing_packages)
+        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}".format(len(missing_packages), storagedriver_1.storage_ip, missing_packages)
 
         for cmd_type, configurations in MigrateTester.DATA_TEST_CASES.iteritems():
             for configuration in configurations:
@@ -138,7 +139,10 @@ class MigrateTester(object):
                     MigrateTester.LOGGER.info("Created a tap blk device at location `{0}`".format(tap_dir))
                 except Exception as ex:
                     # Attempt to cleanup test
-                    MigrateTester.LOGGER.info("Creation of vdisk failed. Cleaning up test")
+                    if isinstance(ex, subprocess.CalledProcessError):
+                        MigrateTester.LOGGER.info("Could not setup blk device.")
+                    if isinstance(ex, RuntimeError):
+                        MigrateTester.LOGGER.info("Creation of vdisk failed. Cleaning up test")
                     try:
                         MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client, False)
                         MigrateTester._cleanup_vdisk(vdisk_name, vpool.name, False)
@@ -165,8 +169,8 @@ class MigrateTester(object):
                     # Validate move
                     MigrateTester._validate_move(values_to_check)
                     # Stop writing after 30 more s
-                    time.sleep(MigrateTester.SLEEP_TIME)
                     MigrateTester.LOGGER.info('Writing and monitoring for another {0}s.'.format(MigrateTester.SLEEP_TIME))
+                    time.sleep(MigrateTester.SLEEP_TIME)
                     for thread_pair in threads:
                         if thread_pair[0].isAlive():
                             thread_pair[1].set()
@@ -315,20 +319,22 @@ class MigrateTester(object):
         """
 
         bs = 1 * 1024**2
-        count = math.ceil(float(write_amount) / bs)
+        write_size = 10 * 1024**2
+        count = int(math.ceil(write_size / bs))
+        iterations = math.ceil(float(write_amount) / write_size)
         MigrateTester.LOGGER.info("Starting to write on vdisk `{0}` with blktap `{1}`".format(vdisk_name, blocktap_dir))
         if cmd_type == 'dd':
-            cmd = ['dd', 'if=/dev/urandom', 'of={0}'.format(blocktap_dir), 'bs={0}'.format(bs), 'count=1']
+            cmd = ['dd', 'if=/dev/urandom', 'of={0}'.format(blocktap_dir), 'bs={0}'.format(bs), 'count={0}'.format(count)]
         elif cmd_type == 'fio':
             cmd = ["fio", "--name=test", "--filename={0}".format(blocktap_dir), "--ioengine=libaio", "--iodepth=4",
-                   "--rw=readwrite", "--bs={0}".format(bs), "--direct=1", "--size={0}".format(bs),
+                   "--rw=readwrite", "--bs={0}".format(bs), "--direct=1", "--size={0}".format(write_size),
                    "--rwmixread={0}".format(configuration[0]), "--rwmixwrite={0}".format(configuration[1])]
         else:
             raise ValueError('{0} is not supported for writing data.'.format(cmd_type))
-        MigrateTester.LOGGER.info(" ".join(cmd))
-        while not stop_event.is_set() and count > 0:
+        MigrateTester.LOGGER.info("Writing data with: {0}".format(" ".join(cmd)))
+        while not stop_event.is_set() and iterations > 0:
             client.run(cmd)
-            count -= 1
+            iterations -= 1
         MigrateTester.LOGGER.info("Finished writing data on vdisk `{0}` with blktap `{1}`".format(vdisk_name, blocktap_dir))
 
     @staticmethod
