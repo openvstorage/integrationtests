@@ -94,7 +94,7 @@ class MigrateTester(object):
             if len(vp.storagedrivers) >= 1:
                 vpool = vp
                 break
-        assert vpool is not None, "Not enough vPools to test. Requires 1 and found {0}".format(len(vp.storagedrivers))
+        assert vpool is not None, "Not enough vPools to test. Requires 1 and found 0."
 
         # Setup base information
         # Executor storagedriver_1 is current system
