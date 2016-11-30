@@ -33,7 +33,7 @@ class VDiskDeploymentChecks(object):
     PREFIX = "integration-tests-deployment-"
     VDISK_SIZES = [2147483648000, 4294967296000, 8589934592000, 17179869184000, 34359738368000, 68719476736000]
     VDISK_CREATE_TIMEOUT = 180
-    VDISK_SLEEP_BEFORE_DELETE = 8
+    VDISK_SLEEP_BEFORE_DELETE = 15
     REQUIRED_PACKAGES = ['qemu', 'coreutils']
 
     def __init__(self):
