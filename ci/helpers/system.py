@@ -53,7 +53,7 @@ class SystemHelper(object):
     @staticmethod
     def get_missing_packages(ip, required_packages):
         """
-        get all missing packages based on required packages
+        Get all missing packages based on required packages
 
         :param ip: ip address of a server
         :type ip: str
@@ -64,7 +64,8 @@ class SystemHelper(object):
         """
         client = SSHClient(ip, username='root')
         return [package for package in required_packages
-                if len(client.run("dpkg -l | grep {0} | tr -s ' '".format(package), allow_insecure=True).split()) == 0]
+                if client.run("dpkg -s {0} | grep Status | cut -d ' ' -f 3".format(package),
+                              allow_insecure=True) != "ok"]
 
     @staticmethod
     def get_local_storagerouter():

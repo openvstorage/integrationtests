@@ -237,8 +237,8 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
         else:
             raise AttributeError("Attribute `{0}` does not exists as test_status in TestrailResult"
                                  .format(test_result['status']))
-        # add results to test cases, if failed add a comment with errors
-        if getattr(TestrailResult, test_result['status']) == TestrailResult.FAILED:
+        # add results to test cases, if the've got something in the field `errors`
+        if not test_result['errors']:
             tapi.add_result(test_id, test_status_id, comment=str(test_result['errors']))
         else:
             tapi.add_result(test_id, test_status_id)
