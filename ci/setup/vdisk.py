@@ -21,6 +21,7 @@ from ci.helpers.storagerouter import StoragerouterHelper
 from ci.validate.decorators import required_vdisk, required_snapshot
 
 
+
 class VDiskSetup(object):
 
     LOGGER = LogHandler.get(source="setup", name="ci_vdisk_setup")
@@ -133,6 +134,7 @@ class VDiskSetup(object):
             return task_result[1]
 
     @staticmethod
+    @required_vdisk
     def move_vdisk(vdisk_guid, target_storagerouter_guid, api, timeout=60):
         """
         Moves a vdisk
