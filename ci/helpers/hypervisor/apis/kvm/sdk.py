@@ -479,8 +479,6 @@ class Sdk(object):
         :param start: start the guest after creation
         :return:
         """
-        if networks is None:
-            networks = [("network=default", "mac=RANDOM", "model=e1000")]
         command = ["virt-install"]
         options = ["--connect qemu+ssh://{}@{}/system".format(self.login, self.host),
                    "--name {}".format(name),
@@ -489,7 +487,7 @@ class Sdk(object):
                    "--graphics vnc,listen={0}".format(vnc_listen)]  # Have to specify 0.0.0.0 else it will listen on 127.0.0.1 only
 
         for disk in disks:
-            options.append(self._extract_command(disk, SdkOptionMapping.disk_options_mapping, '--disk'))
+            options.append(self._extract_command(disk, SdkOptionMapping.disk_options_mapping, "--disk"))
         if cdrom_iso is None:
             options.append("--import")
         else:
@@ -499,10 +497,10 @@ class Sdk(object):
         if os_variant is not None:
             options.append("-- os-variant {0}".format(os_variant))
         if networks is None or networks == []:
-            options.append("--nonetworks")
+            options.append("--network none")
         else:
             for network in networks:
-                options.append("--network {0}".format(",".join(network)))
+                options.append(self._extract_command(network, SdkOptionMapping.network_option_mapping, "--network"))
         try:
             cmd = Sdk.shell_safe(" ".join(command + options))
             self.ssh_client.run(cmd, allow_insecure=True)
@@ -533,12 +531,12 @@ class Sdk(object):
             else:
                 if config['values'] is None:
                     if type(value) == config['type']:
-                        opts[key] = value
+                        opts[config['option']] = value
                     else:
                         raise ValueError('Type does not match. Expected {0} and got {1} for option {2}'.format(config['type'], type(value), key))
                 else:
                     if value in config['values'] and len(config['values']) > 0:
-                        opts[key] = value
+                        opts[config['option']] = value
                     else:
                         raise ValueError(
                             'Value does not match. Expected {0} and got {1} for option {2}'.format(config['type'], type(value),key))

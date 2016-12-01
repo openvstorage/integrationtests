@@ -77,3 +77,23 @@ class SdkOptionMapping(object):
             "type": str
         },
     }
+    network_option_mapping = {
+        "network": {
+            "option": "network",
+            "values": None,
+            "default": "default",
+            "type": str
+        },
+        "model": {
+            "option": "model",
+            "values": ["e1000", "rtl8139", "virtio"],
+            "default": "e1000",
+            "type": str
+        },
+        "mac": {
+            "option": "mac",
+            "values": None,
+            "default": "random",
+            "type": str
+        },
+    }
