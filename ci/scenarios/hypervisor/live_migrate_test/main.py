@@ -20,6 +20,7 @@ import threading
 import subprocess
 from datetime import datetime
 from ci.helpers.api import OVSClient
+from ci.helpers.hypervisor.hypervisor import Factory
 from ci.helpers.vpool import VPoolHelper
 from ci.helpers.vdisk import VDiskHelper
 from ci.helpers.storagedriver import StoragedriverHelper
@@ -161,7 +162,12 @@ class MigrateTester(object):
                 threads.append(MigrateTester._start_thread(target=MigrateTester._write_data, name='fio', args=[client, vdisk_name, tap_dir, amount_to_write, cmd_type, configuration]))
                 time.sleep(MigrateTester.SLEEP_TIME)
                 try:
-                    MigrateTester.migrate()
+                    MigrateTester.migrate(storagedriver_1.storage_ip,
+                                          config['ci']['user']['shell']['username'],
+                                          config['ci']['user']['shell']['password'],
+                                          config['ci']['hypervisor'],
+                                          storagedriver_2.storage_ip,
+                                          'vmid')
                     # Validate move
                     MigrateTester._validate_move(values_to_check)
                     # Stop writing after 30 more s
@@ -189,12 +195,14 @@ class MigrateTester(object):
                     MigrateTester._cleanup_vdisk(vdisk_name, vpool.name)
 
     @staticmethod
-    def migrate():
+    def migrate(ip, login, passwd, hvtype, d_ip, vmid):
         """
         Migrates a VM between hypervisors
         :return:
         """
-        raise NotImplementedError
+        hypervisor = Factory.get(ip, login, passwd, hvtype)
+        # Migrate VM
+        hypervisor.sdk.migrate(vmid, d_ip, login)
 
     @staticmethod
     def _clone_image():

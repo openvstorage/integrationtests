@@ -21,8 +21,8 @@ import os
 import re
 import glob
 import uuid
-import time
 import libvirt
+from ci.helpers.hypervisor.apis.kvm.option_mapping import SdkOptionMapping
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.system import System
 from ovs.log.log_handler import LogHandler
@@ -305,7 +305,7 @@ class Sdk(object):
                 return self._conn.lookupByName(vmid)
         except libvirt.libvirtError as ex:
             logger.error(str(ex))
-            raise RuntimeError('Virtual Machine with id/name {0} could not be found.'.format(vmid))
+            raise RuntimeError('Virtual Machine with id/name {0} could not be found. Got {1}'.format(vmid, str(ex)))
 
     def get_vm_object_by_filename(self, filename):
         """
@@ -323,6 +323,11 @@ class Sdk(object):
     def shutdown(self, vmid):
         vm_object = self.get_vm_object(vmid)
         vm_object.shutdown()
+        return self.get_power_state(vmid)
+
+    def destroy(self, vmid):
+        vm_object = self.get_vm_object(vmid)
+        vm_object.destroy()
         return self.get_power_state(vmid)
 
     def delete_vm(self, vmid, devicename, disks_info):
@@ -444,7 +449,7 @@ class Sdk(object):
         for disk in disks:
             vm_disks.append(('/{}/{}'.format(mountpoint.strip('/'), disk['backingdevice'].strip('/')), 'virtio'))
 
-        self._vm_create(name=name, vcpus=vcpus, ram=int(ram), disks=vm_disks, networks=networks)
+        self.create_vm(name=name, vcpus=vcpus, ram=int(ram), disks=vm_disks, networks=networks)
 
         try:
             return self.get_vm_object(name).UUIDString()
@@ -456,16 +461,16 @@ class Sdk(object):
                 logger.error(str(le))
                 raise RuntimeError('Virtual Machine with id/name {} could not be found.'.format(name))
 
-    def _vm_create(self, name, vcpus, ram, disks, cdrom_iso=None, os_type=None, os_variant=None, vnc_listen='0.0.0.0',
-                   networks=None, start=False):
+    def create_vm(self, name, vcpus, ram, disks, cdrom_iso=None, os_type=None, os_variant=None, vnc_listen='0.0.0.0',
+                  networks=None, start=False):
         """
         Creates a VM
         @TODO use Edge instead of fuse for disks
         :param name: name of the vm
         :param vcpus: number of cpus
         :param ram: number of ram (MB)
-        :param disks: list of tuples : [(disk_name, disk_size_GB, bus ENUM(virtio, ide, sata)]
-        when using existing storage, size can be ommited [(/vms/vm1.raw,,virtio)]
+        :param disks: list of dicts : options see SdkOptionsMapping
+        when using existing storage, size can be removed
         :param cdrom_iso: path to the iso the mount
         :param os_type: type of os
         :param os_variant: variant of the os
@@ -484,10 +489,7 @@ class Sdk(object):
                    "--graphics vnc,listen={0}".format(vnc_listen)]  # Have to specify 0.0.0.0 else it will listen on 127.0.0.1 only
 
         for disk in disks:
-            if len(disk) == 2:
-                options.append("--disk {0},device=disk,bus={1}".format(*disk))
-            else:
-                options.append("--disk {0},device=disk,size={1},bus={2}".format(*disk))
+            options.append(self._extract_command(disk, SdkOptionMapping.disk_options_mapping, '--disk'))
         if cdrom_iso is None:
             options.append("--import")
         else:
@@ -512,6 +514,39 @@ class Sdk(object):
             cmd = ["virsh", "destroy", name]
             self.ssh_client.run(cmd)
 
+    @staticmethod
+    def _extract_command(option, mapping, command):
+        """
+        Creates a command string based on options and a mapping
+        :param option: all options
+        :param mapping: mapping for the options
+        :return: command string
+        :rtype: str
+        """
+        opts = {}
+        cmd = []
+        # Create a mapping with defaults
+        for key, config in mapping.iteritems():
+            value = option.get(key, config.get('default'))
+            if value is None:
+                continue
+            else:
+                if config['values'] is None:
+                    if type(value) == config['type']:
+                        opts[key] = value
+                    else:
+                        raise ValueError('Type does not match. Expected {0} and got {1} for option {2}'.format(config['type'], type(value), key))
+                else:
+                    if value in config['values'] and len(config['values']) > 0:
+                        opts[key] = value
+                    else:
+                        raise ValueError(
+                            'Value does not match. Expected {0} and got {1} for option {2}'.format(config['type'], type(value),key))
+        # Generate options to append to the command
+        for key, value in opts.iteritems():
+            cmd.append("{1}={2}".format(command, key, value))
+        return "{0} {1}".format(command, ",".join(cmd))
+
     @authenticated
     def migrate(self, vmid, d_ip, d_login, flags=libvirt.VIR_MIGRATE_LIVE, bandwidth=0):
         """
@@ -520,7 +555,7 @@ class Sdk(object):
         :param d_ip: ip of the destination hypervisor
         :param d_login: login of the destination hypervisor
         :param flags: Flags to supply
-        :param bandwith: limit the bandwith to MB/s
+        :param bandwidth: limit the bandwith to MB/s
         :return:
         """
         vm = self.get_vm_object(vmid)
