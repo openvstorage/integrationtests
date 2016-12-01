@@ -156,8 +156,10 @@ def required_vdisk(func):
 
     def validate(*args, **kwargs):
         # check if preset exists or not on existing alba backend
-        if kwargs['vpool_name'] and kwargs['vdisk_name']:
+        if "vpool_name" in kwargs and "vdisk_name" in kwargs:
             VDiskHelper.get_vdisk_by_name(vdisk_name=kwargs['vdisk_name'], vpool_name=kwargs['vpool_name'])
+        elif "vdisk_guid" in kwargs:
+            VDiskHelper.get_vdisk_by_guid(kwargs['vdisk_guid'])
         else:
             raise AttributeError("Missing parameter: vdisk_name or vpool_name")
 
