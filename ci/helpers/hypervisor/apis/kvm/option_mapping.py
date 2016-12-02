@@ -76,6 +76,12 @@ class SdkOptionMapping(object):
             "default": "raw",
             "type": str
         },
+        "sparse": {
+            "option": "sparse",
+            "values": ["yes", "no"],
+            "default": "yes",
+            "type": str
+        },
     }
     network_option_mapping = {
         "network": {

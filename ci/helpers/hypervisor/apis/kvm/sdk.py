@@ -78,13 +78,15 @@ class Sdk(object):
 
     def __init__(self, host='127.0.0.1', login='root', passwd=None):
         logger.debug('Init libvirt')
-        self.states = {libvirt.VIR_DOMAIN_NOSTATE: 'NO STATE',
-                       libvirt.VIR_DOMAIN_RUNNING: 'RUNNING',
-                       libvirt.VIR_DOMAIN_BLOCKED: 'BLOCKED',
-                       libvirt.VIR_DOMAIN_PAUSED: 'PAUSED',
-                       libvirt.VIR_DOMAIN_SHUTDOWN: 'SHUTDOWN',
-                       libvirt.VIR_DOMAIN_SHUTOFF: 'TURNEDOFF',
-                       libvirt.VIR_DOMAIN_CRASHED: 'CRASHED'}
+        self.states = {
+            libvirt.VIR_DOMAIN_NOSTATE: 'NO STATE',
+            libvirt.VIR_DOMAIN_RUNNING: 'RUNNING',
+            libvirt.VIR_DOMAIN_BLOCKED: 'BLOCKED',
+            libvirt.VIR_DOMAIN_PAUSED: 'PAUSED',
+            libvirt.VIR_DOMAIN_SHUTDOWN: 'SHUTDOWN',
+            libvirt.VIR_DOMAIN_SHUTOFF: 'TURNEDOFF',
+            libvirt.VIR_DOMAIN_CRASHED: 'CRASHED'
+        }
         pattern = re.compile(r"^(?<!\S)((\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\b|\.\b){7}(?!\S)$")
         if pattern.match(host):
             self.host = host
@@ -145,16 +147,38 @@ class Sdk(object):
 
     @staticmethod
     def _get_disks(vm_object):
+        """
+        Get the disks of the object as dict
+        :param vm_object: object representing a vm
+        :type vm_object: libvirt.virDomain
+        :return: dict of diskinfo
+        :rtype: dict
+        """
         tree = ElementTree.fromstring(vm_object.XMLDesc(0))
+        x = tree.findall('devices/disk')
         return [_recurse(item) for item in tree.findall('devices/disk')]
 
     @staticmethod
     def _get_nics(vm_object):
+        """
+        Get the disks of the object as dict
+        :param vm_object: object representing a vm
+        :type vm_object: libvirt.virDomain
+        :return: dict of nics
+        :rtype: dict
+        """
         tree = ElementTree.fromstring(vm_object.XMLDesc(0))
         return [_recurse(item) for item in tree.findall('devices/interface')]
 
     @staticmethod
     def _get_nova_name(vm_object):
+        """
+        Get the disks of the object as dict
+        :param vm_object: object representing a vm
+        :type vm_object: libvirt.virDomain
+        :return: dict of ...
+        :rtype: dict
+        """
         tree = ElementTree.fromstring(vm_object.XMLDesc(0))
         metadata = tree.findall('metadata')[0]
         nova_instance_namespace_tag = metadata.getchildren()[0].tag
@@ -281,9 +305,9 @@ class Sdk(object):
         return vmachine state
         vmid is the name
         """
-        vm = self.get_vm_object(vmid)
-        state = vm.info()[0]
-        return self.states.get(state, 'UNKNOWN')
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        return self.states.get(vmid.info()[0], 'UNKNOWN')
 
     @authenticated
     def get_vm_object(self, vmid):
@@ -307,7 +331,7 @@ class Sdk(object):
             logger.error(str(ex))
             raise RuntimeError('Virtual Machine with id/name {0} could not be found. Got {1}'.format(vmid, str(ex)))
 
-    def get_vm_object_by_filename(self, filename):
+    def get_vm_object_by_xml(self, filename):
         """
         get vm based on filename: vmachines/template/template.xml
         """
@@ -403,13 +427,90 @@ class Sdk(object):
             self.ssh_client = SSHClient(self.host, username='root')
         return self.ssh_client.run("[ -d {0} ] && echo 'yes' || echo 'no'".format(mountpoint)) == 'yes'
 
-    def clone_vm(self, vmid, name, disks, mountpoint):
+    def clone_vm(self, vmid, name=None, mountpoint=None, diskname=None):
         """
-        create a clone vm
-        similar to create_vm_from template
+        Clones an existing vm
+        Will rename the vm to vmname-clone
+        Will clone the disks with -clone and if necessary an identifier
+        :param vmid: identifier of the vm
+        :param name: new name for the vm
+        :param mountpoint: location for the new disks
+        :param disk_name: new name for the disk
         """
-        source_vm = self.get_vm_object(vmid)
-        return self.create_vm_from_template(name, source_vm, disks, mountpoint)
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        if self.get_power_state(vmid) == "RUNNING":
+            logger.info("Shutting down {0}".format(vmid))
+            self.destroy(vmid)
+        command = ["virt-clone"]
+        options = [
+            "--original {}".format(vmid.name())
+        ]
+        if mountpoint is None and name is None:
+            options.append("--auto-clone")
+        else:
+            # Cannot rely on autoclone to generate anything, generate manually
+            for disk in self._get_disks(vmid):
+                options.append("--file {0}".format(self._generate_disk_clone_name(disk["source"]["file"], mountpoint, diskname)))
+            if name is None:
+                name = vmid.name()
+            options.append("--name {0}".format(self._generate_vm_clone_name(name)))
+        cmd = self.shell_safe(" ".join(command + options))
+        print cmd
+        raise RuntimeError('DELETEME')
+        try:
+            self.ssh_client.run(cmd, allow_insecure=True)
+        except subprocess.CalledProcessError as ex:
+            raise RuntimeError('Could not clone {0}. VM state was {1} when error: {2} rose.'.format(vmid, str(ex), self.get_power_state(vmid)))
+
+    def _generate_vm_clone_name(self, name, specified_name=False, tries=0):
+        """
+        Generates a name for a vmclone. If the name is already in use, it will append a integer value
+        :param name: name of the vm or the wanted name
+        :param specified_name: true if the name is the wanted name
+        :param tries: keep track of how many attempts there were to create the name
+        :return:
+        """
+        if specified_name is True:
+            try:
+                vmid = self.get_vm_object(name)
+                raise RuntimeError("Name {0} is currently in use by another VM.".format(name))
+            except RuntimeError as ex:
+                return name
+        else:
+            if tries == 0:
+                name = "{0}-clone".format(name)
+            else:
+                name = "{0}-clone{1}".format(name, tries)
+            try:
+                vmid = self.get_vm_object(name)
+                return self._generate_vm_clone_name(name, False, tries + 1)
+            except RuntimeError as ex:
+                return name
+
+    @staticmethod
+    def _generate_disk_clone_name(path, mountpoint=None, diskname=None, tries=0):
+        # If the specified name if not available, raise
+        should_raise = True
+        if diskname is None:
+            should_raise = False
+            diskname = '{0}-clone.{1}'.format(path.split('/')[-1].rsplit('.', 1)[0], path.split('/')[-1].rsplit('.', 1)[1])
+        if mountpoint is None:
+            # use same location
+            mountpoint = "/{0}/".format(path.rsplit('/', 1)[0].strip("/"))
+        else:
+            mountpoint = "/{0}/".format(mountpoint.strip("/"))
+        loc = "{0}{1}".format(mountpoint, diskname)
+        if os.path.exists(loc):
+            if should_raise:
+                raise RuntimeError("{0} could not be used as disks path. The name is already in use.".format(loc))
+            else:
+                return Sdk._generate_disk_clone_name(path, mountpoint, "{0}{1}.{2}".format(diskname.split('.', 1)[0],
+                                                                                           tries + 1,
+                                                                                           diskname.rsplit('.', 1)[1]))
+        else:
+            logger.info("Generated {0} for {1} its clone".format(loc, path))
+            return loc
 
     def create_vm_from_template(self, name, source_vm, disks, mountpoint):
         """
@@ -418,12 +519,12 @@ class Sdk(object):
         :param source_vm: vm object of the source
         :param disks: list of dicts (agnostic) eg. {'diskguid': new_disk.guid, 'name': new_disk.name, 'backingdevice': device_location.strip('/')}
         :param mountpoint: location for the vm
-
          kvm doesn't have datastores, all files should be in /mnt/vpool_x/name/ and shared between nodes
          to "migrate" a kvm machine just symlink the xml on another node and use virsh define name.xml to reimport it
          (assuming that the vpool is in the same location)
         :return:
         """
+
         vm_disks = []
 
         # Get agnostic config of source vm
@@ -578,7 +679,10 @@ class Sdk(object):
 if __name__ == "__main__":
     # Had to change the user to root in /etc/libvirt/qemu.conf
     sdk = Sdk(login='root', host='10.100.199.151', passwd='rooter')
-    sdk.migrate('bob2', '10.100.199.152', 'root')
+    sdk.clone_vm('bob1', 'bob2')
+    # x = sdk.get_vm_object('bob1')
+    # print sdk._get_disks(x)
+    # sdk.migrate('bob2', '10.100.199.152', 'root')
     # disks = [('/mnt/myvpool01/myvdisk01.raw', 'sata')]
     # networks = [("network=default", 'mac=RANDOM', 'model=e1000')]
     # sdk._vm_create('bob2', 2, 1024, disks, networks=networks)

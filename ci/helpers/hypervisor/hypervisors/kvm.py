@@ -94,8 +94,8 @@ class KVM(object):
         create a clone at vmachine level
         #disks are cloned by VDiskController
         """
-        _ = wait  # For compatibility purposes only
-        return self.sdk.clone_vm(vmid, name, disks, mountpoint)
+        _ = wait, name, disks, mountpoint  # For compatibility purposes only
+        return self.sdk.clone_vm(vmid)
 
     def set_as_template(self, vmid, disks, wait=False):
         """
@@ -116,7 +116,7 @@ class KVM(object):
         devicename = vmachines/template/template.xml # relative to mountpoint
         """
         _ = ip, mountpoint
-        return self.sdk.make_agnostic_config(self.sdk.get_vm_object_by_filename(devicename))
+        return self.sdk.make_agnostic_config(self.sdk.get_vm_object_by_xml(devicename))
 
     def mount_nfs_datastore(self, name, remote_host, remote_path):
         """
