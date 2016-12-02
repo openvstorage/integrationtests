@@ -140,6 +140,28 @@ class StoragerouterHelper(object):
         return [storagerouter.ip for storagerouter in StorageRouterList.get_masters()]
 
     @staticmethod
+    def get_slave_storagerouters():
+        """
+        Fetch the slave storagerouters
+
+        :return: list with slave storagerouters
+        :rtype: list
+        """
+
+        return StorageRouterList.get_slaves()
+
+    @staticmethod
+    def get_slave_storagerouter_ips():
+        """
+        Fetch the slave storagerouters ips
+
+        :return: list with slave storagerouters ips
+        :rtype: list
+        """
+
+        return [storagerouter.ip for storagerouter in StorageRouterList.get_slaves()]
+
+    @staticmethod
     def sync_disk_with_reality(api, guid=None, ip=None, timeout=None):
         """
 
