@@ -20,7 +20,7 @@ from ovs.dal.lists.servicelist import ServiceList
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.extensions.generic.sshclient import SSHClient
 from ci.helpers.storagerouter import StoragerouterHelper
-from ovs.lib.scheduledtask import ScheduledTaskController
+from ovs.lib.generic import GenericController
 from ovs.extensions.generic.configuration import Configuration
 
 
@@ -100,7 +100,7 @@ class ArakoonCollapse(object):
 
                 ArakoonCollapse.LOGGER.info("Collapsing arakoon `{0}` on node `{1}` ..."
                                             .format(arakoon_cluster, node_ip))
-                ScheduledTaskController.collapse_arakoon()
+                GenericController.collapse_arakoon()
 
                 nr_of_tlogs = ArakoonCollapse.get_nr_of_tlogs_in_folder(root_client, tlog_location)
                 new_headdb_timestamp = root_client.run(['stat', '--format=%Y', '{0}/{1}'.format(tlog_location, 'head.db')])

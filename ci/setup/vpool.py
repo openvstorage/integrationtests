@@ -17,7 +17,7 @@
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.storagerouter import StoragerouterHelper
-from ovs.lib.scheduledtask import ScheduledTaskController
+from ovs.lib.generic import GenericController
 from ci.validate.decorators import required_roles, required_backend
 
 
@@ -114,4 +114,4 @@ class VPoolSetup(object):
         :return:
         """
 
-        return ScheduledTaskController.execute_scrub()
+        return GenericController.execute_scrub()
