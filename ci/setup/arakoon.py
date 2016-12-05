@@ -16,7 +16,7 @@
 
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
-from ovs.lib.albacontroller import AlbaController
+from ovs.lib.alba import AlbaController
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
