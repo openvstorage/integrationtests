@@ -31,8 +31,7 @@ from ovs.dal.hybrids.albadisk import AlbaDisk
 from ovs.dal.hybrids.backend import Backend
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.lib.albascheduledtask import AlbaScheduledTaskController
-
+from ovs.lib.alba import AlbaController
 
 
 class TestALBA(object):
@@ -345,7 +344,7 @@ class TestALBA(object):
             GeneralAlba.execute_alba_cli_action(alba_backend, 'create-namespace', [namespace_name, preset_name], False)
             GeneralAlba.upload_file(alba_backend, namespace_name, 1024 * 1024 * 1)
 
-        AlbaScheduledTaskController.verify_namespaces()
+        AlbaController.verify_namespaces()
 
         GeneralAlba.remove_alba_namespaces(alba_backend)
         GeneralAlba.remove_preset(alba_backend, preset_name)

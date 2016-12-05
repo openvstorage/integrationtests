@@ -37,8 +37,8 @@ from ovs.dal.lists.albabackendlist import AlbaBackendList
 from ovs.dal.lists.albanodelist import AlbaNodeList
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.configuration import Configuration
-from ovs.lib.albacontroller import AlbaController
-from ovs.lib.albanodecontroller import AlbaNodeController
+from ovs.lib.alba import AlbaController
+from ovs.lib.albanode import AlbaNodeController
 from ovs.lib.helpers.toolbox import Toolbox
 
 
