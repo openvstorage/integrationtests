@@ -16,7 +16,7 @@
 
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
-from ovs.lib.albacontroller import AlbaController
+from ovs.lib.alba import AlbaController
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
@@ -59,9 +59,13 @@ class ArakoonSetup(object):
         if service_type == ServiceType.ARAKOON_CLUSTER_TYPES.FWK:
             plugins = None
         elif service_type == ServiceType.ARAKOON_CLUSTER_TYPES.ABM:
-            plugins = ['albamgr_plugin']
+            plugins = {
+                AlbaController.ABM_PLUGIN: AlbaController.ALBA_VERSION_GET
+            }
         elif service_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
-            plugins = ['nsm_host_plugin']
+            plugins = {
+                AlbaController.NSM_PLUGIN: AlbaController.ALBA_VERSION_GET
+            }
         else:
             raise RuntimeError("Incompatible Arakoon cluster type selected: {0}".format(service_type))
 
