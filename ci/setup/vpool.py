@@ -18,7 +18,7 @@ from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.storagerouter import StoragerouterHelper
 from ovs.lib.generic import GenericController
-from ci.validate.decorators import required_roles, required_backend
+from ci.validate.decorators import required_roles, required_backend, check_vpool
 
 
 class VPoolSetup(object):
