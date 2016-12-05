@@ -13,9 +13,3 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-from ovs.log.log_handler import LogHandler
-
-
-class RoleHelper(object):
-
-    LOGGER = LogHandler.get(source="setup", name="ci_role_helper")
