@@ -59,9 +59,13 @@ class ArakoonSetup(object):
         if service_type == ServiceType.ARAKOON_CLUSTER_TYPES.FWK:
             plugins = None
         elif service_type == ServiceType.ARAKOON_CLUSTER_TYPES.ABM:
-            plugins = ['albamgr_plugin']
+            plugins = {
+                AlbaController.ABM_PLUGIN: AlbaController.ALBA_VERSION_GET
+            }
         elif service_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
-            plugins = ['nsm_host_plugin']
+            plugins = {
+                AlbaController.NSM_PLUGIN: AlbaController.ALBA_VERSION_GET
+            }
         else:
             raise RuntimeError("Incompatible Arakoon cluster type selected: {0}".format(service_type))
 
