@@ -435,7 +435,7 @@ class Sdk(object):
         :param vmid: identifier of the vm
         :param name: new name for the vm
         :param mountpoint: location for the new disks
-        :param disk_name: new name for the disk
+        :param diskname: new name for the disk
         """
         if not isinstance(vmid, libvirt.virDomain):
             vmid = self.get_vm_object(vmid)
@@ -444,25 +444,28 @@ class Sdk(object):
             self.destroy(vmid)
         command = ["virt-clone"]
         options = [
-            "--original {}".format(vmid.name())
+            "--original {}".format(vmid.name()),
         ]
-        if mountpoint is None and name is None:
+        if mountpoint is None and name is None and diskname is None:
             options.append("--auto-clone")
         else:
             # Cannot rely on autoclone to generate anything, generate manually
             for disk in self._get_disks(vmid):
                 options.append("--file {0}".format(self._generate_disk_clone_name(disk["source"]["file"], mountpoint, diskname)))
             if name is None:
-                name = vmid.name()
-            options.append("--name {0}".format(self._generate_vm_clone_name(name)))
+                vm_name = self._generate_vm_clone_name(vmid.name())
+            else:
+                vm_name = self._generate_vm_clone_name(name, True)
+            options.append("--name {0}".format(vm_name))
         cmd = self.shell_safe(" ".join(command + options))
-        print cmd
-        raise RuntimeError('DELETEME')
         try:
+            logger.info("Cloning vm {0} with command {1}".format(name, cmd))
             self.ssh_client.run(cmd, allow_insecure=True)
+            logger.info("Cloning vm {0} has finished.".format(name, cmd))
         except subprocess.CalledProcessError as ex:
             raise RuntimeError('Could not clone {0}. VM state was {1} when error: {2} rose.'.format(vmid, str(ex), self.get_power_state(vmid)))
 
+    @authenticated
     def _generate_vm_clone_name(self, name, specified_name=False, tries=0):
         """
         Generates a name for a vmclone. If the name is already in use, it will append a integer value
@@ -473,9 +476,11 @@ class Sdk(object):
         """
         if specified_name is True:
             try:
-                vmid = self.get_vm_object(name)
-                raise RuntimeError("Name {0} is currently in use by another VM.".format(name))
-            except RuntimeError as ex:
+                self._conn.lookupByName(name)
+                raise AssertionError("Name {0} is currently in use by another VM.".format(name))
+            except AssertionError as ex:
+                raise RuntimeError(str(ex))
+            except libvirt.libvirtError as ex:
                 return name
         else:
             if tries == 0:
@@ -483,9 +488,9 @@ class Sdk(object):
             else:
                 name = "{0}-clone{1}".format(name, tries)
             try:
-                vmid = self.get_vm_object(name)
+                self._conn.lookupByName(name)
                 return self._generate_vm_clone_name(name, False, tries + 1)
-            except RuntimeError as ex:
+            except libvirt.libvirtError as ex:
                 return name
 
     @staticmethod
@@ -509,7 +514,7 @@ class Sdk(object):
                                                                                            tries + 1,
                                                                                            diskname.rsplit('.', 1)[1]))
         else:
-            logger.info("Generated {0} for {1} its clone".format(loc, path))
+            logger.info("Would generate {0} for {1} its clone".format(loc, path))
             return loc
 
     def create_vm_from_template(self, name, source_vm, disks, mountpoint):
@@ -580,12 +585,21 @@ class Sdk(object):
         :param start: start the guest after creation
         :return:
         """
+        try:
+            self._conn.lookupByName(name)
+            raise AssertionError("Name {0} is currently in use by another VM.".format(name))
+        except AssertionError as ex:
+            raise RuntimeError(str(ex))
+        except libvirt.libvirtError as ex:
+            pass
+
         command = ["virt-install"]
         options = ["--connect qemu+ssh://{}@{}/system".format(self.login, self.host),
                    "--name {}".format(name),
                    "--vcpus {}".format(vcpus),
                    "--ram {}".format(ram),
-                   "--graphics vnc,listen={0}".format(vnc_listen)]  # Have to specify 0.0.0.0 else it will listen on 127.0.0.1 only
+                   "--graphics vnc,listen={0}".format(vnc_listen), # Have to specify 0.0.0.0 else it will listen on 127.0.0.1 only
+                   "--noautoconsole"]  # Wait half a minute for potential install (there is no install for truncuated stuff)
 
         for disk in disks:
             options.append(self._extract_command(disk, SdkOptionMapping.disk_options_mapping, "--disk"))
@@ -604,11 +618,14 @@ class Sdk(object):
                 options.append(self._extract_command(network, SdkOptionMapping.network_option_mapping, "--network"))
         try:
             cmd = Sdk.shell_safe(" ".join(command + options))
+            logger.info("Creating vm {0} with command {1}".format(name, cmd))
             self.ssh_client.run(cmd, allow_insecure=True)
+            logger.info("Vm {0} has been created.".format(name, cmd))
         except subprocess.CalledProcessError as ex:
-            logger.exception("Error during creation of VM")
+            msg = "Error during creation of VM. Got {0}".format(ex.output)
+            logger.exception(msg)
             print " ".join(command+options)
-            raise
+            raise RuntimeError(msg)
         if start is False:
             cmd = ["virsh", "destroy", name]
             self.ssh_client.run(cmd)
@@ -679,10 +696,37 @@ class Sdk(object):
 if __name__ == "__main__":
     # Had to change the user to root in /etc/libvirt/qemu.conf
     sdk = Sdk(login='root', host='10.100.199.151', passwd='rooter')
-    sdk.clone_vm('bob1', 'bob2')
+    # sdk.clone_vm('bob1', 'bob3')
+    # try:
+    #     sdk.clone_vm('bob1', 'bob2', mountpoint="/mnt/test", diskname=None)
+    # except:
+    #     pass
+    # try:
+    #     sdk.clone_vm('bob1', 'bob2', diskname="test", mountpoint="/mnt/test")
+    # except:
+    #     pass
+    # try:
+    #     sdk.clone_vm('bob1', None, mountpoint="/mnt/test")
+    # except:
+    #     pass
+    # try:
+    #     sdk.clone_vm('bob1', )
+    # except:
+    #     pass
+    # try:
+    #     sdk.clone_vm('bob1', diskname='test')  # Failed test case
+    # except:
+    #     pass
     # x = sdk.get_vm_object('bob1')
     # print sdk._get_disks(x)
     # sdk.migrate('bob2', '10.100.199.152', 'root')
-    # disks = [('/mnt/myvpool01/myvdisk01.raw', 'sata')]
-    # networks = [("network=default", 'mac=RANDOM', 'model=e1000')]
-    # sdk._vm_create('bob2', 2, 1024, disks, networks=networks)
+    disks = [{
+        "mountpoint": "/mnt/myvpool01/myvdisk02.raw",
+    }]
+    networks = [{
+        "network": "default",
+        "mac": "RANDOM",
+        "model": "e1000",
+    }]
+    # sdk.create_vm('bob10', 2, 1024, disks, networks=networks)
+    sdk.clone_vm('bob1')
