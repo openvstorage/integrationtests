@@ -14,15 +14,16 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 from subprocess import check_output
-from ci.helpers.roles import RoleHelper
 from ovs.log.log_handler import LogHandler
 from ci.helpers.fstab import FstabHelper
 from ci.helpers.storagerouter import StoragerouterHelper
+from ci.setup.roles import RoleSetup
 
 
 class RoleRemover(object):
 
     LOGGER = LogHandler.get(source="remove", name="ci_role_remover")
+    CONFIGURE_DISK_TIMEOUT = 300
 
     @staticmethod
     def _umount(mountpoint):
@@ -69,13 +70,13 @@ class RoleRemover(object):
                 # Remove all partitions that have roles
                 if set(partition.roles).issubset(allowed_roles) and len(partition.roles) > 0:
                     RoleRemover.LOGGER.info("Removing {0} from partition {1} on disk {2}".format(partition.roles, partition.guid, diskname))
-                    RoleHelper._configure_disk(storagerouter_guid=storagerouter_guid,
-                                               disk_guid=disk.guid,
-                                               offset=partition.offset,
-                                               size=disk.size,
-                                               roles=[],
-                                               api=api,
-                                               partition_guid=partition.guid)
+                    RoleSetup.configure_disk(storagerouter_guid=storagerouter_guid,
+                                             disk_guid=disk.guid,
+                                             offset=partition.offset,
+                                             size=disk.size,
+                                             roles=[],
+                                             api=api,
+                                             partition_guid=partition.guid)
                     # Unmount partition
                     RoleRemover.LOGGER.info("Umounting disk {2}".format(partition.roles, partition.guid, diskname))
                     RoleRemover._umount(partition.mountpoint)

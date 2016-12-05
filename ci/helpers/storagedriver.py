@@ -14,7 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import time
-
+from ovs.dal.hybrids.storagedriver import StorageDriver
 from ovs.dal.lists.storagedriverlist import StorageDriverList
 from ovs.log.log_handler import LogHandler
 
@@ -41,3 +41,27 @@ class StoragedriverHelper(object):
         """
 
         return StorageDriverList.get_storagedrivers_by_storagerouter(storagerouter_guid)
+
+    @staticmethod
+    def get_storagedriver_by_guid(storagedriver_guid):
+        """
+        Fetches the storagedriver with its guid
+
+        :param storagedriver_guid: guid of the storagedriver
+        :type storagedriver_guid: str
+        :return: The storagedriver DAL object
+        :rtype: ovs.dal.hybrids.storagedriver.STORAGEDRIVER
+        """
+        return StorageDriver(storagedriver_guid)
+
+    @staticmethod
+    def get_storagedriver_by_id(storagedriver_id):
+        """
+        Fetches the storagedriver with its storagedriver_id
+
+        :param storagedriver_id: id of the storagedriver
+        :type storagedriver_id: str
+        :return: The storagedriver DAL object
+        :rtype: ovs.dal.hybrids.storagedriver.STORAGEDRIVER
+        """
+        return StorageDriverList.get_by_storagedriver_id(storagedriver_id)
