@@ -17,7 +17,8 @@ import time
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.albanode import AlbaNodeHelper
-from ci.validate.decorators import required_roles, required_backend, required_preset, check_backend, check_preset
+from ci.validate.decorators import required_roles, required_backend, required_preset, check_backend, check_preset, \
+    check_linked_backend, filter_osds
 
 
 class BackendSetup(object):
@@ -189,9 +190,12 @@ class BackendSetup(object):
             return True
 
     @staticmethod
+    @required_backend
+    @filter_osds
     def add_asds(target, disks, albabackend_name, api, claim_retries=MAX_CLAIM_RETRIES):
         """
-        Initialize and claim a new asd
+        Initialize and claim a new asds on given disks
+
         :param target: target to add asds too
         :type target: str
         :param disks: dict with diskname as key and amount of osds as value
@@ -277,7 +281,6 @@ class BackendSetup(object):
             )
         else:
             BackendSetup.LOGGER.info('No asds have to claimed for {0}'.format(albabackend_name))
-
 
     @staticmethod
     def _discover_and_register_nodes(api):
@@ -410,7 +413,9 @@ class BackendSetup(object):
             return task_result[0]
 
     @staticmethod
+    @required_preset
     @required_backend
+    @check_linked_backend
     def link_backend(albabackend_name, globalbackend_name, preset_name, api, timeout=LINK_BACKEND_TIMEOUT):
         """
         Link a LOCAL backend to a GLOBAL backend

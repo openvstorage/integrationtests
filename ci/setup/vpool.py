@@ -31,6 +31,7 @@ class VPoolSetup(object):
         pass
 
     @staticmethod
+    @check_vpool
     @required_backend
     @required_roles(REQUIRED_VPOOL_ROLES, "LOCAL")
     def add_vpool(vpool_name, vpool_details, api, storagerouter_ip, albabackend_name, timeout=ADD_VPOOL_TIMEOUT):

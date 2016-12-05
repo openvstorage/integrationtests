@@ -40,11 +40,9 @@ class VPoolValidation(object):
         """
 
         storagerouter = StoragerouterHelper.get_storagerouter_by_ip(storagerouter_ip)
-        result = [True for storagedriver in
-                  StoragedriverHelper.get_storagedrivers_by_storagerouterguid(storagerouter.guid)
-                  if vpool_name in storagedriver.name]
-
-        if len(result) == 1:
-            return True
-        else:
+        try:
+            return next(True for storagedriver in
+                        StoragedriverHelper.get_storagedrivers_by_storagerouterguid(storagerouter.guid)
+                        if vpool_name in storagedriver.name)
+        except StopIteration:
             return False
