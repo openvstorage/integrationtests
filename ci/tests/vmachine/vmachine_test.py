@@ -25,7 +25,7 @@ from ci.tests.general.general_hypervisor import Hypervisor
 from ci.tests.general.general_vmachine import GeneralVMachine
 from ci.tests.general.general_vpool import GeneralVPool
 from ovs.dal.lists.vdisklist import VDiskList
-from ovs.lib.scheduledtask import ScheduledTaskController
+from ovs.lib.generic import GenericController
 from ovs.lib.vdisk import VDiskController
 
 
@@ -185,7 +185,7 @@ class TestVMachine(object):
 
         # starting scrubber
         try:
-            ScheduledTaskController.execute_scrub()
+            GenericController.execute_scrub()
             # waiting for model to catch up
             counter = initial_counter
             while counter > 0:
