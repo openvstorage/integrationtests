@@ -43,7 +43,7 @@ from ovs.extensions.db.arakoon.ArakoonInstaller import ArakoonInstaller
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.lib.scheduledtask import ScheduledTaskController
+from ovs.lib.generic import GenericController
 from StringIO import StringIO
 
 
@@ -452,7 +452,7 @@ class TestArakoon(object):
                     benchmark_command = ['arakoon', '--benchmark', '-n_clients', '1', '-max_n', '5_000', '-config', arakoon_config_path]
                     root_client.run(benchmark_command)
 
-                ScheduledTaskController.collapse_arakoon()
+                GenericController.collapse_arakoon()
 
                 nr_of_tlogs = TestArakoon.get_nr_of_tlogs_in_folder(root_client, tlog_location)
                 new_headdb_timestamp = root_client.run(['stat', '--format=%Y', tlog_location + '/head.db'])
