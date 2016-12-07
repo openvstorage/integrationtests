@@ -35,7 +35,7 @@ from ovs.log.log_handler import LogHandler
 class MigrateTester(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST_NAME = "ci_scenario_hypervisor_live_migrate"
+    TEST_NAME = "ci_scenario_vm_live_migrate"
     AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SLEEP_TIME = 30
@@ -77,9 +77,6 @@ class MigrateTester(object):
         This data will be sent to testrails to process it thereafter
         :return:
         """
-        with open(SETTINGS_LOC, "r") as settings_file:
-            settings = json.load(settings_file)
-
         with open(CONFIG_LOC, "r") as config_file:
             config = json.load(config_file)
 
@@ -165,8 +162,10 @@ class MigrateTester(object):
                 threads.append(MigrateTester._start_thread(target=MigrateTester._write_data, name='fio', args=[client, vdisk_name, tap_dir, amount_to_write, cmd_type, configuration]))
                 time.sleep(MigrateTester.SLEEP_TIME)
                 try:
-                    VDiskSetup.move_vdisk(vdisk_guid, storagedriver_2.storagerouter_guid, api)
+                    MigrateTester.LOGGER.info("Moving vdisk {0} to storagerouter {1}".format(vdisk_guid, storagedriver_2.guid))
+                    VDiskSetup.move_vdisk(vdisk_guid=vdisk_guid, target_storagerouter_guid=storagedriver_2.storagerouter_guid, api=api)
                     # Validate move
+                    MigrateTester.LOGGER.info("Validating move.")
                     MigrateTester._validate_move(values_to_check)
                     # Stop writing after 30 more s
                     MigrateTester.LOGGER.info('Writing and monitoring for another {0}s.'.format(MigrateTester.SLEEP_TIME))
@@ -182,13 +181,17 @@ class MigrateTester(object):
                     if len(iops_activity["down"]) * 4 >= MigrateTester.SLEEP_TIME * 2:
                         raise ValueError("Thread did not cause any IOPS to happen.")
                 except Exception as ex:
-                    MigrateTester.LOGGER.failure('Failed during {0} with configuration {1}'.format(cmd_type, configuration))
+                    MigrateTester.LOGGER.exception('Failed during {0} with configuration {1}'.format(cmd_type, configuration))
                     raise
                 finally:
                     # Stop all threads
+                    MigrateTester.LOGGER.info("Stopping threads.")
                     for thread_pair in threads:
-                        if thread_pair[1].isSet():
+                        if thread_pair[1].isSet() is False:
                             thread_pair[1].set()
+                    MigrateTester.LOGGER.info("Waiting for threads to fully terminate.")
+                    for thread_pair in threads:
+                        thread_pair[0].join()
                     MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client)
                     MigrateTester._cleanup_vdisk(vdisk_name, vpool.name)
 
