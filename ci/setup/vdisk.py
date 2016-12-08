@@ -29,6 +29,7 @@ class VDiskSetup(object):
     CREATE_VDISK_TIMEOUT = 60
     CREATE_CLONE_TIMEOUT = 60
     SET_VDISK_AS_TEMPLATE_TIMEOUT = 60
+    ROLLBACK_VDISK_TIMEOUT = 60
 
     def __init__(self):
         pass
@@ -310,4 +311,41 @@ class VDiskSetup(object):
             raise RuntimeError(error_msg)
         else:
             VDiskSetup.LOGGER.info("Creating vTemplate `{0}` should have succeeded".format(vdisk_name))
+            return task_result[1]
+
+    @staticmethod
+    @required_vdisk
+    def rollback_to_snapshot(vdisk_name, vpool_name, snapshot_id, api, timeout=ROLLBACK_VDISK_TIMEOUT):
+        """
+        Rollback a vdisk to a certain snapshot
+
+        :param vdisk_name: location of a vdisk on a vpool
+                           (e.g. /mnt/vpool/test.raw = test.raw, /mnt/vpool/volumes/test.raw = volumes/test.raw )
+        :type vdisk_name: str
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
+        :param snapshot_id: guid of a snapshot for the chosen vdisk
+        :type snapshot_id: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: time to wait for the task to complete
+        """
+
+        # fetch the requirements
+        vdisk_guid = VDiskHelper.get_vdisk_by_name(vdisk_name=vdisk_name, vpool_name=vpool_name).guid
+        snapshot = VDiskHelper.get_snapshot_by_guid(snapshot_guid=snapshot_id, vdisk_name=vdisk_name,
+                                                    vpool_name=vpool_name)
+
+        task_guid = api.post(
+            api='/vdisks/{0}/rollback'.format(vdisk_guid),
+            data={"timestamp": snapshot['timestamp']}
+        )
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Rollback vDisk `{0}` has failed with error {1}".format(vdisk_name, task_result[1])
+            VDiskSetup.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            VDiskSetup.LOGGER.info("Rollback vDisk `{0}` should have succeeded".format(vdisk_name))
             return task_result[1]
