@@ -58,7 +58,7 @@ class RollbackChecks(object):
                 RollbackChecks.validate_rollback()
                 return {'status': 'PASSED', 'case_type': RollbackChecks.CASE_TYPE, 'errors': None}
             except Exception as ex:
-                RollbackChecks.LOGGER.error("Scrubbing checks failed with error: {0}".format(str(ex)))
+                RollbackChecks.LOGGER.error("Rollback checks failed with error: {0}".format(str(ex)))
                 return {'status': 'FAILED', 'case_type': RollbackChecks.CASE_TYPE, 'errors': ex}
         else:
             return {'status': 'BLOCKED', 'case_type': RollbackChecks.CASE_TYPE, 'errors': None}
