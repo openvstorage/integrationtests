@@ -77,6 +77,7 @@ class MigrateTester(object):
         This data will be sent to testrails to process it thereafter
         :return:
         """
+        MigrateTester.LOGGER.info("Starting live migrate test.")
         with open(CONFIG_LOC, "r") as config_file:
             config = json.load(config_file)
 
@@ -89,7 +90,7 @@ class MigrateTester(object):
         # Get a suitable vpool
         vpool = None
         for vp in VPoolHelper.get_vpools():
-            if len(vp.storagedrivers) >= 1:
+            if len(vp.storagedrivers) >= 2:
                 vpool = vp
                 break
         assert vpool is not None, "Not enough vPools to test. Requires 1 and found 0."
