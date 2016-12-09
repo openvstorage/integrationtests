@@ -17,6 +17,7 @@
 import ast
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
+from ci.helpers.asdmanager import ASDManagerClient
 from ci.helpers.albanode import AlbaNodeHelper
 from ci.helpers.exceptions import AlbaBackendNotFoundError, PresetNotFoundError, AlbaNodeNotFoundError
 
@@ -97,7 +98,7 @@ class BackendValidation(object):
         return albabackend_guid in globalbackend.linked_backend_guids
 
     @staticmethod
-    def check_osds_on_asdmanager(ip, disks):
+    def check_available_osds_on_asdmanager(ip, disks):
         """
         Check if osds are available on asd_manager
 
@@ -113,9 +114,7 @@ class BackendValidation(object):
 
         if albanode is not None:
             # compare requested disks with available disks
-            fetched_disks = AlbaNodeHelper.get_disks_from_asdmanager(ip=albanode.ip, port=albanode.port,
-                                                                     username=albanode.username,
-                                                                     password=albanode.password)
+            fetched_disks = ASDManagerClient(node=albanode).get_disks().values()
             available_disks = {}
             for disk, amount_asds in disks.iteritems():
                 try:

@@ -267,7 +267,7 @@ def filter_osds(func):
         # if the vpool is not yet created, return the function
         if 'target' in kwargs and 'disks' in kwargs:
             LOGGER.info("Starting to filtering the following disks: {0}".format(kwargs['disks']))
-            disks = BackendValidation.check_osds_on_asdmanager(ip=kwargs['target'], disks=kwargs['disks'])
+            disks = BackendValidation.check_available_osds_on_asdmanager(ip=kwargs['target'], disks=kwargs['disks'])
             # if no disks are available anymore skip the wrapped func
             if len(disks.keys()) != 0:
                 LOGGER.info("Filtered the osds from {0} to {1}".format(kwargs['disks'], disks))

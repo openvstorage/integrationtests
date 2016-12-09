@@ -96,23 +96,3 @@ class AlbaNodeHelper(object):
             # Map aliases to the diskname
             mapping[diskname] = disk['aliases']
         return mapping
-
-    @staticmethod
-    def get_disks_from_asdmanager(ip, port, username, password):
-        """
-        Fetch a JSON object form
-
-        :param ip: ip address of a existing asd-manager
-        :type ip: str
-        :param port: port of a existing asd-manager
-        :type port: int
-        :param username: username to login into the asd-manager
-        :param password: password to login into the asd-manager
-        :return: all disks on the requested node
-        :rtype: dict
-        """
-
-        return [disk_info for disk_name, disk_info in
-                json.loads(requests.get('https://{0}:{1}/disks'.format(ip, port), verify=False,
-                                        auth=HTTPBasicAuth(username, password)).text).iteritems()
-                if disk_name not in AlbaNodeHelper.IGNORE_KEYS]
