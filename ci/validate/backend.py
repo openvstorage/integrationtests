@@ -105,8 +105,8 @@ class BackendValidation(object):
         :type ip: str
         :param disks: dictionary of disks e.g. { "sdc": 2, "sdd": 2 }
         :type disks: dict
-        :return: if exists
-        :rtype: bool
+        :return: dict with available disks
+        :rtype: dict
         """
 
         albanode = AlbaNodeHelper.get_albanode_by_ip(ip)
