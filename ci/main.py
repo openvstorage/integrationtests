@@ -225,7 +225,7 @@ class Workflow(object):
                             albabackends.append(vpool_details['fragment_cache']['backend']['name'])
 
                         # create vpool
-                        VPoolSetup.add_vpool(vpool_name, vpool_details, self.api,
+                        VPoolSetup.add_vpool(vpool_name=vpool_name, vpool_details=vpool_details, api=self.api,
                                              albabackend_name=albabackends,
                                              storagerouter_ip=storagerouter_ip)
                 else:
