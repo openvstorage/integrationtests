@@ -68,7 +68,7 @@ class FioOnVDiskChecks(object):
 
         INFO:
             * 1 vPool should be available on 1 storagerouter
-            * Removes all tap-ctl connections with vdisk prefix equal to STATIC variable `FioOnVDiskChecks.PREFIX`
+            * Removes all tap-ctl connections with vdisk prefix equal to STATIC variable `FioOnVDiskChecks.VDISK_NAME`
 
         :param amount_vdisks: amount of vdisks to deploy and scrub
         :type amount_vdisks: int
