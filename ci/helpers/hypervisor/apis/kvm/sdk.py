@@ -570,7 +570,7 @@ class Sdk(object):
                 raise RuntimeError('Virtual Machine with id/name {} could not be found.'.format(name))
 
     def create_vm(self, name, vcpus, ram, disks, cdrom_iso=None, os_type=None, os_variant=None, vnc_listen='0.0.0.0',
-                  networks=None, start=False, autostart=False):
+                  networks=None, start=False, autostart=False, ovs_vm=True, edge_port=26203, storagerouter_ip=None):
         """
         Creates a VM
         @TODO use Edge instead of fuse for disks
@@ -594,6 +594,9 @@ class Sdk(object):
             raise RuntimeError(str(ex))
         except libvirt.libvirtError as ex:
             pass
+
+        if ovs_vm is True and (storagerouter_ip is None or edge_port is None):
+            raise RuntimeError("Both storagerouter_ip and edge_port need to be supplied if the VM will be used by OVS.")
 
         command = ["virt-install"]
         options = ["--connect qemu+ssh://{}@{}/system".format(self.login, self.host),
@@ -624,10 +627,14 @@ class Sdk(object):
             cmd = Sdk.shell_safe(" ".join(command + options))
             logger.info("Creating vm {0} with command {1}".format(name, cmd))
             self.ssh_client.run(cmd, allow_insecure=True)
-            self._conn.defineXML(self._update_xml_for_ovs(name, self.ssh_client.ip))
-            self.destroy(name)
-            if start is True:
-                self.power_on(name)
+            if ovs_vm is True:
+                self._conn.defineXML(self._update_xml_for_ovs(name, storagerouter_ip, edge_port))
+                self.destroy(name)
+                if start is True:
+                    self.power_on(name)
+            else:
+                if start is False:
+                    self.destroy(name)
             logger.info("Vm {0} has been created.".format(name, cmd))
         except subprocess.CalledProcessError as ex:
             msg = "Error during creation of VM. Got {0}".format(str(ex))
@@ -635,7 +642,7 @@ class Sdk(object):
             print " ".join(command+options)
             raise RuntimeError(msg)
 
-    def _update_xml_for_ovs(self, vmid, storagerouter, edge_port=26203):
+    def _update_xml_for_ovs(self, vmid, storagerouter, edge_port):
         """
         Update the xml to use OVS protocol and use the edge
         :param vmid: vm object

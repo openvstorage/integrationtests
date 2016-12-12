@@ -25,7 +25,6 @@ from ci.helpers.vdisk import VDiskHelper
 from ci.helpers.storagedriver import StoragedriverHelper
 from ci.helpers.system import SystemHelper
 from ci.main import CONFIG_LOC
-from ci.main import SETTINGS_LOC
 from ci.setup.vdisk import VDiskSetup
 from ci.remove.vdisk import VDiskRemover
 from ovs.extensions.generic.sshclient import SSHClient

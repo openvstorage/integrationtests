@@ -18,8 +18,6 @@ import json
 import subprocess
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
-from ci.helpers.api import OVSClient
-from ci.setup.vdisk import VDiskSetup
 from ci.helpers.vpool import VPoolHelper
 from ci.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
@@ -81,15 +79,6 @@ class FioOnVDiskChecks(object):
         with open(SETTINGS_LOC, "r") as JSON_SETTINGS:
             settings = json.load(JSON_SETTINGS)
 
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
-
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
-
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
 
@@ -98,7 +87,8 @@ class FioOnVDiskChecks(object):
 
         # check if enough images available
         images = settings['images']
-        assert len(images) >= 1, "Not enough images in `{0}`".format(SETTINGS_LOC)
+        image_path = images.get("fio-test")
+        assert image_path is not None, "Fio-test image not set in `{0}`".format(SETTINGS_LOC)
 
         # setup base information
         storagedriver = vpool.storagedrivers[0]
@@ -111,9 +101,8 @@ class FioOnVDiskChecks(object):
             .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
 
         # check if image exists
-        assert client.file_exists(images[0]), "Image `{0}` does not exists on `{1}`!"\
-            .format(images[0], storagedriver.storage_ip)
-        image_path = images[0]
+        assert client.file_exists(image_path), "Image `{0}` does not exists on `{1}`!".format(image_path,
+                                                                                              storagedriver.storage_ip)
 
         # deploy vdisks via edge & link blktap
         for vdisk in xrange(amount_vdisks):

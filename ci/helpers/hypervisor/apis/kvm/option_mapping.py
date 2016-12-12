@@ -84,10 +84,16 @@ class SdkOptionMapping(object):
         },
     }
     network_option_mapping = {
+        "bridge": {
+            "option": "bridge",
+            "values": None,
+            "default": None,
+            "type": str
+        },
         "network": {
             "option": "network",
             "values": None,
-            "default": "default",
+            "default": None,
             "type": str
         },
         "model": {

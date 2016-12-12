@@ -26,6 +26,7 @@ from ci.helpers.vdisk import VDiskHelper
 from ci.helpers.storagedriver import StoragedriverHelper
 from ci.helpers.system import SystemHelper
 from ci.main import CONFIG_LOC
+from ci.main import SETTINGS_LOC
 from ci.setup.vdisk import VDiskSetup
 from ci.remove.vdisk import VDiskRemover
 from ovs.extensions.generic.sshclient import SSHClient
@@ -33,18 +34,26 @@ from ovs.log.log_handler import LogHandler
 
 
 class MigrateTester(object):
-
+    """
+    Requirements to run this test:
+    QEMU user should be root (user = "root" and group = "root" in /etc/libvirt/qemu.conf)
+    Both QEMU hosts should have a br1 bridge interface
+    The prepared image has to be present (see settings.json)
+    This test will create a new VM, set its disk protocol to ovs and start a fio test on it.
+    After 30s the VM will migrate to a different host.
+    Both IOPS and DAL will be checked afterwards.
+    """
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_hypervisor_live_migrate"
     AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SLEEP_TIME = 30
-    REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'fio']
+    REQUIRED_PACKAGES = ["qemu-kvm", "libvirt0", "python-libvirt", "virtinst"]
     # RW mixes for Fio, bs for dd
     DATA_TEST_CASES = {
-        'dd': [1 * 1024**2],
         'fio': [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]
     }
+    BRIDGE_INTERFACE = "virbr0"
 
     def __init__(self):
         pass
@@ -86,6 +95,9 @@ class MigrateTester(object):
             config['ci']['user']['api']['password']
         )
 
+        with open(SETTINGS_LOC, "r") as JSON_SETTINGS:
+            settings = json.load(JSON_SETTINGS)
+
         # Get a suitable vpool
         vpool = None
         for vp in VPoolHelper.get_vpools():
@@ -101,12 +113,23 @@ class MigrateTester(object):
             if SystemHelper.get_local_storagerouter().guid == std.storagerouter_guid:
                 storagedriver_1 = std
                 break
+
         assert storagedriver_1 is not None, 'Could not find the right storagedriver for storagerouter {0}'.format(SystemHelper.get_local_storagerouter().guid)
         # Get a random other storagedriver to migrate to
         other_stds = [st for st in vpool.storagedrivers if st != storagedriver_1]
         assert len(other_stds) >= 1, 'Only found one storagedriver for vpool {0}. This tests requires at least 2.'.format(vpool.name)
         storagedriver_2 = [st for st in vpool.storagedrivers if st != storagedriver_1][0]
+
         client = SSHClient(storagedriver_1.storage_ip, username='root')
+
+        # check if enough images available
+        images = settings['images']
+        image_path = images.get("migrate-test").get("path")
+        assert image_path is not None, "Fio-test image not set in `{0}`".format(SETTINGS_LOC)
+
+        # check if image exists
+        assert client.file_exists(image_path), "Image `{0}` does not exists on `{1}`!".format(image_path,
+                                                                                              storagedriver_1.storage_ip)
 
         # Cache to validate properties
         values_to_check = {
@@ -118,30 +141,54 @@ class MigrateTester(object):
         missing_packages = SystemHelper.get_missing_packages(storagedriver_1.storage_ip, MigrateTester.REQUIRED_PACKAGES)
         assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}".format(len(missing_packages), storagedriver_1.storage_ip, missing_packages)
 
+        # Set some values
+        vm_name = 'migrate-test'
+        # Create a new vdisk to test
+        vdisk_name = "{0}_vdisk01".format(MigrateTester.TEST_NAME)
+        storage_ip = storagedriver_1.storage_ip
+        edge_port = storagedriver_1.ports['edge']
+        vdisk_path = "/mnt/{0}/{1}.raw".format(vpool.name, vdisk_name)
+
+        disks = [{
+            'mountpoint': vdisk_path,
+        }]
+        networks = [{
+            'bridge': MigrateTester.BRIDGE_INTERFACE,
+            'mac': 'RANDOM',
+            'model': 'e1000',
+        }]
         for cmd_type, configurations in MigrateTester.DATA_TEST_CASES.iteritems():
             for configuration in configurations:
-                # Create a new vdisk to test
-                vdisk_name = "{0}_vdisk01".format(MigrateTester.TEST_NAME)
                 try:
-                    vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, size=10*1024**3,
-                                                         storagerouter_ip=storagedriver_1.storagerouter.ip, api=api)
+                    # Setup clean install with fio
+                    vdisk_guid = VDiskSetup.create_vdisk(vdisk_name='{}.raw'.format(vdisk_name),
+                                                         vpool_name=vpool.name,
+                                                         size=10 * 1024 ** 3,
+                                                         storagerouter_ip=storagedriver_1.storagerouter.ip,
+                                                         api=api)
+                    MigrateTester.LOGGER.info("Copying the image to the vdisk.")
+                    client.run(["dd", "if={0}".format(image_path),
+                                "of={0}".format(vdisk_path),
+                                "bs=256K",
+                                "conv=notrunc"])
                     # Fetch to validate if it was properly created
                     vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
-                    protocol = storagedriver_1.cluster_node_config['network_server_uri'].split(':')[0]
                     values_to_check['vdisk'] = vdisk.serialize()
 
-                    # Setup blocktap
-                    MigrateTester.LOGGER.info("Creating a tap blk device for the vdisk")
-                    tap_dir = client.run(["tap-ctl", "create", "-a", "openvstorage+{0}:{1}:{2}/{3}".format(protocol, storagedriver_1.storage_ip, storagedriver_1.ports['edge'], vdisk_name)])
-                    MigrateTester.LOGGER.info("Created a tap blk device at location `{0}`".format(tap_dir))
+                    # Setup VM
+                    MigrateTester.LOGGER.info('Creating VM {0} with image as disk'.format(vm_name))
+                    hypervisor = Factory.get(client.ip, 'root', 'rooter', 'KVM')
+                    hypervisor.sdk.create_vm(vm_name, vcpus=2, ram=1024, disks=disks, networks=networks, ovs_vm=True,
+                                             storagerouter_ip=storage_ip, edge_port=edge_port)
+                    MigrateTester.LOGGER.info('Created VM {0}.'.format(vm_name))
                 except Exception as ex:
                     # Attempt to cleanup test
                     if isinstance(ex, subprocess.CalledProcessError):
-                        MigrateTester.LOGGER.info("Could not setup blk device.")
+                        MigrateTester.LOGGER.info("Could not copy the image.")
                     if isinstance(ex, RuntimeError):
-                        MigrateTester.LOGGER.info("Creation of vdisk failed. Cleaning up test")
+                        MigrateTester.LOGGER.info("Creation of VM failed. Cleaning up test")
                     try:
-                        MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client, False)
+                        MigrateTester._cleanup_vm()
                         MigrateTester._cleanup_vdisk(vdisk_name, vpool.name, False)
                     except:
                         pass
@@ -157,9 +204,10 @@ class MigrateTester(object):
                     "highest": None,
                     "lowest": None
                 }
+                vm_client = SSHClient(images.get("migrate-test").get("path"), "root", "rooter")
                 threads.append(MigrateTester._start_thread(MigrateTester._check_downtimes, name='iops', args=[iops_activity, vdisk]))
                 # Run write data on a thread
-                threads.append(MigrateTester._start_thread(target=MigrateTester._write_data, name='fio', args=[client, vdisk_name, tap_dir, amount_to_write, cmd_type, configuration]))
+                threads.append(MigrateTester._start_thread(target=MigrateTester._write_data, name='fio', args=[vm_client, amount_to_write, cmd_type, configuration]))
                 time.sleep(MigrateTester.SLEEP_TIME)
                 try:
                     MigrateTester.migrate(storagedriver_1.storage_ip,
@@ -191,7 +239,6 @@ class MigrateTester(object):
                     for thread_pair in threads:
                         if thread_pair[1].isSet():
                             thread_pair[1].set()
-                    MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client)
                     MigrateTester._cleanup_vdisk(vdisk_name, vpool.name)
 
     @staticmethod
@@ -207,15 +254,6 @@ class MigrateTester(object):
     @staticmethod
     def _clone_image():
         raise NotImplementedError
-
-    @staticmethod
-    def _change_xml():
-        """
-        Configures the VM xml to use the openvstorage protocol
-        :return:
-        """
-
-        pass
 
     @staticmethod
     def _validate_move(values_to_check):
@@ -277,37 +315,6 @@ class MigrateTester(object):
         MigrateTester.LOGGER.info('Move vdisk was successful according to the dal (which fetches volumedriver info).')
 
     @staticmethod
-    def _cleanup_blktap(vdisk_name, storage_ip, client, blocking=True):
-        """
-        Attempts to cleanup all blocktap links
-        :param vdisk_name: name of the vdisk
-        :param storage_ip: ip of the storagerouter
-        :param client: instance of ssh client
-        :param blocking: boolean to determine whether errors should raise or not
-        :return:
-        """
-        # deleting (remaining) tapctl connections
-        try:
-            tap_conn = client.run("tap-ctl list | grep {0}".format(vdisk_name), allow_insecure=True).split()
-            if len(tap_conn) != 0:
-                MigrateTester.LOGGER.info("Deleting tapctl connections.")
-                for index, tap_c in enumerate(tap_conn):
-                    if 'pid' in tap_c:
-                        pid = tap_c.split('=')[1]
-                        minor = tap_conn[index + 1].split('=')[1]
-                        client.run(["tap-ctl", "destroy", "-p", pid, "-m", minor])
-            else:
-                error_msg = "At least 1 blktap connection should be available but we found none on ip address `{0}`!".format(storage_ip)
-                MigrateTester.LOGGER.error(error_msg)
-                raise RuntimeError(error_msg)
-        except Exception as ex:
-            MigrateTester.LOGGER.error(str(ex))
-            if blocking is True:
-                raise
-            else:
-                pass
-
-    @staticmethod
     def _cleanup_vdisk(vdisk_name, vpool_name, blocking=True):
         """
         Attempt to cleanup vdisk
@@ -327,10 +334,14 @@ class MigrateTester(object):
                 pass
 
     @staticmethod
+    def _cleanup_vm():
+        pass
+
+    @staticmethod
     def _write_data(client, vdisk_name, blocktap_dir, write_amount, cmd_type, configuration, stop_event):
         """
         Runs a dd on a blocktap dir for a specific vdisk
-        :param client: ovs ssh client
+        :param client: ovs ssh client for the vm
         :type client: ovs.extensions.generic.sshclient.SSHClient
         :param vdisk_name: name of the vdisk
         :type vdisk_name: str
