@@ -35,7 +35,7 @@ class RollbackChecks(object):
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_rollback")
     SIZE_VDISK = 52428800
     VDISK_NAME = "integration-tests-rollback"
-    MAX_ROLLBACK_CHECKS = 10
+    MAX_ROLLBACK_CHECKS = 20
     ROLLBACK_TIMEOUT = 45
     WRITE_AMOUNT_OF_TIMES = 2
     REQUIRED_PACKAGES = ['fio']
