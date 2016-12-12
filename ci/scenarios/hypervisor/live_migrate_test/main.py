@@ -209,6 +209,15 @@ class MigrateTester(object):
         raise NotImplementedError
 
     @staticmethod
+    def _change_xml():
+        """
+        Configures the VM xml to use the openvstorage protocol
+        :return:
+        """
+
+        pass
+
+    @staticmethod
     def _validate_move(values_to_check):
         """
         Validates the move test. Checks IO, and checks for dal changes

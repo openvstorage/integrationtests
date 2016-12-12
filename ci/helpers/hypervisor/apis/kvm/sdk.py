@@ -155,7 +155,6 @@ class Sdk(object):
         :rtype: dict
         """
         tree = ElementTree.fromstring(vm_object.XMLDesc(0))
-        x = tree.findall('devices/disk')
         return [_recurse(item) for item in tree.findall('devices/disk')]
 
     @staticmethod
@@ -345,13 +344,15 @@ class Sdk(object):
         return self._conn.listAllDomains()
 
     def shutdown(self, vmid):
-        vm_object = self.get_vm_object(vmid)
-        vm_object.shutdown()
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        vmid.shutdown()
         return self.get_power_state(vmid)
 
     def destroy(self, vmid):
-        vm_object = self.get_vm_object(vmid)
-        vm_object.destroy()
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        vmid.destroy()
         return self.get_power_state(vmid)
 
     def delete_vm(self, vmid, devicename, disks_info):
@@ -405,8 +406,9 @@ class Sdk(object):
         :param vmid: id or name of the domain
         :return: powerstate of the vm
         """
-        vm_object = self.get_vm_object(vmid)
-        vm_object.create()
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        vmid.create()
         return self.get_power_state(vmid)
 
     def find_devicename(self, devicename):
@@ -568,7 +570,7 @@ class Sdk(object):
                 raise RuntimeError('Virtual Machine with id/name {} could not be found.'.format(name))
 
     def create_vm(self, name, vcpus, ram, disks, cdrom_iso=None, os_type=None, os_variant=None, vnc_listen='0.0.0.0',
-                  networks=None, start=False):
+                  networks=None, start=False, autostart=False):
         """
         Creates a VM
         @TODO use Edge instead of fuse for disks
@@ -613,6 +615,8 @@ class Sdk(object):
             options.append("-- os-variant {0}".format(os_variant))
         if networks is None or networks == []:
             options.append("--network none")
+        if autostart is True:
+            options.append("--autostart")
         else:
             for network in networks:
                 options.append(self._extract_command(network, SdkOptionMapping.network_option_mapping, "--network"))
@@ -620,15 +624,54 @@ class Sdk(object):
             cmd = Sdk.shell_safe(" ".join(command + options))
             logger.info("Creating vm {0} with command {1}".format(name, cmd))
             self.ssh_client.run(cmd, allow_insecure=True)
+            self._conn.defineXML(self._update_xml_for_ovs(name, self.ssh_client.ip))
+            self.destroy(name)
+            if start is True:
+                self.power_on(name)
             logger.info("Vm {0} has been created.".format(name, cmd))
         except subprocess.CalledProcessError as ex:
-            msg = "Error during creation of VM. Got {0}".format(ex.output)
+            msg = "Error during creation of VM. Got {0}".format(str(ex))
             logger.exception(msg)
             print " ".join(command+options)
             raise RuntimeError(msg)
-        if start is False:
-            cmd = ["virsh", "destroy", name]
-            self.ssh_client.run(cmd)
+
+    def _update_xml_for_ovs(self, vmid, storagerouter, edge_port=26203):
+        """
+        Update the xml to use OVS protocol and use the edge
+        :param vmid: vm object
+        :return:
+        """
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        logger.info("Changing XML to use OVS protocol.")
+        import xml.etree.ElementTree as ET
+        from xml.etree.ElementTree import Element
+        xml = vmid.XMLDesc()
+        tree = ET.ElementTree(ET.fromstring(xml))
+        root = tree.getroot()
+        for element in root.findall('devices/disk'):
+            # update type to network instead of file
+            element.attrib.update({"type": "network"})
+            # update driver
+            driver_update = {"cache": "none",
+                             "io": "threads"}
+            element.find('driver').attrib.update(driver_update)
+            # Change source to (vdisk without .raw)
+            source_element = element.find('source')
+            source = {"protocol": "openvstorage",
+                      "name": source_element.attrib.get("file").rsplit('/', 1)[1].split('.', 1)[0]
+                      if source_element.attrib.get("file") is not None else source_element.attrib.get("name"),
+                      "snapshot-timeout": "120"}
+            source_element.attrib = source
+            # Add a new element under source with edge port and storagerouter pointer
+            if len(source_element.getchildren()) == 0:
+                e = Element(tag="host", attrib={"name": storagerouter, "port": str(edge_port)})
+                source_element.insert(0, e)
+            else:
+                source_element.find("host").attrib = {"name": storagerouter, "port": str(edge_port)}
+            # Change address attrib
+        logger.info("Xml change completed.")
+        return ET.tostring(root)
 
     @staticmethod
     def _extract_command(option, mapping, command):
@@ -694,6 +737,8 @@ class Sdk(object):
         return "{0}".format(argument.replace(r"'", r"'\''"))
 
 if __name__ == "__main__":
+    # Permission denied is resolved by setting user = "root" and group = "root" in /etc/libvirt/qemu.conf
+
     # Had to change the user to root in /etc/libvirt/qemu.conf
     sdk = Sdk(login='root', host='10.100.199.151', passwd='rooter')
     # sdk.clone_vm('bob1', 'bob3')
@@ -721,12 +766,13 @@ if __name__ == "__main__":
     # print sdk._get_disks(x)
     # sdk.migrate('bob2', '10.100.199.152', 'root')
     disks = [{
-        "mountpoint": "/mnt/myvpool01/myvdisk02.raw",
+        "mountpoint": "/mnt/myvpool01/myvdisktest01.raw",
+        "size": 5.0
     }]
     networks = [{
         "network": "default",
         "mac": "RANDOM",
         "model": "e1000",
     }]
-    # sdk.create_vm('bob10', 2, 1024, disks, networks=networks)
-    sdk.clone_vm('bob1')
+    sdk.create_vm('bob11', 2, 1024, disks, networks=networks)
+    # sdk.clone_vm('bob1')
