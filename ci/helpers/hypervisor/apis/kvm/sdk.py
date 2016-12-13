@@ -27,6 +27,7 @@ from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.system import System
 from ovs.log.log_handler import LogHandler
 from xml.etree import ElementTree
+from xml.etree.ElementTree import Element
 
 logger = LogHandler.get('helpers', name='kvm sdk')
 ROOT_PATH = '/etc/libvirt/qemu/'  # Get static info from here, or use dom.XMLDesc(0)
@@ -135,6 +136,11 @@ class Sdk(object):
         return conn
 
     def disconnect(self, conn=None):
+        """
+        Disconnects a given connection
+        :param conn: connection to disconnect
+        :return:
+        """
         _ = self
         logger.debug('Disconnecting libvirt')
         if conn:
@@ -189,8 +195,9 @@ class Sdk(object):
     @staticmethod
     def _get_ram(vm_object):
         """
-        returns RAM size in MiB
-        MUST BE INTEGER! not float
+        Get the RAM size of the VM
+        :param vm_object: VirDomain istance
+        :return RAM of the VM
         """
         tree = ElementTree.fromstring(vm_object.XMLDesc(0))
         mem = tree.findall('memory')[0]
@@ -222,7 +229,9 @@ class Sdk(object):
 
     def _get_vm_pid(self, vm_object):
         """
-        return pid of kvm process running this machine (if any)
+        Get the PID of the KVM process running the given machine
+        :param vm_object: vm identifier
+        :return PID of the KVM process
         """
         if self.get_power_state(vm_object.name()) == 'RUNNING':
             pid_path = '{0}/{1}.pid'.format(RUN_PATH, vm_object.name())
@@ -301,8 +310,9 @@ class Sdk(object):
 
     def get_power_state(self, vmid):
         """
-        return vmachine state
-        vmid is the name
+        Get the machine power state
+        :param vmid: vm identifier
+        :return power state of the vm
         """
         if not isinstance(vmid, libvirt.virDomain):
             vmid = self.get_vm_object(vmid)
@@ -333,71 +343,86 @@ class Sdk(object):
     def get_vm_object_by_xml(self, filename):
         """
         get vm based on filename: vmachines/template/template.xml
+        :param filename: name of the xml
+        :return VirDomain object
         """
         vmid = filename.split('/')[-1].replace('.xml', '')
         return self.get_vm_object(vmid)
 
     def get_vms(self):
         """
-        return a list of virDomain objects, representing virtual machines
+        Get all VirDomain objects
+        :return list of all virDomain objects
         """
         return self._conn.listAllDomains()
 
     def shutdown(self, vmid):
+        """
+        Shuts down a virtual machine
+        :param vmid: vm identifier
+        :return:
+        """
         if not isinstance(vmid, libvirt.virDomain):
             vmid = self.get_vm_object(vmid)
-        vmid.shutdown()
+        result = vmid.shutdown()
+        if result != 0:
+            raise RuntimeError("Shutting down VM failed")
         return self.get_power_state(vmid)
 
     def destroy(self, vmid):
+        """
+        Forces a shutdown of a virtual machine
+        :param vmid: vm identifier
+        :return:
+        """
         if not isinstance(vmid, libvirt.virDomain):
             vmid = self.get_vm_object(vmid)
-        vmid.destroy()
+        result = vmid.destroy()
+        if result != 0:
+            raise RuntimeError("Destroying VM failed")
         return self.get_power_state(vmid)
 
-    def delete_vm(self, vmid, devicename, disks_info):
+    def undefine(self, vmid):
+        """
+        Undefines a virtual machine
+        :param vmid: vm identifier
+        :return:
+        """
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        result = vmid.undefine()
+        if result != 0:
+            raise RuntimeError("Undefining VM failed")
+        else:
+            return True
+
+    def delete_vm(self, vmid, delete_disks=False):
         """
         Delete domain from libvirt and try to delete all files from vpool (xml, .raw)
         :param vmid: id of the vm. Could also be the name
-        :param devicename: name of the device to delete
-        :param disks_info: info about the disks (agnostics)
+        :param delete_disks: do the disks need to be deleted or not
         :return:
         """
-        vm_object = None
-        try:
-            vm_object = self.get_vm_object(vmid)
-        except Exception as ex:
-            logger.error('SDK domain retrieve failed: {0}'.format(ex))
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
         # Flow of kvm delete
         # virsh destroy _domain-id_
         # virsh undefine _domain-id_
         # virsh vol-delete --pool vg0 _domain-id_.img
-        found_files = self.find_devicename(devicename)
-        if found_files is not None:
-            for found_file in found_files:
-                self.ssh_client.file_delete(found_file)
-                logger.info('File on vpool deleted: {0}'.format(found_file))
-        if vm_object:
-            found_file = None
-            # VM partially created, most likely we have disks
-            for disk in self._get_disks(vm_object):
-                if disk['device'] == 'cdrom':
-                    continue
-                if 'file' in disk['source']:
-                    found_file = disk['source']['file']
-                elif 'dev' in disk['source']:
-                    found_file = disk['source']['dev']
-                if found_file and os.path.exists(found_file) and os.path.isfile(found_file):
-                    self.ssh_client.file_delete(found_file)
-                    logger.info('File on vpool deleted: {0}'.format(found_file))
-            vm_object.undefine()
-        elif disks_info:
-            # VM not created, we have disks to rollback
-            for path, devicename in disks_info:
-                found_file = '{}/{}'.format(path, devicename)
-                if os.path.exists(found_file) and os.path.isfile(found_file):
-                    self.ssh_client.file_delete(found_file)
-                    logger.info('File on vpool deleted: {0}'.format(found_file))
+        xml = vmid.XMLDesc()
+        try:
+            if self.get_power_state(vmid) == "RUNNING":
+                logger.info("Shutting down {0}".format(vmid))
+                self.destroy(vmid)
+            self.undefine(vmid)
+        except RuntimeError as ex:
+            raise RuntimeError("Deleting VM {0} has failed. Got {1}".format(vmid.name, str(ex)))
+        if delete_disks is True:
+            tree = ElementTree.ElementTree(ElementTree.fromstring(xml))
+            root = tree.getroot()
+            for element in root.findall('devices/disk'):
+                disk_path = element.find('source').attrib.get("file")
+                self.ssh_client.file_delete(disk_path)
         return True
 
     def power_on(self, vmid):
@@ -651,10 +676,8 @@ class Sdk(object):
         if not isinstance(vmid, libvirt.virDomain):
             vmid = self.get_vm_object(vmid)
         logger.info("Changing XML to use OVS protocol.")
-        import xml.etree.ElementTree as ET
-        from xml.etree.ElementTree import Element
         xml = vmid.XMLDesc()
-        tree = ET.ElementTree(ET.fromstring(xml))
+        tree = ElementTree.ElementTree(ElementTree.fromstring(xml))
         root = tree.getroot()
         for element in root.findall('devices/disk'):
             # update type to network instead of file
@@ -678,7 +701,7 @@ class Sdk(object):
                 source_element.find("host").attrib = {"name": storagerouter, "port": str(edge_port)}
             # Change address attrib
         logger.info("Xml change completed.")
-        return ET.tostring(root)
+        return ElementTree.tostring(root)
 
     @staticmethod
     def _extract_command(option, mapping, command):
@@ -742,44 +765,3 @@ class Sdk(object):
         :param argument: Argument to make safe for shell
         """
         return "{0}".format(argument.replace(r"'", r"'\''"))
-
-if __name__ == "__main__":
-    # Permission denied is resolved by setting user = "root" and group = "root" in /etc/libvirt/qemu.conf
-
-    # Had to change the user to root in /etc/libvirt/qemu.conf
-    sdk = Sdk(login='root', host='10.100.199.151', passwd='rooter')
-    # sdk.clone_vm('bob1', 'bob3')
-    # try:
-    #     sdk.clone_vm('bob1', 'bob2', mountpoint="/mnt/test", diskname=None)
-    # except:
-    #     pass
-    # try:
-    #     sdk.clone_vm('bob1', 'bob2', diskname="test", mountpoint="/mnt/test")
-    # except:
-    #     pass
-    # try:
-    #     sdk.clone_vm('bob1', None, mountpoint="/mnt/test")
-    # except:
-    #     pass
-    # try:
-    #     sdk.clone_vm('bob1', )
-    # except:
-    #     pass
-    # try:
-    #     sdk.clone_vm('bob1', diskname='test')  # Failed test case
-    # except:
-    #     pass
-    # x = sdk.get_vm_object('bob1')
-    # print sdk._get_disks(x)
-    # sdk.migrate('bob2', '10.100.199.152', 'root')
-    disks = [{
-        "mountpoint": "/mnt/myvpool01/myvdisktest01.raw",
-        "size": 5.0
-    }]
-    networks = [{
-        "network": "default",
-        "mac": "RANDOM",
-        "model": "e1000",
-    }]
-    sdk.create_vm('bob11', 2, 1024, disks, networks=networks)
-    # sdk.clone_vm('bob1')

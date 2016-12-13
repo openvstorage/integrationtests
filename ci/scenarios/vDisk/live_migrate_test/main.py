@@ -164,12 +164,13 @@ class MigrateTester(object):
                 try:
                     MigrateTester.LOGGER.info("Moving vdisk {0} to storagerouter {1}".format(vdisk_guid, storagedriver_2.guid))
                     VDiskSetup.move_vdisk(vdisk_guid=vdisk_guid, target_storagerouter_guid=storagedriver_2.storagerouter_guid, api=api)
-                    # Validate move
-                    MigrateTester.LOGGER.info("Validating move.")
-                    MigrateTester._validate_move(values_to_check)
                     # Stop writing after 30 more s
                     MigrateTester.LOGGER.info('Writing and monitoring for another {0}s.'.format(MigrateTester.SLEEP_TIME))
                     time.sleep(MigrateTester.SLEEP_TIME)
+                    # Validate move
+                    MigrateTester.LOGGER.info("Validating move.")
+                    MigrateTester._validate_move(values_to_check)
+                    # Stop IO
                     for thread_pair in threads:
                         if thread_pair[0].isAlive():
                             thread_pair[1].set()

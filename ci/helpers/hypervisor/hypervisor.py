@@ -20,9 +20,9 @@ Using the module requires libvirt api to be available on the MACHINE THAT EXECUT
 from ovs.extensions.generic.filemutex import file_mutex
 
 
-class Factory(object):
+class HypervisorFactory(object):
     """
-    Factory class provides functionality to get abstracted hypervisor
+    HypervisorFactory class provides functionality to get abstracted hypervisor
     """
 
     hypervisors = {}
@@ -33,11 +33,11 @@ class Factory(object):
         Returns the appropriate hypervisor client class for a given PMachine
         """
         key = '{0}_{1}'.format(ip, username)
-        if key not in Factory.hypervisors:
+        if key not in HypervisorFactory.hypervisors:
             mutex = file_mutex('hypervisor_{0}'.format(key))
             try:
                 mutex.acquire(30)
-                if key not in Factory.hypervisors:
+                if key not in HypervisorFactory.hypervisors:
                     if hvtype == 'VMWARE':
                         # Not yet tested. Needs to be rewritten
                         raise NotImplementedError("{0} has not yet been implemented".format(hvtype))
@@ -48,7 +48,7 @@ class Factory(object):
                         hypervisor = KVM(ip, username, password)
                     else:
                         raise NotImplementedError('Hypervisor {0} is not yet supported'.format(hvtype))
-                    Factory.hypervisors[key] = hypervisor
+                    HypervisorFactory.hypervisors[key] = hypervisor
             finally:
                 mutex.release()
-        return Factory.hypervisors[key]
+        return HypervisorFactory.hypervisors[key]
