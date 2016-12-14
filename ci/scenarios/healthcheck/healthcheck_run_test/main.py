@@ -47,7 +47,7 @@ class HealthCheckCI(object):
                 return {'status': 'PASSED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': result}
             except Exception as ex:
                 HealthCheckCI.LOGGER.error("Healthcheck CI testing failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': str(ex)}
+                return {'status': 'FAILED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': str(ex), 'blocking': False}
         else:
             return {'status': 'BLOCKED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': None}
 
@@ -115,9 +115,13 @@ class HealthCheckCI(object):
         from ovs.lib.healthcheck import HealthCheckController
 
         result = HealthCheckController.check_silent()
-        assert result is not None
-        assert 'result' in result
-        assert 'recap' in result
+        assert result is not None, 'No results found in the healthcheck output'
+        assert 'result' in result, 'the result section is missing in the healthcheck output'
+        assert 'recap' in result, 'the recap section is missing in the healthcheck output'
+        assert result['recap']['EXCEPTION'] == 0, '{0} exception(s) found during the healthcheck run: {1}'\
+            .format(result['recap']['EXCEPTION'], result)
+        assert result['recap']['FAILED'] == 0, '{0} failure(s) found during the healthcheck run: {1}'\
+            .format(result['recap']['FAILED'], result)
 
         HealthCheckCI.LOGGER.info("Finished validating the healthcheck")
 

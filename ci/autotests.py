@@ -99,7 +99,12 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
         # check if a test has failed, if it has failed check if we should block all other tests
         if hasattr(TestrailResult, module_result['status']):
             if getattr(TestrailResult, module_result['status']) == TestrailResult.FAILED and fail_on_failed_scenario:
-                blocked = True
+                if 'blocking' not in module_result:
+                    # if a test reports failed but blocked is not present = by default blocked == True
+                    blocked = True
+                elif module_result['blocking'] is not False:
+                    # if a test reports failed but blocked != False
+                    blocked = True
         else:
             raise AttributeError("Attribute `{0}` does not exists as status "
                                  "in TestrailResult".format(module_result['status']))
@@ -238,7 +243,7 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
             raise AttributeError("Attribute `{0}` does not exists as test_status in TestrailResult"
                                  .format(test_result['status']))
         # add results to test cases, if the've got something in the field `errors`
-        if not test_result['errors']:
+        if test_result['errors'] is not None:
             tapi.add_result(test_id, test_status_id, comment=str(test_result['errors']))
         else:
             tapi.add_result(test_id, test_status_id)
