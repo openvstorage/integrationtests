@@ -18,7 +18,7 @@ from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.storagerouter import StoragerouterHelper
 from ovs.lib.generic import GenericController
-from ci.validate.decorators import required_roles, required_backend
+from ci.validate.decorators import required_roles, required_backend, check_vpool
 
 
 class VPoolSetup(object):
@@ -31,6 +31,7 @@ class VPoolSetup(object):
         pass
 
     @staticmethod
+    @check_vpool
     @required_backend
     @required_roles(REQUIRED_VPOOL_ROLES, "LOCAL")
     def add_vpool(vpool_name, vpool_details, api, storagerouter_ip, albabackend_name, timeout=ADD_VPOOL_TIMEOUT):

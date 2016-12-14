@@ -40,8 +40,12 @@ class BackendHelper(object):
         :return: alba_backend_guid
         :rtype: str
         """
-
-        return BackendList.get_by_name(backend_name).alba_backend_guid
+        try:
+            return BackendList.get_by_name(backend_name).alba_backend_guid
+        except AttributeError:
+            error_msg = "No alba backend found with name `{0}`".format(backend_name)
+            BackendHelper.LOGGER.error(error_msg)
+            raise NameError(error_msg)
 
     @staticmethod
     def get_backend_guid_by_name(backend_name):

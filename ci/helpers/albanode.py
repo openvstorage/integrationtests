@@ -13,10 +13,15 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
+
+import json
+import requests
+from requests.auth import HTTPBasicAuth
 from ovs.log.log_handler import LogHandler
 from ovs.dal.hybrids.albanode import AlbaNode
 from ovs.dal.lists.albanodelist import AlbaNodeList
 from ci.helpers.asdmanager import ASDManagerClient
+
 
 class AlbaNodeHelper(object):
     """
@@ -24,6 +29,7 @@ class AlbaNodeHelper(object):
     """
 
     LOGGER = LogHandler.get(source='helpers', name="ci_albanode")
+    IGNORE_KEYS = ('_error', '_duration', '_version', '_success')
 
     @staticmethod
     def _map_alba_nodes(api):

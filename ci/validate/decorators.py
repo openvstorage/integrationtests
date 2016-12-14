@@ -18,6 +18,7 @@ from ci.helpers.vdisk import VDiskHelper
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.validate.roles import RoleValidation
+from ci.validate.vpool import VPoolValidation
 from ci.validate.backend import BackendValidation
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.configuration import Configuration
@@ -209,6 +210,74 @@ def required_snapshot(func):
                 raise AttributeError("Missing parameter: snapshot_id, vpool_name or vdisk_name")
 
         return func(*args, **kwargs)
+    return validate
+
+
+def check_vpool(func):
+    """
+    Validate if a vPool is already deployed on a certain storagerouter
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        # if the vpool is not yet created, return the function
+        if 'storagerouter_ip' in kwargs and 'vpool_name' in kwargs:
+            if not VPoolValidation.check_vpool_on_storagerouter(storagerouter_ip=kwargs['storagerouter_ip'],
+                                                                vpool_name=kwargs['vpool_name']):
+                return func(*args, **kwargs)
+            else:
+                return
+        else:
+            raise AttributeError("Missing parameter: storagerouter_ip or vpool_name")
+    return validate
+
+
+def check_linked_backend(func):
+    """
+    Validate if a backend is already linked to a global backend
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        # if the vpool is not yet created, return the function
+        if 'albabackend_name' in kwargs and 'globalbackend_name' in kwargs:
+            if not BackendValidation.check_linked_backend(albabackend_name=kwargs['albabackend_name'],
+                                                          globalbackend_name=kwargs['globalbackend_name']):
+                return func(*args, **kwargs)
+            else:
+                return
+        else:
+            raise AttributeError("Missing parameter: albabackend_name or globalbackend_name")
+    return validate
+
+
+def filter_osds(func):
+    """
+    Validate if osds / disks are available for alba usage
+
+    :param func: function
+    :type func: Function
+    """
+
+    def validate(*args, **kwargs):
+        # if the vpool is not yet created, return the function
+        if 'target' in kwargs and 'disks' in kwargs:
+            LOGGER.info("Starting to filtering the following disks: {0}".format(kwargs['disks']))
+            disks = BackendValidation.check_available_osds_on_asdmanager(ip=kwargs['target'], disks=kwargs['disks'])
+            # if no disks are available anymore skip the wrapped func
+            if len(disks.keys()) != 0:
+                LOGGER.info("Filtered the osds from {0} to {1}".format(kwargs['disks'], disks))
+                kwargs['disks'] = disks
+                return func(*args, **kwargs)
+            else:
+                LOGGER.error("Skipped wrapped function after filtering osds list, because its empty: {0}".format(disks))
+                return
+        else:
+            raise AttributeError("Missing parameter: target or disks")
     return validate
 
 

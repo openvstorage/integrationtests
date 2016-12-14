@@ -26,6 +26,13 @@ class SectionNotFoundError(Exception):
     pass
 
 
+class AlbaNodeNotFoundError(Exception):
+    """
+    Raised when an object was queries that doesn't exist
+    """
+    pass
+
+
 class DirectoryNotFoundError(Exception):
     """
     Raised when an object was queries that doesn't exist
