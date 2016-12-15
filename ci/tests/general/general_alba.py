@@ -99,7 +99,8 @@ class GeneralAlba(object):
         :param alba_backend: ALBA backend
         :return: Configuration string
         """
-        return '--config ' + Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name))
+        service_name = alba_backend.abm_services[0].service.name
+        return ['--config', Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(service_name.replace('arakoon-', '')))]
 
     @staticmethod
     def prepare_alba_backend(name=None):
@@ -157,25 +158,27 @@ class GeneralAlba(object):
         :return: Output of the action
         """
         config = GeneralAlba.get_abm_config(alba_backend)
-        cmd = ['alba', action, config]
+        cmd = ['alba', action]
+        cmd.extend(config)
         if json_output:
             cmd.append('--to-json')
         if params is None:
             params = []
         cmd.extend(params)
 
+        GeneralAlba.logger.info('Running alba cli command: {0}'.format(cmd))
         output = ''
         try:
             output, error, exit_code = General.execute_command(' '.join(cmd))
             if exit_code != 0:
-                print 'Exit code: {0}'.format(exit_code)
-                print 'Error thrown: {0}'.format(error)
+                GeneralAlba.logger.error('Exit code: {0}'.format(exit_code))
+                GeneralAlba.logger.error('Error thrown: {0}'.format(error))
                 raise RuntimeError('ALBA command failed with exitcode {0} and error {1}'.format(exit_code, error))
             if json_output is True:
                 return json.loads(output)['result']
             return output
         except (ValueError, RuntimeError):
-            print "Command {0} failed:\nOutput: {1}".format(cmd, output)
+            GeneralAlba.logger.error("Command {0} failed:\nOutput: {1}".format(cmd, output))
             raise RuntimeError("Command {0} failed:\nOutput: {1}".format(cmd, output))
 
     @staticmethod
@@ -365,7 +368,7 @@ class GeneralAlba(object):
                 'ALBA node with ID {0} not present in configuration'.format(alba_node.node_id)
 
             actual_asdnode_keys = [key for key in Configuration.list('{0}/{1}'.format(alba_node_key, alba_node.node_id))]
-            expected_asdnode_keys = ['config']
+            expected_asdnode_keys = ['config', 'services']
             assert actual_asdnode_keys == expected_asdnode_keys,\
                 'Actual keys: {0} - Expected keys: {1}'.format(actual_asdnode_keys, expected_asdnode_keys)
 
@@ -376,12 +379,12 @@ class GeneralAlba(object):
             # @TODO: Add validation for main and network values
 
         # Validate Arakoon configuration structure
-        arakoon_abm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name)
-        arakoon_nsm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.nsm_services[0].service.name)
+        arakoon_abm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.abm_services[0].service.name).replace('arakoon-', '')
+        arakoon_nsm_key = '/ovs/arakoon/{0}/config'.format(alba_backend.nsm_services[0].service.name).replace('arakoon-', '')
         assert Configuration.exists(key=arakoon_abm_key, raw=True) is True,\
-            'Configuration key {0} does not exists'.format(arakoon_abm_key)
+            'Configuration key {0} does not exist'.format(arakoon_abm_key)
         assert Configuration.exists(key=arakoon_nsm_key, raw=True) is True,\
-            'Configuration key {0} does not exists'.format(arakoon_nsm_key)
+            'Configuration key {0} does not exist'.format(arakoon_nsm_key)
         # @TODO: Add validation for config values
 
         # Validate maintenance agents
@@ -397,16 +400,14 @@ class GeneralAlba(object):
         nsm_service_name = alba_backend.nsm_services[0].service.name
         for storagerouter in storagerouters_with_db_role:
             root_client = SSHClient(endpoint=storagerouter, username='root')
-            abm_arakoon_service_name = 'ovs-arakoon-{0}'.format(abm_service_name)
-            nsm_arakoon_service_name = 'ovs-arakoon-{0}'.format(nsm_service_name)
-            for service_name in [abm_arakoon_service_name, nsm_arakoon_service_name]:
+            for service_name in [abm_service_name, nsm_service_name]:
                 assert GeneralService.has_service(name=service_name, client=root_client) is True,\
                     'Service {0} not deployed on Storage Router {1}'.format(service_name, storagerouter.name)
                 exitcode, output = GeneralService.get_service_status(name=service_name, client=root_client)
                 assert exitcode is True,\
                     'Service {0} not running on Storage Router {1} - {2}'.format(service_name, storagerouter.name,
                                                                                  output)
-                out, err, _ = General.execute_command('arakoon --who-master -config {0}'.format(Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_service_name))))
+                out, err, _ = General.execute_command('arakoon --who-master -config {0}'.format(Configuration.get_configuration_path('/ovs/arakoon/{0}/config'.format(abm_service_name.replace('arakoon-', '')))))
                 assert out.strip() in machine_ids,\
                     'Arakoon master is {0}, but should be 1 of "{1}"'.format(out.strip(), ', '.join(machine_ids))
 
@@ -612,12 +613,12 @@ class GeneralAlba(object):
                 GeneralAlba.logger.info("Skipping vpool namespace: {0}".format(namespace_name))
                 continue
             GeneralAlba.logger.info("WARNING: Deleting leftover namespace: {0}".format(str(ns)))
-            print General.execute_command(cmd_delete + namespace_name)[0].replace('true', 'True')
+            GeneralAlba.logger.info(General.execute_command(cmd_delete + namespace_name)[0].replace('true', 'True'))
 
         if namespaces is None:
             for ns in fd_namespaces:
                 GeneralAlba.logger.info("WARNING: Deleting leftover vpool namespace: {0}".format(str(ns)))
-                print General.execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True')
+                GeneralAlba.logger.info(General.execute_command(cmd_delete + str(ns['name']))[0].replace('true', 'True'))
             assert len(fd_namespaces) == 0,\
                 "Removing Alba namespaces should not be necessary!"
 
