@@ -304,8 +304,8 @@ class MigrateTester(object):
                     finally:
                         if files_generated is True:
                             MigrateTester._cleanup_generated_files(client)
-                        # if vm_created is True:
-                        MigrateTester._cleanup_vm([hypervisor, d_hypervisor], MigrateTester.VM_NAME, False)
+                        if vm_created is True:
+                            MigrateTester._cleanup_vm([hypervisor, d_hypervisor], MigrateTester.VM_NAME, False)
                         if iso_loc is not None:
                             MigrateTester._cleanup_vdisk(iso_loc.rsplit('/', 1)[1], vpool.name, False)
         except Exception as ex:
