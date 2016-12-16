@@ -18,7 +18,6 @@ import math
 import time
 import threading
 import subprocess
-import paramiko
 from datetime import datetime
 from ci.helpers.api import OVSClient
 from ci.helpers.hypervisor.hypervisor import HypervisorFactory
@@ -30,37 +29,39 @@ from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
 from ci.setup.vdisk import VDiskSetup
 from ci.remove.vdisk import VDiskRemover
-from ovs.extensions.generic.sshclient import SSHClient, UnableToConnectException
+from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
 
 class MigrateTester(object):
     """
+    @TODO remove IP dependency of VM
     Requirements to run this test:
     QEMU user should be root (user = "root" and group = "root" in /etc/libvirt/qemu.conf)
     Both QEMU hosts should have a br1 bridge interface
     The prepared image has to be present (see settings.json)
-    The network must be set to a bridged interface
     This test will create a new VM, set its disk protocol to ovs and start a fio test on it.
     After 30s the VM will migrate to a different host.
     Both IOPS and DAL will be checked afterwards.
     """
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_hypervisor_live_migrate"
-    AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SLEEP_TIME = 30
-    REQUIRED_PACKAGES = ["qemu-kvm", "libvirt0", "python-libvirt", "virtinst"]
+    REQUIRED_PACKAGES = ["qemu-kvm", "libvirt0", "python-libvirt", "virtinst", "genisoimage"]
     # RW mixes for Fio, bs for dd
     DATA_TEST_CASES = {
         'fio': [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]
     }
-    BRIDGE_INTERFACE = "br0"
     VM_NAME = 'migrate-test'
-    VM_USERNAME = "root"
-    VM_PASSWORD = "rooter"
-    VM_CONNECTION_RETRIES = 5
-    VM_CONNECTION_RETRY_DELAY = 60
+    VM_WAIT_TIME = 300  # in seconds
+    CLOUD_INIT_DATA = {
+        "script_loc": "https://raw.githubusercontent.com/kinvaris/cloud-init/master/create-config-drive",
+        "script_dest": "/tmp/cloud_init_script.sh",
+        "user-data_loc": "/tmp/user-data-migrate-test",
+        "config_dest": "/tmp/cloud-init-config-migrate-test"
+    }
+    AMOUNT_TO_WRITE = 10 * 1024 ** 3  # in MegaByte
 
     def __init__(self):
         pass
@@ -87,12 +88,16 @@ class MigrateTester(object):
             return {'status': 'BLOCKED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
 
     @staticmethod
-    def _execute_test(amount_to_write=AMOUNT_TO_WRITE):
+    def _execute_test():
         """
         Required method that has to follow our json output guideline
         This data will be sent to testrails to process it thereafter
         :return:
         """
+
+        # ---------------
+        # Validation
+        # ---------------
         with open(CONFIG_LOC, "r") as config_file:
             config = json.load(config_file)
 
@@ -128,32 +133,39 @@ class MigrateTester(object):
         storagedriver_2 = [st for st in vpool.storagedrivers if st != storagedriver_1][0]
 
         client = SSHClient(storagedriver_1.storage_ip, username='root')
-
+        d_client = SSHClient(storagedriver_2.storage_ip, username='root')
         # check if enough images available
-        images = settings['images']
-        image_path = images.get("migrate-test").get("path")
+        image_path = settings['images'].get("migrate-test").get("image_path")
         assert image_path is not None, "Fio-test image not set in `{0}`".format(SETTINGS_LOC)
 
         # check if image exists
         assert client.file_exists(image_path), "Image `{0}` does not exists on `{1}`!".format(image_path,
                                                                                               storagedriver_1.storage_ip)
+        # Check if there are missing packages
+        missing_packages = SystemHelper.get_missing_packages(storagedriver_1.storage_ip, MigrateTester.REQUIRED_PACKAGES)
+        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}".format(len(missing_packages), storagedriver_1.storage_ip, missing_packages)
 
+        # Get the cloud init file
+        cloud_init_loc = MigrateTester.CLOUD_INIT_DATA.get("script_dest")
+        client.run(["wget",
+                    MigrateTester.CLOUD_INIT_DATA.get("script_loc"),
+                    "-O",
+                    cloud_init_loc])
+        client.file_chmod(cloud_init_loc, 755)
+        assert client.file_exists(cloud_init_loc), "Could not fetch the cloud init script"
+        # ---------------
+        # Start testing
+        # ---------------
         # Cache to validate properties
         values_to_check = {
             'source_std': storagedriver_1.serialize(),
             'target_std': storagedriver_2.serialize()
         }
-
-        # Check if there are missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver_1.storage_ip, MigrateTester.REQUIRED_PACKAGES)
-        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}".format(len(missing_packages), storagedriver_1.storage_ip, missing_packages)
-
         # Set some values
         # Create a new vdisk to test
         vdisk_name = "{0}_vdisk01".format(MigrateTester.TEST_NAME)
-        storage_ip = storagedriver_1.storage_ip
-        edge_port = storagedriver_1.ports['edge']
         vdisk_path = "/mnt/{0}/{1}.raw".format(vpool.name, vdisk_name)
+        protocol = storagedriver_1.cluster_node_config['network_server_uri'].split(':')[0]
 
         hypervisor = HypervisorFactory.get(client.ip, 'root', 'rooter', 'KVM')
         d_hypervisor = HypervisorFactory.get(storagedriver_2.storage_ip, "root", "rooter", "KVM")
@@ -161,125 +173,151 @@ class MigrateTester(object):
             'mountpoint': vdisk_path,
         }]
         networks = [{
-            'bridge': MigrateTester.BRIDGE_INTERFACE,
+            'network': 'default',
             'mac': 'RANDOM',
             'model': 'e1000',
         }]
-        # Setup clean install with fio
-        vdisk_guid = VDiskSetup.create_vdisk(vdisk_name='{}.raw'.format(vdisk_name),
-                                             vpool_name=vpool.name,
-                                             size=10 * 1024 ** 3,
-                                             storagerouter_ip=storagedriver_1.storagerouter.ip,
-                                             api=api)
-        MigrateTester.LOGGER.info("Copying the image to the vdisk.")
-        client.run(["dd", "if={0}".format(image_path),
-                    "of={0}".format(vdisk_path),
-                    "bs=256K",
-                    "conv=notrunc"])
-        # Fetch to validate if it was properly created
-        vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
-
-        # Snapshot to revert back to after every migrate scenario
-        snapshot_guid = VDiskSetup.create_snapshot(MigrateTester.TEST_NAME, vdisk.devicename, vpool.name, api, consistent=False)
+        iso_loc = None
+        test_prepared = False
+        files_generated = False
+        vm_created = False
+        # Copy the Ubuntu img
         try:
+            try:
+                MigrateTester.LOGGER.info('Copying the image to the vdisk.')
+                client.run(['qemu-img', 'convert', image_path, 'openvstorage+{0}:{1}:{2}/{3}'
+                           .format(protocol, storagedriver_1.storage_ip, storagedriver_1.ports['edge'], vdisk_name)])
+                # Fetch to validate if it was properly created
+            except RuntimeError as ex:
+                MigrateTester.LOGGER.error("Could not covert the image. Got {0}".format(str(ex)))
+                raise
+            vdisk = VDiskHelper.get_vdisk_by_name(vdisk_path.rsplit('/', 1)[1], vpool.name)
+
+            # # Snapshot to revert back to after every migrate scenario
+            snapshot_guid = VDiskSetup.create_snapshot(MigrateTester.TEST_NAME, vdisk.devicename, vpool.name, api,
+                                                       consistent=False)
+            # snapshot_guid= "17d5860c-9192-4698-9252-1bc4d3fe7469"
+            print snapshot_guid
+            test_prepared = MigrateTester._prepare_migrate([client, d_client], MigrateTester.VM_NAME)
             for cmd_type, configurations in MigrateTester.DATA_TEST_CASES.iteritems():
                 for configuration in configurations:
                     try:
-                        # Revert back to snapshot
-                        VDiskSetup.rollback_to_snapshot(vdisk_name= vdisk.devicename, vpool_name=vpool.name, snapshot_id=snapshot_guid, api=api)
+                        # Keep track of the current state of the vdisk
                         values_to_check['vdisk'] = vdisk.serialize()
-                        # Setup VM
-                        MigrateTester.LOGGER.info('Creating VM {0} with image as disk'.format(MigrateTester.VM_NAME))
-                        hypervisor.sdk.create_vm(MigrateTester.VM_NAME, vcpus=2, ram=1024, disks=disks, networks=networks,
-                                                 ovs_vm=False, storagerouter_ip=storage_ip, edge_port=edge_port, start=True)
-                        MigrateTester.LOGGER.info('Created VM {0}.'.format(MigrateTester.VM_NAME))
-                        # Could be that the VM does not respond instantly
-                        retries = 0
-                        vm_client = None
-                        while retries <= MigrateTester.VM_CONNECTION_RETRIES and vm_client is None:
-                            try:
-                                vm_client = SSHClient(images.get("migrate-test").get("ip"), MigrateTester.VM_USERNAME,
-                                                      MigrateTester.VM_PASSWORD)
-                            except (UnableToConnectException, paramiko.SSHException) as ex:
-                                MigrateTester.LOGGER.warning("Could not connect to VM on retry {0}. Waiting for {1}s"
-                                                             .format(retries, MigrateTester.VM_CONNECTION_RETRY_DELAY))
-                                retries += 1
-                                time.sleep(MigrateTester.VM_CONNECTION_RETRY_DELAY)
-                        if vm_client is None:
-                            raise RuntimeError("Could not establish a connection to the VM.")
-                        else:
-                            MigrateTester.LOGGER.info("Connection was established with the VM.")
-                    except Exception as ex:
-                        # Attempt to cleanup test
-                        if isinstance(ex, subprocess.CalledProcessError):
-                            MigrateTester.LOGGER.error("Could not copy the image.")
-                        if isinstance(ex, RuntimeError):
+                        try:
+                            # Revert back to snapshot
+                            VDiskSetup.rollback_to_snapshot(vdisk_name=vdisk.devicename,
+                                                            vpool_name=vpool.name,
+                                                            snapshot_id=snapshot_guid,
+                                                            api=api)
+                        except RuntimeError as ex:
+                            MigrateTester.LOGGER.error("Rolling back to snapshot has failed. Got {0}".format(str(ex)))
+                            raise
+                        try:
+                            # convert prepped iso
+                            iso_loc = MigrateTester._generate_cloud_init(client,
+                                                                         cmd_type,
+                                                                         configuration,
+                                                                         cloud_init_loc)
+                            files_generated = True
+                            client.run(['qemu-img', 'convert', iso_loc, 'openvstorage+{0}:{1}:{2}/{3}'
+                                       .format(protocol, storagedriver_1.storage_ip, storagedriver_1.ports['edge'],
+                                               iso_loc.rsplit('/', 1)[1])])
+                            cd_path = "/mnt/{0}/{1}.raw".format(vpool.name, iso_loc.rsplit('/', 1)[1])
+                        except Exception as ex:
+                            MigrateTester.LOGGER.error("Could not setup cloud init files. Got {0}".format(str(ex)))
+                            raise
+                        try:
+                            # Setup VM
+                            MigrateTester.LOGGER.info('Creating VM {0} with image as disk'.format(MigrateTester.VM_NAME))
+                            hypervisor.sdk.create_vm(MigrateTester.VM_NAME,
+                                                     vcpus=2,
+                                                     ram=1024,
+                                                     cdrom_iso=cd_path,
+                                                     disks=disks,
+                                                     networks=networks,
+                                                     ovs_vm=True,
+                                                     hostname=MigrateTester.VM_NAME,
+                                                     edge_port=storagedriver_1.ports['edge'],
+                                                     start=True)
+                            vm_created = True
+                            # Wait to let the VM finish
+                            MigrateTester.LOGGER.info('Waiting {0}s to install the VM'.format(MigrateTester.VM_WAIT_TIME))
+                            time.sleep(MigrateTester.VM_WAIT_TIME)
+                            MigrateTester.LOGGER.info('Created VM {0} and thus data is being written.'.format(MigrateTester.VM_NAME))
+                        except RuntimeError as ex:
                             MigrateTester.LOGGER.error("Creation of VM failed. Cleaning up test")
-                        if isinstance(ex, UnableToConnectException):
-                            MigrateTester.LOGGER.error("Could not connect to the VM after {0}s."
-                                                       .format(MigrateTester.VM_CONNECTION_RETRY_DELAY * MigrateTester.VM_CONNECTION_RETRIES))
-                        raise
-
-                    # Start threading
-                    threads = []
-                    # Monitor IOPS activity
-                    iops_activity = {
-                        "down": [],
-                        "descending": [],
-                        "rising": [],
-                        "highest": None,
-                        "lowest": None
-                    }
-                    MigrateTester.LOGGER.info("Starting threads.")
-                    threads.append(MigrateTester._start_thread(MigrateTester._check_downtimes, name='iops',
-                                                               args=[iops_activity, vdisk]))
-                    # Run write data on a thread
-                    threads.append(MigrateTester._start_thread(target=MigrateTester._write_data,
-                                                               name='fio',
-                                                               args=[vm_client,
-                                                                     amount_to_write,
-                                                                     cmd_type,
-                                                                     configuration]))
-                    time.sleep(MigrateTester.SLEEP_TIME)
-                    try:
-                        MigrateTester.LOGGER.info("Migrating VM.")
-                        MigrateTester.migrate(hypervisor=hypervisor,
-                                              d_ip=storagedriver_2.storage_ip,
-                                              d_login=config['ci']['user']['shell']['username'],
-                                              vmid=MigrateTester.VM_NAME)
-                        # Stop writing after 30 more s
-                        MigrateTester.LOGGER.info('Writing and monitoring for another {0}s.'.format(MigrateTester.SLEEP_TIME))
-                        time.sleep(MigrateTester.SLEEP_TIME)
-                        # Validate move
-                        MigrateTester._validate_move(values_to_check)
-                        # Stop IO
-                        for thread_pair in threads:
-                            if thread_pair[0].isAlive():
-                                thread_pair[1].set()
-                        # Sleep to let the threads die
-                        time.sleep(5)
-                        MigrateTester.LOGGER.info('IOPS monitoring: {0}'.format(iops_activity))
-                        # Validate downtime
-                        # Each log means +-4s downtime and slept twice
-                        if len(iops_activity["down"]) * 4 >= MigrateTester.SLEEP_TIME * 2:
-                            raise ValueError("Thread did not cause any IOPS to happen.")
-                    except Exception as ex:
-                        MigrateTester.LOGGER.error('Failed during {0} with configuration {1}'.format(cmd_type, configuration))
+                            raise
+                        # Start threading - own try except to kill off rogue threads
+                        try:
+                            threads = []
+                            # Monitor IOPS activity
+                            iops_activity = {
+                                "down": [],
+                                "descending": [],
+                                "rising": [],
+                                "highest": None,
+                                "lowest": None
+                            }
+                            MigrateTester.LOGGER.info("Starting threads.")
+                            try:
+                                threads.append(MigrateTester._start_thread(MigrateTester._check_downtimes, name='iops',
+                                                                           args=[iops_activity, vdisk]))
+                            except Exception as ex:
+                                MigrateTester.LOGGER.error("Could not start threading. Got {0}".format(str(ex)))
+                            time.sleep(MigrateTester.SLEEP_TIME)
+                            try:
+                                MigrateTester.LOGGER.info("Migrating VM.")
+                                MigrateTester.migrate(hypervisor=hypervisor,
+                                                      d_ip=storagedriver_2.storage_ip,
+                                                      d_login=config['ci']['user']['shell']['username'],
+                                                      vmid=MigrateTester.VM_NAME)
+                            except Exception as ex:
+                                MigrateTester.LOGGER.error('Failed to migrate. Got {2}'.format(cmd_type, configuration, str(ex)))
+                                raise
+                            # Stop writing after 30 more s
+                            MigrateTester.LOGGER.info('Writing and monitoring for another {0}s.'.format(MigrateTester.SLEEP_TIME))
+                            time.sleep(MigrateTester.SLEEP_TIME)
+                            # Validate move
+                            MigrateTester._validate_move(values_to_check)
+                            # Stop IO
+                            for thread_pair in threads:
+                                if thread_pair[0].isAlive():
+                                    thread_pair[1].set()
+                            # Sleep to let the threads die
+                            time.sleep(5)
+                            MigrateTester.LOGGER.info('IOPS monitoring: {0}'.format(iops_activity))
+                            # Validate downtime
+                            # Each log means +-4s downtime and slept twice
+                            if len(iops_activity["down"]) * 4 >= MigrateTester.SLEEP_TIME * 2:
+                                raise ValueError("Thread did not cause any IOPS to happen.")
+                        except Exception:
+                            MigrateTester.LOGGER.error('Error occurred scenario: read: {0}, write {1}.'.format(configuration[0], configuration[1]))
+                            raise
+                        finally:
+                            # Stop all threads
+                            for thread_pair in threads:
+                                if thread_pair[1].isSet() is False:
+                                    thread_pair[1].set()
+                    except Exception:
                         raise
                     finally:
-                        # Stop all threads
-                        for thread_pair in threads:
-                            if thread_pair[1].isSet():
-                                thread_pair[1].set()
+                        if files_generated is True:
+                            MigrateTester._cleanup_generated_files(client)
+                        # if vm_created is True:
                         MigrateTester._cleanup_vm([hypervisor, d_hypervisor], MigrateTester.VM_NAME, False)
+                        if iso_loc is not None:
+                            MigrateTester._cleanup_vdisk(iso_loc.rsplit('/', 1)[1], vpool.name, False)
         except Exception as ex:
+            MigrateTester.LOGGER.exception('Live migrate test failed. Got {0}'.format(str(ex)))
             raise
         finally:
             # Always cleanup the vdisk after all tests have run or error occured
             try:
-                MigrateTester._cleanup_vm([hypervisor, d_hypervisor], MigrateTester.VM_NAME, False)
+                if test_prepared is True:
+                    MigrateTester._cleanup_preparation([client, d_client])
                 MigrateTester._cleanup_vdisk(vdisk_name, vpool.name, False)
-            except:
+            except Exception:
                 pass
             raise
 
@@ -287,10 +325,39 @@ class MigrateTester(object):
     def migrate(hypervisor, d_ip, d_login, vmid):
         """
         Migrates a VM between hypervisors
+        :param hypervisor: hypervisor instance
+        :param d_ip: destination ip
+        :param d_login: destination loign
+        :param vmid: vm identifier
         :return:
         """
         # Migrate VM
         hypervisor.sdk.migrate(vmid, d_ip, d_login)
+
+    @staticmethod
+    def _prepare_migrate(clients, hostname):
+        """
+        Sets up everything to ensure that migrate will be succesful
+        :param clients: sshclients of the all hosts that will be migrated too
+        :param hostname: hostname that was specified in the creation of the vm
+        :return:
+        """
+        for client in clients:
+            # Append the hostname record to /etc/hosts
+            cmd = "echo {0} {1} >> /etc/hosts".format(client.ip, hostname)
+            client.run(cmd, allow_insecure=True)
+        return True
+
+    @staticmethod
+    def _cleanup_preparation(clients):
+        """
+        Cleanups all preps made to do migration
+        :param clients: sshclients of the all hosts that will be migrated too
+        :return:
+        """
+        for client in clients:
+            cmd = "head -n -1 /etc/hosts > /etc/hosts~ ; mv /etc/hosts~ /etc/hosts"
+            client.run(cmd, allow_insecure=True)
 
     @staticmethod
     def _validate_move(values_to_check):
@@ -374,7 +441,7 @@ class MigrateTester(object):
     def _cleanup_vm(hypervisors, vmid, blocking=True):
         """
         Cleans up the created virtual machine
-        :param hypervisor: hypervisor instance
+        :param hypervisors: hypervisors instances
         :param vmid: vm identifier
         :param blocking: boolean to determine whether errors should raise or not
         :return:
@@ -390,34 +457,75 @@ class MigrateTester(object):
                     pass
 
     @staticmethod
-    def _write_data(client, write_amount, cmd_type, configuration, stop_event):
+    def _cleanup_generated_files(client):
+        """
+        Cleans up generated files
+        :param client: ovs ssh client for current node
+        :type client: ovs.extensions.generic.sshclient.SSHClient
+        """
+        for key, value in MigrateTester.CLOUD_INIT_DATA.iteritems():
+            MigrateTester.LOGGER.info("Deleting {0}".format(value))
+            client.file_delete(value)
+        return True
+
+    @staticmethod
+    def _generate_cloud_init(client, cmd_type, configuration, convert_script_loc, username="test", passwd="test", write_amount=AMOUNT_TO_WRITE):
         """
         Runs a dd on a blocktap dir for a specific vdisk
-        :param client: ovs ssh client for the vm
+        :param client: ovs ssh client for current node
         :type client: ovs.extensions.generic.sshclient.SSHClient
-        :param write_amount: amount of bytes to write
-        :type write_amount: int
-        :param stop_event: Threading event to watch for
-        :type stop_event: threading._Event
+        :param cmd_type: type of cmd. Currently only fio is supported
+        :type cmd_type: str
+        :param configuration: Type of configuration. For fio this is RW mix
+        :type configuration: tuple
+        :param username: username of the user that will be added to the vm
+        :type username: str
+        :param passwd: password of the user that will be added to the vm
+        :type passwd: str
+        :param convert_script_loc: location to the conversion script
+        :type convert_script_loc: str
         :return:
         """
-
+        path = MigrateTester.CLOUD_INIT_DATA.get("user-data_loc")
         bs = 1 * 1024**2
-        write_size = 10 * 1024**2
-        count = int(math.ceil(write_size / bs))
-        iterations = math.ceil(float(write_amount) / write_size)
-        MigrateTester.LOGGER.info("Starting to write on VM `{0}`".format(client.ip))
+        write_size = 10 * 1024 ** 2
+        iterations = int(math.ceil(float(write_amount) / write_size))
+        cmd = []
         if cmd_type == 'fio':
-            cmd = ["fio", "--name=test", "--ioengine=libaio", "--iodepth=4",
+            cmd = ["fio", "--name=fio-test", "--ioengine=libaio", "--iodepth=4",
                    "--rw=readwrite", "--bs={0}".format(bs), "--direct=1", "--size={0}".format(write_size),
                    "--rwmixread={0}".format(configuration[0]), "--rwmixwrite={0}".format(configuration[1])]
         else:
-            raise ValueError('{0} is not supported for writing data.'.format(cmd_type))
-        MigrateTester.LOGGER.info("Writing data with: {0}".format(" ".join(cmd)))
-        while not stop_event.is_set() and iterations > 0:
-            client.run(cmd)
-            iterations -= 1
-        MigrateTester.LOGGER.info("Finished writing data on VM `{0}`".format(client.ip))
+            raise ValueError("Type {0} is not supported.".format(cmd_type))
+        # write out user-data
+        lines = [
+            '#!/bin/bash\n',
+            '#user conf',
+            'sudo echo "root:rooter" | chpasswd',
+            'sudo useradd {0}'.format(username),
+            'sudo echo "{0}:{1}" | chpasswd'.format(username, passwd),
+            'sudo adduser {0} sudo\n'.format(username),
+            'apt-get update',
+            'apt-get install fio -y --force-yes\n',
+            'for i in {{1..{0}}}; do {1};rm fio-test.*; done'.format(iterations, ' '.join(cmd))
+
+        ]
+        with open(path, 'w') as user_data_file:
+            user_data_file.write('\n'.join(lines))
+        client.file_upload(path, path)
+        # run script that generates meta-data and parser user-data and meta-data to a iso
+
+        convert_cmd = [convert_script_loc,
+                       "--user-data",
+                       path,
+                       MigrateTester.CLOUD_INIT_DATA.get("config_dest")]
+        try:
+            client.run(convert_cmd)
+            return MigrateTester.CLOUD_INIT_DATA.get("config_dest")
+        except subprocess.CalledProcessError as ex:
+            MigrateTester.LOGGER.error("Could not generate the cloud init file. Got '{0}' during iso conversion."
+                                       .format(str(ex.output)))
+            raise
 
     @staticmethod
     def _check_downtimes(results, vdisk, stop_event):

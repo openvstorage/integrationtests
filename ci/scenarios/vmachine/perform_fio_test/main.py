@@ -16,7 +16,6 @@
 
 import json
 import subprocess
-from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
 from ci.helpers.vpool import VPoolHelper
 from ci.remove.vdisk import VDiskRemover

@@ -2,8 +2,7 @@
   "images":  {
     "fio-test": "/root/test_image.img",
     "migrate-test": {
-      "path": "/mnt/hdd1/migrate_img.raw",
-      "ip": "10.100.199.210"
+      "image_path": "/mnt/hdd1/test_image.img"
     }
   }
 }

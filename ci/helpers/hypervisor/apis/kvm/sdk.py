@@ -595,7 +595,7 @@ class Sdk(object):
                 raise RuntimeError('Virtual Machine with id/name {} could not be found.'.format(name))
 
     def create_vm(self, name, vcpus, ram, disks, cdrom_iso=None, os_type=None, os_variant=None, vnc_listen='0.0.0.0',
-                  networks=None, start=False, autostart=False, ovs_vm=True, edge_port=26203, storagerouter_ip=None):
+                  networks=None, start=False, autostart=False, ovs_vm=True, edge_port=26203, hostname=None):
         """
         Creates a VM
         @TODO use Edge instead of fuse for disks
@@ -610,6 +610,7 @@ class Sdk(object):
         :param vnc_listen:
         :param networks: lists of tuples : ("network=default", "mac=RANDOM" or a valid mac, "model=e1000" (any model for vmachines)
         :param start: start the guest after creation
+        :param wait_for_install: time that virt install should wait before exiting
         :return:
         """
         try:
@@ -620,8 +621,8 @@ class Sdk(object):
         except libvirt.libvirtError as ex:
             pass
 
-        if ovs_vm is True and (storagerouter_ip is None or edge_port is None):
-            raise RuntimeError("Both storagerouter_ip and edge_port need to be supplied if the VM will be used by OVS.")
+        if ovs_vm is True and (hostname is None or edge_port is None):
+            raise RuntimeError("Both hostname and edge_port need to be supplied if the VM will be used by OVS.")
 
         command = ["virt-install"]
         options = ["--connect qemu+ssh://{}@{}/system".format(self.login, self.host),
@@ -629,7 +630,7 @@ class Sdk(object):
                    "--vcpus {}".format(vcpus),
                    "--ram {}".format(ram),
                    "--graphics vnc,listen={0}".format(vnc_listen), # Have to specify 0.0.0.0 else it will listen on 127.0.0.1 only
-                   "--noautoconsole"]  # Wait half a minute for potential install (there is no install for truncuated stuff)
+                   "--noautoconsole"]
 
         for disk in disks:
             options.append(self._extract_command(disk, SdkOptionMapping.disk_options_mapping, "--disk"))
@@ -640,7 +641,7 @@ class Sdk(object):
         if os_type is not None:
             options.append("--os-type {0}".format(os_type))
         if os_variant is not None:
-            options.append("-- os-variant {0}".format(os_variant))
+            options.append("--os-variant {0}".format(os_variant))
         if networks is None or networks == []:
             options.append("--network none")
         if autostart is True:
@@ -653,7 +654,7 @@ class Sdk(object):
             logger.info("Creating vm {0} with command {1}".format(name, cmd))
             self.ssh_client.run(cmd, allow_insecure=True)
             if ovs_vm is True:
-                self._conn.defineXML(self._update_xml_for_ovs(name, storagerouter_ip, edge_port))
+                self._conn.defineXML(self._update_xml_for_ovs(name, hostname, edge_port))
                 self.destroy(name)
                 if start is True:
                     self.power_on(name)
@@ -667,7 +668,7 @@ class Sdk(object):
             print " ".join(command+options)
             raise RuntimeError(msg)
 
-    def _update_xml_for_ovs(self, vmid, storagerouter, edge_port):
+    def _update_xml_for_ovs(self, vmid, hostname, edge_port):
         """
         Update the xml to use OVS protocol and use the edge
         :param vmid: vm object
@@ -689,16 +690,16 @@ class Sdk(object):
             # Change source to (vdisk without .raw)
             source_element = element.find('source')
             source = {"protocol": "openvstorage",
-                      "name": source_element.attrib.get("file").rsplit('/', 1)[1].split('.', 1)[0]
+                      "name": source_element.attrib.get("file").rsplit('/', 1)[1].rsplit('.', 1)[0]
                       if source_element.attrib.get("file") is not None else source_element.attrib.get("name"),
                       "snapshot-timeout": "120"}
             source_element.attrib = source
-            # Add a new element under source with edge port and storagerouter pointer
+            # Add a new element under source with edge port and hostname pointer
             if len(source_element.getchildren()) == 0:
-                e = Element(tag="host", attrib={"name": storagerouter, "port": str(edge_port)})
+                e = Element(tag="host", attrib={"name": hostname, "port": str(edge_port)})
                 source_element.insert(0, e)
             else:
-                source_element.find("host").attrib = {"name": storagerouter, "port": str(edge_port)}
+                source_element.find("host").attrib = {"name": hostname, "port": str(edge_port)}
             # Change address attrib
         logger.info("Xml change completed.")
         return ElementTree.tostring(root)
@@ -737,16 +738,18 @@ class Sdk(object):
         return "{0} {1}".format(command, ",".join(cmd))
 
     @authenticated
-    def migrate(self, vmid, d_ip, d_login, flags=libvirt.VIR_MIGRATE_LIVE, bandwidth=0):
+    def migrate(self, vmid, d_ip, d_login, flags=None, bandwidth=0):
         """
         Live migrates a vm by default
         :param vmid: identifier of the vm to migrate (name or id)
         :param d_ip: ip of the destination hypervisor
         :param d_login: login of the destination hypervisor
-        :param flags: Flags to supply
+        :param flags: Flags to supply, binary of libvirt migrate flags
         :param bandwidth: limit the bandwith to MB/s
         :return:
         """
+        if flags is None:
+            flags = libvirt.VIR_MIGRATE_LIVE + libvirt.VIR_MIGRATE_UNDEFINE_SOURCE + libvirt.VIR_MIGRATE_PERSIST_DEST
         vm = self.get_vm_object(vmid)
         dconn = self.connect(login=d_login, host=d_ip)
         if dconn is None:
