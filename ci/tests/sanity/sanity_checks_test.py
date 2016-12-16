@@ -81,7 +81,6 @@ class TestSanity(object):
         for service_to_check in services_to_commands.iterkeys():
             out, err = client.run(services_to_commands[service_to_check], debug=True, allow_insecure=True,
                                   return_stderr=True)
-            client.run(services_to_commands[service_to_check], debug=True, allow_insecure=True)
             if len(err):
                 errors += "Error when trying to run {0}:\n{1}".format(services_to_commands[service_to_check], err)
             else:
