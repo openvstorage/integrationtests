@@ -145,7 +145,7 @@ class TestALBA(object):
 
         compression = 'none'
         encryption = 'none'
-        name = 'be_preset_02'
+        name = 'bePreset02'
         policies = [[1, 1, 1, 2]]
         TestALBA.add_validate_remove_preset(name, compression, encryption, policies)
 
@@ -155,7 +155,7 @@ class TestALBA(object):
         Add and remove a preset with compression and without encryption
         """
 
-        name = 'be_preset_03'
+        name = 'bePreset03'
         compression = 'bz2'
         encryption = 'none'
         policies = [[1, 1, 1, 2]]
@@ -169,7 +169,7 @@ class TestALBA(object):
 
         compression = 'none'
         encryption = 'none'
-        name_prefix = 'be_preset_04'
+        name_prefix = 'bePreset04'
         for nr in xrange(6):
             name = name_prefix + str(nr)
             policies = [[1, nr, 1, 1 + nr]]
@@ -181,7 +181,7 @@ class TestALBA(object):
         Add and remove a preset without compression and with encryption
         """
 
-        name = 'be_preset_05'
+        name = 'bePreset05'
         compression = 'none'
         encryption = 'aes-cbc-256'
         policies = [[1, 1, 1, 2]]
@@ -193,13 +193,13 @@ class TestALBA(object):
         Add and remove a preset with compression and encryption
         """
 
-        name = 'be_preset_06a'
+        name = 'bePreset06a'
         compression = 'bz2'
         encryption = 'aes-cbc-256'
         policies = [[1, 1, 1, 2]]
         TestALBA.add_validate_remove_preset(name, compression, encryption, policies)
 
-        name = 'be_preset_06b'
+        name = 'bePreset06b'
         compression = 'snappy'
         TestALBA.add_validate_remove_preset(name, compression, encryption, policies)
 
@@ -213,7 +213,7 @@ class TestALBA(object):
         GeneralAlba.claim_asds(alba_backend=alba_backend, nr_of_asds=3, disk_type='SATA')
 
         timeout = 300
-        preset_name = 'be_preset_0007'
+        preset_name = 'bePreset0007'
         namespace_name = 'be_0007_ns'
         compression = 'none'
         encryption = 'aes-cbc-256'
@@ -262,7 +262,7 @@ class TestALBA(object):
         """
         alba_backend = GeneralAlba.get_by_name(TestALBA.backend_name)
 
-        name = 'ovs-3490'
+        name = 'ovs3490'
         policies = [[1, 1, 1, 2]]
         compression = 'none'
         encryption = 'aes-cbc-256'
@@ -332,7 +332,7 @@ class TestALBA(object):
         namespace_prefix = 'ovs_3188-'
         compression = 'none'
         encryption = 'none'
-        preset_name = 'be_preset_02'
+        preset_name = 'bePreset02'
         policies = [[1, 1, 1, 2]]
 
         alba_backend = GeneralAlba.get_by_name(TestALBA.backend_name)
