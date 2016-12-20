@@ -261,15 +261,12 @@ class Workflow(object):
 
         :return: None
         """
-        if 'configuration' in self.config['ci']:
-            if self.config['ci']['configuration']:
-                Workflow.LOGGER.info("Starting configuration")
-                if CelerySetup.override_scheduletasks(self.config['configuration']):
-                    Workflow.LOGGER.info("Finished configuration")
-                else:
-                    Workflow.LOGGER.warning("Failed to configure scheduled tasks")
+        if 'configuration' in self.config['ci'] and self.config['ci']['configuration']:
+            Workflow.LOGGER.info("Starting configuration")
+            if CelerySetup.override_scheduletasks(self.config['configuration']):
+                Workflow.LOGGER.info("Finished configuration")
             else:
-                Workflow.LOGGER.info("Skipped configuration")
+                Workflow.LOGGER.warning("Failed to configure scheduled tasks")
         else:
             Workflow.LOGGER.info("Skipped configuration")
 
