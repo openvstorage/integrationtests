@@ -95,9 +95,11 @@ class Sdk(object):
             raise ValueError("{0} is not a valid ip.".format(host))
         self.host = host
         self.login = login
+        self.streams = {}
         self.ssh_client = SSHClient(host, login, passwd)
         self._conn = self.connect(login, host)
-
+        # Enable event registering
+        libvirt.virEventRegisterDefaultImpl()
         logger.debug('Init complete')
 
     def __del__(self):
@@ -308,7 +310,7 @@ class Sdk(object):
 
         return config
 
-    def get_power_state(self, vmid):
+    def get_power_state(self, vmid, readable=True):
         """
         Get the machine power state
         :param vmid: vm identifier
@@ -316,7 +318,10 @@ class Sdk(object):
         """
         if not isinstance(vmid, libvirt.virDomain):
             vmid = self.get_vm_object(vmid)
-        return self.states.get(vmid.info()[0], 'UNKNOWN')
+        if readable is True:
+            return self.states.get(vmid.info()[0], 'UNKNOWN')
+        else:
+            return vmid.info()[0]
 
     @authenticated
     def get_vm_object(self, vmid):
@@ -595,7 +600,7 @@ class Sdk(object):
                 raise RuntimeError('Virtual Machine with id/name {} could not be found.'.format(name))
 
     def create_vm(self, name, vcpus, ram, disks, cdrom_iso=None, os_type=None, os_variant=None, vnc_listen='0.0.0.0',
-                  networks=None, start=False, autostart=False, ovs_vm=True, edge_port=26203, hostname=None):
+                  networks=None, start=False, autostart=False, ovs_vm=True, edge_port=26203, hostname=None, wait=False):
         """
         Creates a VM
         @TODO use Edge instead of fuse for disks
@@ -655,9 +660,10 @@ class Sdk(object):
             self.ssh_client.run(cmd, allow_insecure=True)
             if ovs_vm is True:
                 self._conn.defineXML(self._update_xml_for_ovs(name, hostname, edge_port))
-                self.destroy(name)
+                # self.destroy(name)
                 if start is True:
-                    self.power_on(name)
+                    pass
+                    # self.power_on(name)
             else:
                 if start is False:
                     self.destroy(name)
@@ -710,6 +716,7 @@ class Sdk(object):
         Creates a command string based on options and a mapping
         :param option: all options
         :param mapping: mapping for the options
+        :param ovs_vm: should the vm use edge.
         :return: command string
         :rtype: str
         """
@@ -760,6 +767,22 @@ class Sdk(object):
                 raise RuntimeError("Could not migrate the VM to {0}".format(d_ip))
         except libvirt.libvirtError as ex:
             raise RuntimeError("Could not migrate the VM to {0}. Got '{1}'".format(d_ip, str(ex)))
+
+    @authenticated
+    def get_guest_ip_addresses(self, vmid, source=libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE):
+        """
+        Returns the IP given by the network lease
+        :param vmid:
+        :return: a list with all ip addresses
+        """
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        results = []
+        # Example output {'vnet0': {'hwaddr': '52:54:00:c0:a9:19', 'addrs': [{'prefix': 24, 'type': 0, 'addr': '192.168.122.214'}]}}
+        for interface, interface_info in vmid.interfaceAddresses(source).iteritems():
+            for ip_info in interface_info.get("addrs"):
+                results.append(ip_info.get("addr"))
+        return results
 
     @staticmethod
     def shell_safe(argument):
