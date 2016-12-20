@@ -264,10 +264,10 @@ class Workflow(object):
         if 'configuration' in self.config['ci']:
             if self.config['ci']['configuration']:
                 Workflow.LOGGER.info("Starting configuration")
-                if CelerySetup.override_schedule_tasks(self.config['configuration']):
+                if CelerySetup.override_scheduletasks(self.config['configuration']):
                     Workflow.LOGGER.info("Finished configuration")
                 else:
-                    Workflow.LOGGER.error("Failed to configure scheduled tasks")
+                    Workflow.LOGGER.warning("Failed to configure scheduled tasks")
             else:
                 Workflow.LOGGER.info("Skipped configuration")
         else:

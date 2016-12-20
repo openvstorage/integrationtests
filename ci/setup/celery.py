@@ -15,6 +15,8 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 from ovs.log.log_handler import LogHandler
+from ci.helpers.init_manager import InitManager
+from ci.helpers.storagerouter import StoragerouterHelper
 from ovs.extensions.generic.configuration import Configuration
 
 
@@ -27,7 +29,7 @@ class CelerySetup(object):
         pass
 
     @staticmethod
-    def override_schedule_tasks(configuration):
+    def override_scheduletasks(configuration):
         """
         Override the scheduled tasks crontab with your own confguration
 
@@ -35,6 +37,18 @@ class CelerySetup(object):
         :type configuration: dict
         :return:
         """
-
+        service_name = 'ovs-watcher-framework'
         Configuration.set(CelerySetup.SCHEDULED_TASK_CFG, configuration)
-        return cmp(Configuration.get(CelerySetup.SCHEDULED_TASK_CFG, configuration), configuration) == 0
+        fetched_cfg = Configuration.get(CelerySetup.SCHEDULED_TASK_CFG, configuration)
+        if cmp(fetched_cfg, configuration) == 0:
+            # restart ovs-watcher-framework on all nodes
+            for sr_ip in StoragerouterHelper.get_storagerouter_ips():
+                if not InitManager.service_restart(service_name=service_name, ip=sr_ip):
+                    CelerySetup.LOGGER.warning("`{0}` failed to restart on node `{1}`".format(service_name, sr_ip))
+                    return False
+            CelerySetup.LOGGER.info("Successfully restarted all `{0}` services!".format(service_name))
+            return True
+        else:
+            CelerySetup.LOGGER.warning("`{0}` config is `{1}` but should be `{2}`"
+                                       .format(CelerySetup.SCHEDULED_TASK_CFG, fetched_cfg, configuration))
+            return False
