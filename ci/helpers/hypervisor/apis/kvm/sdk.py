@@ -51,25 +51,19 @@ def authenticated(function):
     """
     Decorator that make sure all required calls are running onto a connected SDK
     """
-    def new_function(self, *args, **kwargs):
+    def wrapper(self, *args, **kwargs):
         self.__doc__ = function.__doc__
         # determine if connection isn't closed.
-        is_alive = 0
         try:
-            is_alive = self._conn.isAlive()
-        except libvirt.libvirtError as e:
-            pass
-        if self._conn is None or is_alive == 0:
+            self._conn = self.connect(self.login, self.host)
+        except:
             try:
-                self._conn = self.connect(self.login, self.host)
+                self.disconnect(self._conn)
             except:
-                try:
-                    self.disconnect(self._conn)
-                except:
-                    pass
-                raise
+                pass
+            raise
         return function(self, *args, **kwargs)
-    return new_function
+    return wrapper
 
 
 class Sdk(object):
@@ -615,7 +609,7 @@ class Sdk(object):
         :param vnc_listen:
         :param networks: lists of tuples : ("network=default", "mac=RANDOM" or a valid mac, "model=e1000" (any model for vmachines)
         :param start: start the guest after creation
-        :param wait_for_install: time that virt install should wait before exiting
+        :param wait: time that virt install should wait before exiting
         :return:
         """
         try:
@@ -660,10 +654,9 @@ class Sdk(object):
             self.ssh_client.run(cmd, allow_insecure=True)
             if ovs_vm is True:
                 self._conn.defineXML(self._update_xml_for_ovs(name, hostname, edge_port))
-                # self.destroy(name)
+                self.destroy(name)
                 if start is True:
-                    pass
-                    # self.power_on(name)
+                    self.power_on(name)
             else:
                 if start is False:
                     self.destroy(name)
