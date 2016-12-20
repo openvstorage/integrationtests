@@ -26,6 +26,7 @@ from ci import autotests
 from ci.helpers.api import OVSClient
 from ci.setup.roles import RoleSetup
 from ci.setup.vpool import VPoolSetup
+from ci.setup.celery import CelerySetup
 from ci.remove.roles import RoleRemover
 from ci.setup.domain import DomainSetup
 from ci.setup.arakoon import ArakoonSetup
@@ -33,6 +34,7 @@ from ci.setup.backend import BackendSetup
 from ovs.log.log_handler import LogHandler
 from ci.remove.backend import BackendRemover
 from ci.validate.backend import BackendValidation
+
 
 CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
 TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
@@ -57,6 +59,7 @@ class Workflow(object):
 
         for i in xrange(self.config['ci']['setup_retries']):
             self.setup()
+            self.configuration()
             for j in xrange(self.config['ci']['scenario_retries']):
                 self.scenario()
             self.cleanup()
@@ -248,6 +251,24 @@ class Workflow(object):
             Workflow.LOGGER.info("Finished scenario's")
         else:
             Workflow.LOGGER.info("Skipped scenario's")
+
+    def configuration(self):
+        """
+        Execute custom configurations on a Open vStorage environment
+
+        Documentation:
+        https://github.com/openvstorage/framework/blob/5099afe52d67ae72d14286357b7706223c7bfd39/docs/scheduledtasks.md
+
+        :return: None
+        """
+        if 'configuration' in self.config['ci'] and self.config['ci']['configuration']:
+            Workflow.LOGGER.info("Starting configuration")
+            if CelerySetup.override_scheduletasks(self.config['configuration']):
+                Workflow.LOGGER.info("Finished configuration")
+            else:
+                Workflow.LOGGER.warning("Failed to configure scheduled tasks")
+        else:
+            Workflow.LOGGER.info("Skipped configuration")
 
     def cleanup(self):
         if self.config['ci']['cleanup']:

@@ -14,6 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
+import time
 import subprocess
 from ovs.log.log_handler import LogHandler
 from ovs.extensions.generic.sshclient import SSHClient
@@ -86,6 +87,36 @@ class InitManager(object):
             except subprocess.CalledProcessError:
                 InitManager.LOGGER.warning("Exception caught when checking service `{0}` on node with ip `{1}`"
                                            .format(service_name, ip))
+                return False
+
+            # if not failed, check output
+            return output == 'active'
+
+    @staticmethod
+    def service_restart(service_name, ip):
+        """
+        Restart a certain service on a requested node
+
+        :param service_name: name of a existing service
+        :type service_name: str
+        :param ip: ip address of a node
+        :type ip: str
+        :return: if the service is running
+        :rtype: bool
+        """
+        client = SSHClient(ip, username='root')
+
+        if InitManager.INIT_MANAGER == InitManagerSupported.INIT:
+            output = client.run(['service', 'service_name', 'restart'])
+            return output.split()[1] == "start/running,"
+        elif InitManager.INIT_MANAGER == InitManagerSupported.SYSTEMD:
+            try:
+                client.run(['systemctl', 'restart', '{0}.service'.format(service_name)])
+                time.sleep(0.5)
+                output = client.run(['systemctl', 'is-active', '{0}.service'.format(service_name)])
+            except subprocess.CalledProcessError:
+                InitManager.LOGGER.warning("Exception caught when restarting & checking service `{0}` "
+                                           "on node with ip `{1}`".format(service_name, ip))
                 return False
 
             # if not failed, check output
