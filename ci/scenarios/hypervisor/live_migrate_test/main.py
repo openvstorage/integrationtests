@@ -655,4 +655,4 @@ def run(blocked=False):
     return MigrateTester().main(blocked)
 
 if __name__ == "__main__":
-    print run()
+    run()
