@@ -85,4 +85,4 @@ class RoleValidation(object):
         :rtype: bool
         """
 
-        return DiskHelper.get_roles_from_disk(storagerouter_ip, disk_name) == roles
+        return set(DiskHelper.get_roles_from_disk(storagerouter_ip, disk_name)) == set(roles)
