@@ -31,6 +31,7 @@ from ci.remove.roles import RoleRemover
 from ci.setup.domain import DomainSetup
 from ci.setup.arakoon import ArakoonSetup
 from ci.setup.backend import BackendSetup
+from ci.setup.proxy import ProxySetup
 from ovs.log.log_handler import LogHandler
 from ci.remove.backend import BackendRemover
 from ci.validate.backend import BackendValidation
@@ -117,125 +118,124 @@ class Workflow(object):
         :return: None
         """
 
-        if self.config['ci']['setup']:
-
-            # Start setup
-            self.LOGGER.info("Starting setup")
-
-            # Setup domains
-            Workflow.LOGGER.info("Setup domains")
-            for domain in self.config['setup']['domains']:
-                DomainSetup.add_domain(domain, self.api)
-
-            # Setup storagerouter (recovery) domains
-            Workflow.LOGGER.info("Setup storagerouter (recovery) domains")
-            for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
-                DomainSetup.link_domains_to_storagerouter(storagerouter_details['domains'], storagerouter_ip, self.api)
-
-            # Setup disk roles
-            Workflow.LOGGER.info("Setup disk roles")
-            for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
-                for diskname, disk_details in storagerouter_details['disks'].iteritems():
-                    RoleSetup.add_disk_role(storagerouter_ip=storagerouter_ip, diskname=diskname, roles=disk_details['roles'],
-                                            api=self.api)
-
-            # Setup LOCAL backends
-            Workflow.LOGGER.info("Setup `LOCAL` backends")
-            for backend in self.config['setup']['backends']:
-                if backend['scaling'] == "LOCAL":
-                    # check if possibly we need to setup external arakoons
-                    if 'external_arakoon' in backend:
-                        Workflow.LOGGER.info("Add external arakoons")
-                        self.setup_external_arakoons(backend)
-                        Workflow.LOGGER.info("Finished adding external arakoons")
-
-                    BackendSetup.add_backend(backend_name=backend['name'], api=self.api, scaling="LOCAL")
-
-                    # checkup amount nsm_hosts for a backend if external_arakoon is specified
-                    if 'min_nsm_arakoons' in backend:
-                        Workflow.LOGGER.info("Setting min. {0} NSM hosts for {1}"
-                                             .format(backend['min_nsm_arakoons'], backend['name']))
-                        ArakoonSetup.checkup_nsm_hosts(albabackend_name=backend['name'],
-                                                       amount=backend['min_nsm_arakoons'])
-                        Workflow.LOGGER.info("Finished setting min. {0} NSM hosts for {1}"
-                                             .format(backend['min_nsm_arakoons'], backend['name']))
-
-                    # Add domains
-                    Workflow.LOGGER.info("Add domains")
-                    DomainSetup.link_domains_to_backend(domain_details=backend['domains'],
-                                                        albabackend_name=backend['name'], api=self.api)
-
-                    # Add presets
-                    Workflow.LOGGER.info("Add presets")
-                    for preset in backend['presets']:
-                        BackendSetup.add_preset(albabackend_name=backend['name'], preset_details=preset, api=self.api)
-
-                    # Initialize and claim asds
-                    Workflow.LOGGER.info("Initialize and claim asds")
-                    for storagenode_ip, disks in backend['osds'].iteritems():
-                        BackendSetup.add_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks,
-                                              api=self.api)
-                else:
-                    pass
-
-            # Setup GLOBAL backends
-            Workflow.LOGGER.info("Setup `GLOBAL` backends")
-            for backend in self.config['setup']['backends']:
-                if backend['scaling'] == "GLOBAL":
-                    # check if possibly we need to setup external arakoons
-                    if 'external_arakoon' in backend:
-                        Workflow.LOGGER.info("Add external arakoons")
-                        self.setup_external_arakoons(backend)
-                        Workflow.LOGGER.info("Finished adding external arakoons")
-
-                    BackendSetup.add_backend(backend_name=backend['name'], api=self.api, scaling="GLOBAL")
-
-                    # checkup amount nsm_hosts for a backend if external_arakoon is specified
-                    if 'min_nsm_arakoons' in backend:
-                        Workflow.LOGGER.info("Setting min. {0} NSM hosts for {1}"
-                                             .format(backend['min_nsm_arakoons'], backend['name']))
-                        ArakoonSetup.checkup_nsm_hosts(albabackend_name=backend['name'],
-                                                       amount=backend['min_nsm_arakoons'])
-                        Workflow.LOGGER.info("Finished setting min. {0} NSM hosts for {1}"
-                                             .format(backend['min_nsm_arakoons'], backend['name']))
-
-                    # Add domains
-                    Workflow.LOGGER.info("Add domains")
-                    DomainSetup.link_domains_to_backend(domain_details=backend['domains'],
-                                                        albabackend_name=backend['name'], api=self.api)
-
-                    # Add presets
-                    Workflow.LOGGER.info("Add presets")
-                    for preset in backend['presets']:
-                        BackendSetup.add_preset(albabackend_name=backend['name'], preset_details=preset, api=self.api)
-
-                    # Link LOCAL backend(s) to GLOBAL backend
-                    Workflow.LOGGER.info("Link LOCAL backend(s) to GLOBAL backend")
-                    for subbackend, preset in backend['osds'].iteritems():
-                        BackendSetup.link_backend(albabackend_name=subbackend, globalbackend_name=backend['name'],
-                                                  preset_name=preset, api=self.api)
-                else:
-                    continue
-
-            # Setup vpools
-            Workflow.LOGGER.info("Setup vpools")
-            for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
-                if 'vpools' in storagerouter_details:
-                    for vpool_name, vpool_details in storagerouter_details['vpools'].iteritems():
-                        # check if aa is specified
-                        albabackends = [vpool_details['backend_name']]
-                        if vpool_details['fragment_cache']['location'] == "backend":
-                            albabackends.append(vpool_details['fragment_cache']['backend']['name'])
-
-                        # create vpool
-                        VPoolSetup.add_vpool(vpool_name=vpool_name, vpool_details=vpool_details, api=self.api,
-                                             albabackend_name=albabackends,
-                                             storagerouter_ip=storagerouter_ip)
-                else:
-                    continue
-            Workflow.LOGGER.info("Finished setup")
-        else:
+        if not self.config['ci']['setup']:
             Workflow.LOGGER.info("Skipped setup")
+            return
+        # Start setup
+        self.LOGGER.info("Starting setup")
+
+        # Setup domains
+        Workflow.LOGGER.info("Setup domains")
+        for domain in self.config['setup']['domains']:
+            DomainSetup.add_domain(domain, self.api)
+
+        # Setup storagerouter (recovery) domains
+        Workflow.LOGGER.info("Setup storagerouter (recovery) domains")
+        for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
+            DomainSetup.link_domains_to_storagerouter(storagerouter_details['domains'], storagerouter_ip, self.api)
+
+        # Setup disk roles
+        Workflow.LOGGER.info("Setup disk roles")
+        for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
+            for diskname, disk_details in storagerouter_details['disks'].iteritems():
+                RoleSetup.add_disk_role(storagerouter_ip=storagerouter_ip, diskname=diskname, roles=disk_details['roles'],
+                                        api=self.api)
+
+        # Setup LOCAL backends
+        Workflow.LOGGER.info("Setup `LOCAL` backends")
+        for backend in self.config['setup']['backends']:
+            if backend['scaling'] != "LOCAL":
+                continue
+            # check if possibly we need to setup external arakoons
+            if 'external_arakoon' in backend:
+                Workflow.LOGGER.info("Add external arakoons")
+                self.setup_external_arakoons(backend)
+                Workflow.LOGGER.info("Finished adding external arakoons")
+
+            BackendSetup.add_backend(backend_name=backend['name'], api=self.api, scaling="LOCAL")
+
+            # checkup amount nsm_hosts for a backend if external_arakoon is specified
+            if 'min_nsm_arakoons' in backend:
+                Workflow.LOGGER.info("Setting min. {0} NSM hosts for {1}"
+                                     .format(backend['min_nsm_arakoons'], backend['name']))
+                ArakoonSetup.checkup_nsm_hosts(albabackend_name=backend['name'],
+                                               amount=backend['min_nsm_arakoons'])
+                Workflow.LOGGER.info("Finished setting min. {0} NSM hosts for {1}"
+                                     .format(backend['min_nsm_arakoons'], backend['name']))
+
+            # Add domains
+            Workflow.LOGGER.info("Add domains")
+            DomainSetup.link_domains_to_backend(domain_details=backend['domains'], albabackend_name=backend['name'], api=self.api)
+
+            # Add presets
+            Workflow.LOGGER.info("Add presets")
+            for preset in backend['presets']:
+                BackendSetup.add_preset(albabackend_name=backend['name'], preset_details=preset, api=self.api)
+
+            # Initialize and claim asds
+            Workflow.LOGGER.info("Initialize and claim asds")
+            for storagenode_ip, disks in backend['osds'].iteritems():
+                BackendSetup.add_asds(albabackend_name=backend['name'], target=storagenode_ip, disks=disks, api=self.api)
+
+        # Setup GLOBAL backends
+        Workflow.LOGGER.info("Setup `GLOBAL` backends")
+        for backend in self.config['setup']['backends']:
+            if backend['scaling'] != "GLOBAL":
+                continue
+            # check if possibly we need to setup external arakoons
+            if 'external_arakoon' in backend:
+                Workflow.LOGGER.info("Add external arakoons")
+                self.setup_external_arakoons(backend)
+                Workflow.LOGGER.info("Finished adding external arakoons")
+
+            BackendSetup.add_backend(backend_name=backend['name'], api=self.api, scaling="GLOBAL")
+
+            # checkup amount nsm_hosts for a backend if external_arakoon is specified
+            if 'min_nsm_arakoons' in backend:
+                Workflow.LOGGER.info("Setting min. {0} NSM hosts for {1}"
+                                     .format(backend['min_nsm_arakoons'], backend['name']))
+                ArakoonSetup.checkup_nsm_hosts(albabackend_name=backend['name'],
+                                               amount=backend['min_nsm_arakoons'])
+                Workflow.LOGGER.info("Finished setting min. {0} NSM hosts for {1}"
+                                     .format(backend['min_nsm_arakoons'], backend['name']))
+
+            # Add domains
+            Workflow.LOGGER.info("Add domains")
+            DomainSetup.link_domains_to_backend(domain_details=backend['domains'], albabackend_name=backend['name'], api=self.api)
+
+            # Add presets
+            Workflow.LOGGER.info("Add presets")
+            for preset in backend['presets']:
+                BackendSetup.add_preset(albabackend_name=backend['name'], preset_details=preset, api=self.api)
+
+            # Link LOCAL backend(s) to GLOBAL backend
+            Workflow.LOGGER.info("Link LOCAL backend(s) to GLOBAL backend")
+            for subbackend, preset in backend['osds'].iteritems():
+                BackendSetup.link_backend(albabackend_name=subbackend, globalbackend_name=backend['name'], preset_name=preset, api=self.api)
+
+        # Setup vpools
+        Workflow.LOGGER.info("Setup vpools")
+        for storagerouter_ip, storagerouter_details in self.config['setup']['storagerouters'].iteritems():
+            if 'vpools' not in storagerouter_details:
+                continue
+            for vpool_name, vpool_details in storagerouter_details['vpools'].iteritems():
+                # check if aa is specified
+                albabackends = [vpool_details['backend_name']]
+                if vpool_details['fragment_cache']['location'] == "backend":
+                    albabackends.append(vpool_details['fragment_cache']['backend']['name'])
+
+                # create vpool
+                VPoolSetup.add_vpool(vpool_name=vpool_name, vpool_details=vpool_details, api=self.api,
+                                     albabackend_name=albabackends,
+                                     storagerouter_ip=storagerouter_ip)
+
+        # Configure proxies
+        for backend in self.config['setup']['backends']:
+            if "proxy" not in backend:
+                continue
+            ProxySetup.configure_proxy(backend['name'], backend['proxy'])
+
+        Workflow.LOGGER.info("Finished setup")
 
     def scenario(self):
         """
