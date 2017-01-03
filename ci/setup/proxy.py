@@ -50,31 +50,34 @@ class ProxySetup(object):
         if len(faulty_keys) > 0:
             raise ValueError('{0} are unsupported keys for proxy configuration.'.format(', '.join(faulty_keys)))
         vpools = VPoolList.get_vpools()
-        for vpool in vpools:
-            if vpool.metadata['backend']['backend_info']['name'] != backend_name:
-                continue
-            for storagedriver in vpool.storagedrivers:
-                if hasattr(storagedriver, 'alba_proxies'):
-                    for proxy in storagedriver.alba_proxies:
+        with open('/root/old_proxies', 'w') as backup_file:
+            for vpool in vpools:
+                if vpool.metadata['backend']['backend_info']['name'] != backend_name:
+                    continue
+                for storagedriver in vpool.storagedrivers:
+                    if hasattr(storagedriver, 'alba_proxies'):
+                        for proxy in storagedriver.alba_proxies:
+                            config_loc = 'ovs/vpools/{0}/proxies/{1}/config/main'.format(vpool.guid, proxy.guid)
+                            proxy_service = Service(proxy.service_guid)
+                            proxy_config = Configuration.get(config_loc)
+                            old_proxy_config = dict(proxy_config)
+                            backup_file.write('{} -- {}\n'.format(config_loc, old_proxy_config))
+                            proxy_config.update(proxy_configuration)
+                            ProxySetup.LOGGER.info("Changed {0} to {1} for proxy {2}".format(old_proxy_config, proxy_config, config_loc))
+                            ProxySetup.LOGGER.info("Changed items {0}".format([(key, value) for key, value in proxy_config.iteritems() if key not in old_proxy_config.keys()]))
+                            Configuration.set(config_loc, proxy_config)
+                            client = SSHClient(storagedriver.storage_ip, username='root')
+                            ServiceManager.restart_service(proxy_service.name, client=client)
+                    if hasattr(storagedriver, 'alba_proxy'):
+                        proxy = storagedriver.alba_proxy
                         config_loc = 'ovs/vpools/{0}/proxies/{1}/config/main'.format(vpool.guid, proxy.guid)
                         proxy_service = Service(proxy.service_guid)
                         proxy_config = Configuration.get(config_loc)
                         old_proxy_config = dict(proxy_config)
+                        backup_file.write('{} -- {}\n'.format(config_loc, old_proxy_config))
                         proxy_config.update(proxy_configuration)
                         ProxySetup.LOGGER.info("Changed {0} to {1} for proxy {2}".format(old_proxy_config, proxy_config, config_loc))
                         ProxySetup.LOGGER.info("Changed items {0}".format([(key, value) for key, value in proxy_config.iteritems() if key not in old_proxy_config.keys()]))
                         Configuration.set(config_loc, proxy_config)
                         client = SSHClient(storagedriver.storage_ip, username='root')
                         ServiceManager.restart_service(proxy_service.name, client=client)
-                if hasattr(storagedriver, 'alba_proxy'):
-                    proxy = storagedriver.alba_proxy
-                    config_loc = 'ovs/vpools/{0}/proxies/{1}/config/main'.format(vpool.guid, proxy.guid)
-                    proxy_service = Service(proxy.service_guid)
-                    proxy_config = Configuration.get(config_loc)
-                    old_proxy_config = dict(proxy_config)
-                    proxy_config.update(proxy_configuration)
-                    ProxySetup.LOGGER.info("Changed {0} to {1} for proxy {2}".format(old_proxy_config, proxy_config, config_loc))
-                    ProxySetup.LOGGER.info("Changed items {0}".format([(key, value) for key, value in proxy_config.iteritems() if key not in old_proxy_config.keys()]))
-                    Configuration.set(config_loc, proxy_config)
-                    client = SSHClient(storagedriver.storage_ip, username='root')
-                    ServiceManager.restart_service(proxy_service.name, client=client)
