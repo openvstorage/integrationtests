@@ -17,7 +17,7 @@
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.storagerouter import StoragerouterHelper
-from ci.helpers.vpool import VPoolHelper
+from ci.helpers.storagedriver import StoragedriverHelper
 from ovs.lib.generic import GenericController
 from ci.validate.decorators import required_roles, required_backend, check_vpool
 
@@ -114,7 +114,7 @@ class VPoolSetup(object):
                                       .format(vpool_name, storagerouter_ip))
             # get details to check the model
             machine_id = StoragerouterHelper.get_storagerouter_by_ip(storagerouter_ip).machine_id
-            storagedriver = VPoolHelper.get_vpool_by_name(vpool_name+machine_id)
+            storagedriver = StoragedriverHelper.get_storagedriver_by_id(vpool_name+machine_id)
             if storagedriver is not None:
                 VPoolSetup.LOGGER.info("Creation of vPool `{0}` should have succeeded on storagerouter `{1}`"
                                        .format(vpool_name, storagerouter_ip))
