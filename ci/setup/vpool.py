@@ -17,6 +17,7 @@
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.helpers.storagerouter import StoragerouterHelper
+from ci.helpers.vpool import VPoolHelper
 from ovs.lib.generic import GenericController
 from ci.validate.decorators import required_roles, required_backend, check_vpool
 
@@ -97,15 +98,32 @@ class VPoolSetup(object):
                     StoragerouterHelper.get_storagerouter_guid_by_ip(storagerouter_ip)),
             data=call_parameters
         )
-        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
-        if not task_result[0]:
-            error_msg = "vPool `{0}` has failed to create on storagerouter `{1}`".format(vpool_name, storagerouter_ip)
-            VPoolSetup.LOGGER.error(error_msg)
-            raise RuntimeError(error_msg)
-        else:
-            VPoolSetup.LOGGER.info("Creation of vPool `{0}` should have succeeded on storagerouter `{1}`"
-                                   .format(vpool_name, storagerouter_ip))
-            return storagerouter_ip, "/mnt/{0}".format(vpool_name)
+        try:
+            task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+            if not task_result[0]:
+                error_msg = "vPool `{0}` has failed to create on storagerouter `{1}`".format(vpool_name, storagerouter_ip)
+                VPoolSetup.LOGGER.error(error_msg)
+                raise RuntimeError(error_msg)
+            else:
+                VPoolSetup.LOGGER.info("Creation of vPool `{0}` should have succeeded on storagerouter `{1}`"
+                                       .format(vpool_name, storagerouter_ip))
+                return storagerouter_ip, "/mnt/{0}".format(vpool_name)
+        except RuntimeError:
+            VPoolSetup.LOGGER.warning("Creation of vPool `{0}` has timed out on storagerouter `{1}`, "
+                                      "checking if vPool is present in model ..."
+                                      .format(vpool_name, storagerouter_ip))
+            # get details to check the model
+            machine_id = StoragerouterHelper.get_storagerouter_by_ip(storagerouter_ip).machine_id
+            storagedriver = VPoolHelper.get_vpool_by_name(vpool_name+machine_id)
+            if storagedriver is not None:
+                VPoolSetup.LOGGER.info("Creation of vPool `{0}` should have succeeded on storagerouter `{1}`"
+                                       .format(vpool_name, storagerouter_ip))
+                return storagerouter_ip, "/mnt/{0}".format(vpool_name)
+            else:
+                error_msg = "vPool `{0}` has failed to create on storagerouter `{1}`, even after model check ..."\
+                    .format(vpool_name, storagerouter_ip)
+                VPoolSetup.LOGGER.error(error_msg)
+                raise
 
     @staticmethod
     def execute_scrubbing():
