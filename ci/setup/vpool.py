@@ -123,7 +123,7 @@ class VPoolSetup(object):
                 error_msg = "vPool `{0}` has failed to create on storagerouter `{1}`, even after model check ..."\
                     .format(vpool_name, storagerouter_ip)
                 VPoolSetup.LOGGER.error(error_msg)
-                raise
+                raise RuntimeError(error_msg)
 
     @staticmethod
     def execute_scrubbing():

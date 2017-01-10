@@ -17,8 +17,10 @@
 import json
 from ci.main import CONFIG_LOC
 from ci.helpers.api import OVSClient
+from ci.setup.vdisk import VDiskSetup
 from ci.setup.vpool import VPoolSetup
 from ci.remove.vpool import VPoolRemover
+from ci.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
 from ci.helpers.backend import BackendHelper
 from ci.validate.roles import RoleValidation
@@ -32,6 +34,9 @@ class AddRemoveVPool(object):
     ADD_EXTEND_REMOVE_VPOOL_TIMEOUT = 60
     VPOOL_NAME = "integrationtests-vpool"
     PRESET_NAME = "default"
+    PREFIX = "integration-tests-vpool-"
+    VDISK_SIZE = 1073741824  # 1 GB
+    VDISK_CREATE_TIMEOUT = 60
 
     def __init__(self):
         pass
@@ -95,67 +100,73 @@ class AddRemoveVPool(object):
                 pass
 
         # filter storagerouters without required roles
-
-        assert len(storagerouter_ips) > 1, "We need at least 2 storagerouters with valid roles: {0}".format()
+        assert len(storagerouter_ips) > 1, "We need at least 2 storagerouters with valid roles: {0}"\
+            .format(storagerouter_ips)
         alba_backends = BackendHelper.get_alba_backends()
         assert len(alba_backends) >= 2, "We need at least 2 or more backends!"
 
+        # global vdisk details
+        vdisk_deployment_ip = storagerouter_ips[0]
+
+        # determine backends
         hdd_backend = alba_backends[0]
         ssd_backend = alba_backends[1]
 
-        # alba accelerated alba for vpool
-        fragment_cache_nonaccel_config = {
-            "strategy": {"cache_on_read": False, "cache_on_write": False},
-            "location": "disk"
-        }
-
-        # normal alba backend for vpool
-        fragment_cache_accel_config = {
-            "strategy": {"cache_on_read": False, "cache_on_write": False},
-            "location": "backend",
-            "backend": {
-                "name": ssd_backend.name,
-                "preset": AddRemoveVPool.PRESET_NAME
+        # vpool configs, regressing https://github.com/openvstorage/alba/issues/560 & more
+        vpool_configs = {
+            "no_fragment_cache_on_disk": {
+                "strategy": {"cache_on_read": False, "cache_on_write": False},
+                "location": "disk"
+            },
+            "no_fragment_cache_on_accel": {
+                "strategy": {"cache_on_read": False, "cache_on_write": False},
+                "location": "backend",
+                "backend": {
+                    "name": ssd_backend.name,
+                    "preset": AddRemoveVPool.PRESET_NAME
+                }
             }
         }
 
-        # add/extend vpool with normal backend
-        for storagerouter_ip in storagerouter_ips:
-            AddRemoveVPool.LOGGER.info("Add/extend vpool with normal backend with vPool `{0}` on storagerouter `{1}`"
-                                       .format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
-            assert AddRemoveVPool._add_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME,
-                                             fragment_cache_cfg=fragment_cache_nonaccel_config, api=api,
-                                             albabackend_name=hdd_backend.name, timeout=timeout,
-                                             preset_name=AddRemoveVPool.PRESET_NAME, storagerouter_ip=storagerouter_ip)
+        for cfg_name, cfg in vpool_configs.iteritems():
+            # create vpool
+            for storagerouter_ip in storagerouter_ips:
+                AddRemoveVPool.LOGGER.info("Add/extend vpool with normal backend with vPool `{0}` "
+                                           "on storagerouter `{1}`"
+                                           .format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
+                assert AddRemoveVPool._add_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME,
+                                                 fragment_cache_cfg=cfg, api=api,
+                                                 albabackend_name=hdd_backend.name, timeout=timeout,
+                                                 preset_name=AddRemoveVPool.PRESET_NAME,
+                                                 storagerouter_ip=storagerouter_ip)
 
-        # delete vpool with normal backend
-        for storagerouter_ip in storagerouter_ips:
-            AddRemoveVPool.LOGGER.info("Deleting vpool with normal backend with vPool `{0}` on storagerouter `{1}`"
-                                       .format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
-            assert VPoolRemover.remove_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME, storagerouter_ip=storagerouter_ip,
-                                             api=api, timeout=timeout)
+            # deploy a vdisk
+            vdisk_name = AddRemoveVPool.PREFIX + '-' + cfg_name
+            AddRemoveVPool.LOGGER.info("Starting to create vdisk `{0}` on vPool `{1}` with size `{2}` "
+                                       "on node `{3}`".format(vdisk_name, AddRemoveVPool.VPOOL_NAME,
+                                                              AddRemoveVPool.VDISK_SIZE, vdisk_deployment_ip))
+            VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=AddRemoveVPool.VPOOL_NAME,
+                                    size=AddRemoveVPool.VDISK_SIZE,
+                                    storagerouter_ip=vdisk_deployment_ip, api=api,
+                                    timeout=AddRemoveVPool.VDISK_CREATE_TIMEOUT)
+            AddRemoveVPool.LOGGER.info("Finished creating vdisk `{0}`".format(vdisk_name))
+            AddRemoveVPool.LOGGER.info("Starting to delete vdisk `{0}`".format(vdisk_name))
+            VDiskRemover.remove_vdisk_by_name(vdisk_name + '.raw', AddRemoveVPool.VPOOL_NAME)
+            AddRemoveVPool.LOGGER.info("Finished deleting vdisk `{0}`".format(vdisk_name))
 
-        # add/extend vpool with accelerated backend
-        for storagerouter_ip in storagerouter_ips:
-            AddRemoveVPool.LOGGER.info("Add/extend vpool with accelerated backend with vPool `{0}` "
-                                       "on storagerouter `{1}`".format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
-            assert AddRemoveVPool._add_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME,
-                                             fragment_cache_cfg=fragment_cache_accel_config, api=api,
-                                             albabackend_name=hdd_backend.name, timeout=timeout,
-                                             preset_name=AddRemoveVPool.PRESET_NAME, storagerouter_ip=storagerouter_ip)
-
-        # delete vpool with accelerated backend
-        for storagerouter_ip in storagerouter_ips:
-            AddRemoveVPool.LOGGER.info("Deleting vpool with accelerated backend with vPool `{0}` on storagerouter `{1}`"
-                                       .format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
-            assert VPoolRemover.remove_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME, storagerouter_ip=storagerouter_ip,
-                                             api=api, timeout=timeout)
+            # delete vpool
+            for storagerouter_ip in storagerouter_ips:
+                AddRemoveVPool.LOGGER.info("Deleting vpool with normal backend with vPool `{0}` on storagerouter `{1}`"
+                                           .format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
+                assert VPoolRemover.remove_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME,
+                                                 storagerouter_ip=storagerouter_ip,
+                                                 api=api, timeout=timeout)
 
         AddRemoveVPool.LOGGER.info("Finished to validate add-extend-remove vpool")
 
     @staticmethod
     def _add_vpool(vpool_name, fragment_cache_cfg, api, storagerouter_ip, albabackend_name,
-                   preset_name, timeout):
+                   preset_name, timeout, dtl_mode="a_sync", deduplication_mode="non_dedupe", dtl_transport="tcp"):
         """
         Add a vpool
 
@@ -183,9 +194,9 @@ class AddRemoveVPool(object):
             "strategy": "none",
             "global_write_buffer": 1,
             "global_read_buffer": 0,
-            "deduplication": "non_dedupe",
-            "dtl_transport": "tcp",
-            "dtl_mode": "a_sync"
+            "deduplication": deduplication_mode,
+            "dtl_transport": dtl_transport,
+            "dtl_mode": dtl_mode
         }
 
         vpool_cfg = {
