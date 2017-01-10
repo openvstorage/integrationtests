@@ -36,52 +36,6 @@ class TestVDisk(object):
     assert vpool_name, 'vPool name required in autotest.cfg file'
 
     @staticmethod
-    def ovs_3756_metadata_size_test():
-        """
-        Validate get/set metadata cache size for a vdisk
-        """
-        disk_name = 'ovs-3756-disk'
-        loop = 'loop0'
-        vpool = GeneralVPool.get_vpool_by_name(TestVDisk.vpool_name)
-        # vdisk_size in GiB
-        vdisk_size = 2
-        vdisk = GeneralVDisk.create_volume(size=vdisk_size, vpool=vpool, name=disk_name, loop_device=loop, wait=True)
-        storagedriver_config = StorageDriverConfiguration('storagedriver', vdisk.vpool_guid, vdisk.storagedriver_id)
-
-        # "size" of a page = amount of entries in a page (addressable by 6 bits)
-        metadata_page_capacity = 64
-        cluster_size = storagedriver_config.configuration.get('volume_manager', {}).get('default_cluster_size', 4096)
-        cache_capacity = int(min(vdisk.size, 2 * 1024 ** 4) / float(metadata_page_capacity * cluster_size))
-
-        default_metadata_cache_size = StorageDriverClient.DEFAULT_METADATA_CACHE_SIZE
-
-        def _validate_setting_cache_value(value_to_verify):
-            if value_to_verify > default_metadata_cache_size:
-                value_to_verify = default_metadata_cache_size
-            disk_config_params = GeneralVDisk.get_config_params(vdisk)
-            disk_config_params['metadata_cache_size'] = value_to_verify
-
-            GeneralVDisk.set_config_params(vdisk, {'new_config_params': disk_config_params})
-            disk_config_params = GeneralVDisk.get_config_params(vdisk)
-            actual_value = disk_config_params['metadata_cache_size']
-            assert actual_value == value_to_verify,\
-                'Value after set/get differs, actual: {0}, expected: {1}'.format(actual_value, value_to_verify)
-
-        config_params = GeneralVDisk.get_config_params(vdisk)
-
-        # validate default metadata cache as it was not set explicitly
-        default_implicit_value = config_params['metadata_cache_size']
-        assert default_implicit_value == default_metadata_cache_size,\
-            'Expected default cache size: {0}, got {1}'.format(default_metadata_cache_size, default_implicit_value)
-
-        # verify set/get of specific value - larger than default
-        _validate_setting_cache_value(10000 * cache_capacity)
-
-        # verify set/get of specific value - default value
-        _validate_setting_cache_value(default_metadata_cache_size)
-
-        GeneralVDisk.delete_volume(vdisk=vdisk, vpool=vpool, loop_device=loop, wait=True)
-
     @staticmethod
     def ovs_3791_validate_backend_sync_test():
         """
