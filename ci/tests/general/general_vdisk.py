@@ -290,9 +290,6 @@ class GeneralVDisk(object):
         assert status is True,\
             'Retrieving config params failed: {0} for vdisk: {1} - {2}'.format(status, vdisk.name, params)
 
-        assert 'metadata_cache_size' in params,\
-            'Missing metadata_cache_size in vdisk config_params: {0}'.format(params)
-
         return params
 
     @staticmethod
