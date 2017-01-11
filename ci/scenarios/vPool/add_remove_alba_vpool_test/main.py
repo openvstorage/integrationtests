@@ -131,8 +131,7 @@ class AddRemoveVPool(object):
         for cfg_name, cfg in vpool_configs.iteritems():
             # create vpool
             for storagerouter_ip in storagerouter_ips:
-                AddRemoveVPool.LOGGER.info("Add/extend vpool with normal backend with vPool `{0}` "
-                                           "on storagerouter `{1}`"
+                AddRemoveVPool.LOGGER.info("Add/extend vPool `{0}` on storagerouter `{1}`"
                                            .format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
                 assert AddRemoveVPool._add_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME,
                                                  fragment_cache_cfg=cfg, api=api,
@@ -156,7 +155,7 @@ class AddRemoveVPool(object):
 
             # delete vpool
             for storagerouter_ip in storagerouter_ips:
-                AddRemoveVPool.LOGGER.info("Deleting vpool with normal backend with vPool `{0}` on storagerouter `{1}`"
+                AddRemoveVPool.LOGGER.info("Deleting vpool `{0}` on storagerouter `{1}`"
                                            .format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
                 assert VPoolRemover.remove_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME,
                                                  storagerouter_ip=storagerouter_ip,
@@ -192,7 +191,7 @@ class AddRemoveVPool(object):
             "cluster_size": 4,
             "volume_write_buffer": 512,
             "strategy": "none",
-            "global_write_buffer": 1,
+            "global_write_buffer": 2,
             "global_read_buffer": 0,
             "deduplication": deduplication_mode,
             "dtl_transport": dtl_transport,
