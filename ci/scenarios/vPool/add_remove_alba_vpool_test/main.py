@@ -140,7 +140,7 @@ class AddRemoveVPool(object):
                                                  storagerouter_ip=storagerouter_ip)
 
             # deploy a vdisk
-            vdisk_name = AddRemoveVPool.PREFIX + '-' + cfg_name
+            vdisk_name = AddRemoveVPool.PREFIX + cfg_name
             AddRemoveVPool.LOGGER.info("Starting to create vdisk `{0}` on vPool `{1}` with size `{2}` "
                                        "on node `{3}`".format(vdisk_name, AddRemoveVPool.VPOOL_NAME,
                                                               AddRemoveVPool.VDISK_SIZE, vdisk_deployment_ip))
