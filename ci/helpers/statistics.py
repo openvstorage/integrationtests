@@ -69,4 +69,4 @@ class StatisticsHelper(object):
         :rtype: str
         """
         client = SSHClient(storagerouter_ip, username='root')
-        return client.run("cat /proc/{0}/status | grep Vm | tr -s ' '".format(pid), allow_insecure=True)
+        return client.run("grep Vm /proc/{0}/status | tr -s ' '".format(pid), allow_insecure=True)
