@@ -290,9 +290,6 @@ class GeneralVDisk(object):
         assert status is True,\
             'Retrieving config params failed: {0} for vdisk: {1} - {2}'.format(status, vdisk.name, params)
 
-        assert 'metadata_cache_size' in params,\
-            'Missing metadata_cache_size in vdisk config_params: {0}'.format(params)
-
         return params
 
     @staticmethod
@@ -306,7 +303,7 @@ class GeneralVDisk(object):
         status, _ = GeneralVDisk.api.execute_post_action(component='vdisks', guid=vdisk.guid,
                                                          action='set_config_params', data=params, wait=True)
         assert status is True,\
-            'Retrieving config params failed: {0} for vdisk: {1} - {2}'.format(status, vdisk.name, params)
+            'Setting config params failed: {0} for vdisk: {1} - {2}'.format(status, vdisk.name, params)
 
     @staticmethod
     def schedule_backend_sync(vdisk):

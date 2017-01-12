@@ -324,8 +324,7 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
     joined_cluster = _pick_option(child, cluster, fail_if_not_found=False)
     if not joined_cluster:
         _pick_option(child, "Create a new cluster", use_select=False)
-        child.expect('Please enter the cluster name')
-        child.sendline(cluster)
+
     idx = child.expect(['Found exactly one choice', 'Select the public IP address of', 'Password:'])
     if idx == 2:
         child.sendline(UBUNTU_PASSWORD)
@@ -334,6 +333,10 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
             _pick_option(child, pub_ip)
     if idx == 1:
         _pick_option(child, pub_ip)
+
+    if not joined_cluster:
+        child.expect('Please enter the cluster name')
+        child.sendline(cluster)
 
     idx = child.expect(["Select the configuration management system. Make a selection please:", "Adding extra node"])
     if idx == 0:

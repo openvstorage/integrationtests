@@ -192,13 +192,14 @@ class Connection(object):
         :return: Tuple containing a boolean if the task was successful or not and the result of the task
         """
         start = time.time()
-        task_metadata = {'ready': False}
-        while task_metadata['ready'] is False:
+        finished = False
+        while finished is False:
             if timeout is not None and timeout < (time.time() - start):
                 raise RuntimeError('Waiting for task {0} has timed out.'.format(task_id))
             task_metadata = self.fetch('tasks', task_id)
             print task_metadata
-            if task_metadata['ready'] is False:
+            finished = task_metadata['status'] in ('FAILURE', 'SUCCESS')
+            if finished is False:
                 time.sleep(1)
-
-        return task_metadata['successful'], task_metadata['result']
+            else:
+                return task_metadata['successful'], task_metadata['result']
