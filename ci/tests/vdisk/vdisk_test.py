@@ -23,7 +23,6 @@ from ci.tests.general.general_vdisk import GeneralVDisk
 from ci.tests.general.general_vpool import GeneralVPool
 from ci.tests.general.logHandler import LogHandler
 from ovs.dal.hybrids.vdisk import VDisk
-from ovs.extensions.storageserver.storagedriver import StorageDriverClient, StorageDriverConfiguration
 
 
 class TestVDisk(object):
@@ -105,7 +104,7 @@ class TestVDisk(object):
         status = False
         while timeout > 0:
             status = GeneralVDisk.is_volume_synced_up_to_snapshot(vdisk=vdisk, snapshot_id=snap_id2)
-            print 'sync up to snapshot: {0}'.format(status)
+            TestVDisk.logger.info('sync up to snapshot: {0}'.format(status))
             if status is True:
                 break
             timeout -= 1
@@ -115,14 +114,13 @@ class TestVDisk(object):
         timeout = 300
         while timeout > 0:
             status = GeneralVDisk.is_volume_synced_up_to_tlog(vdisk=vdisk, tlog_name=tlog_name)
-            print 'sync up to tlog: {0}'.format(status)
+            TestVDisk.logger.info('sync up to tlog: {0}'.format(status))
             if status is True:
                 break
             timeout -= 1
         assert status is True, 'Tlog not synced to backend within 5 minutes'
 
         GeneralVDisk.delete_volume(vdisk, vpool, loop)
-
 
     @staticmethod
     def validate_clone_disk_test():
@@ -143,10 +141,12 @@ class TestVDisk(object):
         GeneralVDisk.create_snapshot(vdisk=vdisk, snapshot_name='snap0')
 
         TestVDisk.logger.info('clone_disk_test - create 1st {0} GB test file'.format(test_file_size / 1000.0))
-        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, test_file_name, '1'), size=test_file_size)
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, test_file_name, '1'),
+                                        size=test_file_size)
 
         TestVDisk.logger.info('clone_disk_test - create 2nd {0} GB test file'.format(test_file_size / 1000.0))
-        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, test_file_name, '2'), size=test_file_size)
+        GeneralVDisk.generate_hash_file(full_name='/mnt/{0}/{1}_{2}.txt'.format(loop, test_file_name, '2'),
+                                        size=test_file_size)
 
         GeneralVDisk.logger.info(General.execute_command('sync'))
 
