@@ -16,11 +16,15 @@
 
 import json
 import subprocess
+from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
+from ci.helpers.api import OVSClient
+from ci.setup.vdisk import VDiskSetup
 from ci.helpers.vpool import VPoolHelper
 from ci.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
 from ci.helpers.system import SystemHelper
+from ci.helpers.statistics import StatisticsHelper
 from ci.helpers.exceptions import ImageConvertError
 from ovs.extensions.generic.sshclient import SSHClient
 
@@ -30,7 +34,7 @@ class FioOnVDiskChecks(object):
     CASE_TYPE = 'AT_QUICK'
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_fio_on_vdisk")
     VDISK_SIZE = 1073741824  # 1 GB
-    AMOUNT_VDISKS = 3
+    AMOUNT_VDISKS = 10
     AMOUNT_TO_WRITE = 10  # in MegaByte
     PREFIX = "integration-tests-fio-"
     REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'qemu', 'fio']
@@ -75,8 +79,18 @@ class FioOnVDiskChecks(object):
         """
 
         FioOnVDiskChecks.LOGGER.info("Starting to validate the fio on vdisks")
+
         with open(SETTINGS_LOC, "r") as JSON_SETTINGS:
             settings = json.load(JSON_SETTINGS)
+
+        with open(CONFIG_LOC, "r") as JSON_CONFIG:
+            config = json.load(JSON_CONFIG)
+
+        api = OVSClient(
+            config['ci']['grid_ip'],
+            config['ci']['user']['api']['username'],
+            config['ci']['user']['api']['password']
+        )
 
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
@@ -86,12 +100,21 @@ class FioOnVDiskChecks(object):
 
         # check if enough images available
         images = settings['images']
-        image_path = images.get("fio-test")
-        assert image_path is not None, "Fio-test image not set in `{0}`".format(SETTINGS_LOC)
+        assert len(images) >= 1, "Not enough images in `{0}`".format(SETTINGS_LOC)
 
         # setup base information
         storagedriver = vpool.storagedrivers[0]
         client = SSHClient(storagedriver.storage_ip, username='root')
+
+        # report beginning memory usage
+        memory_usage_beginning = StatisticsHelper.get_current_memory_usage(storagedriver.storage_ip)
+        FioOnVDiskChecks.LOGGER.info("Starting memory usage monitor for validate fio: {0}/{1}"
+                                     .format(memory_usage_beginning[0], memory_usage_beginning[1]))
+        pid = int(client.run("pgrep -a volumedriver | grep {0} | cut -d ' ' -f 1".format(vpool.name),
+                             allow_insecure=True))
+        FioOnVDiskChecks.LOGGER.info(
+            "Starting extended memory monitor on pid {0}: \n{1}"
+            .format(pid, StatisticsHelper.get_current_memory_usage_of_process(storagedriver.storage_ip, pid)))
 
         # check if there are missing packages
         missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
@@ -100,8 +123,9 @@ class FioOnVDiskChecks(object):
             .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
 
         # check if image exists
-        assert client.file_exists(image_path), "Image `{0}` does not exists on `{1}`!".format(image_path,
-                                                                                              storagedriver.storage_ip)
+        assert client.file_exists(images[0]), "Image `{0}` does not exists on `{1}`!"\
+            .format(images[0], storagedriver.storage_ip)
+        image_path = images[0]
 
         # deploy vdisks via edge & link blktap
         for vdisk in xrange(amount_vdisks):
@@ -148,7 +172,17 @@ class FioOnVDiskChecks(object):
 
             except subprocess.CalledProcessError as ex:
                 raise ImageConvertError("Could not convert/tap image `{0}` on `{1}`, failed with error {2}"
-                                        .format(image_path, storage_ip, ex))
+                                        .format(image_path, storagedriver.storage_ip, ex))
+
+        # report ending memory usage
+        memory_usage_ending = StatisticsHelper.get_current_memory_usage(storagedriver.storage_ip)
+        FioOnVDiskChecks.LOGGER.info("Ending memory usage monitor for validate fio: {0}/{1}"
+                                     .format(memory_usage_ending[0], memory_usage_ending[1]))
+        pid = int(client.run("pgrep -a volumedriver | grep {0} | cut -d ' ' -f 1".format(vpool.name),
+                             allow_insecure=True))
+        FioOnVDiskChecks.LOGGER.info(
+            "Ending extended memory monitor on pid {0}: \n{1}"
+            .format(pid, StatisticsHelper.get_current_memory_usage_of_process(storagedriver.storage_ip, pid)))
 
 
 def run(blocked=False):
