@@ -21,7 +21,9 @@ from ci.setup.vdisk import VDiskSetup
 from ci.setup.vpool import VPoolSetup
 from ci.remove.vpool import VPoolRemover
 from ci.remove.vdisk import VDiskRemover
+from ci.setup.backend import BackendSetup
 from ovs.log.log_handler import LogHandler
+from ci.remove.backend import BackendRemover
 from ci.helpers.backend import BackendHelper
 from ci.validate.roles import RoleValidation
 from ci.helpers.storagerouter import StoragerouterHelper
@@ -33,10 +35,23 @@ class AddRemoveVPool(object):
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_add_extend_remove_vpool")
     ADD_EXTEND_REMOVE_VPOOL_TIMEOUT = 60
     VPOOL_NAME = "integrationtests-vpool"
-    PRESET_NAME = "default"
+    PRESET = \
+        {
+            "name": "ciaddremovevpool",
+            "compression": "snappy",
+            "encryption": "none",
+            "policies": [
+              [
+                1,1,1,1
+              ]
+            ],
+            "fragment_size": 2097152
+        }
     PREFIX = "integration-tests-vpool-"
     VDISK_SIZE = 1073741824  # 1 GB
     VDISK_CREATE_TIMEOUT = 60
+    PRESET_CREATE_TIMEOUT = 60
+    PRESET_REMOVE_TIMEOUT = 60
 
     def __init__(self):
         pass
@@ -108,9 +123,17 @@ class AddRemoveVPool(object):
         # global vdisk details
         vdisk_deployment_ip = storagerouter_ips[0]
 
-        # determine backends
+        # determine backends (2)
         hdd_backend = alba_backends[0]
         ssd_backend = alba_backends[1]
+
+        # add preset to all alba_backends (we only use the first two as seen above)
+        for alba_backend in alba_backends[0:2]:
+            AddRemoveVPool.LOGGER.info("Adding custom preset to backend {0}".format(alba_backend.name))
+            assert BackendSetup.add_preset(albabackend_name=alba_backend.name, preset_details=AddRemoveVPool.PRESET,
+                                           api=api, timeout=AddRemoveVPool.PRESET_CREATE_TIMEOUT), \
+                'Failed to add preset to backend {0}'.format(alba_backend.name)
+            AddRemoveVPool.LOGGER.info("Finshed adding custom preset to backend {0}".format(alba_backend.name))
 
         # vpool configs, regressing https://github.com/openvstorage/alba/issues/560 & more
         vpool_configs = {
@@ -123,7 +146,7 @@ class AddRemoveVPool(object):
                 "location": "backend",
                 "backend": {
                     "name": ssd_backend.name,
-                    "preset": AddRemoveVPool.PRESET_NAME
+                    "preset": AddRemoveVPool.PRESET['name']
                 }
             }
         }
@@ -136,7 +159,7 @@ class AddRemoveVPool(object):
                 assert AddRemoveVPool._add_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME,
                                                  fragment_cache_cfg=cfg, api=api,
                                                  albabackend_name=hdd_backend.name, timeout=timeout,
-                                                 preset_name=AddRemoveVPool.PRESET_NAME,
+                                                 preset_name=AddRemoveVPool.PRESET['name'],
                                                  storagerouter_ip=storagerouter_ip)
 
             # deploy a vdisk
@@ -160,6 +183,15 @@ class AddRemoveVPool(object):
                 assert VPoolRemover.remove_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME,
                                                  storagerouter_ip=storagerouter_ip,
                                                  api=api, timeout=timeout)
+
+        # delete presets
+        for alba_backend in alba_backends[0:2]:
+            AddRemoveVPool.LOGGER.info("Removing custom preset from backend {0}".format(alba_backend.name))
+            assert BackendRemover.remove_preset(albabackend_name=alba_backend.name,
+                                                preset_name=AddRemoveVPool.PRESET['name'],
+                                                api=api, timeout=AddRemoveVPool.PRESET_REMOVE_TIMEOUT), \
+                'Failed to remove preset from backend {0}'.format(alba_backend.name)
+            AddRemoveVPool.LOGGER.info("Finshed removing custom preset from backend {0}".format(alba_backend.name))
 
         AddRemoveVPool.LOGGER.info("Finished to validate add-extend-remove vpool")
 

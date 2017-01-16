@@ -201,7 +201,8 @@ class BackendRemover(object):
         result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if result[0] is False:
-            errormsg = "Removal of preset '{0}' for backend '{1}' failed with '{2}'".format(preset_name, albabackend_name, result[1])
+            errormsg = "Removal of preset '{0}' for backend '{1}' failed with '{2}'"\
+                .format(preset_name, albabackend_name, result[1])
             BackendRemover.LOGGER.error(errormsg)
             raise RuntimeError(errormsg)
         return result[0]

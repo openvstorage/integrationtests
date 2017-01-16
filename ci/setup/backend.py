@@ -106,9 +106,20 @@ class BackendSetup(object):
         """
         Add a new preset
 
-        :param albabackend_name: albabackend name
+        :param albabackend_name: albabackend name (e.g. 'mybackend')
         :type albabackend_name: str
-        :param preset_details: dictionary with details of a preset
+        :param preset_details: dictionary with details of a preset e.g.
+        {
+            "name": "mypreset",
+            "compression": "snappy",
+            "encryption": "none",
+            "policies": [
+              [
+                2,2,3,4
+              ]
+            ],
+            "fragment_size": 2097152
+        }
         :type preset_details: dict
         :param api: specify a valid api connection to the setup
         :type api: ci.helpers.api.OVSClient
