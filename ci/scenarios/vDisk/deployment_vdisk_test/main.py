@@ -19,10 +19,12 @@ import time
 from ci.main import CONFIG_LOC
 from ci.helpers.api import OVSClient
 from ci.setup.vdisk import VDiskSetup
+from ci.helpers.vdisk import VDiskHelper
 from ci.helpers.vpool import VPoolHelper
 from ci.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
 from ci.helpers.system import SystemHelper
+from ci.helpers.exceptions import VDiskNotFoundError
 from ovs.extensions.generic.sshclient import SSHClient
 
 
@@ -32,8 +34,9 @@ class VDiskDeploymentChecks(object):
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_vdisk_deployment")
     PREFIX = "integration-tests-deployment-"
     VDISK_SIZES = [2147483648000, 4294967296000, 8589934592000, 17179869184000, 34359738368000, 68719476736000]
-    VDISK_CREATE_TIMEOUT = 300
-    VDISK_SLEEP_BEFORE_DELETE = 8
+    VDISK_CREATE_TIMEOUT = 150
+    VDISK_CHECK_TIMEOUT = 10
+    VDISK_CHECK_AMOUNT = 30
     REQUIRED_PACKAGES = ['qemu', 'coreutils']
 
     def __init__(self):
@@ -56,7 +59,7 @@ class VDiskDeploymentChecks(object):
                 VDiskDeploymentChecks.validate_vdisk_deployment()
                 return {'status': 'PASSED', 'case_type': VDiskDeploymentChecks.CASE_TYPE, 'errors': None}
             except Exception as ex:
-                VDiskDeploymentChecks.LOGGER.error("Fio on vdisk checks failed with error: {0}".format(str(ex)))
+                VDiskDeploymentChecks.LOGGER.error("VDisk deployment failed with error: {0}".format(str(ex)))
                 return {'status': 'FAILED', 'case_type': VDiskDeploymentChecks.CASE_TYPE, 'errors': ex}
         else:
             return {'status': 'BLOCKED', 'case_type': VDiskDeploymentChecks.CASE_TYPE, 'errors': None}
@@ -70,7 +73,7 @@ class VDiskDeploymentChecks(object):
         :return:
         """
 
-        VDiskDeploymentChecks.LOGGER.info("Starting to validate the fio on vdisks")
+        VDiskDeploymentChecks.LOGGER.info("Starting to validate the vdisk deployment")
 
         with open(CONFIG_LOC, "r") as JSON_CONFIG:
             config = json.load(JSON_CONFIG)
@@ -95,7 +98,8 @@ class VDiskDeploymentChecks(object):
         client = SSHClient(storagedriver.storage_ip, username='root')
 
         # check if there are missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip, VDiskDeploymentChecks.REQUIRED_PACKAGES)
+        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
+                                                             VDiskDeploymentChecks.REQUIRED_PACKAGES)
         assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
             .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
 
@@ -111,6 +115,7 @@ class VDiskDeploymentChecks(object):
                                     storagerouter_ip=storagedriver.storagerouter.ip, api=api,
                                     timeout=VDiskDeploymentChecks.VDISK_CREATE_TIMEOUT)
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(api_disk_name))
+            VDiskDeploymentChecks._check_vdisk(vdisk_name=api_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(api_disk_name))
             VDiskRemover.remove_vdisk_by_name(api_disk_name+'.raw', vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(api_disk_name))
@@ -126,7 +131,7 @@ class VDiskDeploymentChecks(object):
                                               .format(qemu_disk_name, storage_ip, edge_port, size, protocol))
             client.run(create_command)
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(qemu_disk_name))
-            time.sleep(VDiskDeploymentChecks.VDISK_SLEEP_BEFORE_DELETE)
+            VDiskDeploymentChecks._check_vdisk(vdisk_name=qemu_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(qemu_disk_name))
             VDiskRemover.remove_vdisk_by_name(qemu_disk_name+'.raw', vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(qemu_disk_name))
@@ -141,10 +146,46 @@ class VDiskDeploymentChecks(object):
                                                                        storagedriver.storage_ip, size))
             client.run(["truncate", "-s", str(size), "/mnt/{0}/{1}.raw".format(vpool.name, truncate_disk_name)])
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(truncate_disk_name))
-            time.sleep(VDiskDeploymentChecks.VDISK_SLEEP_BEFORE_DELETE)
+            VDiskDeploymentChecks._check_vdisk(vdisk_name=truncate_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(truncate_disk_name))
             VDiskRemover.remove_vdisk_by_name(truncate_disk_name+'.raw', vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(truncate_disk_name))
+
+        VDiskDeploymentChecks.LOGGER.info("Finished to validate the vdisk deployment")
+
+    @staticmethod
+    def _check_vdisk(vdisk_name, vpool_name, timeout=VDISK_CHECK_TIMEOUT, times=VDISK_CHECK_AMOUNT):
+        """
+        Check if a certain vdisk exists
+
+        :param vdisk_name: name of a created vdisk (without file extension suffix)
+        :type vdisk_name: str
+        :param vpool_name: name of existing vpool
+        :type vpool_name: str
+        :param timeout: timeout during check of a newly created vdisk
+        :type timeout: int
+        :param times: check x amount of times with a timeout (total max time = timeout * times)
+        :type times: int
+        :return: does the vdisk exists after total max time
+        :rtype: bool
+        """
+
+        for i in xrange(times):
+            try:
+                VDiskHelper.get_vdisk_by_name(vdisk_name=vdisk_name+'.raw', vpool_name=vpool_name)
+            except VDiskNotFoundError:
+                VDiskDeploymentChecks.LOGGER.info("VDisk with name `{0}` on vPool `{1}` not yet found, "
+                                                  "sleeping for {2} seconds. Try {3}/{4}".format(vdisk_name,
+                                                                                                 vpool_name, timeout,
+                                                                                                 i+1, times))
+                time.sleep(timeout)
+            else:
+                VDiskDeploymentChecks.LOGGER.info("VDisk with name `{0}` on vPool `{1}` found on try {2}/{3} "
+                                                  "after {4} seconds".format(vdisk_name, vpool_name, i+1, times,
+                                                                             i+1 * timeout))
+                return True
+        raise VDiskNotFoundError("VDisk with name {0} has not been found on vPool {1} after {2} seconds"
+                                 .format(vdisk_name, vpool_name, times * timeout))
 
 
 def run(blocked=False):
