@@ -38,6 +38,9 @@ from ovs.log.log_handler import LogHandler
 class MigrateTester(object):
     """
     Migrate a VM via edge & KVM
+
+    Required packages: qemu-kvm libvirt0 python-libvirt virtinst genisoimage
+    Required commands after ovs installation and required packages: usermod -a -G ovs libvirt-qemu
     """
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_hypervisor_live_migrate"
