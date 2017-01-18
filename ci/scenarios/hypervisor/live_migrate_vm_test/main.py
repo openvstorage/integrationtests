@@ -57,6 +57,9 @@ class MigrateTester(object):
     }
     AMOUNT_TO_WRITE = 10 * 1024 ** 3  # in MegaByte
 
+    with open(CONFIG_LOC, "r") as JSON_CONFIG:
+        SETUP_CFG = json.load(JSON_CONFIG)
+
     # vm credentials & details
     VM_USERNAME = "root"
     VM_PASSWORD = "rooter"
@@ -64,9 +67,9 @@ class MigrateTester(object):
     VM_VRAM = 512  # In MB
 
     # hypervisor details
-    HYPERVISOR_TYPE = "KVM"
-    HYPERVISOR_USER = "root"
-    HYPERVISOR_PASSWORD = "rooter"
+    HYPERVISOR_TYPE = SETUP_CFG['ci']['hypervisor']
+    HYPERVISOR_USER = SETUP_CFG['ci']['user']['shell']['username']
+    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['user']['shell']['password']
 
     def __init__(self):
         pass
@@ -125,8 +128,10 @@ class MigrateTester(object):
         assert vpool is not None, "Not enough vPools to test. We need at least a vPool with 2 storagedrivers"
 
         # Choose source & destination storage driver
-        storagedriver_source = vpool.storagedrivers[0]
-        storagedriver_destination = random.choice(vpool.storagedrivers[1:])  # pick a random one
+        storagedriver_source = [storagedriver for storagedriver in SystemHelper.get_local_storagerouter().storagedrivers
+                                if storagedriver.vpool_guid == vpool.guid][0]  # always pick local client
+        storagedriver_destination = random.choice([storagedriver for storagedriver in vpool.storagedrivers
+                                                   if storagedriver.name != storagedriver_source.name])  # pick random
         MigrateTester.LOGGER.info('Chosen source storagedriver is: {0}'.format(storagedriver_source.storage_ip))
         MigrateTester.LOGGER.info('Chosen destination storagedriver is: {0}'
                                   .format(storagedriver_destination.storage_ip))
