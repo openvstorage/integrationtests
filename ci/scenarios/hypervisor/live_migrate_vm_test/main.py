@@ -436,6 +436,11 @@ class MigrateTester(object):
                         for thread_pair in threads:
                             thread_pair[0].join()
                 except Exception:
+                    # try stopping the VM on source/destination
+                    if vm_created is True:
+                        MigrateTester._stop_vm(source_hypervisor, MigrateTester.VM_NAME, False)
+                    if migrated is True:
+                        MigrateTester._stop_vm(destination_hypervisor, MigrateTester.VM_NAME, False)
                     raise
                 else:
                     # Cleanup the vdisk after all tests were successfully executed!
@@ -585,6 +590,25 @@ class MigrateTester(object):
         """
         try:
             hypervisor.sdk.delete_vm(vmid=vmid, delete_disks=False)
+        except Exception as ex:
+            MigrateTester.LOGGER.error(str(ex))
+            if blocking is True:
+                raise
+            else:
+                pass
+
+    @staticmethod
+    def _stop_vm(hypervisor, vmid, blocking=True):
+        """
+        Stop the created virtual machine
+
+        :param hypervisor: hypervisor instance
+        :param vmid: vm identifier
+        :param blocking: boolean to determine whether errors should raise or not
+        :return:
+        """
+        try:
+            hypervisor.sdk.shutdown(vmid=vmid)
         except Exception as ex:
             MigrateTester.LOGGER.error(str(ex))
             if blocking is True:
