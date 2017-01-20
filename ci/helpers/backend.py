@@ -210,7 +210,7 @@ class BackendHelper(object):
         :return: dict with disk info
         :rtype: dict
         """
-        alias_prefixes = ['ata', 'scsi']
+        alias_prefixes = ['ata', 'scsi', 'virtio']
         for type in alias_prefixes:
             found_aliases = [x for x in disk_object["aliases"] if x.rsplit('/', 1)[-1].startswith(type)]
             if len(found_aliases) == 0:
