@@ -39,12 +39,16 @@ TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testrail.json"
 EXCLUDE_FLAG = "-exclude"
 
 
-def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True):
+def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True,
+        exclude_scenarios=[]):
     """
     Run single, multiple or all test scenarios
 
     :param scenarios: run scenarios defined by the test_name, leave empty when ALL test scenarios need to be executed
                       (e.g. ['ci.scenarios.alba.asd_benchmark', 'ci.scenarios.arakoon.collapse'])
+    :type scenarios: list
+    :param exclude_scenarios: exclude scenarios defined by the test_name
+                              (e.g. when scenarios=['ALL'] is specified, you can exclude some tests)
     :type scenarios: list
     :param send_to_testrail: send results of test to testrail in a new testplan
     :type send_to_testrail: bool
@@ -79,6 +83,10 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
                     complete_scenarios.append(scenario)
 
         tests = complete_scenarios
+
+    # remote the tests that need to be excluded
+    for current_test in exclude_scenarios:
+        tests.remove(current_test)
 
     # print tests to be executed
     LOGGER.info("Executing the following tests: {0}".format(tests))
