@@ -338,10 +338,6 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
         child.expect('Please enter the cluster name')
         child.sendline(cluster)
 
-    idx = child.expect(["Select the configuration management system. Make a selection please:", "Adding extra node"])
-    if idx == 0:
-        _pick_option(child, config_mgmt)
-
     # 5 minutes to partition disks
     child.timeout = 300
 
@@ -401,9 +397,11 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
             child.sendline("")
             # port to be used for the ASDs - default 8600
             child.sendline("")
-            idx2 = child.expect(["Select the configuration management system. Make a selection please:"])
+            idx2 = child.expect(["Select the configuration management system. Make a selection please:", "ASD Manager setup completed"])
             if idx2 == 0:
                 _pick_option(child, config_mgmt)
+            else:
+                return
         elif idx == 2:
             return
     except:
