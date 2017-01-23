@@ -15,10 +15,12 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 import json
+import time
 from ci.main import CONFIG_LOC
 from ci.helpers.api import OVSClient
 from ci.setup.vdisk import VDiskSetup
 from ci.setup.vpool import VPoolSetup
+from ci.helpers.vpool import VPoolHelper
 from ci.remove.vpool import VPoolRemover
 from ci.remove.vdisk import VDiskRemover
 from ci.setup.backend import BackendSetup
@@ -52,6 +54,8 @@ class AddRemoveVPool(object):
     VDISK_CREATE_TIMEOUT = 60
     PRESET_CREATE_TIMEOUT = 60
     PRESET_REMOVE_TIMEOUT = 60
+    CHECK_VPOOL_TIMEOUT = 10
+    AMOUNT_CHECK_VPOOL = 30
 
     def __init__(self):
         pass
@@ -180,6 +184,7 @@ class AddRemoveVPool(object):
             for storagerouter_ip in storagerouter_ips:
                 AddRemoveVPool.LOGGER.info("Deleting vpool `{0}` on storagerouter `{1}`"
                                            .format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
+                AddRemoveVPool._check_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME)
                 assert VPoolRemover.remove_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME,
                                                  storagerouter_ip=storagerouter_ip,
                                                  api=api, timeout=timeout)
@@ -194,6 +199,43 @@ class AddRemoveVPool(object):
             AddRemoveVPool.LOGGER.info("Finshed removing custom preset from backend {0}".format(alba_backend.name))
 
         AddRemoveVPool.LOGGER.info("Finished to validate add-extend-remove vpool")
+
+    @staticmethod
+    def _check_vpool(vpool_name, timeout=CHECK_VPOOL_TIMEOUT, amount_checks=AMOUNT_CHECK_VPOOL):
+        """
+        Check if the vPool is in running state with a while loop
+        MAX TIME = timeout * amount_checks
+
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
+        :param timeout: max timeout between checks
+        :type timeout: int
+        :param amount_checks: max amount of checks before throwing error
+        :type amount_checks: int
+        :return: bool on success, RuntimeError on failure
+        :rtype: bool
+        :raises: RuntimeError
+        """
+
+        AddRemoveVPool.LOGGER.info("Starting to check if vPool `{0}` is in RUNNING state".format(vpool_name))
+        amount_checked = 0
+        while amount_checked <= amount_checks:
+            status = VPoolHelper.get_vpool_by_name(vpool_name=vpool_name).status
+            if status == 'RUNNING':
+                AddRemoveVPool.LOGGER.info("vPool `{0}` is in RUNNING state on try {1}/{2}!"
+                                           .format(vpool_name, amount_checked, amount_checks))
+                return True
+            else:
+                AddRemoveVPool.LOGGER.info("vPool `{0}` is NOT in RUNNING state, but in `{4}`! "
+                                           "Sleeping for {1} seconds, try {2}/{3}".format(vpool_name, timeout,
+                                                                                          amount_checked, amount_checks,
+                                                                                          status))
+                time.sleep(seconds=timeout)
+
+        error_msg = "VPool `{0}` failed to go into RUNNING state after {1} seconds!"\
+                    .format(vpool_name, timeout * amount_checks)
+        AddRemoveVPool.LOGGER.error(error_msg)
+        raise RuntimeError(error_msg)
 
     @staticmethod
     def _add_vpool(vpool_name, fragment_cache_cfg, api, storagerouter_ip, albabackend_name,
