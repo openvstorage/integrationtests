@@ -245,9 +245,16 @@ class Workflow(object):
         """
         if self.config['ci']['scenarios']:
             Workflow.LOGGER.info("Starting scenario's")
+
+            # add possible excluded scenarios
+            exclude_scenarios = []
+            if 'exclude_scenarios' in self.config:
+                exclude_scenarios = self.config['exclude_scenarios']
+
             print autotests.run(scenarios=self.config['scenarios'],
                                 send_to_testrail=self.config['ci']['send_to_testrail'],
-                                fail_on_failed_scenario=self.config['ci']['fail_on_failed_scenario'])
+                                fail_on_failed_scenario=self.config['ci']['fail_on_failed_scenario'],
+                                exclude_scenarios=exclude_scenarios)
             Workflow.LOGGER.info("Finished scenario's")
         else:
             Workflow.LOGGER.info("Skipped scenario's")
