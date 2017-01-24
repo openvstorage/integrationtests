@@ -89,12 +89,6 @@ class FioOnVDiskChecks(object):
         with open(CONFIG_LOC, "r") as JSON_CONFIG:
             config = json.load(JSON_CONFIG)
 
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
-
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
 
@@ -138,7 +132,7 @@ class FioOnVDiskChecks(object):
                            .format(protocol, storage_ip, edge_port, disk_name)])
                 FioOnVDiskChecks.LOGGER.info("Creating a tap blk device for image...")
                 tap_dir = client.run(["tap-ctl", "create", "-a", "openvstorage+{0}:{1}:{2}/{3}"
-                                     .format(protocol, storage_ip,edge_port, disk_name)])
+                                     .format(protocol, storage_ip, edge_port, disk_name)])
                 FioOnVDiskChecks.LOGGER.info("Created a tap blk device at location `{0}`".format(tap_dir))
                 FioOnVDiskChecks.LOGGER.info("Finished putting vdisk `{0}` in the vPool!".format(disk_name))
                 FioOnVDiskChecks.LOGGER.info("Starting fio test on vdisk `{0}` with blktap `{1}`".format(disk_name,
