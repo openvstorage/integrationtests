@@ -196,6 +196,12 @@ class RollbackChecks(object):
         VDiskRemover.remove_vdisk(vdisk_guid)
         RollbackChecks.LOGGER.info("Finished removing VDisk `{0}`".format(RollbackChecks.VDISK_NAME))
 
+        ##############################
+        # clone a vdisk and rollback #
+        ##############################
+
+        # @TODO: clone a vdisk and roll it back
+
 
 def run(blocked=False):
     """

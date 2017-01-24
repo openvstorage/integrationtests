@@ -56,7 +56,7 @@ class ScrubbingChecks(object):
         """
         if not blocked:
             try:
-                ScrubbingChecks.validate_scrubbing()
+                ScrubbingChecks._execute()
                 return {'status': 'PASSED', 'case_type': ScrubbingChecks.CASE_TYPE, 'errors': None}
             except Exception as ex:
                 ScrubbingChecks.LOGGER.error("Scrubbing checks failed with error: {0}".format(str(ex)))
@@ -65,21 +65,11 @@ class ScrubbingChecks(object):
             return {'status': 'BLOCKED', 'case_type': ScrubbingChecks.CASE_TYPE, 'errors': None}
 
     @staticmethod
-    def validate_scrubbing(amount_vdisks=AMOUNT_VDISKS_TO_SCRUB, size=SIZE_VDISK, amount_checks=MAX_SCRUBBING_CHECKS,
-                           timeout=SCRUBBING_TIMEOUT):
+    def _execute():
         """
         Validate if scrubbing works on a vpool
-
         INFO: 1 vPool should be available on 1 storagerouter
 
-        :param amount_vdisks: amount of vdisks to deploy and scrub
-        :type amount_vdisks: int
-        :param size: size of a single vdisk in bytes
-        :type size: int
-        :param amount_checks: amount of times to check if stored data has changed
-        :type amount_checks: int
-        :param timeout: specify a timeout
-        :type timeout: int
         :return:
         """
 
@@ -101,7 +91,6 @@ class ScrubbingChecks(object):
 
         # create vdisks and write some stuff on it
         storagedriver = vpool.storagedrivers[0]  # just pick the first storagedriver you find
-        client = SSHClient(storagedriver.storage_ip, username='root')
 
         # check for possible missing packages
         missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
@@ -109,16 +98,48 @@ class ScrubbingChecks(object):
         assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
             .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
 
+        # check scrubbing on normal vdisks
+        ScrubbingChecks._validate_scrub(vpool=vpool, storagedriver=storagedriver, api=api)
+
+        # check scrubbing on cloned vdisks
+        ScrubbingChecks._validate_scrub(vpool=vpool, storagedriver=storagedriver, api=api, cloned=True)
+
+    @staticmethod
+    def _validate_scrub(vpool, storagedriver, api, amount_vdisks=AMOUNT_VDISKS_TO_SCRUB, size=SIZE_VDISK,
+                        amount_checks=MAX_SCRUBBING_CHECKS, timeout=SCRUBBING_TIMEOUT, cloned=False):
+
+        """
+        :param vpool: chosen vpool
+        :type vpool: ovs.model.hybrid.vpool
+        :param storagedriver: chosen storagedriver
+        :type storagedriver: ovs.model.hybrid.storagedriver
+        :param amount_vdisks: amount of vdisks to deploy and scrub
+        :type amount_vdisks: int
+        :param size: size of a single vdisk in bytes
+        :type size: int
+        :param amount_checks: amount of times to check if stored data has changed
+        :type amount_checks: int
+        :param timeout: specify a timeout
+        :type timeout: int
+        :param cloned: test scrubbing with clones or not
+        :type cloned: bool
+        :return:
+        """
+
+        client = SSHClient(storagedriver.storage_ip, username='root')
+
         vdisk_stored_mapper = {}
         for vdisk in xrange(amount_vdisks):
-            vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=ScrubbingChecks.PREFIX+str(vdisk), vpool_name=vpool.name,
+            vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=ScrubbingChecks.PREFIX + str(vdisk), vpool_name=vpool.name,
                                                  size=size, api=api, storagerouter_ip=storagedriver.storage_ip)
             vdisk_obj = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
             try:
                 # write the double amount of possible diskspace
                 for _ in xrange(2):
-                    client.run(["fio", "--name=test", "--filename=/mnt/{0}/{1}.raw".format(vpool.name, ScrubbingChecks.PREFIX+str(vdisk)),
-                                "--ioengine=libaio", "--iodepth=4", "--rw=write", "--bs=4k", "--direct=1", "--size={0}b".format(ScrubbingChecks.SIZE_VDISK)])
+                    client.run(["fio", "--name=test", "--filename=/mnt/{0}/{1}.raw"
+                               .format(vpool.name, ScrubbingChecks.PREFIX + str(vdisk)),
+                                "--ioengine=libaio", "--iodepth=4", "--rw=write", "--bs=4k", "--direct=1",
+                                "--size={0}b".format(ScrubbingChecks.SIZE_VDISK)])
 
             except subprocess.CalledProcessError:
                 raise VDiskNotFoundError("VDisk `/mnt/{0}/{1}.raw` does not seem to be present "
@@ -127,8 +148,8 @@ class ScrubbingChecks(object):
                                                                                          str(vdisk),
                                                                                          storagedriver.storage_ip))
             # create snapshot after writing test
-            VDiskSetup.create_snapshot(snapshot_name=ScrubbingChecks.PREFIX+str(vdisk)+'-snapshot01',
-                                       vdisk_name=ScrubbingChecks.PREFIX+str(vdisk)+'.raw', vpool_name=vpool.name,
+            VDiskSetup.create_snapshot(snapshot_name=ScrubbingChecks.PREFIX + str(vdisk) + '-snapshot01',
+                                       vdisk_name=ScrubbingChecks.PREFIX + str(vdisk) + '.raw', vpool_name=vpool.name,
                                        api=api, consistent=False, sticky=False)
 
             # save the stored data to the mapper
@@ -161,8 +182,8 @@ class ScrubbingChecks(object):
 
             # check if amount of tries has exceeded
             if tries == amount_checks:
-                error_msg = "VDisk `{0}` should have been scrubbed but stored data != `{1} <= {2}`".format(
-                        vdisk_guid, current_statistics, vdisk_stored)
+                error_msg = "VDisk `{0}` should have been scrubbed but stored data > {1}`".format(vdisk_guid,
+                                                                                                  vdisk_stored)
                 ScrubbingChecks.LOGGER.error(error_msg)
                 raise RuntimeError(error_msg)
 
