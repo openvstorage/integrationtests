@@ -21,7 +21,6 @@ from ci.helpers.storagerouter import StoragerouterHelper
 from ci.validate.decorators import required_vdisk, required_snapshot, required_vtemplate
 
 
-
 class VDiskSetup(object):
 
     LOGGER = LogHandler.get(source="setup", name="ci_vdisk_setup")

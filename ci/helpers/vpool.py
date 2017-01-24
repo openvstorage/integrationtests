@@ -34,7 +34,7 @@ class VPoolHelper(object):
         Get all vpools on a cluster
 
         :return: vpools
-        :rtype: list
+        :rtype: list of ovs.dal.hybrids.vpool.VPool
         """
 
         return VPoolList.get_vpools()

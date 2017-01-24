@@ -44,7 +44,9 @@ class VDiskHelper(object):
 
         vpool = VPoolList.get_vpool_by_name(vpool_name)
         if vpool:
-            vdisk = VDiskList.get_by_devicename_and_vpool('/{0}'.format(vdisk_name), vpool)
+            if not vdisk_name.startswith("/"):
+                vdisk_name = "/{0}".format(vdisk_name)
+            vdisk = VDiskList.get_by_devicename_and_vpool(vdisk_name, vpool)
             if vdisk:
                 return vdisk
             else:
