@@ -15,17 +15,18 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 import json
+import time
 import subprocess
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
 from ci.helpers.api import OVSClient
-from ci.setup.vdisk import VDiskSetup
 from ci.helpers.vpool import VPoolHelper
+from ci.helpers.vdisk import VDiskHelper
 from ci.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
 from ci.helpers.system import SystemHelper
-from ci.helpers.statistics import StatisticsHelper
 from ci.helpers.exceptions import ImageConvertError
+from ci.helpers.exceptions import VDiskNotFoundError
 from ovs.extensions.generic.sshclient import SSHClient
 
 
@@ -34,10 +35,12 @@ class FioOnVDiskChecks(object):
     CASE_TYPE = 'AT_QUICK'
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_fio_on_vdisk")
     VDISK_SIZE = 1073741824  # 1 GB
-    AMOUNT_VDISKS = 10
+    AMOUNT_VDISKS = 5
     AMOUNT_TO_WRITE = 10  # in MegaByte
     PREFIX = "integration-tests-fio-"
     REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'qemu', 'fio']
+    VDISK_CHECK_TIMEOUT = 10
+    VDISK_CHECK_AMOUNT = 30
 
     def __init__(self):
         pass
@@ -106,16 +109,6 @@ class FioOnVDiskChecks(object):
         storagedriver = vpool.storagedrivers[0]
         client = SSHClient(storagedriver.storage_ip, username='root')
 
-        # report beginning memory usage
-        memory_usage_beginning = StatisticsHelper.get_current_memory_usage(storagedriver.storage_ip)
-        FioOnVDiskChecks.LOGGER.info("Starting memory usage monitor for validate fio: {0}/{1}"
-                                     .format(memory_usage_beginning[0], memory_usage_beginning[1]))
-        pid = int(client.run("pgrep -a volumedriver | grep {0} | cut -d ' ' -f 1".format(vpool.name),
-                             allow_insecure=True))
-        FioOnVDiskChecks.LOGGER.info(
-            "Starting extended memory monitor on pid {0}: \n{1}"
-            .format(pid, StatisticsHelper.get_current_memory_usage_of_process(storagedriver.storage_ip, pid)))
-
         # check if there are missing packages
         missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
                                                              FioOnVDiskChecks.REQUIRED_PACKAGES)
@@ -127,11 +120,12 @@ class FioOnVDiskChecks(object):
             .format(images[0], storagedriver.storage_ip)
         image_path = images[0]
 
-        # deploy vdisks via edge & link blktap
+        # =================
+        # VIA EDGE / BLKTAP
+        # =================
         for vdisk in xrange(amount_vdisks):
             try:
-                # check if image exists
-                disk_name = FioOnVDiskChecks.PREFIX+str(vdisk)
+                disk_name = FioOnVDiskChecks.PREFIX+str(vdisk)+"-blktap"
                 protocol = storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
                 storage_ip = storagedriver.storage_ip
                 edge_port = storagedriver.ports['edge']
@@ -174,16 +168,70 @@ class FioOnVDiskChecks(object):
                 raise ImageConvertError("Could not convert/tap image `{0}` on `{1}`, failed with error {2}"
                                         .format(image_path, storagedriver.storage_ip, ex))
 
-        # report ending memory usage
-        memory_usage_ending = StatisticsHelper.get_current_memory_usage(storagedriver.storage_ip)
-        FioOnVDiskChecks.LOGGER.info("Ending memory usage monitor for validate fio: {0}/{1}"
-                                     .format(memory_usage_ending[0], memory_usage_ending[1]))
-        pid = int(client.run("pgrep -a volumedriver | grep {0} | cut -d ' ' -f 1".format(vpool.name),
-                             allow_insecure=True))
-        FioOnVDiskChecks.LOGGER.info(
-            "Ending extended memory monitor on pid {0}: \n{1}"
-            .format(pid, StatisticsHelper.get_current_memory_usage_of_process(storagedriver.storage_ip, pid)))
+        # ========
+        # VIA FUSE
+        # ========
+        for vdisk in xrange(amount_vdisks):
+            try:
+                disk_name = FioOnVDiskChecks.PREFIX + str(vdisk) + "-fuse"
+                disk_location = "/mnt/{0}/{1}.raw".format(vpool.name, disk_name)
+                FioOnVDiskChecks.LOGGER.info("Truncating vdisk `{0}` on `{1}` vPool `{2}`..."
+                                             .format(disk_name, storagedriver.storage_ip, vpool.name))
+                client.run(["truncate", "-s", str(FioOnVDiskChecks.VDISK_SIZE), disk_location])
+                FioOnVDiskChecks.LOGGER.info("Finished putting vdisk `{0}` in the vPool!".format(disk_name))
+                FioOnVDiskChecks.LOGGER.info("Starting fio test on vdisk `{0}`".format(disk_name))
+                client.run(["fio", "--name=test", "--filename={0}".format(disk_location), "--ioengine=libaio",
+                            "--iodepth=4", "--rw=write", "--bs=4k", "--direct=1", "--size={0}M".format(amount_to_write),
+                            "--output-format=json", "--output={0}.json".format(disk_name)])
+                client.run(["fio", "--name=test", "--filename={0}".format(disk_location), "--ioengine=libaio",
+                            "--iodepth=4", "--rw=read", "--bs=4k", "--direct=1", "--size={0}M".format(amount_to_write),
+                            "--output-format=json", "--output={0}.json".format(disk_name)])
+                FioOnVDiskChecks.LOGGER.info("Finished fio test on vdisk `{0}` on location `{1}` with ip {2}"
+                                             .format(disk_name, disk_location, storagedriver.storage_ip))
+                FioOnVDiskChecks._check_vdisk(vdisk_name=disk_name, vpool_name=vpool.name)
+                FioOnVDiskChecks.LOGGER.info("Removing vdisk `{0}` from the vPool!".format(disk_name))
+                VDiskRemover.remove_vdisk_by_name(disk_name + '.raw', vpool.name)
+                FioOnVDiskChecks.LOGGER.info("Finished removing vdisk `{0}` from the vPool!".format(disk_name))
 
+            except subprocess.CalledProcessError as ex:
+                raise ImageConvertError("Failed to truncate vdisk on vPool `{0}` on storagedriver `{1}` with error: {2}"
+                                        .format(vpool.name, storagedriver.storage_ip, ex))
+
+        FioOnVDiskChecks.LOGGER.info("Finished validating fio on vdisks")
+
+    @staticmethod
+    def _check_vdisk(vdisk_name, vpool_name, timeout=VDISK_CHECK_TIMEOUT, times=VDISK_CHECK_AMOUNT):
+        """
+        Check if a certain vdisk exists
+
+        :param vdisk_name: name of a created vdisk (without file extension suffix)
+        :type vdisk_name: str
+        :param vpool_name: name of existing vpool
+        :type vpool_name: str
+        :param timeout: timeout during check of a newly created vdisk
+        :type timeout: int
+        :param times: check x amount of times with a timeout (total max time = timeout * times)
+        :type times: int
+        :return: does the vdisk exists after total max time
+        :rtype: bool
+        """
+
+        for i in xrange(times):
+            try:
+                VDiskHelper.get_vdisk_by_name(vdisk_name=vdisk_name + '.raw', vpool_name=vpool_name)
+            except VDiskNotFoundError:
+                FioOnVDiskChecks.LOGGER.info("VDisk with name `{0}` on vPool `{1}` not yet found, "
+                                             "sleeping for {2} seconds. Try {3}/{4}".format(vdisk_name,
+                                                                                            vpool_name, timeout,
+                                                                                            i + 1, times))
+                time.sleep(timeout)
+            else:
+                FioOnVDiskChecks.LOGGER.info("VDisk with name `{0}` on vPool `{1}` found on try {2}/{3} "
+                                             "after {4} seconds".format(vdisk_name, vpool_name, i + 1, times,
+                                                                        i + 1 * timeout))
+                return True
+        raise VDiskNotFoundError("VDisk with name {0} has not been found on vPool {1} after {2} seconds"
+                                 .format(vdisk_name, vpool_name, times * timeout))
 
 def run(blocked=False):
     """
