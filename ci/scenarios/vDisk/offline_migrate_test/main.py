@@ -34,7 +34,7 @@ class MigrateTester(object):
     TEST_NAME = "ci_scenario_vdisk_migrate_offline"
     AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
-    SLEEP_TIME = 30
+    SLEEP_TIME = 15
     REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'fio']
     AMOUNT_VDISKS = 5
 
@@ -147,7 +147,7 @@ class MigrateTester(object):
 
                 time.sleep(MigrateTester.SLEEP_TIME)
                 try:
-                    MigrateTester.LOGGER.info("Moving vdisk {0} from {1} to storagerouter {2}"
+                    MigrateTester.LOGGER.info("Moving vdisk {0} from {1} to {2}"
                                               .format(vdisk_guid, std_1.storage_ip, std_2.storage_ip))
                     VDiskSetup.move_vdisk(vdisk_guid=vdisk_guid,
                                           target_storagerouter_guid=std_2.storagerouter_guid, api=api)
@@ -227,7 +227,7 @@ class MigrateTester(object):
             else:
                 ValueError('Expected {0} but found {1} for vdisk.storagerouter_guid'.format(vdisk.storagerouter_guid,
                                                                                             vdisk.storagerouter_guid))
-        MigrateTester.LOGGER.info('Move vdisk was successful according to the dal (which fetches volumedriver info).')
+        MigrateTester.LOGGER.info('Move vdisk was successful according to the dal.')
 
     @staticmethod
     def _cleanup_vdisk(vdisk_name, vpool_name, blocking=True):
