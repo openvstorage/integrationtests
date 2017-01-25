@@ -35,7 +35,7 @@ class ScrubbingChecks(object):
     CASE_TYPE = 'AT_QUICK'
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_scrubbing")
     AMOUNT_VDISKS_TO_SCRUB = 5
-    SIZE_VDISK = 52428800
+    SIZE_VDISK = 52428800  # 50M
     PREFIX = "integration-tests-scrubbing-"
     MAX_SCRUBBING_CHECKS = 10
     SCRUBBING_TIMEOUT = 45
@@ -130,8 +130,15 @@ class ScrubbingChecks(object):
 
         vdisk_stored_mapper = {}
         for vdisk in xrange(amount_vdisks):
-            vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=ScrubbingChecks.PREFIX + str(vdisk), vpool_name=vpool.name,
+            vdisk_name = ScrubbingChecks.PREFIX + str(vdisk)
+            vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name, vpool_name=vpool.name,
                                                  size=size, api=api, storagerouter_ip=storagedriver.storage_ip)
+            # create a clone from it
+            if cloned:
+                VDiskSetup.create_snapshot(snapshot_name="clone_snap", vdisk_name=vdisk_name+'.raw',
+                                           vpool_name=vpool.name, api=api)
+
+
             vdisk_obj = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
             try:
                 # write the double amount of possible diskspace
