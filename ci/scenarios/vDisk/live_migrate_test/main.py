@@ -34,7 +34,7 @@ from ovs.log.log_handler import LogHandler
 class MigrateTester(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST_NAME = "ci_scenario_vm_live_migrate"
+    TEST_NAME = "ci_scenario_vdisk_migrate"
     AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SLEEP_TIME = 30
@@ -76,7 +76,7 @@ class MigrateTester(object):
         This data will be sent to testrails to process it thereafter
         :return:
         """
-        MigrateTester.LOGGER.info("Starting live migrate test.")
+        MigrateTester.LOGGER.info("Starting offline migrate test.")
         with open(CONFIG_LOC, "r") as config_file:
             config = json.load(config_file)
 
@@ -92,7 +92,7 @@ class MigrateTester(object):
             if len(vp.storagedrivers) >= 2:
                 vpool = vp
                 break
-        assert vpool is not None, "Not enough vPools to test. Requires 1 and found 0."
+        assert vpool is not None, "Not enough vPools to test. Requires 1 with at least 2 storagedrivers and found 0."
 
         # Setup base information
         # Executor storagedriver_1 is current system
@@ -101,10 +101,12 @@ class MigrateTester(object):
             if SystemHelper.get_local_storagerouter().guid == std.storagerouter_guid:
                 storagedriver_1 = std
                 break
-        assert storagedriver_1 is not None, 'Could not find the right storagedriver for storagerouter {0}'.format(SystemHelper.get_local_storagerouter().guid)
+        assert storagedriver_1 is not None, 'Could not find the right storagedriver for storagerouter {0}'\
+            .format(SystemHelper.get_local_storagerouter().guid)
         # Get a random other storagedriver to migrate to
         other_stds = [st for st in vpool.storagedrivers if st != storagedriver_1]
-        assert len(other_stds) >= 1, 'Only found one storagedriver for vpool {0}. This tests requires at least 2.'.format(vpool.name)
+        assert len(other_stds) >= 2, 'Only found one storagedriver for vpool {0}. This tests requires at least 2.'\
+            .format(vpool.name)
         storagedriver_2 = [st for st in vpool.storagedrivers if st != storagedriver_1][0]
         client = SSHClient(storagedriver_1.storage_ip, username='root')
 
@@ -115,8 +117,15 @@ class MigrateTester(object):
         }
 
         # Check if there are missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver_1.storage_ip, MigrateTester.REQUIRED_PACKAGES)
-        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}".format(len(missing_packages), storagedriver_1.storage_ip, missing_packages)
+        missing_packages = SystemHelper.get_missing_packages(storagedriver_1.storage_ip,
+                                                             MigrateTester.REQUIRED_PACKAGES)
+        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}".format(len(missing_packages),
+                                                                                         storagedriver_1.storage_ip,
+                                                                                         missing_packages)
+
+        ###############################
+        # start deploying & migrating #
+        ###############################
 
         for cmd_type, configurations in MigrateTester.DATA_TEST_CASES.iteritems():
             for configuration in configurations:
@@ -131,70 +140,75 @@ class MigrateTester(object):
                     values_to_check['vdisk'] = vdisk.serialize()
 
                     # Setup blocktap
-                    MigrateTester.LOGGER.info("Creating a tap blk device for the vdisk")
-                    tap_dir = client.run(["tap-ctl", "create", "-a", "openvstorage+{0}:{1}:{2}/{3}".format(protocol, storagedriver_1.storage_ip, storagedriver_1.ports['edge'], vdisk_name)])
-                    MigrateTester.LOGGER.info("Created a tap blk device at location `{0}`".format(tap_dir))
+                    # MigrateTester.LOGGER.info("Creating a tap blk device for the vdisk")
+                    # tap_dir = client.run(["tap-ctl", "create", "-a", "openvstorage+{0}:{1}:{2}/{3}"
+                    # .format(protocol, storagedriver_1.storage_ip, storagedriver_1.ports['edge'], vdisk_name)])
+                    # MigrateTester.LOGGER.info("Created a tap blk device at location `{0}`".format(tap_dir))
                 except Exception as ex:
                     # Attempt to cleanup test
-                    if isinstance(ex, subprocess.CalledProcessError):
-                        MigrateTester.LOGGER.info("Could not setup blk device.")
+                    # if isinstance(ex, subprocess.CalledProcessError):
+                    #    MigrateTester.LOGGER.info("Could not setup blk device.")
                     if isinstance(ex, RuntimeError):
-                        MigrateTester.LOGGER.info("Creation of vdisk failed. Cleaning up test")
-                    try:
-                        MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client, False)
-                        MigrateTester._cleanup_vdisk(vdisk_name, vpool.name, False)
-                    except:
-                        pass
+                        MigrateTester.LOGGER.info("Creation of vdisk failed.")
                     raise
 
                 # Start threading
-                threads = []
+                # threads = []
                 # Monitor IOPS activity
-                iops_activity = {
-                    "down": [],
-                    "descending": [],
-                    "rising": [],
-                    "highest": None,
-                    "lowest": None
-                }
-                threads.append(MigrateTester._start_thread(MigrateTester._check_downtimes, name='iops', args=[iops_activity, vdisk]))
+                # iops_activity = {
+                #    "down": [],
+                #    "descending": [],
+                #    "rising": [],
+                #    "highest": None,
+                #    "lowest": None
+                # }
+                # threads.append(MigrateTester._start_thread(MigrateTester._check_downtimes, name='iops',
+                #                                           args=[iops_activity, vdisk]))
                 # Run write data on a thread
-                threads.append(MigrateTester._start_thread(target=MigrateTester._write_data, name='fio', args=[client, vdisk_name, tap_dir, amount_to_write, cmd_type, configuration]))
+                # threads.append(MigrateTester._start_thread(target=MigrateTester._write_data, name='fio',
+                #                                           args=[client, vdisk_name, tap_dir, amount_to_write,
+                #                                                 cmd_type, configuration]))
                 time.sleep(MigrateTester.SLEEP_TIME)
                 try:
-                    MigrateTester.LOGGER.info("Moving vdisk {0} to storagerouter {1}".format(vdisk_guid, storagedriver_2.guid))
-                    VDiskSetup.move_vdisk(vdisk_guid=vdisk_guid, target_storagerouter_guid=storagedriver_2.storagerouter_guid, api=api)
+                    MigrateTester.LOGGER.info("Moving vdisk {0} from {1} to storagerouter {2}"
+                                              .format(vdisk_guid, storagedriver_1.storage_ip,
+                                                      storagedriver_2.storage_ip))
+                    VDiskSetup.move_vdisk(vdisk_guid=vdisk_guid,
+                                          target_storagerouter_guid=storagedriver_2.storagerouter_guid, api=api)
                     # Stop writing after 30 more s
-                    MigrateTester.LOGGER.info('Writing and monitoring for another {0}s.'.format(MigrateTester.SLEEP_TIME))
+                    # MigrateTester.LOGGER.info('Writing and monitoring for another {0}s.'
+                    #                           .format(MigrateTester.SLEEP_TIME))
                     time.sleep(MigrateTester.SLEEP_TIME)
                     # Validate move
                     MigrateTester.LOGGER.info("Validating move.")
                     MigrateTester._validate_move(values_to_check)
                     # Stop IO
-                    for thread_pair in threads:
-                        if thread_pair[0].isAlive():
-                            thread_pair[1].set()
+                    # for thread_pair in threads:
+                    #    if thread_pair[0].isAlive():
+                    #        thread_pair[1].set()
                     # Sleep to let the threads die
-                    time.sleep(5)
-                    MigrateTester.LOGGER.info('IOPS monitoring: {0}'.format(iops_activity))
+                    # time.sleep(5)
+                    # MigrateTester.LOGGER.info('IOPS monitoring: {0}'.format(iops_activity))
                     # Validate downtime
                     # Each log means +-4s downtime and slept twice
-                    if len(iops_activity["down"]) * 4 >= MigrateTester.SLEEP_TIME * 2:
-                        raise ValueError("Thread did not cause any IOPS to happen.")
+                    # if len(iops_activity["down"]) * 4 >= MigrateTester.SLEEP_TIME * 2:
+                    #    raise ValueError("Thread did not cause any IOPS to happen.")
                 except Exception as ex:
-                    MigrateTester.LOGGER.exception('Failed during {0} with configuration {1}'.format(cmd_type, configuration))
+                    MigrateTester.LOGGER.exception('Failed during {0} with configuration {1}'
+                                                   .format(cmd_type, configuration))
                     raise
-                finally:
-                    # Stop all threads
-                    MigrateTester.LOGGER.info("Stopping threads.")
-                    for thread_pair in threads:
-                        if thread_pair[1].isSet() is False:
-                            thread_pair[1].set()
-                    MigrateTester.LOGGER.info("Waiting for threads to fully terminate.")
-                    for thread_pair in threads:
-                        thread_pair[0].join()
-                    MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client)
+                else:
+                    # MigrateTester._cleanup_blktap(vdisk_name, storagedriver_1.storage_ip, client)
                     MigrateTester._cleanup_vdisk(vdisk_name, vpool.name)
+                # finally:
+                    # Stop all threads
+                    # MigrateTester.LOGGER.info("Stopping threads.")
+                    # for thread_pair in threads:
+                    #    if thread_pair[1].isSet() is False:
+                    #        thread_pair[1].set()
+                    # MigrateTester.LOGGER.info("Waiting for threads to fully terminate.")
+                    # for thread_pair in threads:
+                    #    thread_pair[0].join()
 
     @staticmethod
     def _validate_move(values_to_check):
@@ -210,12 +224,15 @@ class MigrateTester(object):
         try:
             MigrateTester._validate_dal(values_to_check)
         except ValueError as ex:
-            MigrateTester.LOGGER.warning('DAL did not automatically change after a move. Should be reported to engineers. Got {0}'.format(ex))
+            MigrateTester.LOGGER.warning('DAL did not automatically change after a move. '
+                                         'Should be reported to engineers. Got {0}'.format(ex))
             source_std.invalidate_dynamics([])
             target_std.invalidate_dynamics([])
             # Properties should have been reloaded
-            values_to_check['source_std'] = StoragedriverHelper.get_storagedriver_by_guid(values_to_check['source_std']['guid']).serialize()
-            values_to_check['target_std'] = StoragedriverHelper.get_storagedriver_by_guid(values_to_check['target_std']['guid']).serialize()
+            values_to_check['source_std'] = StoragedriverHelper.get_storagedriver_by_guid(
+                values_to_check['source_std']['guid']).serialize()
+            values_to_check['target_std'] = StoragedriverHelper.get_storagedriver_by_guid(
+                values_to_check['target_std']['guid']).serialize()
             MigrateTester._validate_dal(values_to_check)
 
     @staticmethod
