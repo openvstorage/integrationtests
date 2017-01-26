@@ -46,6 +46,7 @@ class MigrateTester(object):
     TEST_NAME = "ci_scenario_hypervisor_live_migrate"
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SLEEP_TIME = 60
+    VM_CONNECTING_TIMEOUT = 5
     REQUIRED_PACKAGES = ["qemu-kvm", "libvirt0", "python-libvirt", "virtinst", "genisoimage"]
     # read write patterns to test (read, write)
     DATA_TEST_CASES = [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]
@@ -452,6 +453,11 @@ class MigrateTester(object):
                         MigrateTester._cleanup_vm(destination_hypervisor, MigrateTester.VM_NAME, False)
         except Exception as ex:
             MigrateTester.LOGGER.exception('Live migrate test failed. Got {0}'.format(str(ex)))
+            # try stopping the VM on source/destination
+            if vm_created is True:
+                MigrateTester._stop_vm(source_hypervisor, MigrateTester.VM_NAME, False)
+            if migrated is True:
+                MigrateTester._stop_vm(destination_hypervisor, MigrateTester.VM_NAME, False)
             raise
         else:
             # cleanup data
