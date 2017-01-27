@@ -201,7 +201,7 @@ class ScrubbingChecks(object):
         :type size: int
         :param cloned: deploy cloned disks
         :type cloned: bool
-        :return: tuple with disk_to_be_scrubbed and potential clones ({}, [])
+        :return: tuple with disk_to_be_scrubbed and base disk guids ({}, [])
         :rtype: tuple
         """
 
