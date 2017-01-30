@@ -267,7 +267,6 @@ def _handle_ovs_setup(pub_ip, ql, cluster, ext_etcd='', branch='', config_mgmt='
     if exitcode == 0:
         for key in output.splitlines():
             if key == 'DISTRIB_RELEASE=16.04':
-                remote_con.process.execute('apt-get install -y etcd')
                 remote_con.process.execute('apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 4EFFB1E7')
                 remote_con.process.execute('echo "deb http://apt.openvstorage.com {0} main" > /etc/apt/sources.list.d/ovsaptrepo.list'.format(ql))
                 remote_con.process.execute('apt-get update')
