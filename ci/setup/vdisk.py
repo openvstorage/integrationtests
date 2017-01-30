@@ -54,7 +54,7 @@ class VDiskSetup(object):
         :type timeout: int
         :param vpool_name: name of a existing vpool
         :type vpool_name: str
-        :return: if success
+        :return: snapshot guid
         :rtype: str
         """
         vdisk_guid = VDiskHelper.get_vdisk_by_name(vdisk_name, vpool_name).guid

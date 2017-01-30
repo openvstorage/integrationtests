@@ -114,6 +114,12 @@ class VDiskTemplateChecks(object):
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_BEFORE_DELETE)
         VDiskRemover.remove_vtemplate_by_name(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, api=api)
 
+        ###########################################
+        # template vdisk from clone (should fail) #
+        ###########################################
+
+        # @TODO: add trying to set a cloned vdisk as template
+
         VDiskTemplateChecks.LOGGER.info("Finished to validate template vdisks")
 
 
