@@ -27,6 +27,7 @@ from requests.packages.urllib3.exceptions import InsecurePlatformWarning
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from requests.packages.urllib3.exceptions import SNIMissingWarning
 
+
 class HttpException(RuntimeError):
     """
     Custom Http Exception class

@@ -19,10 +19,10 @@ import time
 from ci.main import CONFIG_LOC
 from ci.helpers.api import OVSClient
 from ci.setup.vdisk import VDiskSetup
+from ci.helpers.api import HttpException
 from ci.helpers.vpool import VPoolHelper
 from ci.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
-from ci.validate.vdisk import VDiskValidation
 
 
 class VDiskTemplateChecks(object):
@@ -99,9 +99,9 @@ class VDiskTemplateChecks(object):
                                        storagerouter_ip=storagedriver_source.storagerouter.ip) is not None
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_AFTER_CREATE)
 
-        ##################
-        # template vdisk #
-        ##################
+        ##########################
+        # create vdisk template  #
+        ##########################
 
         VDiskSetup.set_vdisk_as_template(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, api=api)
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_AFTER_CREATE)
@@ -110,6 +110,20 @@ class VDiskTemplateChecks(object):
                                         new_vdisk_name=clone_vdisk_name + '.raw',
                                         storagerouter_ip=storagedriver_source.storagerouter.ip, api=api)
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_BEFORE_DELETE)
+
+        try:
+            ####################################################
+            # try to delete template with clones (should fail) #
+            ####################################################
+
+            VDiskRemover.remove_vtemplate_by_name(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, api=api)
+            error_msg = "Removing vtemplate `{0}` should have failed!"
+            VDiskTemplateChecks.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        except HttpException:
+            VDiskTemplateChecks.LOGGER.info("Removing vtemplate `{0}` has failed successfully "
+                                            "(because of leftover clones)!".format(vdisk_name))
+
         VDiskRemover.remove_vdisk_by_name(vdisk_name=clone_vdisk_name + '.raw', vpool_name=vpool.name)
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_BEFORE_DELETE)
         VDiskRemover.remove_vtemplate_by_name(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, api=api)
@@ -118,7 +132,30 @@ class VDiskTemplateChecks(object):
         # template vdisk from clone (should fail) #
         ###########################################
 
-        # @TODO: add trying to set a cloned vdisk as template
+        # create vdisk
+        VDiskSetup.create_vdisk(vdisk_name=vdisk_name+'.raw', vpool_name=vpool.name, api=api,
+                                size=VDiskTemplateChecks.VDISK_SIZE,
+                                storagerouter_ip=storagedriver_source.storagerouter.ip)
+
+        # create a clone from the vdisk
+        clone_vdisk_name = vdisk_name + '_clone'
+        VDiskSetup.create_clone(vdisk_name=vdisk_name+'.raw', vpool_name=vpool.name,
+                                new_vdisk_name=clone_vdisk_name+'.raw', api=api,
+                                storagerouter_ip=storagedriver_source.storagerouter.ip)
+
+        # try to create a vTemplate from a clone
+        try:
+            VDiskSetup.set_vdisk_as_template(vdisk_name=clone_vdisk_name+'.raw', vpool_name=vpool.name, api=api)
+            error_msg = "Setting vdisk `{0}` as template should have failed!".format(clone_vdisk_name)
+            VDiskTemplateChecks.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        except RuntimeError:
+            VDiskTemplateChecks.LOGGER.info("Setting vdisk `{0}` as template failed successfully "
+                                            "(because vdisk is clone)!".format(clone_vdisk_name))
+
+        # cleanup vdisk tree
+        VDiskRemover.remove_vdisk_by_name(vdisk_name=clone_vdisk_name+'.raw', vpool_name=vpool.name)
+        VDiskRemover.remove_vdisk_by_name(vdisk_name=vdisk_name+'.raw', vpool_name=vpool.name)
 
         VDiskTemplateChecks.LOGGER.info("Finished to validate template vdisks")
 
