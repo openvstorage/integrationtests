@@ -25,9 +25,7 @@ class VDiskControllerTester(object):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_rapid_create_delete_same_device"
-    AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
-    REQUIRED_PACKAGES = []
 
     def __init__(self):
         pass
@@ -36,10 +34,8 @@ class VDiskControllerTester(object):
     def main(blocked):
         """
         Run all required methods for the test
-
         status depends on attributes in class: ci.helpers.testtrailapi.TestrailResult
         case_type depends on attributes in class: ci.helpers.testtrailapi.TestrailCaseType
-
         :param blocked: was the test blocked by other test?
         :return: results of test
         :rtype: dict
@@ -56,8 +52,8 @@ class VDiskControllerTester(object):
     @staticmethod
     def _execute_test():
         """
-        Executes a offline migration
-        :return:
+        Mimics the healthcheck creating and deleting disks with the same name/devicename back to back
+        :return: None
         """
         local_sr = SystemHelper.get_local_storagerouter()
         VDiskControllerTester.LOGGER.info("Starting creation/deletion test.")
@@ -128,12 +124,10 @@ class VDiskControllerTester(object):
 def run(blocked=False):
     """
     Run a test
-
     :param blocked: was the test blocked by other test?
     :return: results of test
     :rtype: dict
     """
-
     return VDiskControllerTester().main(blocked)
 
 if __name__ == "__main__":
