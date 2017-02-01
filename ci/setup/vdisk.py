@@ -189,8 +189,11 @@ class VDiskSetup(object):
         :type timeout: int
         :param vpool_name: name of a existing vpool
         :type vpool_name: str
-        :return: if success
-        :rtype: bool
+        :return: details about cloned vdisk e.g
+        {u'backingdevice': u'/test2.raw',
+         u'name': u'test2',
+         u'vdisk_guid': u'c4414c07-3796-4dcd-96a1-2cb00f4dc82b'}
+        :rtype: dict
         """
 
         # fetch the requirements
