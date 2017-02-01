@@ -45,7 +45,6 @@ class HealthCheckCI(object):
                 result = HealthCheckCI.validate_healthcheck()
                 return {'status': 'PASSED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': result}
             except Exception as ex:
-                raise
                 HealthCheckCI.LOGGER.error('Healthcheck CI testing failed with error: {0}'.format(str(ex)))
                 return {'status': 'FAILED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': str(ex), 'blocking': False}
         else:
