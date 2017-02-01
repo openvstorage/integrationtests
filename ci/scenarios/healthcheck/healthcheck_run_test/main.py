@@ -23,7 +23,7 @@ from ovs.log.log_handler import LogHandler
 class HealthCheckCI(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_healthcheck")
+    LOGGER = LogHandler.get(source='scenario', name='ci_scenario_healthcheck')
     REQUIRED_PACKAGES = ['openvstorage-health-check']
 
     def __init__(self):
@@ -46,7 +46,7 @@ class HealthCheckCI(object):
                 result = HealthCheckCI.validate_healthcheck()
                 return {'status': 'PASSED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': result}
             except Exception as ex:
-                HealthCheckCI.LOGGER.error("Healthcheck CI testing failed with error: {0}".format(str(ex)))
+                HealthCheckCI.LOGGER.error('Healthcheck CI testing failed with error: {0}'.format(str(ex)))
                 return {'status': 'FAILED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': str(ex), 'blocking': False}
         else:
             return {'status': 'BLOCKED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': None}
@@ -62,59 +62,61 @@ class HealthCheckCI(object):
         :return:
         """
 
-        HealthCheckCI.LOGGER.info("Starting to validate the healthcheck")
+        HealthCheckCI.LOGGER.info('Starting to validate the healthcheck')
 
         storagerouter_master_ips = StoragerouterHelper.get_master_storagerouter_ips()
-        assert len(storagerouter_master_ips) >= 1, "Not enough MASTER storagerouters"
+        assert len(storagerouter_master_ips) >= 1, 'Not enough MASTER storagerouters'
         storagerouter_slave_ips = StoragerouterHelper.get_slave_storagerouter_ips()
 
         # setup base information
         node_ips = [storagerouter_master_ips[0], '127.0.0.1']
-        HealthCheckCI.LOGGER.info("Added master `{0}` & `127.0.0.1` to the nodes to be tested by the healthcheck"
+        HealthCheckCI.LOGGER.info('Added master `{0}` & `127.0.0.1` to the nodes to be tested by the healthcheck'
                                   .format(storagerouter_master_ips[0]))
 
         # add a slave if possible
         if len(storagerouter_slave_ips) != 0:
             node_ips.append(storagerouter_slave_ips[0])
-            HealthCheckCI.LOGGER.info("Added slave `{0}` to be checked by the healthcheck ..."
+            HealthCheckCI.LOGGER.info('Added slave `{0}` to be checked by the healthcheck ...'
                                       .format(storagerouter_slave_ips[0]))
         else:
-            HealthCheckCI.LOGGER.warning("Did not add a slave to the list of to be tested nodes because "
-                                         "none were available")
+            HealthCheckCI.LOGGER.warning('Did not add a slave to the list of to be tested nodes because '
+                                         'none were available')
 
         # check if there are missing packages
         for ip in node_ips:
-            HealthCheckCI.LOGGER.info("Starting the healthcheck on node `{0}`".format(ip))
+            HealthCheckCI.LOGGER.info('Starting the healthcheck on node `{0}`'.format(ip))
 
             missing_packages = SystemHelper.get_missing_packages(ip, HealthCheckCI.REQUIRED_PACKAGES)
-            assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
+            assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'\
                 .format(len(missing_packages), ip, missing_packages)
 
             ########################################
             # Testing command line, on remote node #
             ########################################
 
-            client = SSHClient(ip, username="root")
-
-            assert client.run(["ovs", "healthcheck"]) is not None
-            assert client.run(["ovs", "healthcheck", "silent"]) is not None
-            assert client.run(["ovs", "healthcheck", "unattended"]) is not None
+            client = SSHClient(ip, username='root')
+            assert client.run(['ovs', 'healthcheck']) is not None
+            assert client.run(['ovs', 'healthcheck', 'alba' '--help']) is not None
+            assert client.run(['ovs', 'healthcheck', 'alba', 'disk-safety-test', '--help']) is not None
+            assert client.run(['ovs', 'healthcheck', '--unattended']) is not None
+            assert client.run(['ovs', 'healthcheck', '--to-json']) is not None
 
             # looping the help seperate modules
-            help_options = filter(None, client.run(["ovs", "healthcheck", "help"]).split('\n'))
+            help_options = filter(None, client.run(['ovs', 'healthcheck', '--help']).split('\n'))
             for help_option in help_options:
-                if "Possible" not in help_option:
+                if 'Possible' not in help_option:
                     assert client.run(help_option.split()) is not None
-
-            HealthCheckCI.LOGGER.info("Finished running the healthcheck on node `{0}`".format(ip))
+            assert client.run(['ovs', 'healthcheck', 'alba' '--help']) is not None
+            assert client.run(['ovs', 'healthcheck', 'alba', 'disk-safety-test', '--help']) is not None
+            HealthCheckCI.LOGGER.info('Finished running the healthcheck on node `{0}`'.format(ip))
 
         ##########################
         # Testing by code import #
         ##########################
 
-        from ovs.lib.healthcheck import HealthCheckController
+        from ovs.extensions.healthcheck.expose_to_cli import HealthCheckCLIRunner
 
-        result = HealthCheckController.check_silent()
+        result = HealthCheckCLIRunner.run_method()
         assert result is not None, 'No results found in the healthcheck output'
         assert 'result' in result, 'the result section is missing in the healthcheck output'
         assert 'recap' in result, 'the recap section is missing in the healthcheck output'
@@ -123,7 +125,7 @@ class HealthCheckCI(object):
         assert result['recap']['FAILED'] == 0, '{0} failure(s) found during the healthcheck run: {1}'\
             .format(result['recap']['FAILED'], result)
 
-        HealthCheckCI.LOGGER.info("Finished validating the healthcheck")
+        HealthCheckCI.LOGGER.info('Finished validating the healthcheck')
 
         return result
 
@@ -138,5 +140,5 @@ def run(blocked=False):
     """
     return HealthCheckCI().main(blocked)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     run()
