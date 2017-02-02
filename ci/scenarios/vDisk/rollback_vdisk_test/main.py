@@ -97,10 +97,10 @@ class RollbackChecks(object):
         storagedriver = vpool.storagedrivers[0]  # just pick the first storagedriver you find
 
         # check for possible missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
+        missing_packages = SystemHelper.get_missing_packages(storagedriver.storagerouter.ip,
                                                              RollbackChecks.REQUIRED_PACKAGES)
         assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
-            .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
+            .format(len(missing_packages), storagedriver.storagerouter.ip, missing_packages)
 
         # start actual test
         for cloned in list(RollbackChecks.TYPE_TEST_RUN):
@@ -188,7 +188,7 @@ class RollbackChecks(object):
 
         RollbackChecks.LOGGER.info("Starting deploying {0} vdisks with clone status: {1}".format(amount_vdisks, cloned))
 
-        client = SSHClient(storagedriver.storage_ip, username='root')
+        client = SSHClient(storagedriver.storagerouter.ip, username='root')
         vdisks = []
         base_vdisks = []
         for vdisk_nr in xrange(amount_vdisks):
@@ -196,7 +196,7 @@ class RollbackChecks(object):
             vdisk_name = RollbackChecks.VDISK_NAME + str(vdisk_nr)
 
             vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name+'.raw', vpool_name=vpool.name,
-                                                 size=size, api=api, storagerouter_ip=storagedriver.storage_ip)
+                                                 size=size, api=api, storagerouter_ip=storagedriver.storagerouter.ip)
             # clone
             if cloned:
                 clone_vdisk_name = vdisk_name + '_clone'
@@ -206,7 +206,8 @@ class RollbackChecks(object):
                 RollbackChecks.LOGGER.info("Stored old base vdisk guid in list: {0}".format(vdisk_guid))
                 vdisk_guid = VDiskSetup.create_clone(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
                                                      new_vdisk_name=clone_vdisk_name,
-                                                     storagerouter_ip=storagedriver.storage_ip, api=api)['vdisk_guid']
+                                                     storagerouter_ip=storagedriver.storagerouter.ip,
+                                                     api=api)['vdisk_guid']
                 vdisk_name = clone_vdisk_name
 
             vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
@@ -226,7 +227,7 @@ class RollbackChecks(object):
                 except subprocess.CalledProcessError as ex:
                     raise VDiskNotFoundError("VDisk `/mnt/{0}/{1}.raw` does not seem to be present "
                                              "or has problems on storagerouter `{2}`: {3}"
-                                             .format(vpool.name, vdisk_name, storagedriver.storage_ip, str(ex)))
+                                             .format(vpool.name, vdisk_name, storagedriver.storagerouter.ip, str(ex)))
                 # create snapshot
                 RollbackChecks.LOGGER.info("Starting snapshot creation on vdisk `{0}`"
                                            .format(vdisk_name))

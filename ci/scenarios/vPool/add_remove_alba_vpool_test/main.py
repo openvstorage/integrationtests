@@ -230,7 +230,7 @@ class AddRemoveVPool(object):
                                            "Sleeping for {1} seconds, try {2}/{3}".format(vpool_name, timeout,
                                                                                           amount_checked, amount_checks,
                                                                                           status))
-                time.sleep(seconds=timeout)
+                time.sleep(timeout)
 
         error_msg = "VPool `{0}` failed to go into RUNNING state after {1} seconds!"\
                     .format(vpool_name, timeout * amount_checks)
