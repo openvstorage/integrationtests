@@ -213,7 +213,7 @@ class ScrubbingChecks(object):
         for vdisk_nr in xrange(amount_vdisks):
             vdisk_name = ScrubbingChecks.PREFIX + str(vdisk_nr)
             vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name, vpool_name=vpool.name,
-                                                 size=size, api=api, storagerouter_ip=storagedriver.storage_ip)
+                                                 size=size, api=api, storagerouter_ip=storagedriver.storagerouter.ip)
             ScrubbingChecks.LOGGER.info("Vdisk created with guid: {0}".format(vdisk_guid))
 
             # create a clone from it
@@ -225,7 +225,8 @@ class ScrubbingChecks(object):
                 ScrubbingChecks.LOGGER.info("Stored old base vdisk guid in list: {0}".format(vdisk_guid))
                 vdisk_guid = VDiskSetup.create_clone(vdisk_name=vdisk_name+'.raw', vpool_name=vpool.name,
                                                      new_vdisk_name=clone_vdisk_name,
-                                                     storagerouter_ip=storagedriver.storage_ip, api=api)['vdisk_guid']
+                                                     storagerouter_ip=storagedriver.storagerouter.ip,
+                                                     api=api)['vdisk_guid']
                 vdisk_name = clone_vdisk_name
 
             ScrubbingChecks.LOGGER.info("Fetching vdisk object with name {0} and guid {1}"

@@ -96,13 +96,7 @@ class MigrateTester(object):
         ##########################
 
         # Executor storagedriver_1 is current system
-        std_1 = None
-        for std in vpool.storagedrivers:
-            if SystemHelper.get_local_storagerouter().guid == std.storagerouter_guid:
-                std_1 = std
-                break
-        assert std_1 is not None, 'Could not find the right storagedriver for storagerouter {0}' \
-            .format(SystemHelper.get_local_storagerouter().guid)
+        std_1 = random.choice([st for st in vpool.storagedrivers])
 
         # Get a random other storagedriver to migrate to
         std_2 = random.choice([st for st in vpool.storagedrivers if st != std_1])
