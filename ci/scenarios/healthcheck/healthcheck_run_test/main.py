@@ -122,23 +122,17 @@ class HealthCheckCI(object):
                 return result
             else:
                 assert client.run(['ovs', 'healthcheck']) is not None
-                print 'unattended'
                 assert client.run(['ovs', 'healthcheck', '--unattended']) is not None
-                print 'tojson'
                 assert client.run(['ovs', 'healthcheck', '--to-json']) is not None
 
                 # looping the help seperate modules
-                print 'help'
                 help_options = filter(None, client.run(['ovs', 'healthcheck', '--help']).split('\n'))
                 ignored_help_options = ['ovs healthcheck X X -- will run all checks', 'ovs healthcheck MODULE X -- will run all checks for module']
-                print help_options
                 for help_option in help_options:
                     if 'Possible' in help_option or help_option in ignored_help_options:
                         continue
                     assert client.run(help_option.split()) is not None
-                print 'module hlp'
                 assert client.run(['ovs', 'healthcheck', 'alba', '--help']) is not None
-                print 'method help'
                 assert client.run(['ovs', 'healthcheck', 'alba', 'disk-safety-test', '--help']) is not None
                 HealthCheckCI.LOGGER.info('Finished running the healthcheck on node `{0}`'.format(ip))
                 ##########################
