@@ -28,7 +28,7 @@ class DomainHelper(object):
     @staticmethod
     def get_domainguid_by_name(domain_name):
         """
-        Fetch disk partitions by disk guid
+        Fetch domain guid by name
 
         :param domain_name: ip address of a storagerouter
         :type domain_name: str
@@ -41,9 +41,9 @@ class DomainHelper(object):
     @staticmethod
     def get_domain_by_name(domain_name):
         """
-        Fetch disk partitions by disk guid
+        Fetch domain by name
 
-        :param domain_name: ip address of a storagerouter
+        :param domain_name: correctly spelled name of a domain
         :type domain_name: str
         :return: domain object
         :rtype: ovs.dal.hybrids.domain.Domain
@@ -52,3 +52,40 @@ class DomainHelper(object):
         for domain in DomainList.get_domains():
             if domain.name == domain_name:
                 return domain
+
+    @staticmethod
+    def get_domain_by_guid(domain_guid):
+        """
+        Fetch disk partitions by disk guid
+
+        :param domain_guid: guid of a domain
+        :type domain_guid: str
+        :return: domain object
+        :rtype: ovs.dal.hybrids.domain.Domain
+        """
+
+        for domain in DomainList.get_domains():
+            if domain.guid == domain_guid:
+                return domain
+
+    @staticmethod
+    def get_domain_guids():
+        """
+        Fetch domain guids
+
+        :return: list of strings
+        :rtype: list
+        """
+
+        return [domain.guid for domain in DomainList.get_domains()]
+
+    @staticmethod
+    def get_domains():
+        """
+        Fetch domains
+
+        :return: list with ovs.dal.hybrids.domain.Domain objects
+        :rtype: list
+        """
+
+        return DomainList.get_domains()
