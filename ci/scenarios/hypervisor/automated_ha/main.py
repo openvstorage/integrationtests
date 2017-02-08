@@ -107,15 +107,32 @@ class HATester(object):
         """
         Execute the live migration test
         """
+
+        HATester.LOGGER.info('Starting Edge HA autotests test!')
+
         #################
         # PREREQUISITES #
         #################
 
-        str_1 = StoragerouterHelper.get_storagerouter_by_ip('10.100.69.120')
-        str_2 = StoragerouterHelper.get_storagerouter_by_ip('10.100.69.121')
-        str_3 = StoragerouterHelper.get_storagerouter_by_ip('10.100.69.122')  # Will act as compute node
+        str_1 = None  # Will act as volumedriver node
+        str_2 = None  # Will act as volumedriver node
+        str_3 = None  # Will act as compute node
 
-        HATester.LOGGER.info('Starting Edge HA autotests test!')
+        for node_ip, node_details in HATester.PARENT_HYPERVISOR_INFO['vms']:
+            if node_details['role'] == "VOLDRV":
+                if str_1 is None:
+                    str_1 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
+                    HATester.LOGGER.info('Node with IP `{0}` has been selected as VOLDRV node (str_1)'.format(node_ip))
+                elif str_2 is None:
+                    str_2 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
+                    HATester.LOGGER.info('Node with IP `{0}` has been selected as VOLDRV node (str_2)'.format(node_ip))
+            elif node_details['role'] == "COMPUTE" and str_3 is None:
+                str_3 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
+                HATester.LOGGER.info('Node with IP `{0}` has been selected as COMPUTE node (str_3)'.format(node_ip))
+            else:
+                HATester.LOGGER.info('Node with IP `{0}` is not required or has a invalid role: {1}'
+                                     .format(node_ip, node_details['role']))
+
         with open(CONFIG_LOC, 'r') as config_file:
             config = json.load(config_file)
         api = OVSClient(
@@ -134,8 +151,8 @@ class HATester(object):
         assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
 
         # Choose source & destination storage driver
-        std_1 = [storagedriver for storagedriver in str_1.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]  # always pick local client
-        std_2 = [storagedriver for storagedriver in str_2.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]  # pick random
+        std_1 = [storagedriver for storagedriver in str_1.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]
+        std_2 = [storagedriver for storagedriver in str_2.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]
         HATester.LOGGER.info('Chosen source storagedriver is: {0}'.format(std_1.storage_ip))
         HATester.LOGGER.info('Chosen destination storagedriver is: {0}'.format(std_2.storage_ip))
 

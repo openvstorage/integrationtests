@@ -16,9 +16,9 @@
       "user": "root",
       "password": "rooter",
       "vms": {
-        "10.100.199.151": "ovs-node-01",
-        "10.100.199.152": "ovs-node-02",
-        "10.100.199.153": "ovs-node-03"
+        "10.100.199.151": {"name": "ovs-node-01", "role": "COMPUTE"},
+        "10.100.199.152": {"name": "ovs-node-02", "role": "VOLDRV"},
+        "10.100.199.153": {"name": "ovs-node-03", "role": "VOLDRV"}
       }
     },
     "config_manager": "arakoon",
