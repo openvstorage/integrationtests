@@ -119,7 +119,7 @@ class HealthCheckCI(object):
                 if result['state'] == 'FAILED':
                     mapped_result['FAILED'].update({test_name: result})
             recap = hc_output['recap']
-            assert recap['EXCEPTION'] == 0, '{0} exception(s) found during the healthcheck run: {1}'.format(recap['EXCEPTION'], mapped_result['EXCEPTION'])
+            assert recap['EXCEPTION'] == 0, '{0} exception(s) found during the healthcheck run: {1}'.format(recap['EXCEPTION'], dict(mapped_result['EXCEPTION'], **mapped_result['FAILED']))
             assert recap['FAILED'] == 0, '{0} failure(s) found during the healthcheck run: {1}'.format(recap['FAILED'], mapped_result['FAILED'])
             HealthCheckCI.LOGGER.info('Finished validating the healthcheck')
             return hc_output
