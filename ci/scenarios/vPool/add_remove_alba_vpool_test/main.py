@@ -37,17 +37,11 @@ class AddRemoveVPool(object):
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_add_extend_remove_vpool")
     ADD_EXTEND_REMOVE_VPOOL_TIMEOUT = 60
     VPOOL_NAME = "integrationtests-vpool"
-    PRESET = \
-        {
-            "name": "ciaddremovevpool",
-            "compression": "snappy",
-            "encryption": "none",
-            "policies": [
-              [
-                1,1,1,1
-              ]
-            ],
-            "fragment_size": 2097152
+    PRESET = {"name": "ciaddremovevpool",
+              "compression": "snappy",
+              "encryption": "none",
+              "policies": [[1, 1, 1, 1]],
+              "fragment_size": 2097152
         }
     PREFIX = "integration-tests-vpool-"
     VDISK_SIZE = 1073741824  # 1 GB
@@ -135,7 +129,7 @@ class AddRemoveVPool(object):
         for alba_backend in alba_backends[0:2]:
             AddRemoveVPool.LOGGER.info("Adding custom preset to backend {0}".format(alba_backend.name))
             assert BackendSetup.add_preset(albabackend_name=alba_backend.name, preset_details=AddRemoveVPool.PRESET,
-                                           api=api, timeout=AddRemoveVPool.PRESET_CREATE_TIMEOUT), \
+                                           api=api, timeout=AddRemoveVPool.PRESET_CREATE_TIMEOUT) is True, \
                 'Failed to add preset to backend {0}'.format(alba_backend.name)
             AddRemoveVPool.LOGGER.info("Finshed adding custom preset to backend {0}".format(alba_backend.name))
 
@@ -165,7 +159,10 @@ class AddRemoveVPool(object):
                                                  albabackend_name=hdd_backend.name, timeout=timeout,
                                                  preset_name=AddRemoveVPool.PRESET['name'],
                                                  storagerouter_ip=storagerouter_ip)
-
+                # check #proxies
+                vpool = VPoolHelper.get_vpool_by_name(AddRemoveVPool.VPOOL_NAME)
+                for storagedriver in vpool.storagedrivers:
+                    assert len(storagedriver.alba_proxies) == 2, 'The vpool did not get setup with 2 proxies. Found {} instead.'.format(len(storagedriver.alba_proxies))
             # deploy a vdisk
             vdisk_name = AddRemoveVPool.PREFIX + cfg_name
             AddRemoveVPool.LOGGER.info("Starting to create vdisk `{0}` on vPool `{1}` with size `{2}` "
