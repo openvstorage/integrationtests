@@ -119,7 +119,6 @@ class Sdk(object):
         :return: connection object
         """
         _ = self
-        conn = None
         logger.debug('Init connection: {0}, {1}, {2}, {3}'.format(host, login, os.getgid(), os.getuid()))
         try:
             if login == '127.0.0.1':
@@ -308,6 +307,7 @@ class Sdk(object):
         """
         Get the machine power state
         :param vmid: vm identifier
+        :param readable: return a human readable state or an integer
         :return power state of the vm
         """
         if not isinstance(vmid, libvirt.virDomain):
@@ -506,7 +506,7 @@ class Sdk(object):
                 raise AssertionError("Name {0} is currently in use by another VM.".format(name))
             except AssertionError as ex:
                 raise RuntimeError(str(ex))
-            except libvirt.libvirtError as ex:
+            except libvirt.libvirtError:
                 return name
         else:
             if tries == 0:
@@ -516,7 +516,7 @@ class Sdk(object):
             try:
                 self._conn.lookupByName(name)
                 return self._generate_vm_clone_name(name, False, tries + 1)
-            except libvirt.libvirtError as ex:
+            except libvirt.libvirtError:
                 return name
 
     @staticmethod
@@ -605,6 +605,10 @@ class Sdk(object):
         when using existing storage, size can be removed
         :param cdrom_iso: path to the iso the mount
         :param os_type: type of os
+        :param autostart: start automatically after creating
+        :param ovs_vm: use openvstorage protocol to connect disks using edge
+        :param edge_port: port of the edge to connect to
+        :param hostname: host to connect the edge to
         :param os_variant: variant of the os
         :param vnc_listen:
         :param networks: lists of tuples : ("network=default", "mac=RANDOM" or a valid mac, "model=e1000" (any model for vmachines)
@@ -617,7 +621,7 @@ class Sdk(object):
             raise AssertionError("Name {0} is currently in use by another VM.".format(name))
         except AssertionError as ex:
             raise RuntimeError(str(ex))
-        except libvirt.libvirtError as ex:
+        except libvirt.libvirtError:
             pass
 
         if ovs_vm is True and (hostname is None or edge_port is None):
@@ -628,7 +632,7 @@ class Sdk(object):
                    "--name {}".format(name),
                    "--vcpus {}".format(vcpus),
                    "--ram {}".format(ram),
-                   "--graphics vnc,listen={0}".format(vnc_listen), # Have to specify 0.0.0.0 else it will listen on 127.0.0.1 only
+                   "--graphics vnc,listen={0}".format(vnc_listen),  # Have to specify 0.0.0.0 else it will listen on 127.0.0.1 only
                    "--noautoconsole"]
 
         for disk in disks:
@@ -709,7 +713,6 @@ class Sdk(object):
         Creates a command string based on options and a mapping
         :param option: all options
         :param mapping: mapping for the options
-        :param ovs_vm: should the vm use edge.
         :return: command string
         :rtype: str
         """
@@ -731,7 +734,7 @@ class Sdk(object):
                         opts[config['option']] = value
                     else:
                         raise ValueError(
-                            'Value does not match. Expected {0} and got {1} for option {2}'.format(config['type'], type(value),key))
+                            'Value does not match. Expected {0} and got {1} for option {2}'.format(config['type'], type(value), key))
         # Generate options to append to the command
         for key, value in opts.iteritems():
             cmd.append("{1}={2}".format(command, key, value))
@@ -765,7 +768,8 @@ class Sdk(object):
     def get_guest_ip_addresses(self, vmid, source=libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE):
         """
         Returns the IP given by the network lease
-        :param vmid:
+        :param vmid: identifier of the vm
+        :param source: source to base off
         :return: a list with all ip addresses
         """
         if not isinstance(vmid, libvirt.virDomain):
