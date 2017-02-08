@@ -171,13 +171,11 @@ class HATester(object):
         HATester.test_ha_fio(HATester.FIO_BIN['location'], vpool, compute_client, cluster_info, api)
 
     @staticmethod
-    def test_ha_vm(to_be_downed_client, compute_client, image_path, vpool, cloud_init_loc, cluster_info, api):
+    def test_ha_vm(to_be_downed_client, image_path, vpool, cloud_init_loc, cluster_info, api):
         """
         Tests the HA using a virtual machine which will write in his own filesystem
         :param to_be_downed_client: sshclient of the storagerouter that will go down in this test
         :type to_be_downed_client: ovs.extensions.generic.sshclient.SSHClient
-        :param compute_client: sshclient of the machine that will serve as computenode
-        :type compute_client: ovs.extensions.generic.sshclient.SSHClient
         :param image_path: path of the cloud init image
         :type image_path: str
         :param vpool: vpool DAL object of the vpool to use
@@ -195,6 +193,7 @@ class HATester(object):
         str_3 = cluster_info['storagerouters']['str3']
         std_1 = cluster_info['storagedrivers']['std1']
         std_2 = cluster_info['storagedrivers']['std2']
+
         # setup hypervisor details
         parent_hypervisor = HypervisorFactory.get(HATester.PARENT_HYPERVISOR_INFO['ip'], HATester.PARENT_HYPERVISOR_INFO['user'],
                                                   HATester.PARENT_HYPERVISOR_INFO['password'], HATester.PARENT_HYPERVISOR_INFO['type'])
@@ -235,6 +234,16 @@ class HATester(object):
             except RuntimeError as ex:
                 HATester.LOGGER.error('Could not create the data vdisk. Got {0}'.format(str(ex)))
                 raise
+            ####################
+            # Prep VM listener #
+            ####################
+            listening_port = HATester._get_free_port(str_3.ip)
+            #######################
+            # GENERATE CLOUD INIT #
+            #######################
+            iso_loc = HATester._generate_cloud_init(client=to_be_downed_client, convert_script_loc=cloud_init_loc, port=listening_port, hypervisor_ip=str_3.ip)
+            to_be_downed_client.run(['qemu-img', 'convert', iso_loc, 'openvstorage+{0}:{1}:{2}/{3}'.format(protocol, str_2.ip, std_2.ports['edge'], iso_loc.rsplit('/', 1)[1])])
+            cd_path = '/mnt/{0}/{1}.raw'.format(vpool.name, iso_loc.rsplit('/', 1)[1])
             # Take snapshot to revert back to after every migrate scenario
             boot_snapshot_guid = VDiskSetup.create_snapshot('{0}_boot'.format(HATester.TEST_NAME), boot_vdisk.devicename, vpool.name, api, consistent=False)
             data_snapshot_guid = VDiskSetup.create_snapshot('{0}_data'.format(HATester.TEST_NAME), data_vdisk.devicename, vpool.name, api, consistent=False)
@@ -265,80 +274,9 @@ class HATester(object):
                     except RuntimeError as ex:
                         HATester.LOGGER.error('Rolling back to snapshot has failed. Got {0}'.format(str(ex)))
                         raise
-                    ###########################
-                    # SETUP VMACHINE LISTENER #
-                    ###########################
-                    # Initialize listener for VM installation
-                    with remote(str_3.ip, [socket]) as rem:
-                        try:
-                            # Bind to first available port
-                            listening_socket = rem.socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                            listening_socket.bind((str_3.ip, 0))
-                        except socket.error as ex:
-                            HATester.LOGGER.error('Could not bind the socket. Got {0}'.format(str(ex)))
-                            raise
-                        port = listening_socket.getsockname()[1]
-                        listening_socket.listen(1)
-                        HATester.LOGGER.info('Socket now listening on port {0}, waiting to accept data.'.format(port))
-                        #######################
-                        # GENERATE CLOUD INIT #
-                        #######################
-                        try:
-                            # convert prepped iso
-                            iso_loc = HATester._generate_cloud_init(client=compute_client,
-                                                                    convert_script_loc=cloud_init_loc,
-                                                                    port=port,
-                                                                    hypervisor_ip=str_3.ip)
-                            files_generated = True
-                            compute_client.run(['qemu-img', 'convert', iso_loc, 'openvstorage+{0}:{1}:{2}/{3}'
-                                               .format(protocol, std_2.storage_ip, std_2.ports['edge'], iso_loc.rsplit('/', 1)[1])])
-                            cd_path = '/mnt/{0}/{1}.raw'.format(vpool.name, iso_loc.rsplit('/', 1)[1])
-                        except Exception as ex:
-                            HATester.LOGGER.error('Could not setup cloud init files. Got {0}'.format(str(ex)))
-                            raise
-                        ##################
-                        # SETUP VMACHINE #
-                        ##################
-                        try:
-                            HATester.LOGGER.info('Creating VM `{0}`'.format(HATester.VM_NAME))
-                            computenode_hypervisor.sdk.create_vm(HATester.VM_NAME,
-                                                                 vcpus=HATester.VM_VCPUS,
-                                                                 ram=HATester.VM_VRAM,
-                                                                 cdrom_iso=cd_path,
-                                                                 disks=disks,
-                                                                 networks=networks,
-                                                                 ovs_vm=True,
-                                                                 hostname=std_2.storage_ip,
-                                                                 edge_port=std_2.ports['edge'],
-                                                                 start=True)
-                            vm_created = True
-                            HATester.LOGGER.info('Created VM `{0}`!'.format(HATester.VM_NAME))
-                        except RuntimeError as ex:
-                            HATester.LOGGER.error('Creation of VM failed: {0}'.format(str(ex)))
-                            raise
-                        except libvirtError:
-                            # pass because of `libvirtError: internal error: client socket is closed`
-                            # but VM is succesfully created...
-                            pass
-                        ##########################################
-                        # WAIT FOR START OF VMACHINE AFTER SETUP #
-                        ##########################################
-                        # Wait for input from the VM for max x seconds
-                        client_connected = False
-                        start_time = time.time()
-                        vm_ip = None
-                        try:
-                            while not client_connected and time.time() - start_time < HATester.VM_WAIT_TIME:
-                                conn, addr = listening_socket.accept()
-                                vm_ip = addr[0]
-                                HATester.LOGGER.info('Connected with {0}:{1}'.format(addr[0], addr[1]))
-                                data = conn.recv(1024)
-                                if data == HATester.VM_CREATION_MESSAGE:
-                                    client_connected = True
-                        except:
-                            raise
-                        finally:
-                            listening_socket.close()
+                    edge_details = {'port': std_2.ports['edge'], 'hostname': std_2.storage_ip, 'protocol': protocol}
+                    vm_ip = HATester._create_vm(str_3.ip, disks, networks, edge_details, cd_path, listening_port)
+                    vm_created = True
                     if vm_ip is None or vm_ip not in computenode_hypervisor.sdk.get_guest_ip_addresses(HATester.VM_NAME):
                         raise RuntimeError('The VM did not connect to the source_hypervisor. Hypervisor has leased {0} and got {1}'
                                            .format(computenode_hypervisor.sdk.get_guest_ip_addresses(HATester.VM_NAME), vm_ip))
@@ -358,13 +296,7 @@ class HATester(object):
                         #############
                         threads = []
                         # Monitor IOPS activity
-                        iops_activity = {
-                            'down': [],
-                            'descending': [],
-                            'rising': [],
-                            'highest': None,
-                            'lowest': None
-                        }
+                        iops_activity = {'down': [], 'descending': [], 'rising': [], 'highest': None, 'lowest': None}
                         HATester.LOGGER.info('Starting threads.')
                         try:
                             threads.append(HATester._start_thread(HATester._check_downtimes, name='iops', args=(iops_activity, boot_vdisk)))
@@ -440,17 +372,40 @@ class HATester(object):
                 raise
 
     @staticmethod
-    def _create_vm(hypervisor_ip, cloud_init_script_loc, disks, networks, edge_details, vpool_name):
+    def _get_free_port(listener_ip):
+        """
+        Returns a free port
+        :param listener_ip: ip to listen on
+        :return: port number
+        """
+        with remote(listener_ip, [socket]) as rem:
+            listening_socket = None
+            try:
+                # Bind to first available port
+                listening_socket = rem.socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                listening_socket.bind((listener_ip, 0))
+                port = listening_socket.getsockname()[1]
+                return port
+            except socket.error as ex:
+                HATester.LOGGER.error('Could not bind the socket. Got {0}'.format(str(ex)))
+                raise
+            finally:
+                if listening_socket:
+                    try:
+                        listening_socket.close()
+                    except:
+                        pass
+
+    @staticmethod
+    def _create_vm(hypervisor_ip, disks, networks, edge_details, cd_path, listening_port):
         """
         Creates and wait for the VM to be fully connected
         :return:
         """
-        protocol = edge_details['protocol']
         edge_hostname = edge_details['hostname']
         edge_port = edge_details['port']
 
         computenode_hypervisor = HypervisorFactory.get(hypervisor_ip, HATester.HYPERVISOR_USER, HATester.HYPERVISOR_PASSWORD, HATester.HYPERVISOR_TYPE)
-        compute_client = SSHClient(hypervisor_ip)
         ###########################
         # SETUP VMACHINE LISTENER #
         ###########################
@@ -459,29 +414,13 @@ class HATester(object):
             try:
                 # Bind to first available port
                 listening_socket = rem.socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                listening_socket.bind((hypervisor_ip, 0))
+                listening_socket.bind((hypervisor_ip, listening_port))
             except socket.error as ex:
                 HATester.LOGGER.error('Could not bind the socket. Got {0}'.format(str(ex)))
                 raise
             port = listening_socket.getsockname()[1]
             listening_socket.listen(1)
             HATester.LOGGER.info('Socket now listening on port {0}, waiting to accept data.'.format(port))
-            #######################
-            # GENERATE CLOUD INIT #
-            #######################
-            try:
-                # convert prepped iso
-                iso_loc = HATester._generate_cloud_init(client=compute_client,
-                                                        convert_script_loc=cloud_init_script_loc,
-                                                        port=port,
-                                                        hypervisor_ip=hypervisor_ip)
-                files_generated = True
-                compute_client.run(['qemu-img', 'convert', iso_loc, 'openvstorage+{0}:{1}:{2}/{3}'
-                                   .format(protocol, edge_hostname, edge_port, iso_loc.rsplit('/', 1)[1])])
-                cd_path = '/mnt/{0}/{1}.raw'.format(vpool_name, iso_loc.rsplit('/', 1)[1])
-            except Exception as ex:
-                HATester.LOGGER.error('Could not setup cloud init files. Got {0}'.format(str(ex)))
-                raise
             ##################
             # SETUP VMACHINE #
             ##################
@@ -497,7 +436,6 @@ class HATester(object):
                                                      hostname=edge_hostname,
                                                      edge_port=edge_port,
                                                      start=True)
-                vm_created = True
                 HATester.LOGGER.info('Created VM `{0}`!'.format(HATester.VM_NAME))
             except RuntimeError as ex:
                 HATester.LOGGER.error('Creation of VM failed: {0}'.format(str(ex)))
