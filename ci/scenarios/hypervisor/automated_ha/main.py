@@ -18,7 +18,6 @@ import time
 import socket
 import threading
 import subprocess
-# noinspection PyUnresolvedReferences
 from datetime import datetime
 from libvirt import libvirtError
 from ci.helpers.api import OVSClient
@@ -39,10 +38,12 @@ from ovs.log.log_handler import LogHandler
 
 class HATester(object):
     """
-    Migrate a VM via edge & KVM
+    Exercice HA with a VM via edge & KVM
+
     Required packages: qemu-kvm libvirt0 python-libvirt virtinst genisoimage
     Required commands after ovs installation and required packages: usermod -a -G ovs libvirt-qemu
     """
+
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_hypervisor_ha_test'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
@@ -62,15 +63,11 @@ class HATester(object):
     }
     FIO_BIN = {'url': 'http://www.include.gr/fio.bin.latest', 'location': '/tmp/fio.bin.latest'}
     AMOUNT_TO_WRITE = 10 * 1024 ** 3
-    PARENT_HYPERVISOR_INFO = {'type': 'KVM',
-                              'ip': '10.100.69.84',
-                              'user': 'qemu',
-                              'password': 'rooter',
-                              'vms': {'10.100.69.120': 'jef-node1',
-                                      '10.100.69.121': 'jef-node2',
-                                      '10.100.69.122': 'jef-node3'}}
     with open(CONFIG_LOC, 'r') as JSON_CONFIG:
         SETUP_CFG = json.load(JSON_CONFIG)
+
+    # collect details about parent hypervisor
+    PARENT_HYPERVISOR_INFO = SETUP_CFG['ci']['hypervisor']
 
     # vm credentials & details
     VM_USERNAME = 'root'
@@ -79,7 +76,7 @@ class HATester(object):
     VM_VRAM = 1024  # In MB
 
     # hypervisor details
-    HYPERVISOR_TYPE = SETUP_CFG['ci']['hypervisor']
+    HYPERVISOR_TYPE = PARENT_HYPERVISOR_INFO['type']
     HYPERVISOR_USER = SETUP_CFG['ci']['user']['shell']['username']
     HYPERVISOR_PASSWORD = SETUP_CFG['ci']['user']['shell']['password']
 
@@ -113,9 +110,11 @@ class HATester(object):
         #################
         # PREREQUISITES #
         #################
+
         str_1 = StoragerouterHelper.get_storagerouter_by_ip('10.100.69.120')
         str_2 = StoragerouterHelper.get_storagerouter_by_ip('10.100.69.121')
         str_3 = StoragerouterHelper.get_storagerouter_by_ip('10.100.69.122')  # Will act as compute node
+
         HATester.LOGGER.info('Starting Edge HA autotests test!')
         with open(CONFIG_LOC, 'r') as config_file:
             config = json.load(config_file)
@@ -133,29 +132,36 @@ class HATester(object):
                 vpool = vp
                 break
         assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
+
         # Choose source & destination storage driver
         std_1 = [storagedriver for storagedriver in str_1.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]  # always pick local client
         std_2 = [storagedriver for storagedriver in str_2.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]  # pick random
         HATester.LOGGER.info('Chosen source storagedriver is: {0}'.format(std_1.storage_ip))
         HATester.LOGGER.info('Chosen destination storagedriver is: {0}'.format(std_2.storage_ip))
+
         # build ssh clients
         to_be_downed_client = SSHClient(str_2, username='root')
         compute_client = SSHClient(str_3, username='root')
+
         # check if enough images available
         images = settings['images']
         assert len(images) >= 1, 'Not enough images in `{0}`'.format(SETTINGS_LOC)
+
         # check if image exists
         image_path = images[0]
         assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
+
         # Get the cloud init file
         cloud_init_loc = HATester.CLOUD_INIT_DATA.get('script_dest')
         compute_client.run(['wget', HATester.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
         compute_client.file_chmod(cloud_init_loc, 755)
         assert compute_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
+
         # Get the fio binary
         compute_client.run(['wget', HATester.FIO_BIN['url'], '-O', HATester.FIO_BIN['location']])
         compute_client.file_chmod(HATester.FIO_BIN['location'], 755)
         assert compute_client.file_exists(HATester.FIO_BIN['location']), 'Could not get the latest fio binary.'
+
         # Check if there are missing packages for the hypervisor
         missing_packages = SystemHelper.get_missing_packages(str_3.ip, HATester.REQUIRED_PACKAGES)
         assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), str_3.ip, missing_packages)
