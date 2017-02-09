@@ -90,7 +90,7 @@ class Sdk(object):
         self.host = host
         self.login = login
         self.streams = {}
-        self.ssh_client = SSHClient(host, login, passwd)
+        self.ssh_client = SSHClient(host, username=login, password=passwd)
         self._conn = self.connect(login, host)
         # Enable event registering
         libvirt.virEventRegisterDefaultImpl()
