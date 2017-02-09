@@ -47,7 +47,8 @@ class HATester(object):
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_hypervisor_ha_test'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
-    SLEEP_TIME = 60
+    SLEEP_TIME = 15
+    HA_TIMEOUT = 300
     VM_CONNECTING_TIMEOUT = 5
     REQUIRED_PACKAGES = ['qemu-kvm', 'libvirt0', 'python-libvirt', 'virtinst', 'genisoimage']
     # read write patterns to test (read, write)
@@ -187,7 +188,11 @@ class HATester(object):
         cluster_info = {'storagerouters': {'str1': str_1, 'str2': str_2, 'str3': str_3}, 'storagedrivers': {'std1': std_1, 'std2': std_2}}
 
         # HATester.test_ha_vm(to_be_downed_client, image_path, vpool, cloud_init_loc, cluster_info, api)
-        HATester.test_ha_fio(HATester.FIO_BIN['location'], vpool, compute_client, cluster_info, api)
+        try:
+            HATester.test_ha_fio(HATester.FIO_BIN['location'], vpool, compute_client, cluster_info, api)
+        except Exception:
+            compute_client.file_delete(HATester.FIO_BIN['location'])
+            raise
 
     @staticmethod
     def test_ha_vm(to_be_downed_client, image_path, vpool, cloud_init_loc, cluster_info, api):
@@ -263,6 +268,7 @@ class HATester(object):
             #######################
             iso_loc = HATester._generate_cloud_init(client=to_be_downed_client, convert_script_loc=cloud_init_loc, port=listening_port, hypervisor_ip=str_3.ip)
             to_be_downed_client.run(['qemu-img', 'convert', iso_loc, 'openvstorage+{0}:{1}:{2}/{3}'.format(protocol, str_2.ip, std_2.ports['edge'], iso_loc.rsplit('/', 1)[1])])
+            cd_vdisk = VDiskHelper.get_vdisk_by_name(iso_loc.rsplit('/', 1)[1], vpool.name)
             files_generated = True
             cd_path = '/mnt/{0}/{1}.raw'.format(vpool.name, iso_loc.rsplit('/', 1)[1])
             # Take snapshot to revert back to after every migrate scenario
@@ -389,7 +395,7 @@ class HATester(object):
             raise
         else:
             if iso_loc is not None:
-                HATester._cleanup_vdisk(boot_vdisk_name + '.raw', vpool.name, False)
+                HATester._cleanup_vdisk(cd_vdisk.name, vpool.name, False)
         finally:
             # cleanup data
             try:
@@ -553,15 +559,17 @@ class HATester(object):
             'lowest': None
         }
         fio_started = False
+        vm_downed = False
         try:
             try:
                 # @todo multiple volumes
                 threads.append(HATester._start_thread(HATester._check_downtimes, name='iops', args=(iops_activity, data_vdisk)))
-                HATester._write_data(compute_client, 'fio', (50, 50), edge_configuration)
+                HATester._write_data(compute_client, 'fio', (50, 50), edge_configuration, data_to_write=HATester.AMOUNT_TO_WRITE)
                 fio_started = True
             except Exception as ex:
                 HATester.LOGGER.error('Could not start threading. Got {0}'.format(str(ex)))
                 raise
+            HATester.LOGGER.info('Writing for {0}s before bringing down the node.'.format(HATester.SLEEP_TIME))
             time.sleep(HATester.SLEEP_TIME)
             #########################
             # Bringing original owner of the volume down
@@ -569,13 +577,34 @@ class HATester(object):
             try:
                 HATester.LOGGER.info('Stopping {0}.'.format(vm_to_stop))
                 HATester._stop_vm(hypervisor=parent_hypervisor, vmid=vm_to_stop)
+                vm_downed = True
             except Exception as ex:
                 HATester.LOGGER.error('Failed to stop. Got {0}'.format(str(ex)))
                 raise
-            # Stop writing after 30 more s
-            HATester.LOGGER.info('Writing and monitoring for another {0}s.'.format(HATester.SLEEP_TIME))
-            time.sleep(HATester.SLEEP_TIME)
+            # Check IO is coming through again -- expecting a downtime
+            while len(iops_activity['down']) == 0:
+                # expecting a downtime at least once during the downing of the hosting voldriver
+                time.sleep(4)
+            downed_time = iops_activity['down'][0][0]
+            # snapshot the lists at this time
+            rising_iops = iops_activity['rising']
+            descending_iops = iops_activity['descending']
+            rising_snapshot = list(rising_iops)
+            descending_snapshot = list(descending_iops)
+            now = time.time()
+            while (len(rising_iops) == len(rising_snapshot) or len(descending_iops) == descending_snapshot) and time.time() - now < HATester.HA_TIMEOUT:
+                # Did not come up
+                HATester.LOGGER.info('Currently waited {0}'.format(time.time() - now))
+                time.sleep(1)
+            if time.time() - now >= HATester.HA_TIMEOUT:
+                raise RuntimeError('Did not failover in {0}s'.format(HATester.HA_TIMEOUT))
+            if len(rising_iops) > len(rising_snapshot):
+                upped_time = rising_iops[-1][0]
+            else:
+                upped_time = descending_iops[-1][0]
+            HATester.LOGGER.info('IOPS came through at {0}. Total downtime was {1}'.format(upped_time, (datetime.strptime(upped_time, '%Y-%m-%d %H:%M:%S') - datetime.strptime(downed_time, '%Y-%m-%d %H:%M:%S')).total_seconds()))
             # Stop IO
+            HATester.LOGGER.info('Stopping iops monitoring')
             for thread_pair in threads:
                 if thread_pair[0].isAlive():
                     thread_pair[1].set()
@@ -606,7 +635,8 @@ class HATester(object):
                 HATester.LOGGER.warning('Stopping the threads failed. Got {0}'.format(str(ex)))
             if fio_started is True:
                 compute_client.run(['screen', '-S', 'fio',  '-X', 'quit'])
-
+            if vm_downed is True:
+                HATester._start_vm(parent_hypervisor, vm_to_stop)
 
     @staticmethod
     def _validate_edge_ha():
@@ -723,6 +753,25 @@ class HATester(object):
         """
         try:
             hypervisor.sdk.shutdown(vmid=vmid)
+        except Exception as ex:
+            HATester.LOGGER.error(str(ex))
+            if blocking is True:
+                raise
+            else:
+                pass
+
+    @staticmethod
+    def _start_vm(hypervisor, vmid, blocking=True):
+        """
+        starts the created virtual machine
+        :param hypervisor: hypervisor instance
+        :param vmid: vm identifier
+        :param blocking: boolean to determine whether errors should raise or not
+        :return: None
+        :rtype: NoneType
+        """
+        try:
+            hypervisor.sdk.power_on(vmid=vmid)
         except Exception as ex:
             HATester.LOGGER.error(str(ex))
             if blocking is True:
@@ -863,7 +912,8 @@ class HATester(object):
                 additional_config = ['--ioengine=libaio']
                 cmd = ['fio'] + config + additional_config
             if screen is True:
-                cmd = 'screen -S fio -dm bash -c "while true; do {0}; done"'.format(' '.join(cmd))
+                # exec bash to keep it running
+                cmd = 'screen -S fio -dm bash -c "{0};exec bash"'.format(' '.join(cmd))
         else:
             raise ValueError('{0} is not supported for writing data.'.format(cmd_type))
         HATester.LOGGER.info('Writing data with: {0}'.format(cmd))
