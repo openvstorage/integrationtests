@@ -13,7 +13,6 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-from ovs.extensions.packages.package import PackageManager
 from ci.helpers.storagerouter import StoragerouterHelper
 from ci.helpers.system import SystemHelper
 from ovs.extensions.generic.sshclient import SSHClient
@@ -90,72 +89,40 @@ class HealthCheckCI(object):
             ########################################
 
             client = SSHClient(ip, username='root')
-            package_name = 'openvstorage-health-check'
-            installed = PackageManager.get_installed_versions(client=client, package_names=[package_name])
-            if 'fargo' in installed[package_name]:
-                # Fargo installation. Can be removed when RC4 is released
-                # @TODO remove tese checks when RC4 is released
-                assert client.run(["ovs", "healthcheck"]) is not None
-                assert client.run(["ovs", "healthcheck", "silent"]) is not None
-                assert client.run(["ovs", "healthcheck", "unattended"]) is not None
-                # looping the help seperate modules
-                help_options = filter(None, client.run(["ovs", "healthcheck", "help"]).split('\n'))
-                for help_option in help_options:
-                    if "Possible" not in help_option:
-                        assert client.run(help_option.split()) is not None
+            assert client.run(['ovs', 'healthcheck']) is not None
+            assert client.run(['ovs', 'healthcheck', '--unattended']) is not None
+            assert client.run(['ovs', 'healthcheck', '--to-json']) is not None
 
-                HealthCheckCI.LOGGER.info("Finished running the healthcheck on node `{0}`".format(ip))
-                ##########################
-                # Testing by code import #
-                ##########################
-                from ovs.lib.healthcheck import HealthCheckController
+            # looping the help seperate modules
+            help_options = filter(None, client.run(['ovs', 'healthcheck', '--help']).split('\n'))
+            ignored_help_options = ['ovs healthcheck X X -- will run all checks', 'ovs healthcheck MODULE X -- will run all checks for module']
+            for help_option in help_options:
+                if 'Possible' in help_option or help_option in ignored_help_options:
+                    continue
+                assert client.run(help_option.split()) is not None
+            assert client.run(['ovs', 'healthcheck', 'alba', '--help']) is not None
+            assert client.run(['ovs', 'healthcheck', 'alba', 'disk-safety-test', '--help']) is not None
+            HealthCheckCI.LOGGER.info('Finished running the healthcheck on node `{0}`'.format(ip))
+            ##########################
+            # Testing by code import #
+            ##########################
+            from ovs.extensions.healthcheck.expose_to_cli import HealthCheckCLIRunner
 
-                result = HealthCheckController.check_silent()
-                assert result is not None, 'No results found in the healthcheck output'
-                assert 'result' in result, 'the result section is missing in the healthcheck output'
-                assert 'recap' in result, 'the recap section is missing in the healthcheck output'
-                assert result['recap']['EXCEPTION'] == 0, '{0} exception(s) found during the healthcheck run: {1}' \
-                    .format(result['recap']['EXCEPTION'], result)
-                assert result['recap']['FAILED'] == 0, '{0} failure(s) found during the healthcheck run: {1}' \
-                    .format(result['recap']['FAILED'], result)
-                HealthCheckCI.LOGGER.info("Finished validating the healthcheck")
-                return result
-            else:
-                assert client.run(['ovs', 'healthcheck']) is not None
-                assert client.run(['ovs', 'healthcheck', '--unattended']) is not None
-                assert client.run(['ovs', 'healthcheck', '--to-json']) is not None
-
-                # looping the help seperate modules
-                help_options = filter(None, client.run(['ovs', 'healthcheck', '--help']).split('\n'))
-                ignored_help_options = ['ovs healthcheck X X -- will run all checks', 'ovs healthcheck MODULE X -- will run all checks for module']
-                for help_option in help_options:
-                    if 'Possible' in help_option or help_option in ignored_help_options:
-                        continue
-                    assert client.run(help_option.split()) is not None
-                assert client.run(['ovs', 'healthcheck', 'alba', '--help']) is not None
-                assert client.run(['ovs', 'healthcheck', 'alba', 'disk-safety-test', '--help']) is not None
-                HealthCheckCI.LOGGER.info('Finished running the healthcheck on node `{0}`'.format(ip))
-                ##########################
-                # Testing by code import #
-                ##########################
-
-                from ovs.extensions.healthcheck.expose_to_cli import HealthCheckCLIRunner
-
-                hc_output = HealthCheckCLIRunner.run_method()
-                assert hc_output is not None, 'No results found in the healthcheck output'
-                assert 'result' in hc_output, 'the result section is missing in the healthcheck output'
-                assert 'recap' in hc_output, 'the recap section is missing in the healthcheck output'
-                mapped_result = {'FAILED': {}, 'EXCEPTION': {}}
-                for test_name, result in hc_output['result'].iteritems():
-                    if result['state'] == 'EXCEPTION':
-                        mapped_result['EXCEPTION'].update({test_name: result})
-                    if result['state'] == 'FAILED':
-                        mapped_result['FAILED'].update({test_name: result})
-                recap = hc_output['recap']
-                assert recap['EXCEPTION'] == 0, '{0} exception(s) found during the healthcheck run: {1}'.format(recap['EXCEPTION'], mapped_result['EXCEPTION'])
-                assert recap['FAILED'] == 0, '{0} failure(s) found during the healthcheck run: {1}'.format(recap['FAILED'], mapped_result['FAILED'])
-                HealthCheckCI.LOGGER.info('Finished validating the healthcheck')
-                return hc_output
+            hc_output = HealthCheckCLIRunner.run_method()
+            assert hc_output is not None, 'No results found in the healthcheck output'
+            assert 'result' in hc_output, 'the result section is missing in the healthcheck output'
+            assert 'recap' in hc_output, 'the recap section is missing in the healthcheck output'
+            mapped_result = {'FAILED': {}, 'EXCEPTION': {}}
+            for test_name, result in hc_output['result'].iteritems():
+                if result['state'] == 'EXCEPTION':
+                    mapped_result['EXCEPTION'].update({test_name: result})
+                if result['state'] == 'FAILED':
+                    mapped_result['FAILED'].update({test_name: result})
+            recap = hc_output['recap']
+            assert recap['EXCEPTION'] == 0, '{0} exception(s) found during the healthcheck run: {1}'.format(recap['EXCEPTION'], dict(mapped_result['EXCEPTION'], **mapped_result['FAILED']))
+            assert recap['FAILED'] == 0, '{0} failure(s) found during the healthcheck run: {1}'.format(recap['FAILED'], mapped_result['FAILED'])
+            HealthCheckCI.LOGGER.info('Finished validating the healthcheck')
+            return hc_output
 
 
 def run(blocked=False):
