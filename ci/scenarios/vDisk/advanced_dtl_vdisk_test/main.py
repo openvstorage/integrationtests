@@ -62,6 +62,9 @@ class AdvancedDTLTester(object):
         'config_dest': '/tmp/cloud-init-config-migrate-test'
     }
     AMOUNT_TO_WRITE = 10 * 1024 ** 3  # 10 GB
+    IO_PATTERN = (70, 30)  # read, write
+    BLOCK_SIZE = 4  # in kb
+    IO_DEPTH = 4
     with open(CONFIG_LOC, 'r') as JSON_CONFIG:
         SETUP_CFG = json.load(JSON_CONFIG)
 
@@ -125,21 +128,18 @@ class AdvancedDTLTester(object):
         with open(SETTINGS_LOC, 'r') as JSON_SETTINGS:
             settings = json.load(JSON_SETTINGS)
 
-        str_1 = None  # Will act as volumedriver node
-        str_2 = None  # Will act as volumedriver node
-        str_3 = None  # Will act as compute node
+        storagerouter = None  # Will act as volumedriver node
+        compute = None  # Will act as compute node
 
         for node_ip, node_details in AdvancedDTLTester.PARENT_HYPERVISOR_INFO['vms'].iteritems():
-            if node_details['role'] == "VOLDRV":
-                if str_1 is None:
-                    str_1 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-                    AdvancedDTLTester.LOGGER.info('Node with IP `{0}` has been selected as VOLDRV node (str_1)'.format(node_ip))
-                elif str_2 is None:
-                    str_2 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-                    AdvancedDTLTester.LOGGER.info('Node with IP `{0}` has been selected as VOLDRV node (str_2)'.format(node_ip))
-            elif node_details['role'] == "COMPUTE" and str_3 is None:
-                str_3 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-                AdvancedDTLTester.LOGGER.info('Node with IP `{0}` has been selected as COMPUTE node (str_3)'.format(node_ip))
+            if node_details['role'] == "VOLDRV" and storagerouter is None:
+                storagerouter = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
+                AdvancedDTLTester.LOGGER.info('Node with IP `{0}` has been selected as VOLDRV node (str_1)'
+                                              .format(node_ip))
+            elif node_details['role'] == "COMPUTE" and compute is None:
+                compute = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
+                AdvancedDTLTester.LOGGER.info('Node with IP `{0}` has been selected as COMPUTE node (str_3)'
+                                              .format(node_ip))
             else:
                 AdvancedDTLTester.LOGGER.info('Node with IP `{0}` is not required or has a invalid role: {1}'
                                               .format(node_ip, node_details['role']))
@@ -153,15 +153,14 @@ class AdvancedDTLTester(object):
 
         assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
 
-        # Choose source & destination storage driver
-        std_1 = [storagedriver for storagedriver in str_1.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]
-        std_2 = [storagedriver for storagedriver in str_2.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]
-        AdvancedDTLTester.LOGGER.info('Chosen source storagedriver is: {0}'.format(std_1.storage_ip))
-        AdvancedDTLTester.LOGGER.info('Chosen destination storagedriver is: {0}'.format(std_2.storage_ip))
+        # Choose source
+        storagedriver = [storagedriver for storagedriver in storagerouter.storagedrivers
+                         if storagedriver.vpool_guid == vpool.guid][0]
+        AdvancedDTLTester.LOGGER.info('Chosen source storagedriver is: {0}'.format(storagedriver.storage_ip))
 
         # build ssh clients
-        to_be_downed_client = SSHClient(str_2.ip, username='root')
-        compute_client = SSHClient(str_3.ip, username='root')
+        to_be_downed_client = SSHClient(storagerouter.ip, username='root')
+        compute_client = SSHClient(compute.ip, username='root')
 
         # check if enough images available
         images = settings['images']
@@ -174,15 +173,19 @@ class AdvancedDTLTester(object):
 
         # Get the cloud init file
         cloud_init_loc = AdvancedDTLTester.CLOUD_INIT_DATA['script_dest']
-        compute_client.run(['wget', AdvancedDTLTester.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
-        compute_client.file_chmod(cloud_init_loc, 755)
-        assert compute_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script on {0}'\
-            .format(str_3.ip)
+        to_be_downed_client.run(['wget', AdvancedDTLTester.CLOUD_INIT_DATA['script_loc'], '-O', cloud_init_loc])
+        to_be_downed_client.file_chmod(cloud_init_loc, 755)
+        assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script on {0}'\
+            .format(compute.ip)
 
         # Check if there are missing packages for the hypervisor
-        missing_packages = SystemHelper.get_missing_packages(str_3.ip, AdvancedDTLTester.REQUIRED_PACKAGES)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), str_3.ip, missing_packages)
-        cluster_info = {'storagerouters': {'str1': str_1, 'str2': str_2, 'str3': str_3}, 'storagedrivers': {'std1': std_1, 'std2': std_2}}
+        missing_packages = SystemHelper.get_missing_packages(compute.ip, AdvancedDTLTester.REQUIRED_PACKAGES)
+        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
+                                                                                         compute.ip, missing_packages)
+        cluster_info = {
+            'storagerouters': {'source_str': storagerouter, 'compute': compute},
+            'storagedrivers': {'source_std': storagedriver}
+        }
 
         AdvancedDTLTester.test_ha_vm(to_be_downed_client=to_be_downed_client, image_path=image_path, vpool=vpool,
                                      cloud_init_loc=cloud_init_loc, cluster_info=cluster_info, api=api)
@@ -207,15 +210,18 @@ class AdvancedDTLTester(object):
         :return: None
         :rtype: NoneType
         """
-        str_2 = cluster_info['storagerouters']['str2']
-        str_3 = cluster_info['storagerouters']['str3']
-        std_1 = cluster_info['storagedrivers']['std1']
-        std_2 = cluster_info['storagedrivers']['std2']
+        source_str = cluster_info['storagerouters']['source_str']
+        compute = cluster_info['storagerouters']['compute']
+        source_std = cluster_info['storagedrivers']['source_std']
 
         # setup hypervisor details
-        parent_hypervisor = HypervisorFactory.get(AdvancedDTLTester.PARENT_HYPERVISOR_INFO['ip'], AdvancedDTLTester.PARENT_HYPERVISOR_INFO['user'],
-                                                  AdvancedDTLTester.PARENT_HYPERVISOR_INFO['password'], AdvancedDTLTester.PARENT_HYPERVISOR_INFO['type'])
-        computenode_hypervisor = HypervisorFactory.get(str_3.ip, AdvancedDTLTester.HYPERVISOR_USER, AdvancedDTLTester.HYPERVISOR_PASSWORD, AdvancedDTLTester.HYPERVISOR_TYPE)
+        parent_hypervisor = HypervisorFactory.get(AdvancedDTLTester.PARENT_HYPERVISOR_INFO['ip'],
+                                                  AdvancedDTLTester.PARENT_HYPERVISOR_INFO['user'],
+                                                  AdvancedDTLTester.PARENT_HYPERVISOR_INFO['password'],
+                                                  AdvancedDTLTester.PARENT_HYPERVISOR_INFO['type'])
+        computenode_hypervisor = HypervisorFactory.get(compute.ip, AdvancedDTLTester.HYPERVISOR_USER,
+                                                       AdvancedDTLTester.HYPERVISOR_PASSWORD,
+                                                       AdvancedDTLTester.HYPERVISOR_TYPE)
 
         ##############
         # SETUP TEST #
@@ -223,8 +229,7 @@ class AdvancedDTLTester(object):
 
         # Cache to validate properties
         values_to_check = {
-            'source_std': std_1.serialize(),
-            'target_std': std_2.serialize()
+            'source_std': source_std.serialize()
         }
 
         # Create a new vdisk to test
@@ -232,8 +237,8 @@ class AdvancedDTLTester(object):
         data_vdisk_name = '{0}_vdisk02'.format(AdvancedDTLTester.TEST_NAME)
         boot_vdisk_path = '/mnt/{0}/{1}.raw'.format(vpool.name, boot_vdisk_name)
         data_vdisk_path = '/mnt/{0}/{1}.raw'.format(vpool.name, data_vdisk_name)
-        protocol = std_2.cluster_node_config['network_server_uri'].split(':')[0]
-        disks = [{'mountpoint': boot_vdisk_path}, {'mountpoint': data_vdisk_path}]
+        protocol = source_std.cluster_node_config['network_server_uri'].split(':')[0]
+        disks = [{'mountpoint': boot_vdisk_path}]
         networks = [{'network': 'default', 'mac': 'RANDOM', 'model': 'e1000'}]
 
         # Milestones through the code
@@ -244,7 +249,7 @@ class AdvancedDTLTester(object):
             # Create VDISKS #
             #################
             try:
-                ovs_path = 'openvstorage+{0}:{1}:{2}/{3}'.format(protocol, std_2.storage_ip, std_2.ports['edge'],
+                ovs_path = 'openvstorage+{0}:{1}:{2}/{3}'.format(protocol, source_std.storage_ip, source_std.ports['edge'],
                                                                  boot_vdisk_name)
                 AdvancedDTLTester.LOGGER.info('Copying the image to the vdisk with command `qemu-img convert {0}`'
                                               .format(ovs_path))
@@ -255,132 +260,120 @@ class AdvancedDTLTester(object):
 
             boot_vdisk = VDiskHelper.get_vdisk_by_name(boot_vdisk_name + '.raw', vpool.name)
             AdvancedDTLTester.LOGGER.info('VDisk `{0}` successfully created!'.format(boot_vdisk.name))
-            try:
-                data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, AdvancedDTLTester.AMOUNT_TO_WRITE, str_2.ip, api))
-                AdvancedDTLTester.LOGGER.info('VDisk successfully created with guid `{0}`!'.format(data_vdisk.guid))
-            except RuntimeError as ex:
-                AdvancedDTLTester.LOGGER.error('Could not create the data vdisk. Got {0}'.format(str(ex)))
-                raise
 
             ####################
             # Prep VM listener #
             ####################
-            listening_port = AdvancedDTLTester._get_free_port(str_3.ip)
+            listening_port = AdvancedDTLTester._get_free_port(compute.ip)
 
             #######################
             # GENERATE CLOUD INIT #
             #######################
+            iso_loc = '/tmp/cloud-init-config-migrate-test'
             iso_loc = AdvancedDTLTester._generate_cloud_init(client=to_be_downed_client,
                                                              convert_script_loc=cloud_init_loc,
-                                                             port=listening_port, hypervisor_ip=str_3.ip)
+                                                             port=listening_port, hypervisor_ip=compute.ip)
             to_be_downed_client.run(['qemu-img', 'convert', iso_loc, 'openvstorage+{0}:{1}:{2}/{3}'
-                                    .format(protocol, str_2.ip, std_2.ports['edge'], iso_loc.rsplit('/', 1)[1])])
+                                    .format(protocol, source_std.storage_ip, source_std.ports['edge'],
+                                            iso_loc.rsplit('/', 1)[1])])
             cd_path = '/mnt/{0}/{1}.raw'.format(vpool.name, iso_loc.rsplit('/', 1)[1])
 
             ##############
             # START TEST #
             ##############
             try:
-                ###################################
-                # REVERT VDISK & RESET MILESTONES #
-                ###################################
-                # Certain milestones should be reset for every run
-                vm_created = False
+                #############
+                # CREATE VM #
+                #############
                 # Get the current state of the vdisk to compare later
                 values_to_check['vdisk'] = boot_vdisk.serialize()
-                edge_details = {'port': std_2.ports['edge'], 'hostname': std_2.storage_ip, 'protocol': protocol}
-                vm_ip = AdvancedDTLTester._create_vm(str_3.ip, disks, networks, edge_details, cd_path, listening_port)
+                edge_details = {'port': source_std.ports['edge'], 'hostname': source_std.storage_ip, 'protocol': protocol}
+                vm_ip = AdvancedDTLTester._create_vm(compute.ip, disks, networks, edge_details, cd_path, listening_port)
                 vm_created = True
-                if vm_ip is None or vm_ip not in computenode_hypervisor.sdk.get_guest_ip_addresses(AdvancedDTLTester.VM_NAME):
-                    raise RuntimeError('The VM did not connect to the source_hypervisor. Hypervisor has leased {0} and got {1}'
-                                       .format(computenode_hypervisor.sdk.get_guest_ip_addresses(AdvancedDTLTester.VM_NAME), vm_ip))
+                if vm_ip is None or vm_ip not in computenode_hypervisor.\
+                        sdk.get_guest_ip_addresses(AdvancedDTLTester.VM_NAME):
+                    raise RuntimeError('The VM did not connect to the source_hypervisor. '
+                                       'Hypervisor has leased {0} and got {1}'
+                                       .format(computenode_hypervisor.sdk.
+                                               get_guest_ip_addresses(AdvancedDTLTester.VM_NAME), vm_ip))
 
                 #######################
                 # CONNECT TO VMACHINE #
                 #######################
-
-                vm_client = SSHClient(vm_ip, AdvancedDTLTester.VM_USERNAME, AdvancedDTLTester.VM_PASSWORD)
-                AdvancedDTLTester.LOGGER.info('Connection was established with the VM.')
-                # install fio on the VM
-                AdvancedDTLTester.LOGGER.info('Installing fio on the VM.')
-                vm_client.run(['apt-get', 'install', 'fio', '-y', '--force-yes'])
-                AdvancedDTLTester.LOGGER.info('Installed fio on the VM!')
-
-                # Start threading - own try except to kill off rogue threads
-                try:
-                    #############
-                    # START FIO #
-                    #############
-                    threads = []
-                    # Monitor IOPS activity
-                    iops_activity = {'down': [], 'descending': [], 'rising': [], 'highest': None, 'lowest': None}
-                    AdvancedDTLTester.LOGGER.info('Starting threads.')
+                with remote(compute.ip, [SSHClient]) as rem:
+                    vm_client = rem.SSHClient(vm_ip, AdvancedDTLTester.VM_USERNAME, AdvancedDTLTester.VM_PASSWORD)
+                    AdvancedDTLTester.LOGGER.info('Connection was established with the VM.')
+                    # install fio on the VM
+                    AdvancedDTLTester.LOGGER.info('Installing fio on the VM.')
                     try:
-                        threads.append(AdvancedDTLTester._start_thread(AdvancedDTLTester._check_downtimes, name='iops', args=(iops_activity, boot_vdisk)))
-                        AdvancedDTLTester._write_data(vm_client, 'fio', configuration)
-                    except Exception as ex:
-                        AdvancedDTLTester.LOGGER.error('Could not start threading. Got {0}'.format(str(ex)))
-                        raise
-                    time.sleep(AdvancedDTLTester.SLEEP_TIME)
+                        vm_client.run(['apt-get', 'install', 'fio', '-y', '--force-yes'])
+                        AdvancedDTLTester.LOGGER.info('Installed fio on the VM!')
+                    except subprocess.CalledProcessError:
+                        AdvancedDTLTester.LOGGER.info('Fio is already installed!')
 
-                    ##############################################
-                    # Bringing original owner of the volume down #
-                    ##############################################
                     try:
-                        AdvancedDTLTester.LOGGER.info('Stopping {0}.'.format(AdvancedDTLTester.PARENT_HYPERVISOR_INFO['vms'][str_3.ip]))
-                        AdvancedDTLTester._stop_vm(hypervisor=parent_hypervisor, vmid=AdvancedDTLTester.PARENT_HYPERVISOR_INFO['vms'][str_3.ip])
-                    except Exception as ex:
-                        AdvancedDTLTester.LOGGER.error('Failed to stop. Got {0}'.format(str(ex)))
+                        #############
+                        # START FIO #
+                        #############
+                        AdvancedDTLTester.LOGGER.info('Starting fio.')
+                        try:
+                            AdvancedDTLTester._write_data(vm_client, 'fio', AdvancedDTLTester.IO_PATTERN)
+                        except Exception as ex:
+                            AdvancedDTLTester.LOGGER.error('Could not start threading. Got {0}'.format(str(ex)))
+                            raise
+                        time.sleep(AdvancedDTLTester.SLEEP_TIME)
+
+                        ##############################################
+                        # Bringing original owner of the volume down #
+                        ##############################################
+                        try:
+                            AdvancedDTLTester.LOGGER.info('Stopping {0}.'.format(AdvancedDTLTester.
+                                                                                 PARENT_HYPERVISOR_INFO['vms'][source_str.ip]))
+                            AdvancedDTLTester._stop_vm(hypervisor=parent_hypervisor,
+                                                       vmid=AdvancedDTLTester.PARENT_HYPERVISOR_INFO
+                                                       ['vms'][source_str.ip]['name'])
+                        except Exception as ex:
+                            AdvancedDTLTester.LOGGER.error('Failed to stop. Got {0}'.format(str(ex)))
+                            raise
+
+                        # Stop writing after some time
+                        AdvancedDTLTester.LOGGER.info('Writing and monitoring for another {0}s.'
+                                                      .format(AdvancedDTLTester.SLEEP_TIME))
+                        time.sleep(AdvancedDTLTester.SLEEP_TIME)
+
+                        #########################
+                        # VALIDATE OF MIGRATION #
+                        #########################
+                        AdvancedDTLTester._validate_move(values_to_check)
+                    except Exception:
+                        AdvancedDTLTester.LOGGER.error('Error occurred scenario: read: {0}, write {1}.'
+                                                       .format(AdvancedDTLTester.IO_PATTERN[0],
+                                                               AdvancedDTLTester.IO_PATTERN[1]))
                         raise
-                    # Stop writing after 30 more s
-                    AdvancedDTLTester.LOGGER.info('Writing and monitoring for another {0}s.'.format(AdvancedDTLTester.SLEEP_TIME))
-                    time.sleep(AdvancedDTLTester.SLEEP_TIME)
-                    # Stop IO
-                    for thread_pair in threads:
-                        if thread_pair[0].isAlive():
-                            thread_pair[1].set()
-
-                    # Wait for threads to die
-                    for thread_pair in threads:
-                        thread_pair[0].join()
-                    AdvancedDTLTester.LOGGER.info('IOPS monitoring: {0}'.format(iops_activity))
-
-                    #########################
-                    # VALIDATE OF MIGRATION #
-                    #########################
-                    # Validate move
-                    AdvancedDTLTester._validate_move(values_to_check)
-                    # Validate downtime
-                    # Each log means +-4s downtime and slept twice
-                    if len(iops_activity['down']) * 4 >= AdvancedDTLTester.SLEEP_TIME * 2:
-                        raise ValueError('Thread did not cause any IOPS to happen.')
-                except Exception:
-                    AdvancedDTLTester.LOGGER.error('Error occurred scenario: read: {0}, write {1}.'.format(configuration[0], configuration[1]))
-                    raise
             except Exception:
                 # try stopping the VM on source/destination
-                if vm_created is True:
-                    AdvancedDTLTester._stop_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
+                # if vm_created is True:
+                #     AdvancedDTLTester._stop_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
                 raise
-            else:
-                # Cleanup the vdisk after all tests were successfully executed!
-                if vm_created is True:
-                    AdvancedDTLTester._cleanup_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
-                if iso_loc is not None:
-                    AdvancedDTLTester._cleanup_vdisk(boot_vdisk_name + '.raw', vpool.name, False)
+            # else:
+            #     # Cleanup the vdisk after all tests were successfully executed!
+            #     if vm_created is True:
+            #         AdvancedDTLTester._cleanup_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
+            #     if iso_loc is not None:
+            #         AdvancedDTLTester._cleanup_vdisk(boot_vdisk_name, vpool.name, False)
         except Exception as ex:
             AdvancedDTLTester.LOGGER.exception('Live migrate test failed. Got {0}'.format(str(ex)))
             # try stopping the VM on source/destination
-            if vm_created is True:
-                AdvancedDTLTester._stop_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
-            raise
-        else:
-            # cleanup data
-            try:
-                if files_generated is True:
-                    AdvancedDTLTester._cleanup_generated_files(to_be_downed_client)
-            except Exception:
-                raise
+        #     if vm_created is True:
+        #         AdvancedDTLTester._stop_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
+        #     raise
+        # else:
+        #     # cleanup data
+        #     try:
+        #         if files_generated is True:
+        #             AdvancedDTLTester._cleanup_generated_files(to_be_downed_client)
+        #     except Exception:
+        #         raise
 
     @staticmethod
     def _get_free_port(listener_ip):
@@ -411,16 +404,18 @@ class AdvancedDTLTester(object):
     def _create_vm(hypervisor_ip, disks, networks, edge_details, cd_path, listening_port):
         """
         Creates and wait for the VM to be fully connected
+
         :return:
         """
         edge_hostname = edge_details['hostname']
         edge_port = edge_details['port']
 
-        computenode_hypervisor = HypervisorFactory.get(hypervisor_ip, AdvancedDTLTester.HYPERVISOR_USER, AdvancedDTLTester.HYPERVISOR_PASSWORD, AdvancedDTLTester.HYPERVISOR_TYPE)
+        computenode_hypervisor = HypervisorFactory.get(hypervisor_ip, AdvancedDTLTester.HYPERVISOR_USER,
+                                                       AdvancedDTLTester.HYPERVISOR_PASSWORD,
+                                                       AdvancedDTLTester.HYPERVISOR_TYPE)
         ###########################
         # SETUP VMACHINE LISTENER #
         ###########################
-        # Initialize listener for VM installation
         with remote(hypervisor_ip, [socket]) as rem:
             try:
                 # Bind to first available port
@@ -430,8 +425,10 @@ class AdvancedDTLTester(object):
                 AdvancedDTLTester.LOGGER.error('Could not bind the socket. Got {0}'.format(str(ex)))
                 raise
             port = listening_socket.getsockname()[1]
+            # listen on socket and wait for data
             listening_socket.listen(1)
             AdvancedDTLTester.LOGGER.info('Socket now listening on port {0}, waiting to accept data.'.format(port))
+
             ##################
             # SETUP VMACHINE #
             ##################
@@ -455,6 +452,7 @@ class AdvancedDTLTester(object):
                 # pass because of `libvirtError: internal error: client socket is closed`
                 # but VM is succesfully created...
                 pass
+
             ##########################################
             # WAIT FOR START OF VMACHINE AFTER SETUP #
             ##########################################
@@ -477,10 +475,6 @@ class AdvancedDTLTester(object):
         return vm_ip
 
     @staticmethod
-    def _validate_edge_ha():
-        pass
-
-    @staticmethod
     def _validate_move(values_to_check):
         """
         Validates the move test. Checks IO, and checks for dal changes
@@ -499,8 +493,10 @@ class AdvancedDTLTester(object):
             source_std.invalidate_dynamics([])
             target_std.invalidate_dynamics([])
             # Properties should have been reloaded
-            values_to_check['source_std'] = StoragedriverHelper.get_storagedriver_by_guid(values_to_check['source_std']['guid']).serialize()
-            values_to_check['target_std'] = StoragedriverHelper.get_storagedriver_by_guid(values_to_check['target_std']['guid']).serialize()
+            values_to_check['source_std'] = StoragedriverHelper.get_storagedriver_by_guid(
+                values_to_check['source_std']['guid']).serialize()
+            values_to_check['target_std'] = StoragedriverHelper.get_storagedriver_by_guid(
+                values_to_check['target_std']['guid']).serialize()
             AdvancedDTLTester._validate_dal(values_to_check)
 
     @staticmethod
@@ -538,8 +534,9 @@ class AdvancedDTLTester(object):
             if vdisk.storagerouter_guid == target_std.storagerouter.guid:
                 AdvancedDTLTester.LOGGER.info('All properties are updated for vdisk.')
             else:
-                ValueError('Expected {0} but found {1} for vdisk.storagerouter_guid'.format(vdisk.storagerouter_guid, vdisk.storagerouter_guid))
-        AdvancedDTLTester.LOGGER.info('Move vdisk was successful according to the dal (which fetches volumedriver info).')
+                ValueError('Expected {0} but found {1} for vdisk.storagerouter_guid'
+                           .format(vdisk.storagerouter_guid, vdisk.storagerouter_guid))
+        AdvancedDTLTester.LOGGER.info('Move vdisk was successful according to the dal')
 
     @staticmethod
     def _cleanup_vdisk(vdisk_name, vpool_name, blocking=True):
@@ -582,7 +579,7 @@ class AdvancedDTLTester(object):
     @staticmethod
     def _stop_vm(hypervisor, vmid, blocking=True):
         """
-        Stop the created virtual machine
+        Destroy the created virtual machine
         :param hypervisor: hypervisor instance
         :param vmid: vm identifier
         :param blocking: boolean to determine whether errors should raise or not
@@ -590,7 +587,7 @@ class AdvancedDTLTester(object):
         :rtype: NoneType
         """
         try:
-            hypervisor.sdk.shutdown(vmid=vmid)
+            hypervisor.sdk.destroy(vmid=vmid)
         except Exception as ex:
             AdvancedDTLTester.LOGGER.error(str(ex))
             if blocking is True:
@@ -613,7 +610,8 @@ class AdvancedDTLTester(object):
         return True
 
     @staticmethod
-    def _generate_cloud_init(client, convert_script_loc, port, hypervisor_ip, username='test', passwd='test', root_passwd='rooter'):
+    def _generate_cloud_init(client, convert_script_loc, port, hypervisor_ip, username='test',
+                             passwd='test', root_passwd='rooter'):
         """
         Generates a cloud init file with some userdata in (for a virtual machine)
         :param client: ovs ssh client for current node
@@ -629,7 +627,7 @@ class AdvancedDTLTester(object):
         :return: cloud init destination
         :rtype: str
         """
-        path = AdvancedDTLTester.CLOUD_INIT_DATA.get('user-data_loc')
+        path = AdvancedDTLTester.CLOUD_INIT_DATA['user-data_loc']
         # write out user-data
         lines = [
             '#!/bin/bash\n',
@@ -642,12 +640,7 @@ class AdvancedDTLTester(object):
             'sed -ie "s/PermitRootLogin prohibit-password/PermitRootLogin yes/" /etc/ssh/sshd_config',
             'sed -ie "s/PasswordAuthentication no/PasswordAuthentication yes/" /etc/ssh/sshd_config',
             'sudo service ssh restart',
-            'parted /dev/vdb mklabel gpt mkpart 1 ext4 1MiB 5G'
-            'mkfs.ext4 /dev/vdb1',
-            'mkdir /mnt/data'
-            'mount /dev/vdb1 /mnt/data'
             'echo -n {0} | netcat -w 0 {1} {2}'.format(AdvancedDTLTester.VM_CREATION_MESSAGE, hypervisor_ip, port)
-
         ]
         with open(path, 'w') as user_data_file:
             user_data_file.write('\n'.join(lines))
@@ -659,7 +652,8 @@ class AdvancedDTLTester(object):
             client.run(convert_cmd)
             return AdvancedDTLTester.CLOUD_INIT_DATA.get('config_dest')
         except subprocess.CalledProcessError as ex:
-            AdvancedDTLTester.LOGGER.error('Could not generate the cloud init file on {0}. Got {1} during iso conversion.'.format(client.ip, str(ex.output)))
+            AdvancedDTLTester.LOGGER.error('Could not generate the cloud init file on {0}. '
+                                           'Got {1} during iso conversion.'.format(client.ip, str(ex)))
             raise
 
     @staticmethod
@@ -703,24 +697,26 @@ class AdvancedDTLTester(object):
         :type client: ovs.extensions.generic.sshclient.SSHClient
         :param cmd_type: type of command. Was used to differentiate between dd and fio
         :type cmd_type: str
-        :param configuration: configuration params for fio. eg (10, 90) first value represents read, second one write percentage
+        :param configuration: configuration params for fio. eg (10, 90)
+                              first value represents read, second one write percentage
         :type configuration: tuple
         :param edge_configuration: configuration to fio over edge
         :type edge_configuration: dict
         :return: None
         :rtype: NoneType
         """
-        bs = 1 * 1024 ** 2
+        bs = AdvancedDTLTester.BLOCK_SIZE * 1024
         write_size = AdvancedDTLTester.AMOUNT_TO_WRITE
         AdvancedDTLTester.LOGGER.info('Starting to write on VM `{0}`'.format(client.ip))
         if cmd_type == 'fio':
-            config = ['--name=test', '--ioengine=libaio', '--iodepth=4', '--rw=readwrite', '--bs={0}'.format(bs),
-                      '--direct=1', '--size={0}'.format(write_size), '--rwmixread={0}'.format(configuration[0]),
-                      '--rwmixwrite={0}'.format(configuration[1])]
+            config = ['--name=test', '--ioengine=libaio', '--iodepth={0}'.format(AdvancedDTLTester.IO_DEPTH),
+                      '--rw=readwrite', '--bs={0}'.format(bs), '--direct=1', '--size={0}'.format(write_size),
+                      '--rwmixread={0}'.format(configuration[0]), '--rwmixwrite={0}'.format(configuration[1])]
             if edge_configuration:
                 # Append edge fio stuff
                 additional_config = ['--ioengine=openvstorage', '--hostname={0}'.format(edge_configuration['hostname']),
-                                     '--port={0}'.format(edge_configuration['port']), '--protocol={0}'.format(edge_configuration['protocol']),
+                                     '--port={0}'.format(edge_configuration['port']), '--protocol={0}'
+                                     .format(edge_configuration['protocol']),
                                      '--volumename={0}'.format(edge_configuration['volumename']), 'enable_ha=1']
                 cmd = [edge_configuration['fio_bin_location']] + config + additional_config
             else:
@@ -731,27 +727,6 @@ class AdvancedDTLTester(object):
             raise ValueError('{0} is not supported for writing data.'.format(cmd_type))
         AdvancedDTLTester.LOGGER.info('Writing data with: {0}'.format(cmd))
         client.run(cmd, allow_insecure=True)
-
-    @staticmethod
-    def _start_thread(target, name, args=()):
-        """
-        Starts a thread
-        :param target: target - usually a method
-        :type target: object
-        :param name: name of the thread
-        :type name: str
-        :param args: tuple of arguments
-        :type args: tuple
-        :return: a tuple with the thread and event
-        :rtype: tuple
-        """
-        AdvancedDTLTester.LOGGER.info('Starting thread with target {0}'.format(target))
-        event = threading.Event()
-        args = args + (event,)
-        thread = threading.Thread(target=target, args=tuple(args))
-        thread.setName(str(name))
-        thread.start()
-        return thread, event
 
 
 def run(blocked=False):

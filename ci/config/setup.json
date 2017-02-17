@@ -16,9 +16,9 @@
       "user": "root",
       "password": "rooter",
       "vms": {
-        "10.100.199.191": {"name": "ubuntu16.04-setup3-ovsnode01", "role": "VOLDRV"},
+        "10.100.199.191": {"name": "ubuntu16.04-setup3-ovsnode01", "role": "NONE"},
         "10.100.199.192": {"name": "ubuntu16.04-setup3-ovsnode02", "role": "VOLDRV"},
-        "10.100.199.193": {"name": "ubuntu16.04-setup3-ovsnode03", "role": "VOLDRV"},
+        "10.100.199.193": {"name": "ubuntu16.04-setup3-ovsnode03", "role": "NONE"},
         "10.100.199.194": {"name": "ubuntu16.04-setup3-ovsnode04", "role": "COMPUTE"}
       }
     },
@@ -275,7 +275,7 @@
       },
       "10.100.199.194": {
         "hostname": "ovs-node-4-1604",
-        "domains": {"domain_guids": ["Strasbourg"], "recovery_domain_guids": ["Roubaix", "Gravelines"]},
+        "domains": {"domain_guids": ["Roubaix"], "recovery_domain_guids": ["Strasbourg", "Gravelines"]},
         "disks": {
           "sda": {
             "roles": [
