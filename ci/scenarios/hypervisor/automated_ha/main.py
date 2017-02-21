@@ -14,6 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import json
+import math
 import time
 import socket
 import threading
@@ -25,8 +26,8 @@ from ci.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.helpers.vpool import VPoolHelper
 from ci.helpers.vdisk import VDiskHelper
 from ci.helpers.storagerouter import StoragerouterHelper
-from ci.helpers.storagedriver import StoragedriverHelper
 from ci.helpers.system import SystemHelper
+from ci.helpers.thread import ThreadHelper, Waiter
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
 from ci.setup.vdisk import VDiskSetup
@@ -50,7 +51,8 @@ class HATester(object):
     SLEEP_TIME = 30
     HA_TIMEOUT = 300
     VM_CONNECTING_TIMEOUT = 5
-    REQUIRED_PACKAGES = ['qemu-kvm', 'libvirt0', 'python-libvirt', 'virtinst', 'genisoimage']
+    REQUIRED_PACKAGES = []
+    # REQUIRED_PACKAGES = ['qemu-kvm', 'libvirt0', 'python-libvirt', 'virtinst', 'genisoimage']
     # read write patterns to test (read, write)
     DATA_TEST_CASES = [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]
     VM_NAME = 'HA-test'
@@ -70,11 +72,14 @@ class HATester(object):
     # collect details about parent hypervisor
     PARENT_HYPERVISOR_INFO = SETUP_CFG['ci']['hypervisor']
     VDISK_THREAD_LIMIT = 5  # Each monitor thread queries x amount of vdisks
+    FIO_VDISK_LiMIT = 50
     # vm credentials & details
     VM_USERNAME = 'root'
     VM_PASSWORD = 'rooter'
     VM_VCPUS = 4
     VM_VRAM = 1024  # In MB
+
+    IO_REFRESH_RATE = 5  # in seconds
 
     # hypervisor details
     HYPERVISOR_TYPE = PARENT_HYPERVISOR_INFO['type']
@@ -116,24 +121,23 @@ class HATester(object):
         # PREREQUISITES #
         #################
 
-        str_1 = StoragerouterHelper.get_storagerouter_by_ip('10.100.69.120')  # Will act as volumedriver node
-        str_2 = StoragerouterHelper.get_storagerouter_by_ip('10.100.69.121')  # Will act as volumedriver node
-        str_3 = StoragerouterHelper.get_storagerouter_by_ip('10.100.69.122')  # Will act as compute node
+        str_1 = None  # Will act as volumedriver node
+        str_2 = None  # Will act as volumedriver node
+        str_3 = None  # Will act as compute node
 
-        # for node_ip, node_details in HATester.PARENT_HYPERVISOR_INFO['vms']:
-        #     if node_details['role'] == "VOLDRV":
-        #         if str_1 is None:
-        #             str_1 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-        #             HATester.LOGGER.info('Node with IP `{0}` has been selected as VOLDRV node (str_1)'.format(node_ip))
-        #         elif str_2 is None:
-        #             str_2 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-        #             HATester.LOGGER.info('Node with IP `{0}` has been selected as VOLDRV node (str_2)'.format(node_ip))
-        #     elif node_details['role'] == "COMPUTE" and str_3 is None:
-        #         str_3 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-        #         HATester.LOGGER.info('Node with IP `{0}` has been selected as COMPUTE node (str_3)'.format(node_ip))
-        #     else:
-        #         HATester.LOGGER.info('Node with IP `{0}` is not required or has a invalid role: {1}'
-        #                              .format(node_ip, node_details['role']))
+        for node_ip, node_details in HATester.PARENT_HYPERVISOR_INFO['vms'].iteritems():
+            if node_details['role'] == "VOLDRV":
+                if str_1 is None:
+                    str_1 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
+                    HATester.LOGGER.info('Node with IP `{0}` has been selected as VOLDRV node (str_1)'.format(node_ip))
+                elif str_2 is None:
+                    str_2 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
+                    HATester.LOGGER.info('Node with IP `{0}` has been selected as VOLDRV node (str_2)'.format(node_ip))
+            elif node_details['role'] == "COMPUTE" and str_3 is None:
+                str_3 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
+                HATester.LOGGER.info('Node with IP `{0}` has been selected as COMPUTE node (str_3)'.format(node_ip))
+            else:
+                HATester.LOGGER.info('Node with IP `{0}` is not required or has a invalid role: {1}'.format(node_ip, node_details['role']))
 
         with open(CONFIG_LOC, 'r') as config_file:
             config = json.load(config_file)
@@ -167,8 +171,8 @@ class HATester(object):
         assert len(images) >= 1, 'Not enough images in `{0}`'.format(SETTINGS_LOC)
 
         # check if image exists
-        image_path = images[0]
-        assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
+        # image_path = images[0]
+        # assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
 
         # Get the cloud init file
         cloud_init_loc = HATester.CLOUD_INIT_DATA.get('script_dest')
@@ -332,7 +336,7 @@ class HATester(object):
                                 'edge_clients': {'down': [], 'up': []}}
                             HATester.LOGGER.info('Starting threads.')
                             try:
-                                threads.append(HATester._start_thread(HATester._monitor_changes, name='iops', args=(monitoring_data, boot_vdisk)))
+                                threads.append(ThreadHelper.start_thread(HATester._monitor_changes, name='iops', args=(monitoring_data, boot_vdisk)))
                                 HATester._write_data(vm_client, 'fio', configuration)
                             except Exception as ex:
                                 HATester.LOGGER.error('Could not start threading. Got {0}'.format(str(ex)))
@@ -497,170 +501,6 @@ class HATester(object):
         return vm_ip
 
     @staticmethod
-    def test_ha_fio(fio_bin_path, vpool, compute_client, cluster_info, api, disk_amount=25):
-        """
-        Uses a modified fio to work with the openvstorage protocol
-        :param fio_bin_path: path of the fio binary
-        :type fio_bin_path: str
-        :param compute_client: client of the machine to execute the fio
-        :type compute_client: ovs.extensions.generic.sshclient.SSHClient
-        :param vpool: vpool DAL object of the vpool to use
-        :type vpool: ovs.dal.hybrids.vpool.VPool
-        :param cluster_info: information about the cluster, contains all dal objects
-        :type cluster_info: dict
-        :param api: api object to call the ovs api
-        :type api: ci.helpers.api.OVSClient
-        :param disk_amount: amount of disks to test fail over with
-        :type disk_amount: int
-        :return: None
-        :rtype: NoneType
-        """
-        str_2 = cluster_info['storagerouters']['str2']
-        std_1 = cluster_info['storagedrivers']['std1']
-        std_2 = cluster_info['storagedrivers']['std2']
-
-        vm_to_stop = HATester.PARENT_HYPERVISOR_INFO['vms'][str_2.ip]['name']
-        parent_hypervisor = HypervisorFactory.get(HATester.PARENT_HYPERVISOR_INFO['ip'],
-                                                  HATester.PARENT_HYPERVISOR_INFO['user'], HATester.PARENT_HYPERVISOR_INFO['password'],
-                                                  HATester.PARENT_HYPERVISOR_INFO['type'])
-        values_to_check = {
-            'source_std': std_2.serialize(),
-            'target_std': std_1.serialize(),
-            'vdisks': []
-        }
-        # Create vdisks
-        protocol = std_2.cluster_node_config['network_server_uri'].split(':')[0]
-        edge_configuration = {'fio_bin_location': fio_bin_path, 'hostname': std_2.storage_ip,
-                              'port': std_2.ports['edge'],
-                              'protocol': protocol,
-                              'volumename': []}
-        fio_started = False
-        vm_downed = False
-        threads = []
-        try:
-            vdisk_info = {}
-            for index in xrange(0, disk_amount):
-                try:
-                    vdisk_name = '{0}_vdisk{1}'.format(HATester.TEST_NAME, str(index).zfill(3))
-                    data_vdisk = VDiskHelper.get_vdisk_by_guid(
-                        VDiskSetup.create_vdisk(vdisk_name, vpool.name, HATester.AMOUNT_TO_WRITE, str_2.ip, api))
-                    vdisk_info[vdisk_name] = data_vdisk
-                    edge_configuration['volumename'].append(data_vdisk.devicename.rsplit('.', 1)[0].split('/', 1)[1])
-                    values_to_check['vdisks'].append(data_vdisk.serialize())
-                except RuntimeError as ex:
-                    HATester.LOGGER.error('Could not create the vdisk. Got {0}'.format(str(ex)))
-                    raise
-            HATester.LOGGER.info('Starting threads.')  # Separate because creating vdisks takes a while, while creating the threads does not
-            monitoring_data = {}
-            io_monitoring = {}
-            for vdisk_name, vdisk_object in vdisk_info.iteritems():
-                # @todo bundle threads to spare memory
-                monitor_resource = {'io': {'down': [], 'descending': [], 'rising': [], 'highest': None, 'lowest': None},
-                                    'edge_clients': {'down': [], 'up': []}}
-                monitoring_data[vdisk_name] = monitor_resource
-                io_monitoring = {'down': [], 'descending': [], 'rising': [], 'highest': None, 'lowest': None}
-                threads.append(HATester._start_thread(HATester._monitor_changes, name='iops', args=(monitor_resource, vdisk_object)))
-            try:
-                HATester._write_data(compute_client, 'fio', (100, 0), edge_configuration, data_to_write=HATester.AMOUNT_TO_WRITE)
-                fio_started = True
-            except Exception as ex:
-                HATester.LOGGER.error('Could not start threading. Got {0}'.format(str(ex)))
-                raise
-            HATester.LOGGER.info('Writing for {0}s before bringing down the node.'.format(HATester.SLEEP_TIME))
-            time.sleep(HATester.SLEEP_TIME)
-            #########################
-            # Bringing original owner of the volume down
-            #########################
-            try:
-                HATester.LOGGER.info('Stopping {0}.'.format(vm_to_stop))
-                HATester._stop_vm(hypervisor=parent_hypervisor, vmid=vm_to_stop)
-                vm_downed = True
-            except Exception as ex:
-                HATester.LOGGER.error('Failed to stop. Got {0}'.format(str(ex)))
-                raise
-            # Check IO is coming through again -- expecting a downtime
-            while len(io_monitoring['down']) == 0:
-                # expecting a downtime at least once during the downing of the hosting voldriver
-                time.sleep(4)
-            downed_time = io_monitoring['down'][0][0]
-            # snapshot the lists at this time
-            rising_iops = io_monitoring['rising']
-            descending_iops = io_monitoring['descending']
-            rising_snapshot = list(rising_iops)
-            descending_snapshot = list(descending_iops)
-            now = time.time()
-            while (len(rising_iops) == len(rising_snapshot) and len(descending_iops) == len(descending_snapshot)) and time.time() - now < HATester.HA_TIMEOUT:
-                # Did not come up
-                HATester.LOGGER.info('Currently waited {0}'.format(time.time() - now))
-                time.sleep(1)
-            if time.time() - now >= HATester.HA_TIMEOUT:
-                raise RuntimeError('Did not failover in {0}s'.format(HATester.HA_TIMEOUT))
-            if len(rising_iops) > len(rising_snapshot):
-                upped_time = rising_iops[-1][0]
-                iops = rising_iops[-1][1]
-            else:
-                upped_time = descending_iops[-1][0]
-                iops = descending_iops[-1][1]
-            HATester.LOGGER.info('IOPS came through at {0} with {1} IOPS. Total downtime was {2}'.format(upped_time, iops, (datetime.strptime(upped_time, '%Y-%m-%d %H:%M:%S') - datetime.strptime(downed_time, '%Y-%m-%d %H:%M:%S')).total_seconds()))
-            HATester.LOGGER.info('IOPS monitoring: {0}'.format(monitoring_data))
-            #########################
-            # VALIDATE OF MIGRATION #
-            #########################
-            # Validate move
-            HATester._validate(values_to_check, monitoring_data)
-        except:
-            raise
-        finally:
-            try:
-                HATester.LOGGER.info('Stopping iops monitoring')
-                for thread_pair in threads:
-                    if thread_pair[0].isAlive():
-                        thread_pair[1].set()
-                # Wait for threads to die
-                for thread_pair in threads:
-                    thread_pair[0].join()
-            except Exception as ex:
-                HATester.LOGGER.warning('Stopping the threads failed. Got {0}'.format(str(ex)))
-            # if fio_started is True:
-            #     compute_client.run(['screen', '-S', 'fio',  '-X', 'quit'])
-            if vm_downed is True:
-                HATester._start_vm(parent_hypervisor, vm_to_stop)
-
-    @staticmethod
-    def _validate(values_to_check, monitoring_data):
-        """
-        Checks if the volume actually moved
-        :param values_to_check: dict with values to validate if they updated
-        :type values_to_check: dict
-        :return: None
-        :rtype: NoneType
-        """
-        # Validate downtime
-        # Each log means +-4s downtime and slept twice
-        io_monitoring = monitoring_data['io']
-        if len(io_monitoring['down']) * 4 >= HATester.SLEEP_TIME * 2:
-            raise ValueError('Thread did not cause any IOPS to happen.')
-
-    @staticmethod
-    def _cleanup_vdisk(vdisk_name, vpool_name, blocking=True):
-        """
-        Attempt to cleanup vdisk
-        :param vdisk_name: name of the vdisk
-        :param vpool_name: name of the vpool
-        :param blocking: boolean to determine whether errors should raise or not
-        :return: None
-        :rtype: NoneType
-        """
-        try:
-            VDiskRemover.remove_vdisk_by_name('{0}.raw'.format(vdisk_name), vpool_name)
-        except Exception as ex:
-            HATester.LOGGER.error(str(ex))
-            if blocking is True:
-                raise
-            else:
-                pass
-
-    @staticmethod
     def _cleanup_vm(hypervisor, vmid, blocking=True):
         """
         Cleans up the created virtual machine
@@ -782,43 +622,264 @@ class HATester(object):
             raise
 
     @staticmethod
-    def _monitor_changes(results, vdisk, stop_event):
+    def test_ha_fio(fio_bin_path, vpool, compute_client, cluster_info, api, disk_amount=100):
+        """
+        Uses a modified fio to work with the openvstorage protocol
+        :param fio_bin_path: path of the fio binary
+        :type fio_bin_path: str
+        :param compute_client: client of the machine to execute the fio
+        :type compute_client: ovs.extensions.generic.sshclient.SSHClient
+        :param vpool: vpool DAL object of the vpool to use
+        :type vpool: ovs.dal.hybrids.vpool.VPool
+        :param cluster_info: information about the cluster, contains all dal objects
+        :type cluster_info: dict
+        :param api: api object to call the ovs api
+        :type api: ci.helpers.api.OVSClient
+        :param disk_amount: amount of disks to test fail over with
+        :type disk_amount: int
+        :return: None
+        :rtype: NoneType
+        """
+        logger = HATester.LOGGER
+        str_2 = cluster_info['storagerouters']['str2']
+        std_1 = cluster_info['storagedrivers']['std1']
+        std_2 = cluster_info['storagedrivers']['std2']
+
+        vm_to_stop = HATester.PARENT_HYPERVISOR_INFO['vms'][str_2.ip]['name']
+        parent_hypervisor = HypervisorFactory.get(HATester.PARENT_HYPERVISOR_INFO['ip'],
+                                                  HATester.PARENT_HYPERVISOR_INFO['user'], HATester.PARENT_HYPERVISOR_INFO['password'],
+                                                  HATester.PARENT_HYPERVISOR_INFO['type'])
+        values_to_check = {
+            'source_std': std_2.serialize(),
+            'target_std': std_1.serialize(),
+            'vdisks': []
+        }
+        # Create vdisks
+        protocol = std_2.cluster_node_config['network_server_uri'].split(':')[0]
+        edge_configuration = {'fio_bin_location': fio_bin_path, 'hostname': std_2.storage_ip,
+                              'port': std_2.ports['edge'],
+                              'protocol': protocol,
+                              'volumename': []}
+        fio_started = False
+        vm_downed = False
+        threads = []
+        r_semaphore = None
+        screen_names = []
+        try:
+            vdisk_info = {}
+            for index in xrange(0, disk_amount):
+                try:
+                    vdisk_name = '{0}_vdisk{1}'.format(HATester.TEST_NAME, str(index).zfill(3))
+                    # data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, HATester.AMOUNT_TO_WRITE, str_2.ip, api))
+                    data_vdisk = VDiskHelper.get_vdisk_by_name(vdisk_name + '.raw', vpool.name)
+                    vdisk_info[vdisk_name] = data_vdisk
+                    edge_configuration['volumename'].append(data_vdisk.devicename.rsplit('.', 1)[0].split('/', 1)[1])
+                    values_to_check['vdisks'].append(data_vdisk.serialize())
+                except RuntimeError as ex:
+                    logger.error('Could not create the vdisk. Got {0}'.format(str(ex)))
+                    raise
+            logger.info('Starting threads.')  # Separate because creating vdisks takes a while, while creating the threads does not
+            monitoring_data = {}
+            current_thread_bundle = {'index': 1, 'vdisks': []}
+            required_thread_amount = math.ceil(len(vdisk_info.keys()) / HATester.VDISK_THREAD_LIMIT)
+            r_semaphore = Waiter(required_thread_amount + 1, auto_reset=True)  # Add another target to let this thread control the semaphore
+            for index, (vdisk_name, vdisk_object) in enumerate(vdisk_info.iteritems(), 1):
+                vdisks = current_thread_bundle['vdisks']
+                volume_number_range = '{0}-{1}'.format(current_thread_bundle['index'], index)
+                vdisks.append(vdisk_object)
+                if index % HATester.VDISK_THREAD_LIMIT == 0 or index == len(vdisk_info.keys()):
+                    # New thread bundle
+                    monitor_resource = {'general': {'io': [], 'edge_clients_connected': []}}
+                    for vdisk in vdisks:
+                        monitor_resource[vdisk.name] = {'io': {'down': [], 'descending': [], 'rising': [], 'highest': None, 'lowest': None},
+                                                        'edge_clients': {'down': [], 'up': []}}
+                    monitoring_data[volume_number_range] = monitor_resource
+                    threads.append(ThreadHelper.start_thread(HATester._monitor_changes,
+                                                             name='iops_{0}'.format(current_thread_bundle['index']),
+                                                             args=(monitor_resource, vdisks, r_semaphore)))
+                    current_thread_bundle['index'] = index + 1
+                    current_thread_bundle['vdisks'] = []
+            try:
+                screen_names = HATester._write_data(compute_client, 'fio', (100, 0), edge_configuration, data_to_write=HATester.AMOUNT_TO_WRITE)
+                fio_started = True
+            except Exception as ex:
+                logger.error('Could not start threading. Got {0}'.format(str(ex)))
+                raise
+            logger.info('Doing IO for {0}s before bringing down the node.'.format(HATester.SLEEP_TIME))
+            now = time.time()
+            while time.time() - now < HATester.SLEEP_TIME:
+                if r_semaphore.get_counter() < required_thread_amount:
+                    time.sleep(0.05)
+                    continue
+                if time.time() - now % 1 == 0:
+                    io_volumes = HATester._get_all_vdisks_with_io(monitoring_data)
+                    logger.info('Currently got io for {0}: {1}'.format(len(io_volumes), io_volumes))
+                r_semaphore.wait()
+            # Wait again to sync
+            HATester.LOGGER.info('Syncing threads')
+            while r_semaphore.get_counter() < required_thread_amount:
+                time.sleep(0.05)
+            # Threads ready for monitoring at this point
+            #########################
+            # Bringing original owner of the volume down
+            #########################
+            try:
+                logger.info('Stopping {0}.'.format(vm_to_stop))
+                HATester._stop_vm(hypervisor=parent_hypervisor, vmid=vm_to_stop)
+                downed_time = time.time()
+                vm_downed = True
+            except Exception as ex:
+                logger.error('Failed to stop. Got {0}'.format(str(ex)))
+                raise
+            time.sleep(HATester.IO_REFRESH_RATE)
+            # Start IO polling
+            r_semaphore.wait()
+            has_io = False
+            while has_io is False and time.time() - downed_time < HATester.HA_TIMEOUT:
+                if r_semaphore.get_counter() < required_thread_amount:
+                    time.sleep(1)
+                    continue
+                logger.info('IO has not come through for {0}s.'.format(time.time() - downed_time))
+                # Calculate to see if IO is back
+                threads_with_io = 0
+                for volume_number_range, monitor_resource in monitoring_data.iteritems():
+                    if len(monitor_resource['general']['io']) == HATester.VDISK_THREAD_LIMIT:
+                        logger.info('IO came through for nr {0}'.format(volume_number_range))
+                        threads_with_io += 1
+                if threads_with_io == required_thread_amount:
+                    logger.info('All threads came through with IO at {0}'.format(datetime.today().strftime('%Y-%m-%d %H:%M:%S')))
+                    break
+                r_semaphore.wait()
+                time.sleep(1)
+            if time.time() - downed_time > HATester.HA_TIMEOUT:
+                raise RuntimeError('HA test timed out after {0}s.'.format(HATester.HA_TIMEOUT))
+            # Wait again to sync so we can properly abort the threads
+            HATester.LOGGER.info('Syncing threads')
+            while r_semaphore.get_counter() < required_thread_amount:
+                time.sleep(0.05)
+            #########################
+            # VALIDATE OF MIGRATION #
+            #########################
+            # Validate move
+            HATester._validate(values_to_check, monitoring_data)
+        except:
+            raise
+        finally:
+            try:
+                logger.info('Stopping iops monitoring')
+                for thread_pair in threads:
+                    if thread_pair[0].isAlive():
+                        thread_pair[1].set()
+                if r_semaphore:
+                    r_semaphore.wait()
+                # Wait for threads to die
+                for thread_pair in threads:
+                    thread_pair[0].join()
+            except Exception as ex:
+                logger.warning('Stopping the threads failed. Got {0}'.format(str(ex)))
+            # if fio_started is True:
+            #     for screen_name in screen_names:
+            #         compute_client.run(['screen', '-S', screen_name,  '-X', 'quit'])
+            if vm_downed is True:
+                HATester._start_vm(parent_hypervisor, vm_to_stop)
+
+    @staticmethod
+    def _get_all_vdisks_with_io(monitoring_data):
+        output = []
+        for volume_number_range, monitor_resource in monitoring_data.iteritems():
+            output.extend(monitor_resource['general']['io'])
+        return output
+
+    @staticmethod
+    def _validate(values_to_check, monitoring_data):
+        """
+        Checks if the volume actually moved
+        :param values_to_check: dict with values to validate if they updated
+        :type values_to_check: dict
+        :return: None
+        :rtype: NoneType
+        """
+        # Validate downtime
+        # Each log means +-4s downtime and slept twice
+        pass
+        # io_monitoring = monitoring_data['io']
+        # if len(io_monitoring['down']) * HATester.IO_REFRESH_RATE >= HATester.SLEEP_TIME * 2:
+        #     raise ValueError('Thread did not cause any IOPS to happen.')
+
+    @staticmethod
+    def _cleanup_vdisk(vdisk_name, vpool_name, blocking=True):
+        """
+        Attempt to cleanup vdisk
+        :param vdisk_name: name of the vdisk
+        :param vpool_name: name of the vpool
+        :param blocking: boolean to determine whether errors should raise or not
+        :return: None
+        :rtype: NoneType
+        """
+        try:
+            VDiskRemover.remove_vdisk_by_name('{0}.raw'.format(vdisk_name), vpool_name)
+        except Exception as ex:
+            HATester.LOGGER.error(str(ex))
+            if blocking is True:
+                raise
+            else:
+                pass
+
+    @staticmethod
+    def _monitor_changes(results, vdisks, r_semaphore, stop_event):
         """
         Threading method that will check for IOPS downtimes
         :param results: variable reserved for this thread
         :type results: dict
-        :param vdisk: vdisk object
-        :type vdisk: ovs.dal.hybrids.vdisk.VDISK
+        :param vdisks: vdisk object
+        :type vdisks: list(ovs.dal.hybrids.vdisk.VDISK)
+        :param r_semaphore: semaphore object to lock threads
+        :type r_semaphore: ovs.extensions.generic.threadhelpers.Waiter
         :param stop_event: Threading event to watch for
         :type stop_event: threading._Event
         :return: None
         :rtype: NoneType
         """
-        last_recorded_iops = None
+        last_recorded_iops = {}
         while not stop_event.is_set():
+            general_info = results['general']
+            general_info['in_progress'] = True
+            has_io = []
+            general_info['io'] = has_io
             now = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-            current_iops = vdisk.statistics['4k_read_operations_ps'] + vdisk.statistics['4k_write_operations_ps']
-            HATester.LOGGER.info('Current iops: {0} at {1}'.format(current_iops, now))
-            io_section = results['io']
-            if current_iops == 0:
-                io_section['down'].append((now, current_iops))
-            else:
-                if last_recorded_iops >= current_iops:
-                    io_section['rising'].append((now, current_iops))
+            now_sec = time.time()
+            for vdisk in vdisks:
+                last_iops = last_recorded_iops.get(vdisk.name, 0)
+                result = results[vdisk.name]
+                vdisk_stats = vdisk.statistics
+                vdisk_edge_clients = vdisk.edge_clients
+                current_iops = vdisk_stats['4k_read_operations_ps'] + vdisk_stats['4k_write_operations_ps']
+                io_section = result['io']
+                if current_iops == 0:
+                    io_section['down'].append((now, current_iops))
                 else:
-                    io_section['descending'].append((now, current_iops))
-                if current_iops > io_section['highest'] or io_section['highest'] is None:
-                    io_section['highest'] = current_iops
-                if current_iops < io_section['lowest'] or io_section['lowest'] is None:
-                    io_section['lowest'] = current_iops
-            edge_client_section = results['edge_clients']
-            if len(vdisk.edge_clients) == 0:
-                edge_client_section['down'].append((now, vdisk.edge_clients))
-            else:
-                edge_client_section['up'].append((now, vdisk.edge_clients))
-            # Sleep to avoid caching
-            last_recorded_iops = current_iops
-            time.sleep(4)
+                    has_io.append(vdisk.name)
+                    if last_iops >= current_iops:
+                        io_section['rising'].append((now, current_iops))
+                    else:
+                        io_section['descending'].append((now, current_iops))
+                    if current_iops > io_section['highest'] or io_section['highest'] is None:
+                        io_section['highest'] = current_iops
+                    if current_iops < io_section['lowest'] or io_section['lowest'] is None:
+                        io_section['lowest'] = current_iops
+                edge_client_section = result['edge_clients']
+                if len(vdisk_edge_clients) == 0:
+                    edge_client_section['down'].append((now, vdisk_edge_clients))
+                else:
+                    edge_client_section['up'].append((now, vdisk_edge_clients))
+                # Sleep to avoid caching
+                last_recorded_iops[vdisk.name] = current_iops
+            general_info['io'] = has_io
+            duration = time.time() - now_sec
+            HATester.LOGGER.info('IO for {0} at {1}. Call took {2}'.format(has_io, now, duration))
+            general_info['in_progress'] = False
+            time.sleep(0 if duration > HATester.IO_REFRESH_RATE else HATester.IO_REFRESH_RATE - duration)
+            r_semaphore.wait(30 * 60)  # Let each thread wait for another
 
     @staticmethod
     def _write_data(client, cmd_type, configuration, edge_configuration=None, screen=True, data_to_write=AMOUNT_TO_WRITE):
@@ -833,22 +894,30 @@ class HATester(object):
         :type configuration: tuple
         :param edge_configuration: configuration to fio over edge
         :type edge_configuration: dict
-        :return: None
-        :rtype: NoneType
+        :return: list of screen names (empty if screen is False)
+        :rtype: list
         """
-        bs = '1m'
+        bs = '4k'
+        iodepth = 1
         write_size = data_to_write
-        HATester.LOGGER.info('Starting to write on VM `{0}`'.format(client.ip))
-        if cmd_type == 'fio':
-            config = ['--iodepth=4', '--rw=randrw', '--bs={0}'.format(bs), '--direct=1',
-                      '--rwmixread={0}'.format(configuration[0]), '--rwmixwrite={0}'.format(configuration[1])]
-            if edge_configuration:
+        cmds = []
+        screen_names = []
+        if cmd_type != 'fio':
+            raise ValueError('{0} is not supported for writing data.'.format(cmd_type))
+        config = ['--iodepth={0}'.format(iodepth), '--rw=randrw', '--bs={0}'.format(bs), '--direct=1',
+                  '--rwmixread={0}'.format(configuration[0]), '--rwmixwrite={0}'.format(configuration[1]), '--randrepeat=0']
+        if edge_configuration:
+            volumes = edge_configuration['volumename']
+            fio_amount = int(math.ceil(float(len(volumes)) / HATester.FIO_VDISK_LiMIT))
+            for fio_nr in xrange(0, fio_amount):
+                vols = volumes[fio_nr * HATester.FIO_VDISK_LiMIT: (fio_nr + 1) * HATester.FIO_VDISK_LiMIT]
                 # Volumedriver envir params
-                additional_settings = ['export LIBOVSVOLUMEDRIVER_XIO_KEEPALIVE_TIME=60;', 'export LIBOVSVOLUMEDRIVER_XIO_KEEPALIVE_INTVL=20;', 'export LIBOVSVOLUMEDRIVER_XIO_KEEPALIVE_PROBES=3;']
+                additional_settings = ['ulimit -n 4096;']
                 # Append edge fio stuff
                 additional_config = ['--ioengine=openvstorage', '--hostname={0}'.format(edge_configuration['hostname']),
                                      '--port={0}'.format(edge_configuration['port']), '--protocol={0}'.format(edge_configuration['protocol']),
                                      '--enable_ha=1', '--group_reporting=1']
+                verify_config = ['--verify=crc32c-intel', '--verifysort=1', '--verify_fatal=1', '--verify_backlog=1000000']
                 # Generate test names for each volume
                 volumes = edge_configuration['volumename']
                 if isinstance(volumes, str):
@@ -859,38 +928,20 @@ class HATester(object):
                 for index, volume in enumerate(volumes):
                     fio_jobs.append('--name=test{0}'.format(index))
                     fio_jobs.append('--volumename={0}'.format(volume))
-                cmd = additional_settings + [edge_configuration['fio_bin_location']] + config + additional_config + fio_jobs
-            else:
-                additional_config = ['--ioengine=libaio', '--size={0}'.format(write_size)]
-                cmd = ['fio'] + config + additional_config
-            if screen is True:
-                # exec bash to keep it running
-                cmd = 'screen -S fio -dm bash -c "while {0}; do :; done; exec bash"'.format(' '.join(cmd))
+                cmds.append(additional_settings + [edge_configuration['fio_bin_location']] + config + additional_config + verify_config + fio_jobs)
         else:
-            raise ValueError('{0} is not supported for writing data.'.format(cmd_type))
-        HATester.LOGGER.info('Writing data with: {0}'.format(cmd))
-        client.run(cmd, allow_insecure=True)
-
-    @staticmethod
-    def _start_thread(target, name, args=()):
-        """
-        Starts a thread
-        :param target: target - usually a method
-        :type target: object
-        :param name: name of the thread
-        :type name: str
-        :param args: tuple of arguments
-        :type args: tuple
-        :return: a tuple with the thread and event
-        :rtype: tuple
-        """
-        HATester.LOGGER.info('Starting thread with target {0}'.format(target))
-        event = threading.Event()
-        args = args + (event,)
-        thread = threading.Thread(target=target, args=tuple(args))
-        thread.setName(str(name))
-        thread.start()
-        return thread, event
+            additional_config = ['--ioengine=libaio', '--size={0}'.format(write_size)]
+            cmds.append(['fio'] + config + additional_config)
+        if screen is True:
+            # exec bash to keep it running
+            for index, cmd in enumerate(cmds):
+                screen_name = 'fio_{0}'.format(index)
+                cmds[index] = 'screen -S {0} -dm bash -c "while {1}; do :; done; exec bash"'.format(screen_name, ' '.join(cmd))
+                screen_names.append(screen_name)
+        for cmd in cmds:
+            HATester.LOGGER.info('Writing data with: {0}'.format(cmd))
+            client.run(cmd, allow_insecure=True)
+        return screen_names
 
 
 def run(blocked=False):

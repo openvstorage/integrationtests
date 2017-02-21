@@ -50,8 +50,7 @@ class VDiskHelper(object):
             if vdisk:
                 return vdisk
             else:
-                raise VDiskNotFoundError("VDisk with name `{0}` not found on vPool `{1}`!"
-                                         .format(vdisk_name, vpool_name))
+                raise VDiskNotFoundError("VDisk with name `{0}` not found on vPool `{1}`!".format(vdisk_name, vpool_name))
         else:
             raise VPoolNotFoundError("vPool with name `{0}` cannot be found!".format(vpool_name))
 

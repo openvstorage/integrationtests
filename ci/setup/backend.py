@@ -372,13 +372,12 @@ class BackendSetup(object):
             data=data
         )
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
-
         if not task_result[0]:
             error_msg = "Initialize disk `{0}` for alba node `{1}` has failed".format(queue, alba_node_guid)
             BackendSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
-            BackendSetup.LOGGER.info("Succesfully initialized '{0}'".format(queue))
+            BackendSetup.LOGGER.info("Successfully initialized '{0}'".format(queue))
             return task_result[0]
 
     @staticmethod
