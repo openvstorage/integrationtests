@@ -108,7 +108,6 @@ class HATester(object):
                 HATester._execute_test()
                 return {'status': 'PASSED', 'case_type': HATester.CASE_TYPE, 'errors': None}
             except Exception as ex:
-                raise
                 return {'status': 'FAILED', 'case_type': HATester.CASE_TYPE, 'errors': str(ex)}
         else:
             return {'status': 'BLOCKED', 'case_type': HATester.CASE_TYPE, 'errors': None}
@@ -195,12 +194,12 @@ class HATester(object):
             assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), ip, missing_packages)
         cluster_info = {'storagerouters': {'str1': str_1, 'str2': str_2, 'str3': str_3}, 'storagedrivers': {'std1': std_1, 'std2': std_2}}
 
-        # HATester.test_ha_vm(to_be_downed_client, image_path, vpool, cloud_init_loc, cluster_info, api)
-        try:
-            HATester.test_ha_fio(HATester.FIO_BIN['location'], vpool, compute_client, cluster_info, api)
-        except Exception:
-            compute_client.file_delete(HATester.FIO_BIN['location'])
-            raise
+        HATester.test_ha_vm(to_be_downed_client, image_path, vpool, cloud_init_loc, cluster_info, api)
+        # try:
+        #     HATester.test_ha_fio(HATester.FIO_BIN['location'], vpool, compute_client, cluster_info, api)
+        # except Exception:
+        #     compute_client.file_delete(HATester.FIO_BIN['location'])
+        #     raise
 
     @staticmethod
     def test_ha_vm(to_be_downed_client, image_path, vpool, cloud_init_loc, cluster_info, api, vm_amount=1, timeout=HA_TIMEOUT):
