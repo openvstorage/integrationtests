@@ -23,9 +23,9 @@ class ThreadHelper(object):
     LOGGER = LogHandler.get(source='helpers', name='ci.threading')
 
     @staticmethod
-    def start_thread(target, name, args=()):
+    def start_thread_with_event(target, name, args=(), kwargs={}):
         """
-        Starts a thread
+        Starts a thread and an event to it
         :param target: target - usually a method
         :type target: object
         :param name: name of the thread
@@ -38,10 +38,18 @@ class ThreadHelper(object):
         ThreadHelper.LOGGER.info('Starting thread with target {0}'.format(target))
         event = threading.Event()
         args = args + (event,)
-        thread = threading.Thread(target=target, args=tuple(args))
+        thread = threading.Thread(target=target, args=tuple(args), kwargs=kwargs)
         thread.setName(str(name))
         thread.start()
         return thread, event
+
+    @staticmethod
+    def start_thread(target, name, args=(), kwargs={}):
+        ThreadHelper.LOGGER.info('Starting thread with target {0}'.format(target))
+        thread = threading.Thread(target=target, args=tuple(args), kwargs=kwargs)
+        thread.setName(str(name))
+        thread.start()
+        return thread
 
 
 # @todo import from -> from ovs.extensions.generic.threadhelpers import Waiter instead of this when PR (https://github.com/openvstorage/framework/pull/1467) is in Fargo n unstable

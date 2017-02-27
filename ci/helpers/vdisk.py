@@ -46,6 +46,8 @@ class VDiskHelper(object):
         if vpool:
             if not vdisk_name.startswith("/"):
                 vdisk_name = "/{0}".format(vdisk_name)
+            if not vdisk_name.endswith('.raw'):
+                vdisk_name = '{0}.raw'.format(vdisk_name)
             vdisk = VDiskList.get_by_devicename_and_vpool(vdisk_name, vpool)
             if vdisk:
                 return vdisk
