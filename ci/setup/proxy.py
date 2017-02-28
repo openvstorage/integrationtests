@@ -15,7 +15,6 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import json
 from ovs.dal.lists.vpoollist import VPoolList
-# from ci.helpers.vpool import VPoolHelper
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.services.service import ServiceManager
 from ovs.lib.helpers.toolbox import Toolbox
@@ -28,7 +27,7 @@ class ProxySetup(object):
 
     LOGGER = LogHandler.get(source="setup", name="ci_proxy_setup")
     PARAMS = {'ips': (list, Toolbox.regex_ip, False),
-              'transport': (str, ['tcp','rdma'], False),
+              'transport': (str, ['tcp', 'rdma'], False),
               'log_level': (str, ['info', 'debug'], False),
               'port': (int, {'min': 1024, 'max': 65535}, False),
               'albamgr_cfg_file': (str, None, False),
@@ -49,6 +48,7 @@ class ProxySetup(object):
         faulty_keys = [key for key in proxy_configuration.keys() if key not in ProxySetup.PARAMS]
         if len(faulty_keys) > 0:
             raise ValueError('{0} are unsupported keys for proxy configuration.'.format(', '.join(faulty_keys)))
+        Toolbox.verify_required_params(ProxySetup.PARAMS, proxy_configuration)
         vpools = VPoolList.get_vpools()
         with open('/root/old_proxies', 'w') as backup_file:
             for vpool in vpools:
@@ -65,19 +65,6 @@ class ProxySetup(object):
                             proxy_config.update(proxy_configuration)
                             ProxySetup.LOGGER.info("Changed {0} to {1} for proxy {2}".format(old_proxy_config, proxy_config, config_loc))
                             ProxySetup.LOGGER.info("Changed items {0}".format([(key, value) for key, value in proxy_config.iteritems() if key not in old_proxy_config.keys()]))
-                            Configuration.set(config_loc, proxy_config)
+                            Configuration.set(config_loc, json.dumps(proxy_config, indent=4), raw=True)
                             client = SSHClient(storagedriver.storage_ip, username='root')
                             ServiceManager.restart_service(proxy_service.name, client=client)
-                    if hasattr(storagedriver, 'alba_proxy'):
-                        proxy = storagedriver.alba_proxy
-                        config_loc = 'ovs/vpools/{0}/proxies/{1}/config/main'.format(vpool.guid, proxy.guid)
-                        proxy_service = Service(proxy.service_guid)
-                        proxy_config = Configuration.get(config_loc)
-                        old_proxy_config = dict(proxy_config)
-                        backup_file.write('{} -- {}\n'.format(config_loc, old_proxy_config))
-                        proxy_config.update(proxy_configuration)
-                        ProxySetup.LOGGER.info("Changed {0} to {1} for proxy {2}".format(old_proxy_config, proxy_config, config_loc))
-                        ProxySetup.LOGGER.info("Changed items {0}".format([(key, value) for key, value in proxy_config.iteritems() if key not in old_proxy_config.keys()]))
-                        Configuration.set(config_loc, proxy_config)
-                        client = SSHClient(storagedriver.storage_ip, username='root')
-                        ServiceManager.restart_service(proxy_service.name, client=client)
