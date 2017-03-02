@@ -134,16 +134,18 @@ class VDiskSetup(object):
 
     @staticmethod
     @required_vdisk
-    def move_vdisk(vdisk_guid, target_storagerouter_guid, api, timeout=60):
+    def move_vdisk(vdisk_guid, target_storagerouter_guid, api, force=False, timeout=60):
         """
         Moves a vdisk
         :param vdisk_guid: guid of the vdisk
         :param target_storagerouter_guid: guid of the storuagerouter to move to
         :param api: instance of ovs client
+        :param force: Indicates whether to force the migration or not (forcing can lead to dataloss)
         :param timeout: timeout in seconds
         :return:
         """
-        data = {'target_storagerouter_guid': target_storagerouter_guid}
+        data = {'target_storagerouter_guid': target_storagerouter_guid,
+                'force': force}
 
         task_guid = api.post(
             api='/vdisks/{0}/move/'.format(vdisk_guid),
