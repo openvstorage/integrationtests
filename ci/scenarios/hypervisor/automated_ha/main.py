@@ -42,10 +42,10 @@ from ovs.log.log_handler import LogHandler
 
 class HATester(object):
     """
-    Exercice HA with a VM via edge & KVM
-
+    Exercise HA with a VM via edge & KVM
     Required packages: qemu-kvm libvirt0 python-libvirt virtinst genisoimage
     Required commands after ovs installation and required packages: usermod -a -G ovs libvirt-qemu
+    Requires the parent hyper to know the keys from its vms
     """
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_hypervisor_ha_test'
@@ -54,8 +54,8 @@ class HATester(object):
     SLEEP_TIME = 15
     HA_TIMEOUT = 300
     VM_CONNECTING_TIMEOUT = 5
-    REQUIRED_PACKAGES = []
-    # REQUIRED_PACKAGES = ['qemu-kvm', 'libvirt0', 'python-libvirt', 'virtinst', 'genisoimage']
+    REQUIRED_PACKAGES_HYPERVISOR = ['qemu-kvm', 'libvirt0', 'python-libvirt', 'virtinst']
+    REQUIRED_PACKAGE_CLOUD_INIT = ['genisoimage']
     DATA_TEST_CASES = [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]  # read write patterns to test (read, write)
 
     VM_NAME = 'HA-test'
@@ -182,16 +182,15 @@ class HATester(object):
         to_be_downed_client.run(['wget', HATester.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
         to_be_downed_client.file_chmod(cloud_init_loc, 755)
         assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-
+        missing_packages = SystemHelper.get_missing_packages(to_be_downed_client.ip, HATester.REQUIRED_PACKAGE_CLOUD_INIT)
+        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), to_be_downed_client.ip, missing_packages)
         # Get the fio binary
         compute_client.run(['wget', HATester.FIO_BIN['url'], '-O', HATester.FIO_BIN['location']])
         compute_client.file_chmod(HATester.FIO_BIN['location'], 755)
         assert compute_client.file_exists(HATester.FIO_BIN['location']), 'Could not get the latest fio binary.'
+        missing_packages = SystemHelper.get_missing_packages(compute_client.ip, HATester.REQUIRED_PACKAGES_HYPERVISOR)
+        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), compute_client.ip, missing_packages)
 
-        # Check if there are missing packages for the hypervisor
-        for ip in [str_1.ip, str_2.ip, str_3.ip]:
-            missing_packages = SystemHelper.get_missing_packages(ip, HATester.REQUIRED_PACKAGES)
-            assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), ip, missing_packages)
         cluster_info = {'storagerouters': {'str1': str_1, 'str2': str_2, 'str3': str_3}, 'storagedrivers': {'std1': std_1, 'std2': std_2}}
 
         HATester.test_ha_vm(to_be_downed_client, image_path, vpool, cloud_init_loc, cluster_info, api)
@@ -1023,8 +1022,8 @@ class HATester(object):
         :return: list of screen names (empty if screen is False)
         :rtype: list
         """
-        bs = '1m'
-        iodepth = 4
+        bs = '4k'
+        iodepth = 32
         write_size = data_to_write
         cmds = []
         screen_names = []
@@ -1086,5 +1085,4 @@ def run(blocked=False):
     return HATester().main(blocked)
 
 if __name__ == '__main__':
-    # @todo remove print
-    print run()
+    run()
