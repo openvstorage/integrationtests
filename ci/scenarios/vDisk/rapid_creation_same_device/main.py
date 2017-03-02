@@ -64,7 +64,7 @@ class VDiskControllerTester(object):
         disk_size = 1024 ** 3
         disk_name = 'ci_scenario_rapid_create_delete_same_device'
         exceptions = []
-        for loop in xrange(1, 11):
+        for loop in xrange(0, 100):
             test_passed = False
             try:
                 VDiskControllerTester.LOGGER.info("Creating new disk.")
@@ -97,7 +97,7 @@ class VDiskControllerTester(object):
                     VDiskControllerTester.LOGGER.error("Auto cleanup failed with {0}.".format(str(ex)))
                     exceptions.append('Auto cleanup failed. Got {0}'.format(str(ex)))
 
-        assert len(exceptions) == 0, 'Exception occurred during the 100x creation of vdisks with the same devicename. Got {0}'.format(', '.join(exceptions))
+        assert len(exceptions) == 0, 'Exception occurred during the creation of vdisks with the same devicename. Got {0}'.format(', '.join(exceptions))
 
         VDiskControllerTester.LOGGER.info("Finished create/delete test.")
 
