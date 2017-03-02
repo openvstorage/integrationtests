@@ -765,7 +765,7 @@ class Sdk(object):
     def get_guest_ip_addresses(self, vmid, source=libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE):
         """
         Returns the IP given by the network lease
-        :param vmid:
+        :param vmid: identifier of the vm to migrate (name or id)
         :return: a list with all ip addresses
         """
         if not isinstance(vmid, libvirt.virDomain):
@@ -776,6 +776,32 @@ class Sdk(object):
             for ip_info in interface_info.get("addrs"):
                 results.append(ip_info.get("addr"))
         return results
+
+    @authenticated
+    def create_snapshot(self, vmid, snapshot_name, flags=0):
+        """
+        Creates a snapshot for a VM with a specfic name
+        :param vmid: identifier of the vm to migrate (name or id)
+        :param snapshot_name: name of the snapshot
+        :return:
+        """
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        # Generate the snapshot xml
+        snapshot_xml = "<domainsnapshot><name>{0}</name></domainsnapshot>".format(snapshot_name)
+        vmid.snapshotCreateXML(snapshot_xml, flags)
+
+    @authenticated
+    def revert_to_snapshot(self, vmid, snapshot_name, flags=0):
+        """
+        Reverts to a specific snapshot
+        :param vmid: identifier of the vm to migrate (name or id)
+        :param snapshot_name: name of the snapshot
+        :return:
+        """
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        vmid.revertToSnapshot(snapshot_name, flags)
 
     @staticmethod
     def shell_safe(argument):
