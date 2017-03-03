@@ -22,7 +22,6 @@
         "10.100.199.194": {"name": "ubuntu16.04-setup3-ovsnode04", "role": "COMPUTE"}
       }
     },
-
     "config_manager": "arakoon",
     "user": {
       "shell": {

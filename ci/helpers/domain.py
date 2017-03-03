@@ -15,6 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 from ovs.dal.lists.domainlist import DomainList
+from ovs.dal.lists.storagedriverlist import StorageDriverList
 
 
 class DomainHelper(object):
@@ -89,3 +90,30 @@ class DomainHelper(object):
         """
 
         return DomainList.get_domains()
+
+    @staticmethod
+    def get_storagerouters_in_same_domain(domain_guid):
+        """
+        Get storagerouter guids in a domain
+
+        :param domain_guid: guid of a domain
+        :type domain_guid: str
+        :return: list of storagerouter guids
+        :rtype: list
+        """
+
+        return DomainHelper.get_domain_by_guid(domain_guid=domain_guid)['storage_router_layout']['regular']
+
+    @staticmethod
+    def get_storagedrivers_in_same_domain(domain_guid):
+        """
+        Get storagerouter guids in a domain
+
+        :param domain_guid: guid of a domain
+        :type domain_guid: str
+        :return: list of storagerouter guids
+        :rtype: list
+        """
+
+        return [storagedriver for storagedriver in StorageDriverList.get_storagedrivers()
+                if domain_guid in storagedriver.storagerouter.regular_domains]
