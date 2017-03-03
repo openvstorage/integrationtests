@@ -56,6 +56,7 @@ class AdvancedDTLTester(object):
     REQUIRED_PACKAGES = ['qemu-kvm', 'libvirt0', 'python-libvirt', 'virtinst', 'genisoimage']
     VM_NAME = 'DTL-test'
     VM_WAIT_TIME = 300  # wait time before timing out on the vm install in seconds
+    START_PARENT_TIMEOUT = 30
     CLOUD_INIT_DATA = {
         'script_loc': 'https://raw.githubusercontent.com/kinvaris/cloud-init/master/create-config-drive',
         'script_dest': '/tmp/cloud_init_script.sh',
@@ -209,6 +210,8 @@ class AdvancedDTLTester(object):
         AdvancedDTLTester.test_ha_vm(to_be_downed_client=to_be_downed_client, image_path=image_path, vpool=vpool,
                                      cloud_init_loc=cloud_init_loc, cluster_info=cluster_info)
 
+        AdvancedDTLTester.LOGGER.info('Finished advanced DTL autotests test!')
+
     @staticmethod
     def test_ha_vm(to_be_downed_client, image_path, vpool, cloud_init_loc, cluster_info):
         """
@@ -324,7 +327,6 @@ class AdvancedDTLTester(object):
                     AdvancedDTLTester.LOGGER.info('Installing fio on the VM.')
                     try:
                         vm_client.run(['apt-get', 'install', 'fio', '-y', '--force-yes'])
-                        vm_client.run(['sync;', 'sync;', 'sync;'])
                         AdvancedDTLTester.LOGGER.info('Installed fio on the VM!')
                     except subprocess.CalledProcessError:
                         AdvancedDTLTester.LOGGER.info('Fio is already installed!')
@@ -339,7 +341,7 @@ class AdvancedDTLTester(object):
                                           .format(AdvancedDTLTester.VM_RANDOM).split())
                             vm_client.run('md5sum {0}'.format(AdvancedDTLTester.VM_RANDOM).split())
                             vm_client.run('screen -S {0} -dm bash -c "ls"'
-                                          .format(AdvancedDTLTester.VM_RANDOM).split())
+                                          .format(AdvancedDTLTester.VM_RANDOM.split("/")[2]).split())
                             vm_client.run('fio --help'.split())
                         except Exception as ex:
                             AdvancedDTLTester.LOGGER.error('Loading MD5SUM & dd in memory has failed with: {1}'
@@ -360,19 +362,20 @@ class AdvancedDTLTester(object):
                         ##################
                         # write dtl file #
                         ##################
-                        vm_client = rem.SSHClient(vm_ip, AdvancedDTLTester.VM_USERNAME, AdvancedDTLTester.VM_PASSWORD)
+                        AdvancedDTLTester.LOGGER.info('Starting to WRITE file while proxy is offline!')
                         try:
                             vm_client.run('dd if=/dev/urandom of={0} bs=1M count=2'
                                           .format(AdvancedDTLTester.VM_FILENAME).split())
                             time.sleep(5)
                             original_md5sum = ' '.join(vm_client.run(['md5sum', AdvancedDTLTester.VM_FILENAME]).split())
+                            AdvancedDTLTester.LOGGER.info('Original MD5SUM: {0}!'.format(original_md5sum))
                         except Exception as ex:
                             AdvancedDTLTester.LOGGER.error('Fetching MD5SUM for file {0} failed with: {1}'
                                                            .format(AdvancedDTLTester.VM_FILENAME, ex))
                             raise
-
-                        AdvancedDTLTester.LOGGER.error("Waiting {0} seconds before stopping the parent hypervisor"
-                                                       .format(AdvancedDTLTester.SLEEP_TIME))
+                        AdvancedDTLTester.LOGGER.info('Finished to WRITE file while proxy is offline!')
+                        AdvancedDTLTester.LOGGER.info("Waiting {0} seconds before stopping the parent hypervisor"
+                                                      .format(AdvancedDTLTester.SLEEP_TIME))
                         time.sleep(AdvancedDTLTester.SLEEP_TIME)
 
                         #############
@@ -407,21 +410,25 @@ class AdvancedDTLTester(object):
                         #########################
                         # VALIDATE OF MIGRATION #
                         #########################
+                        AdvancedDTLTester.LOGGER.info('Starting to validate move...')
                         AdvancedDTLTester._validate_move(values_to_check)
+                        AdvancedDTLTester.LOGGER.info('Finished to validate move!')
 
                         ########################################
                         # VALIDATE IF DTL IS CORRECTLY WORKING #
                         ########################################
+                        AdvancedDTLTester.LOGGER.info('Validate if DTL is working correctly!')
                         try:
                             finished_md5sum = ' '.join(vm_client.run(['md5sum', AdvancedDTLTester.VM_FILENAME]).split())
                         except Exception as ex:
                             AdvancedDTLTester.LOGGER.error('Fetching MD5SUM for file {0} failed with: {1}'
                                                            .format(AdvancedDTLTester.VM_FILENAME, ex))
                             raise
-
+                        AdvancedDTLTester.LOGGER.info('Finished MD5SUM: {0}!'.format(finished_md5sum))
                         assert original_md5sum == finished_md5sum, "MD5SUMS after DTL SYNC & AUTO HA are " \
                                                                    "not the same, original: {0} current: {1}" \
                                                                    .format(original_md5sum, finished_md5sum)
+                        AdvancedDTLTester.LOGGER.info('DTL is working correctly!')
 
                     except Exception as ex:
                         AdvancedDTLTester.LOGGER.error('Error occurred scenario during read: {0}, write {1}. Got {2}'
@@ -430,24 +437,25 @@ class AdvancedDTLTester(object):
                         raise
             except Exception:
                 # try stopping the VM on source/destination
-                # if vm_created is True:
-                #     AdvancedDTLTester._stop_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
+                if vm_created is True:
+                    AdvancedDTLTester._stop_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
                 raise
-            # else:
+            else:
                 # Cleanup the vdisk after all tests were successfully executed!
-                # if vm_created is True:
-                #     AdvancedDTLTester._cleanup_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
-                #     AdvancedDTLTester._start_vm(parent_hypervisor,
-                #                                 AdvancedDTLTester.PARENT_HYPERVISOR_INFO['vms'][source_str.ip]['name'])
-                # if iso_loc is not None:
-                #     AdvancedDTLTester._cleanup_vdisk(boot_vdisk_name, vpool.name, False)
-                # if cloud_init_created:
-                #     AdvancedDTLTester._cleanup_vdisk(iso_loc.rsplit('/', 1)[1], vpool.name, False)
+                if vm_created is True:
+                    AdvancedDTLTester._cleanup_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
+                    AdvancedDTLTester._start_vm(parent_hypervisor,
+                                                AdvancedDTLTester.PARENT_HYPERVISOR_INFO['vms'][source_str.ip]['name'])
+                    time.sleep(AdvancedDTLTester.START_PARENT_TIMEOUT)
+                if iso_loc is not None:
+                    AdvancedDTLTester._cleanup_vdisk(boot_vdisk_name, vpool.name, False)
+                if cloud_init_created:
+                    AdvancedDTLTester._cleanup_vdisk(iso_loc.rsplit('/', 1)[1], vpool.name, False)
         except Exception as ex:
             AdvancedDTLTester.LOGGER.exception('Live migrate test failed. Got {0}'.format(str(ex)))
             # try stopping the VM on source/destination
-            # if vm_created is True:
-            #     AdvancedDTLTester._stop_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
+            if vm_created is True:
+                AdvancedDTLTester._stop_vm(computenode_hypervisor, AdvancedDTLTester.VM_NAME, False)
             raise
 
     @staticmethod
