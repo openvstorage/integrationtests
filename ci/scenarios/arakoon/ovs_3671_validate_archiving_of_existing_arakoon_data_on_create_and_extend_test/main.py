@@ -15,11 +15,11 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 import os
-from ci.setup.arakoon import ArakoonSetup
+from ci.api_lib.setup.arakoon import ArakoonSetup
 from ovs.log.log_handler import LogHandler
-from ci.remove.arakoon import ArakoonRemover
+from ci.api_lib.remove.arakoon import ArakoonRemover
 from ovs.extensions.generic.sshclient import SSHClient
-from ci.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 
 
 class ArakoonArchiving(object):

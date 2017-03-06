@@ -17,8 +17,6 @@
 """
 OVS automatic test lib
 """
-
-
 import os
 import re
 import json
@@ -26,11 +24,11 @@ import math
 import importlib
 import subprocess
 from datetime import datetime
-from ci.helpers.system import SystemHelper
+from ci.api_lib.helpers.system import SystemHelper
 from ovs.log.log_handler import LogHandler
-from ci.helpers.exceptions import SectionNotFoundError
-from ci.helpers.storagerouter import StoragerouterHelper
-from ci.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
+from ci.api_lib.helpers.exceptions import SectionNotFoundError
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
 
 LOGGER = LogHandler.get(source='autotests', name="ci_autotests")
 TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"

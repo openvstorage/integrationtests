@@ -27,8 +27,8 @@ class ExampleTest(object):
         """
         Run all required methods for the test
 
-        status depends on attributes in class: ci.helpers.testtrailapi.TestrailResult
-        case_type depends on attributes in class: ci.helpers.testtrailapi.TestrailCaseType
+        status depends on attributes in class: ci.api_lib.helpers.testtrailapi.TestrailResult
+        case_type depends on attributes in class: ci.api_lib.helpers.testtrailapi.TestrailCaseType
 
         :param blocked: was the test blocked by other test?
         :return: results of test

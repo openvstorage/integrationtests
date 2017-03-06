@@ -16,8 +16,8 @@
 
 import time
 from ovs.log.log_handler import LogHandler
-from ci.helpers.system import SystemHelper
-from ci.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.system import SystemHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 
 
 class RoleChecks(object):

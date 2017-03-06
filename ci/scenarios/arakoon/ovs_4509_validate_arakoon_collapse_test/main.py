@@ -19,7 +19,7 @@ from ovs.extensions.generic.remote import remote
 from ovs.dal.lists.servicelist import ServiceList
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.extensions.generic.sshclient import SSHClient
-from ci.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ovs.lib.generic import GenericController
 from ovs.extensions.generic.configuration import Configuration
 

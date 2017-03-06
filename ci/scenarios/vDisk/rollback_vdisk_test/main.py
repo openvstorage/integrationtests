@@ -18,14 +18,14 @@ import json
 import time
 import subprocess
 from ci.main import CONFIG_LOC
-from ci.helpers.api import OVSClient
-from ci.setup.vdisk import VDiskSetup
-from ci.helpers.vpool import VPoolHelper
-from ci.helpers.vdisk import VDiskHelper
-from ci.remove.vdisk import VDiskRemover
+from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
-from ci.helpers.system import SystemHelper
-from ci.helpers.exceptions import VDiskNotFoundError
+from ci.api_lib.helpers.system import SystemHelper
+from ci.api_lib.helpers.exceptions import VDiskNotFoundError
 from ovs.extensions.generic.sshclient import SSHClient
 
 
@@ -152,7 +152,7 @@ class RollbackChecks(object):
         :param size: size of a single vdisk in bytes
         :type size: int
         :param api: specify a valid api connection to the setup
-        :type api: ci.helpers.api.OVSClient
+        :type api: ci.api_lib.helpers.api.OVSClient
         :return: tuple[0]: stored vdisks, snapshot, location; tuple[1]: base_vdisks_guids that are used for clones
         [{
             'vdisk_guid': u 'b789b23e-1077-4d96-9ec2-a7cc3785686c',

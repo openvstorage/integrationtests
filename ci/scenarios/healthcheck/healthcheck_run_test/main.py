@@ -13,8 +13,8 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-from ci.helpers.storagerouter import StoragerouterHelper
-from ci.helpers.system import SystemHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.system import SystemHelper
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 

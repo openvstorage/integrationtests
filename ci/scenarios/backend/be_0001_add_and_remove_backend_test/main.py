@@ -16,9 +16,9 @@
 
 import json
 from ci.main import CONFIG_LOC
-from ci.helpers.api import OVSClient
-from ci.setup.backend import BackendSetup
-from ci.remove.backend import BackendRemover
+from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.setup.backend import BackendSetup
+from ci.api_lib.remove.backend import BackendRemover
 from ovs.log.log_handler import LogHandler
 
 
