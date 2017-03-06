@@ -62,35 +62,10 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
 
     # grab the tests to execute
     LOGGER.info("Collecting tests ...")
-    if scenarios == ['ALL']:
-        # filter out tests with EXCLUDE_FLAG
-        tests = [autotest for autotest in list_tests() if EXCLUDE_FLAG not in autotest]
-    else:
-        complete_scenarios = []
-        # check if a scenario is specified with a section
-        for scenario in scenarios:
-            if len(scenario.split('.')) == 3:
-                # a full section needs to be added to the scenarios
-                for test in os.listdir("{0}/{1}".format(TEST_SCENARIO_LOC, scenario.split('.')[2])):
-                    if test != "__init__.pyc" and test != "__init__.py" and test != "main.py" and test != "main.pyc":
-                        # check if the scenario already exists in the tests
-                        scenario_fullname = "{0}.{1}".format(scenario, test)
-                        if scenario_fullname not in complete_scenarios:
-                            complete_scenarios.append(scenario_fullname)
-            else:
-                # check if the scenario already exists in the tests
-                if scenario not in complete_scenarios:
-                    complete_scenarios.append(scenario)
-
-        tests = complete_scenarios
-
-    # remote the tests that need to be excluded
-    for current_test in exclude_scenarios:
-        tests.remove(current_test)
-
+    # filter out tests with EXCLUDE_FLAG
+    tests = [autotest for autotest in list_tests(scenarios) if autotest not in exclude_scenarios]
     # print tests to be executed
     LOGGER.info("Executing the following tests: {0}".format(tests))
-
     # execute the tests
     LOGGER.info("Starting tests ...")
     results = {}
@@ -129,27 +104,35 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
     return results, None
 
 
-def list_tests():
+def list_tests(wanted_tests=['ALL'], exclude=EXCLUDE_FLAG):
     """
-    Lists all the test scenarios
-
+    Lists the requested test scenarios
     :returns: all available test scenarios
     :rtype: list
     """
-
+    if isinstance(wanted_tests, str):
+        wanted_tests = [wanted_tests]
+    if not isinstance(wanted_tests, list):
+        raise TypeError('Wanted test argument is a {0}, expected a list'.format(type(wanted_tests)))
     LOGGER.info("Listing tests ...")
+    if wanted_tests != ['ALL']:
+        converted_wanted_tests = [test.replace('.', '/') for test in wanted_tests]
     # collect sections
-    sections = os.listdir(TEST_SCENARIO_LOC)
-
+    scenario_categories = os.listdir(TEST_SCENARIO_LOC)
     # collect tests/scenarios under sections
     scenarios = []
-    for section in sections:
-        if section != 'example' and section != '__init__.py' and section != '__init__.pyc':
-            for scenario in os.listdir("{0}/{1}".format(TEST_SCENARIO_LOC, section)):
-                if scenario != '__init__.py' and scenario != 'main.py' \
-                        and scenario != '__init__.pyc' and scenario != 'main.pyc':
-                    scenarios.append("ci.scenarios.{0}.{1}".format(section, scenario))
-
+    for scenario_category in scenario_categories:
+        category_path = os.path.join(TEST_SCENARIO_LOC, scenario_category)
+        if scenario_category == 'example' or not os.path.isdir(category_path):
+            continue
+        for scenario in os.listdir(category_path):
+            if scenario.endswith(exclude) and wanted_tests == ['ALL']:
+                continue
+            scenario_path = os.path.join(category_path, scenario)
+            if os.path.isdir(scenario_path):
+                if wanted_tests != ['ALL'] and scenario_path.split('/', 3)[3] not in converted_wanted_tests:
+                    continue
+                scenarios.append("ci.scenarios.{0}.{1}".format(scenario_category, scenario))
     return scenarios
 
 
@@ -317,62 +300,43 @@ def _get_description():
     :returns: a extensive description of the local machine
     :rtype: str
     """
-    description = ""
-
+    description_lines = []
     # fetch ip information
-    description += "# IP INFO \n"
+    description_lines.append('# IP INFO')
     for ip in StoragerouterHelper.get_storagerouter_ips():
-        description += "* {0}\n".format(ip)
-
-    description += "\n"
-
+        description_lines.append('* {0}'.format(ip))
+    description_lines.append('')  # New line gap
     # hypervisor information
     with open(CONFIG_LOC, "r") as JSON_CONFIG:
             ci_config = json.load(JSON_CONFIG)
-    description += "# HYPERVISOR INFO \n{0}\n".format(ci_config['ci']['hypervisor'])
-
-    description += "\n"
-
+    description_lines.append('# HYPERVISOR INFO')
+    description_lines.append('{0}'.format(ci_config['ci']['hypervisor']))
+    description_lines.append('')  # New line gap
     # fetch hardware information
-    description += "# HARDWARE INFO \n"
-
+    description_lines.append("# HARDWARE INFO")
     # board information
-    description += "### Base Board Information \n"
-    output = subprocess.check_output("dmidecode -t 2", shell=True).replace("#", "")
-    description += "{0}\n".format(output)
-
-    description += "\n"
-
+    description_lines.append("### Base Board Information")
+    description_lines.append("{0}".format(subprocess.check_output("dmidecode -t 2", shell=True).replace("#", "").strip()))
+    description_lines.append('')  # New line gap
     # fetch cpu information
-    description += "### Processor Information \n"
-    output = subprocess.Popen("grep 'model name'", stdin=
-                              subprocess.Popen("cat /proc/cpuinfo", stdout=subprocess.PIPE, shell=True).stdout,
-                              stdout=subprocess.PIPE, shell=True)
+    description_lines.append("### Processor Information")
+    output = subprocess.Popen("grep 'model name'", stdin=subprocess.Popen("cat /proc/cpuinfo", stdout=subprocess.PIPE, shell=True).stdout, stdout=subprocess.PIPE, shell=True)
     cpus = subprocess.check_output("cut -d ':' -f 2", stdin=output.stdout, shell=True).strip().split('\n')
-    description += "* Type: {0} \n".format(cpus[0])
-    description += "* Amount: {0} \n".format(len(cpus))
-
-    description += "\n"
-
+    description_lines.append("* Type: {0}".format(cpus[0]))
+    description_lines.append("* Amount: {0}".format(len(cpus)))
+    description_lines.append('')  # New line gap
     # fetch memory information
-    description += "### Memory Information \n"
-    output = math.ceil(float(subprocess.check_output("grep MemTotal", stdin=
-                                                     subprocess.Popen("cat /proc/meminfo", stdout=subprocess.PIPE,
-                                                                      shell=True)
-                                                     .stdout, shell=True).strip().split()[1]) / 1024 / 1024)
-    description += "* {0}GiB System Memory\n".format(int(output))
-
-    description += "\n"
-
+    description_lines.append("### Memory Information")
+    output = math.ceil(float(subprocess.check_output("grep MemTotal", stdin=subprocess.Popen("cat /proc/meminfo", stdout=subprocess.PIPE, shell=True).stdout, shell=True).strip().split()[1]) / 1024 / 1024)
+    description_lines.append("* {0}GiB System Memory".format(int(output)))
+    description_lines.append('')  # New line gap
     # fetch disk information
-    description += "### Disk Information \n"
+    description_lines.append("### Disk Information")
     output = subprocess.check_output("lsblk", shell=True)
-    description += output
-
-    description += "\n"
-
+    description_lines.append(output.strip())
+    description_lines.append('')  # New line gap
     # package info
-    description += "# PACKAGE INFO \n"
-    description += "{0}\n".format(_get_package_info())
+    description_lines.append("# PACKAGE INFO")
+    description_lines.append("{0}".format(_get_package_info()))
 
-    return description
+    return '\n'.join(description_lines)
