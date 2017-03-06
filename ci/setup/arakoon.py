@@ -72,14 +72,15 @@ class ArakoonSetup(object):
         ArakoonSetup.LOGGER.info("Starting creation of new arakoon cluster with name `{0}`, servicetype `{1}`,"
                                  " ip `{2}`, base_dir `{3}`".format(cluster_name, service_type, storagerouter_ip,
                                                                     cluster_basedir))
-        info = ArakoonInstaller.create_cluster(cluster_name, service_type, storagerouter_ip, cluster_basedir, plugins,
+        info = ArakoonInstaller.create_cluster(cluster_name=cluster_name, cluster_type=service_type,
+                                               ip=storagerouter_ip, base_dir=cluster_basedir, plugins=plugins,
                                                locked=False, internal=False)
         if service_type == ServiceType.ARAKOON_CLUSTER_TYPES.ABM:
             client.run(['ln', '-s', '/usr/lib/alba/albamgr_plugin.cmxs', '{0}/arakoon/{1}/db'.format(cluster_basedir, cluster_name)])
         elif service_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
             client.run(['ln', '-s', '/usr/lib/alba/nsm_host_plugin.cmxs', '{0}/arakoon/{1}/db'.format(cluster_basedir, cluster_name)])
-        ArakoonInstaller.start_cluster(cluster_name=cluster_name, master_ip=storagerouter_ip, filesystem=False)
-        ArakoonInstaller.unclaim_cluster(cluster_name=cluster_name, master_ip=storagerouter_ip, filesystem=False,metadata=info['metadata'])
+        ArakoonInstaller.start_cluster(metadata=info['metadata'])
+        ArakoonInstaller.unclaim_cluster(cluster_name=cluster_name)
         ArakoonSetup.LOGGER.info("Finished creation of new arakoon cluster with name `{0}`, servicetype `{1}`,"
                                  " ip `{2}`, base_dir `{3}`".format(cluster_name, service_type, storagerouter_ip,
                                                                     cluster_basedir))
@@ -121,18 +122,21 @@ class ArakoonSetup(object):
         ArakoonSetup.LOGGER.info("Starting extending arakoon cluster with name `{0}`, master_ip `{1}`,"
                                  " slave_ip `{2}`, base_dir `{3}`".format(cluster_name, master_storagerouter_ip,
                                                                           storagerouter_ip, cluster_basedir))
-        ArakoonInstaller.extend_cluster(master_storagerouter_ip, storagerouter_ip, cluster_name, cluster_basedir,
-                                        locked=False, filesystem=False)
+        ArakoonInstaller.extend_cluster(new_ip=storagerouter_ip, cluster_name=cluster_name, base_dir=cluster_basedir,
+                                        locked=False)
         if service_type == ServiceType.ARAKOON_CLUSTER_TYPES.ABM:
-            client.run(['ln', '-s', '/usr/lib/alba/albamgr_plugin.cmxs', '{0}/arakoon/{1}/db'.format(cluster_basedir, cluster_name)])
+            client.run(['ln', '-s', '/usr/lib/alba/albamgr_plugin.cmxs', '{0}/arakoon/{1}/db'
+                       .format(cluster_basedir, cluster_name)])
         elif service_type == ServiceType.ARAKOON_CLUSTER_TYPES.NSM:
-            client.run(['ln', '-s', '/usr/lib/alba/nsm_host_plugin.cmxs', '{0}/arakoon/{1}/db'.format(cluster_basedir, cluster_name)])
+            client.run(['ln', '-s', '/usr/lib/alba/nsm_host_plugin.cmxs', '{0}/arakoon/{1}/db'
+                       .format(cluster_basedir, cluster_name)])
 
         # checking if we need to restart the given nodes
         if len(clustered_nodes) != 0:
             ArakoonSetup.LOGGER.info("Trying to restart all given nodes of arakoon: {0}"
                                      .format(clustered_nodes, cluster_name))
-            ArakoonInstaller.restart_cluster_add(cluster_name, clustered_nodes, storagerouter_ip, filesystem=False)
+            ArakoonInstaller.restart_cluster_add(cluster_name=cluster_name, current_ips=clustered_nodes,
+                                                 new_ip=storagerouter_ip)
             ArakoonSetup.LOGGER.info("Finished restarting all given nodes of arakoon: {0}"
                                      .format(clustered_nodes, cluster_name))
 
