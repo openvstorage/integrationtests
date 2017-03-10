@@ -90,7 +90,7 @@ class Sdk(object):
         self.host = host
         self.login = login
         self.streams = {}
-        self.ssh_client = SSHClient(host, login, passwd)
+        self.ssh_client = SSHClient(host, username=login, password=passwd)
         self._conn = self.connect(login, host)
         # Enable event registering
         libvirt.virEventRegisterDefaultImpl()
@@ -119,7 +119,6 @@ class Sdk(object):
         :return: connection object
         """
         _ = self
-        conn = None
         logger.debug('Init connection: {0}, {1}, {2}, {3}'.format(host, login, os.getgid(), os.getuid()))
         try:
             if login == '127.0.0.1':
@@ -308,6 +307,7 @@ class Sdk(object):
         """
         Get the machine power state
         :param vmid: vm identifier
+        :param readable: return a human readable state or an integer
         :return power state of the vm
         """
         if not isinstance(vmid, libvirt.virDomain):
@@ -404,10 +404,6 @@ class Sdk(object):
         """
         if not isinstance(vmid, libvirt.virDomain):
             vmid = self.get_vm_object(vmid)
-        # Flow of kvm delete
-        # virsh destroy _domain-id_
-        # virsh undefine _domain-id_
-        # virsh vol-delete --pool vg0 _domain-id_.img
         xml = vmid.XMLDesc()
         try:
             if self.get_power_state(vmid) == "RUNNING":
@@ -506,7 +502,7 @@ class Sdk(object):
                 raise AssertionError("Name {0} is currently in use by another VM.".format(name))
             except AssertionError as ex:
                 raise RuntimeError(str(ex))
-            except libvirt.libvirtError as ex:
+            except libvirt.libvirtError:
                 return name
         else:
             if tries == 0:
@@ -516,7 +512,7 @@ class Sdk(object):
             try:
                 self._conn.lookupByName(name)
                 return self._generate_vm_clone_name(name, False, tries + 1)
-            except libvirt.libvirtError as ex:
+            except libvirt.libvirtError:
                 return name
 
     @staticmethod
@@ -593,6 +589,7 @@ class Sdk(object):
                 logger.error(str(le))
                 raise RuntimeError('Virtual Machine with id/name {} could not be found.'.format(name))
 
+    @authenticated
     def create_vm(self, name, vcpus, ram, disks, cdrom_iso=None, os_type=None, os_variant=None, vnc_listen='0.0.0.0',
                   networks=None, start=False, autostart=False, ovs_vm=True, edge_port=26203, hostname=None, wait=False):
         """
@@ -605,6 +602,10 @@ class Sdk(object):
         when using existing storage, size can be removed
         :param cdrom_iso: path to the iso the mount
         :param os_type: type of os
+        :param autostart: start automatically after creating
+        :param ovs_vm: use openvstorage protocol to connect disks using edge
+        :param edge_port: port of the edge to connect to
+        :param hostname: host to connect the edge to
         :param os_variant: variant of the os
         :param vnc_listen:
         :param networks: lists of tuples : ("network=default", "mac=RANDOM" or a valid mac, "model=e1000" (any model for vmachines)
@@ -614,108 +615,100 @@ class Sdk(object):
         """
         try:
             self._conn.lookupByName(name)
-            raise AssertionError("Name {0} is currently in use by another VM.".format(name))
+            raise AssertionError('Name {0} is currently in use by another VM.'.format(name))
         except AssertionError as ex:
             raise RuntimeError(str(ex))
-        except libvirt.libvirtError as ex:
+        except libvirt.libvirtError:
             pass
 
         if ovs_vm is True and (hostname is None or edge_port is None):
-            raise RuntimeError("Both hostname and edge_port need to be supplied if the VM will be used by OVS.")
+            raise RuntimeError('Both hostname and edge_port need to be supplied if the VM will be used by OVS.')
 
-        command = ["virt-install"]
-        options = ["--connect qemu+ssh://{}@{}/system".format(self.login, self.host),
-                   "--name {}".format(name),
-                   "--vcpus {}".format(vcpus),
-                   "--ram {}".format(ram),
-                   "--graphics vnc,listen={0}".format(vnc_listen), # Have to specify 0.0.0.0 else it will listen on 127.0.0.1 only
-                   "--noautoconsole"]
+        command = ['virt-install']
+        options = ['--connect=qemu+ssh://{0}@{1}/system'.format(self.login, self.host),
+                   '--name={0}'.format(name),
+                   '--vcpus={0}'.format(vcpus),
+                   '--ram={0}'.format(ram),
+                   '--graphics=vnc,listen={0}'.format(vnc_listen),  # Have to specify 0.0.0.0 else it will listen on 127.0.0.1 only
+                   '--noautoconsole',
+                   '--print-xml=1']
 
-        for disk in disks:
-            options.append(self._extract_command(disk, SdkOptionMapping.disk_options_mapping, "--disk"))
         if cdrom_iso is None:
-            options.append("--import")
+            options.append('--import')
         else:
-            options.append("--cdrom {0}".format(cdrom_iso))
+            options.append('--cdrom={0}'.format(cdrom_iso))
+        for disk in disks:
+            options.append('--disk={}'.format(self._extract_command(disk, SdkOptionMapping.disk_options_mapping)))
         if os_type is not None:
-            options.append("--os-type {0}".format(os_type))
+            if os_type not in SdkOptionMapping.optype_options:
+                raise ValueError('Ostype {0} is not supported'.format(os_type))
+            options.append('--os-type={0}'.format(os_type))
         if os_variant is not None:
-            options.append("--os-variant {0}".format(os_variant))
+            options.append('--os-variant={0}'.format(os_variant))
         if networks is None or networks == []:
-            options.append("--network none")
+            options.append('--network=none')
         if autostart is True:
-            options.append("--autostart")
+            options.append('--autostart')
+        if ovs_vm is True:
+            options.append('--dry-run')
         else:
             for network in networks:
-                options.append(self._extract_command(network, SdkOptionMapping.network_option_mapping, "--network"))
+                options.append('--network={0}'.format(self._extract_command(network, SdkOptionMapping.network_option_mapping)))
         try:
-            cmd = Sdk.shell_safe(" ".join(command + options))
-            logger.info("Creating vm {0} with command {1}".format(name, cmd))
-            self.ssh_client.run(cmd, allow_insecure=True)
+            logger.info('Creating vm {0} with command {1}'.format(name, ' '.join(command + options)))
+            vm_xml = self.ssh_client.run(command + options)
             if ovs_vm is True:
-                logger.info("Changing settings in to OVS settings...")
-                settings = self._update_xml_for_ovs(name, hostname, edge_port)
-                logger.info("Applying changes to XML ...")
-                self._conn.defineXML(settings)
-                logger.info("Done applying changes to XML ...")
-                logger.info("Destroying VM...")
-                self.destroy(name)
-                if start is True:
-                    logger.info("Powering on VM...")
-                    self.power_on(name)
-            else:
-                if start is False:
-                    self.destroy(name)
-            logger.info("Vm {0} has been created.".format(name, cmd))
+                vm_xml = self._update_xml_for_ovs(vm_xml, hostname, edge_port)
+            self._conn.defineXML(vm_xml)
+            if start is True:
+                self.power_on(name)
+            logger.info('Vm {0} has been created.'.format(name))
         except subprocess.CalledProcessError as ex:
-            msg = "Error during creation of VM. Got {0}".format(str(ex))
+            msg = 'Error during creation of VM. Got {0}'.format(str(ex))
             logger.exception(msg)
-            print " ".join(command+options)
+            print ' '.join(command+options)
             raise RuntimeError(msg)
 
-    def _update_xml_for_ovs(self, vmid, hostname, edge_port):
+    @staticmethod
+    def _update_xml_for_ovs(xml, hostname, edge_port):
         """
         Update the xml to use OVS protocol and use the edge
         :param vmid: vm object
         :return:
         """
-        if not isinstance(vmid, libvirt.virDomain):
-            vmid = self.get_vm_object(vmid)
-        logger.info("Changing XML to use OVS protocol.")
-        xml = vmid.XMLDesc()
+        logger.info('Changing XML to use OVS protocol.')
         tree = ElementTree.ElementTree(ElementTree.fromstring(xml))
         root = tree.getroot()
         for element in root.findall('devices/disk'):
             # update type to network instead of file
-            element.attrib.update({"type": "network"})
+            element.attrib.update({'type': 'network'})
             # update driver
-            driver_update = {"cache": "none",
-                             "io": "threads"}
+            driver_update = {'cache': 'none',
+                             'io': 'threads'}
             element.find('driver').attrib.update(driver_update)
             # Change source to (vdisk without .raw)
             source_element = element.find('source')
-            source = {"protocol": "openvstorage",
-                      "name": source_element.attrib.get("file").rsplit('/', 1)[1].rsplit('.', 1)[0]
-                      if source_element.attrib.get("file") is not None else source_element.attrib.get("name"),
-                      "snapshot-timeout": "120"}
+            source = {'protocol': 'openvstorage',
+                      'name': source_element.attrib.get('file').rsplit('/', 1)[1].rsplit('.', 1)[0]
+                      if source_element.attrib.get('file') is not None else source_element.attrib.get('name'),
+                      'snapshot-timeout': '120'}
             source_element.attrib = source
             # Add a new element under source with edge port and hostname pointer
             if len(source_element.getchildren()) == 0:
-                e = Element(tag="host", attrib={"name": hostname, "port": str(edge_port)})
+                e = Element(tag='host', attrib={'name': hostname, 'port': str(edge_port)})
                 source_element.insert(0, e)
             else:
-                source_element.find("host").attrib = {"name": hostname, "port": str(edge_port)}
+                source_element.find('host').attrib = {'name': hostname, 'port': str(edge_port)}
             # Change address attrib
-        logger.info("Xml change completed.")
+        logger.info('Xml change completed.')
         return ElementTree.tostring(root)
 
     @staticmethod
-    def _extract_command(option, mapping, command):
+    def _extract_command(option, mapping):
         """
         Creates a command string based on options and a mapping
         :param option: all options
         :param mapping: mapping for the options
-        :param ovs_vm: should the vm use edge.
         :return: command string
         :rtype: str
         """
@@ -737,11 +730,11 @@ class Sdk(object):
                         opts[config['option']] = value
                     else:
                         raise ValueError(
-                            'Value does not match. Expected {0} and got {1} for option {2}'.format(config['type'], type(value),key))
+                            'Value does not match. Expected {0} and got {1} for option {2}'.format(config['type'], type(value), key))
         # Generate options to append to the command
         for key, value in opts.iteritems():
-            cmd.append("{1}={2}".format(command, key, value))
-        return "{0} {1}".format(command, ",".join(cmd))
+            cmd.append("{0}={1}".format(key, value))
+        return "{0}".format(",".join(cmd))
 
     @authenticated
     def migrate(self, vmid, d_ip, d_login, flags=None, bandwidth=0):
@@ -771,7 +764,8 @@ class Sdk(object):
     def get_guest_ip_addresses(self, vmid, source=libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE):
         """
         Returns the IP given by the network lease
-        :param vmid: identifier of the vm to migrate (name or id)
+        :param vmid: identifier of the vm
+        :param source: source to base off
         :return: a list with all ip addresses
         """
         if not isinstance(vmid, libvirt.virDomain):
@@ -816,3 +810,36 @@ class Sdk(object):
         :param argument: Argument to make safe for shell
         """
         return "{0}".format(argument.replace(r"'", r"'\''"))
+
+    @authenticated
+    def eject_cd(self, vmid, target='all', flags=None):
+        """
+        :param vmid: identifier of the vm
+        :param vmid: source to base off
+        :return:
+        """
+        if not isinstance(vmid, libvirt.virDomain):
+            vmid = self.get_vm_object(vmid)
+        if flags is None:
+            flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG + libvirt.VIR_DOMAIN_AFFECT_LIVE
+        xml = vmid.XMLDesc()
+        tree = ElementTree.ElementTree(ElementTree.fromstring(xml))
+        root = tree.getroot()
+        # Returns libvirtError: internal error: unable to execute QEMU command 'eject': Tray of device 'drive-ide0-0-0' is not open
+        xml_update_segments = []
+        for element in root.findall('devices/disk[@device="cdrom"]'):
+            target_info = element.find('target')
+            if target == 'all' or (target != 'all' and target_info.attrib['dev'] == target):
+                # Disconnecting = removing source
+                source_element = element.find('source')
+                if source_element is not None:
+                    # Open tray
+                    element.attrib.update({'type': 'file'})
+                    target_info.attrib.update({'tray': 'open'})
+                    element.remove(element.find('source'))
+                    xml_update_segments.append(element)
+                    # Close again
+                    target_info.attrib.pop('tray')
+                    xml_update_segments.append(element)
+        for xml_update_segment in xml_update_segments:
+            vmid.updateDeviceFlags(ElementTree.tostring(xml_update_segment), flags)

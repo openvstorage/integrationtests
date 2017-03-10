@@ -60,12 +60,13 @@ class VDiskHelper(object):
         if vpool:
             if not vdisk_name.startswith("/"):
                 vdisk_name = "/{0}".format(vdisk_name)
+            if not vdisk_name.endswith('.raw'):
+                vdisk_name = '{0}.raw'.format(vdisk_name)
             vdisk = VDiskList.get_by_devicename_and_vpool(vdisk_name, vpool)
             if vdisk:
                 return vdisk
             else:
-                raise VDiskNotFoundError("VDisk with name `{0}` not found on vPool `{1}`!"
-                                         .format(vdisk_name, vpool_name))
+                raise VDiskNotFoundError("VDisk with name `{0}` not found on vPool `{1}`!".format(vdisk_name, vpool_name))
         else:
             raise VPoolNotFoundError("vPool with name `{0}` cannot be found!".format(vpool_name))
 

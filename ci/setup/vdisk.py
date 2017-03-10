@@ -23,7 +23,7 @@ from ci.validate.decorators import required_vdisk, required_snapshot, required_v
 
 class VDiskSetup(object):
 
-    LOGGER = LogHandler.get(source="setup", name="ci_vdisk_setup")
+    LOGGER = LogHandler.get(source='setup', name='ci_vdisk_setup')
     CREATE_SNAPSHOT_TIMEOUT = 60
     CREATE_VDISK_TIMEOUT = 60
     CREATE_CLONE_TIMEOUT = 60
@@ -73,12 +73,12 @@ class VDiskSetup(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Creating snapshot `{0}` for vdisk `{1}` on vPool `{2}` has failed"\
+            error_msg = 'Creating snapshot `{0}` for vdisk `{1}` on vPool `{2}` has failed'\
                 .format(snapshot_name, vdisk_name, vpool_name)
             VDiskSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
-            VDiskSetup.LOGGER.info("Creating snapshot `{0}` for vdisk `{1}` on vPool `{2}` should have succeeded"
+            VDiskSetup.LOGGER.info('Creating snapshot `{0}` for vdisk `{1}` on vPool `{2}` should have succeeded'
                                    .format(snapshot_name, vdisk_name, vpool_name))
             return task_result[1]
 
@@ -114,10 +114,10 @@ class VDiskSetup(object):
         else:
             official_vdisk_name = vdisk_name
 
-        data = {"name": official_vdisk_name,
-                "size": int(size),
-                "vpool_guid": vpool_guid,
-                "storagerouter_guid": storagerouter_guid}
+        data = {'name': official_vdisk_name,
+                'size': int(size),
+                'vpool_guid': vpool_guid,
+                'storagerouter_guid': storagerouter_guid}
 
         task_guid = api.post(
             api='/vdisks/',
@@ -126,13 +126,11 @@ class VDiskSetup(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Creating vdisk `{0}` on vPool `{1}` on storagerouter `{2}` has failed with error {3}"\
-                .format(vdisk_name, vpool_name, storagerouter_ip, task_result[1])
+            error_msg = 'Creating vdisk `{0}` on vPool `{1}` on storagerouter `{2}` has failed with error {3}'.format(vdisk_name, vpool_name, storagerouter_ip, task_result[1])
             VDiskSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
-            VDiskSetup.LOGGER.info("Creating vdisk `{0}` on vPool `{1}` on storagerouter `{2}` should have succeeded"
-                                   .format(vdisk_name, vpool_name, storagerouter_ip))
+            VDiskSetup.LOGGER.info('Creating vdisk `{0}` on vPool `{1}` on storagerouter `{2}` should have succeeded'.format(vdisk_name, vpool_name, storagerouter_ip))
             return task_result[1]
 
     @staticmethod
@@ -157,13 +155,13 @@ class VDiskSetup(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Moving vdisk {0} to {1} has failed with {2}.".format(
+            error_msg = 'Moving vdisk {0} to {1} has failed with {2}.'.format(
                 vdisk_guid, target_storagerouter_guid, task_result[1])
             VDiskSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
             VDiskSetup.LOGGER.info(
-                "Vdisk {0} should have been moved to {1}.".format(vdisk_guid, target_storagerouter_guid))
+                'Vdisk {0} should have been moved to {1}.'.format(vdisk_guid, target_storagerouter_guid))
             return task_result[1]
 
     @staticmethod
@@ -210,12 +208,12 @@ class VDiskSetup(object):
             official_new_vdisk_name = new_vdisk_name
 
         if not snapshot_id:
-            data = {"name": official_new_vdisk_name,
-                    "storagerouter_guid": storagerouter_guid}
+            data = {'name': official_new_vdisk_name,
+                    'storagerouter_guid': storagerouter_guid}
         else:
-            data = {"name": official_new_vdisk_name,
-                    "storagerouter_guid": storagerouter_guid,
-                    "snapshot_id": snapshot_id}
+            data = {'name': official_new_vdisk_name,
+                    'storagerouter_guid': storagerouter_guid,
+                    'snapshot_id': snapshot_id}
 
         task_guid = api.post(
             api='/vdisks/{0}/clone'.format(vdisk.guid),
@@ -224,14 +222,14 @@ class VDiskSetup(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Creating clone `{0}` with snapshot_id `{4}` on vPool `{1}` on storagerouter `{2}` " \
-                        "has failed with error {3}".format(vdisk_name, vpool_name, storagerouter_ip,
+            error_msg = 'Creating clone `{0}` with snapshot_id `{4}` on vPool `{1}` on storagerouter `{2}` ' \
+                        'has failed with error {3}'.format(vdisk_name, vpool_name, storagerouter_ip,
                                                            task_result[1], snapshot_id)
             VDiskSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
-            VDiskSetup.LOGGER.info("Creating clone `{0}` with snapshot_id `{3}` on vPool `{1}` on storagerouter `{2}` "
-                                   "should have succeeded".format(vdisk_name, vpool_name, storagerouter_ip,
+            VDiskSetup.LOGGER.info('Creating clone `{0}` with snapshot_id `{3}` on vPool `{1}` on storagerouter `{2}` '
+                                   'should have succeeded'.format(vdisk_name, vpool_name, storagerouter_ip,
                                                                   snapshot_id))
             return task_result[1]
 
@@ -261,11 +259,11 @@ class VDiskSetup(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Creating vTemplate `{0}` has failed with error {1}".format(vdisk_name, task_result[1])
+            error_msg = 'Creating vTemplate `{0}` has failed with error {1}'.format(vdisk_name, task_result[1])
             VDiskSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
-            VDiskSetup.LOGGER.info("Creating vTemplate `{0}` should have succeeded".format(vdisk_name))
+            VDiskSetup.LOGGER.info('Creating vTemplate `{0}` should have succeeded'.format(vdisk_name))
             return task_result[1]
 
     @staticmethod
@@ -301,8 +299,8 @@ class VDiskSetup(object):
         else:
             official_new_vdisk_name = new_vdisk_name
 
-        data = {"name": official_new_vdisk_name,
-                "storagerouter_guid": storagerouter_guid}
+        data = {'name': official_new_vdisk_name,
+                'storagerouter_guid': storagerouter_guid}
 
         task_guid = api.post(
             api='/vdisks/{0}/create_from_template'.format(vdisk.guid),
@@ -311,11 +309,11 @@ class VDiskSetup(object):
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Creating vTemplate `{0}` has failed with error {1}".format(vdisk_name, task_result[1])
+            error_msg = 'Creating vTemplate `{0}` has failed with error {1}'.format(vdisk_name, task_result[1])
             VDiskSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
-            VDiskSetup.LOGGER.info("Creating vTemplate `{0}` should have succeeded".format(vdisk_name))
+            VDiskSetup.LOGGER.info('Creating vTemplate `{0}` should have succeeded'.format(vdisk_name))
             return task_result[1]
 
     @staticmethod
@@ -343,16 +341,16 @@ class VDiskSetup(object):
 
         task_guid = api.post(
             api='/vdisks/{0}/rollback'.format(vdisk_guid),
-            data={"timestamp": snapshot['timestamp']}
+            data={'timestamp': snapshot['timestamp']}
         )
         task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
 
         if not task_result[0]:
-            error_msg = "Rollback vDisk `{0}` has failed with error {1}".format(vdisk_name, task_result[1])
+            error_msg = 'Rollback vDisk `{0}` has failed with error {1}'.format(vdisk_name, task_result[1])
             VDiskSetup.LOGGER.error(error_msg)
             raise RuntimeError(error_msg)
         else:
-            VDiskSetup.LOGGER.info("Rollback vDisk `{0}` should have succeeded".format(vdisk_name))
+            VDiskSetup.LOGGER.info('Rollback vDisk `{0}` should have succeeded'.format(vdisk_name))
             return task_result[1]
 
     @staticmethod
