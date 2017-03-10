@@ -121,3 +121,84 @@ class InitManager(object):
 
             # if not failed, check output
             return output == 'active'
+
+    @staticmethod
+    def list_services(service_name_pattern, ip):
+        """
+        Restart a certain service on a requested node
+
+        :param service_name_pattern: name of a existing service pattern
+        :type service_name_pattern: str
+        :param ip: ip address of a node
+        :type ip: str
+        :return: list of services matching the pattern
+        :rtype: list
+        """
+        client = SSHClient(ip, username='root')
+
+        if InitManager.INIT_MANAGER == InitManagerSupported.SYSTEMD:
+            return [service for service in client.file_list(InitManager.SYSTEMD_BASEDIR)
+                    if service_name_pattern in service]
+        elif InitManager.INIT_MANAGER == InitManagerSupported.INIT:
+            return [service for service in client.file_list(InitManager.UPSTART_BASEDIR)
+                    if service_name_pattern in service]
+
+    @staticmethod
+    def service_start(service_name, ip):
+        """
+        Start a certain service on a requested node
+
+        :param service_name: name of a existing service
+        :type service_name: str
+        :param ip: ip address of a node
+        :type ip: str
+        :return: if the service is running
+        :rtype: bool
+        """
+        client = SSHClient(ip, username='root')
+
+        if InitManager.INIT_MANAGER == InitManagerSupported.INIT:
+            output = client.run(['service', 'service_name', 'stop'])
+            return output.split()[1] == "start/running,"
+        elif InitManager.INIT_MANAGER == InitManagerSupported.SYSTEMD:
+            try:
+                client.run(['systemctl', 'start', '{0}.service'.format(service_name)])
+                time.sleep(0.5)
+                output = client.run(['systemctl', 'is-active', '{0}.service'.format(service_name)])
+            except subprocess.CalledProcessError:
+                InitManager.LOGGER.warning("Exception caught when starting & checking service `{0}` "
+                                           "on node with ip `{1}`".format(service_name, ip))
+                return False
+
+            # if not failed, check output
+            return output == 'active'
+
+    @staticmethod
+    def service_stop(service_name, ip):
+        """
+        Stop a certain service on a requested node
+
+        :param service_name: name of a existing service
+        :type service_name: str
+        :param ip: ip address of a node
+        :type ip: str
+        :return: if the service is running
+        :rtype: bool
+        """
+        client = SSHClient(ip, username='root')
+
+        if InitManager.INIT_MANAGER == InitManagerSupported.INIT:
+            output = client.run(['service', 'service_name', 'start'])
+            return output.split()[1] == "stopped/waiting"
+        elif InitManager.INIT_MANAGER == InitManagerSupported.SYSTEMD:
+            try:
+                client.run(['systemctl', 'stop', '{0}.service'.format(service_name)])
+                time.sleep(0.5)
+                output = client.run(['systemctl', 'is-active', '{0}.service'.format(service_name)])
+            except subprocess.CalledProcessError:
+                InitManager.LOGGER.warning("Exception caught when stopping & checking service `{0}` "
+                                           "on node with ip `{1}`".format(service_name, ip))
+                return False
+
+            # if not failed, check output
+            return output != 'active'
