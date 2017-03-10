@@ -653,9 +653,15 @@ class Sdk(object):
             logger.info("Creating vm {0} with command {1}".format(name, cmd))
             self.ssh_client.run(cmd, allow_insecure=True)
             if ovs_vm is True:
-                self._conn.defineXML(self._update_xml_for_ovs(name, hostname, edge_port))
+                logger.info("Changing settings in to OVS settings...")
+                settings = self._update_xml_for_ovs(name, hostname, edge_port)
+                logger.info("Applying changes to XML ...")
+                self._conn.defineXML(settings)
+                logger.info("Done applying changes to XML ...")
+                logger.info("Destroying VM...")
                 self.destroy(name)
                 if start is True:
+                    logger.info("Powering on VM...")
                     self.power_on(name)
             else:
                 if start is False:

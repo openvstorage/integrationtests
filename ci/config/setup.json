@@ -10,7 +10,18 @@
     "setup_retries": 1,
     "scenario_retries": 1,
     "version": "unstable",
-    "hypervisor": "KVM",
+    "hypervisor": {
+      "type": "KVM",
+      "ip": "10.100.69.222",
+      "user": "root",
+      "password": "rooter",
+      "vms": {
+        "10.100.199.191": {"name": "ubuntu16.04-setup3-ovsnode01", "role": "NONE"},
+        "10.100.199.192": {"name": "ubuntu16.04-setup3-ovsnode02", "role": "VOLDRV"},
+        "10.100.199.193": {"name": "ubuntu16.04-setup3-ovsnode03", "role": "NONE"},
+        "10.100.199.194": {"name": "ubuntu16.04-setup3-ovsnode04", "role": "COMPUTE"}
+      }
+    },
     "config_manager": "arakoon",
     "user": {
       "shell": {
@@ -22,13 +33,9 @@
         "password": "admin"
       }
     },
-    "grid_ip": "10.100.199.151"
+    "grid_ip": "10.100.199.191"
   },
   "scenarios": ["ALL"],
-  "configuration": {
-    "ovs.generic.execute_scrub": null,
-    "ovs.generic.snapshot_all_vdisk": null
-  },
   "setup": {
     "domains": ["Roubaix", "Gravelines", "Strasbourg"],
     "backends": [
@@ -36,45 +43,6 @@
         "name": "mybackend",
         "domains": {"domain_guids":["Roubaix"]},
         "scaling": "LOCAL",
-        "min_nsm_arakoons": 3,
-        "external_arakoon": {
-            "10.100.199.151": {
-                "ssd_roub_abm": {
-                   "type": "ABM",
-                   "base_dir": "/mnt/hdd1/ovh/"
-                },
-                "ssd_roub_nsm_1": {
-                   "type": "NSM",
-                   "base_dir": "/mnt/hdd1/ovh/"
-                },
-                "ssd_roub_nsm_2": {
-                   "type": "NSM",
-                   "base_dir": "/mnt/hdd1/ovh/"
-                },
-                "ssd_roub_nsm_3": {
-                   "type": "NSM",
-                   "base_dir": "/mnt/hdd1/ovh/"
-                }
-            },
-            "10.100.199.152": {
-                "ssd_roub_abm": {
-                   "type": "ABM",
-                   "base_dir": "/mnt/hdd1/ovh/"
-                },
-                "ssd_roub_nsm_1": {
-                   "type": "NSM",
-                   "base_dir": "/mnt/hdd1/ovh/"
-                },
-                "ssd_roub_nsm_2": {
-                   "type": "NSM",
-                   "base_dir": "/mnt/hdd1/ovh/"
-                },
-                "ssd_roub_nsm_3": {
-                   "type": "NSM",
-                   "base_dir": "/mnt/hdd1/ovh/"
-                }
-            }
-        },
         "presets": [
           {
             "name": "mypreset",
@@ -82,24 +50,28 @@
             "encryption": "none",
             "policies": [
               [
-                2,2,3,4
+                1, 2, 1, 3
               ]
             ],
             "fragment_size": 2097152
           }
         ],
         "osds": {
-          "10.100.199.151": {
-            "sda": 2,
-            "sdb": 2
+          "10.100.199.191": {
+            "sde": 2,
+            "sdf": 2
           },
-          "10.100.199.152": {
-            "sda": 2,
-            "sdb": 2
+          "10.100.199.192": {
+            "sde": 2,
+            "sdf": 2
           },
-          "10.100.199.153": {
-            "sda": 2,
-            "sdb": 2
+          "10.100.199.193": {
+            "sde": 2,
+            "sdf": 2
+          },
+          "10.100.199.194": {
+            "sde": 2,
+            "sdf": 2
           }
         }
       },
@@ -114,21 +86,24 @@
             "encryption": "none",
             "policies": [
               [
-                2,2,3,4
+                1, 2, 1, 3
               ]
             ],
             "fragment_size": 2097152
           }
         ],
         "osds": {
-          "10.100.199.151": {
-            "sdc": 2
+          "10.100.199.191": {
+            "sdg": 2
           },
-          "10.100.199.152": {
-            "sdc": 2
+          "10.100.199.192": {
+            "sdg": 2
           },
-          "10.100.199.153": {
-            "sdc": 2
+          "10.100.199.193": {
+            "sdg": 2
+          },
+          "10.100.199.194": {
+            "sdg": 2
           }
         }
       },
@@ -143,7 +118,7 @@
             "encryption": "none",
             "policies": [
               [
-                1,2,2,3
+                1, 2, 1, 3
               ]
             ],
             "fragment_size": 2097152
@@ -156,23 +131,23 @@
       }
     ],
     "storagerouters": {
-      "10.100.199.151": {
+      "10.100.199.191": {
         "hostname": "ovs-node-1-1604",
         "domains": {"domain_guids": ["Gravelines"], "recovery_domain_guids": ["Roubaix", "Strasbourg"]},
         "disks": {
-          "sdd": {
+          "sda": {
             "roles": [
-              "DB"
+              "WRITE", "DTL"
             ]
           },
-          "sde": {
+          "sdc": {
             "roles": [
               "SCRUB"
             ]
           },
-          "sdf": {
+          "sdb": {
             "roles": [
-              "WRITE"
+              "DB"
             ]
           }
         },
@@ -180,7 +155,7 @@
           "myvpool01": {
             "backend_name": "mybackend-global",
             "preset": "mypreset",
-            "storage_ip": "10.100.199.151",
+            "storage_ip": "10.100.199.191",
             "fragment_cache": {
               "strategy": {"cache_on_read":true, "cache_on_write":true},
               "location": "disk"
@@ -189,30 +164,30 @@
               "sco_size": 4,
               "cluster_size": 4,
               "volume_write_buffer": 512,
-              "global_write_buffer": 2,
+              "global_write_buffer": 20,
               "dtl_transport": "tcp",
               "dtl_mode": "a_sync"
             }
           }
         }
       },
-      "10.100.199.152": {
+      "10.100.199.192": {
         "hostname": "ovs-node-2-1604",
         "domains": {"domain_guids": ["Roubaix"], "recovery_domain_guids": ["Gravelines", "Strasbourg"]},
         "disks": {
-          "sdd": {
+          "sda": {
             "roles": [
-              "DB"
+              "WRITE", "DTL"
             ]
           },
-          "sde": {
+          "sdc": {
             "roles": [
               "SCRUB"
             ]
           },
-          "sdf": {
+          "sdb": {
             "roles": [
-              "WRITE"
+              "DB"
             ]
           }
         },
@@ -220,9 +195,9 @@
           "myvpool02": {
             "backend_name": "mybackend-global",
             "preset": "mypreset",
-            "storage_ip": "10.100.199.152",
+            "storage_ip": "10.100.199.192",
             "fragment_cache": {
-              "strategy": {"cache_on_read":true, "cache_on_write":true},
+              "strategy": {"cache_on_read":false, "cache_on_write":false},
               "location": "backend",
               "backend": {
                 "name": "mybackend02",
@@ -233,7 +208,7 @@
               "sco_size": 4,
               "cluster_size": 4,
               "volume_write_buffer": 512,
-              "global_write_buffer": 3,
+              "global_write_buffer": 2,
               "dtl_transport": "tcp",
               "dtl_mode": "a_sync"
             }
@@ -241,7 +216,7 @@
           "myvpool01": {
             "backend_name": "mybackend-global",
             "preset": "mypreset",
-            "storage_ip": "10.100.199.152",
+            "storage_ip": "10.100.199.192",
             "fragment_cache": {
               "strategy": {"cache_on_read":true, "cache_on_write":true},
               "location": "disk"
@@ -250,30 +225,30 @@
               "sco_size": 4,
               "cluster_size": 4,
               "volume_write_buffer": 512,
-              "global_write_buffer": 4,
+              "global_write_buffer": 20,
               "dtl_transport": "tcp",
               "dtl_mode": "a_sync"
             }
           }
         }
       },
-      "10.100.199.153": {
+      "10.100.199.193": {
         "hostname": "ovs-node-3-1604",
         "domains": {"domain_guids": ["Strasbourg"], "recovery_domain_guids": ["Roubaix", "Gravelines"]},
         "disks": {
-          "sdd": {
+          "sda": {
             "roles": [
-              "DB"
+              "WRITE", "DTL"
             ]
           },
-          "sde": {
+          "sdc": {
             "roles": [
               "SCRUB"
             ]
           },
-          "sdf": {
+          "sdb": {
             "roles": [
-              "WRITE"
+              "DB"
             ]
           }
         },
@@ -281,7 +256,7 @@
           "myvpool01": {
             "backend_name": "mybackend-global",
             "preset": "mypreset",
-            "storage_ip": "10.100.199.153",
+            "storage_ip": "10.100.199.193",
             "fragment_cache": {
               "strategy": {"cache_on_read":true, "cache_on_write":true},
               "location": "disk"
@@ -290,7 +265,47 @@
               "sco_size": 4,
               "cluster_size": 4,
               "volume_write_buffer": 512,
-              "global_write_buffer": 7,
+              "global_write_buffer": 20,
+              "dtl_transport": "tcp",
+              "dtl_mode": "a_sync"
+            }
+          }
+        }
+      },
+      "10.100.199.194": {
+        "hostname": "ovs-node-4-1604",
+        "domains": {"domain_guids": ["Roubaix"], "recovery_domain_guids": ["Strasbourg", "Gravelines"]},
+        "disks": {
+          "sda": {
+            "roles": [
+              "WRITE", "DTL"
+            ]
+          },
+          "sdc": {
+            "roles": [
+              "SCRUB"
+            ]
+          },
+          "sdb": {
+            "roles": [
+              "DB"
+            ]
+          }
+        },
+        "vpools": {
+          "myvpool01": {
+            "backend_name": "mybackend-global",
+            "preset": "mypreset",
+            "storage_ip": "10.100.199.194",
+            "fragment_cache": {
+              "strategy": {"cache_on_read":true, "cache_on_write":true},
+              "location": "disk"
+            },
+            "storagedriver": {
+              "sco_size": 4,
+              "cluster_size": 4,
+              "volume_write_buffer": 512,
+              "global_write_buffer": 20,
               "dtl_transport": "tcp",
               "dtl_mode": "a_sync"
             }

@@ -15,6 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 from ovs.dal.hybrids.vdisk import VDisk
+from ovs.log.log_handler import LogHandler
 from ovs.dal.lists.vdisklist import VDiskList
 from ovs.dal.lists.vpoollist import VPoolList
 from ci.helpers.exceptions import VPoolNotFoundError, VDiskNotFoundError
@@ -24,6 +25,19 @@ class VDiskHelper(object):
     """
     vDiskHelper class
     """
+
+    GET_CONFIG_PARAMS_TIMEOUT = 60
+    LOGGER = LogHandler.get(source="setup", name="ci_vdisk_setup")
+
+    class DtlStatus(object):
+        """
+        DTL ENUM class for a vDisk
+        """
+
+        SYNC = "ok_sync"
+        CHECKUP = "checkup_required"
+        DEGRADED = "degraded"
+        DISABLED = "disabled"
 
     def __init__(self):
         pass
@@ -89,3 +103,42 @@ class VDiskHelper(object):
         except StopIteration:
             raise RuntimeError("Did not find snapshot with guid `{0}` on vdisk `{1}` on vpool `{2}`"
                                .format(snapshot_guid, vdisk_name, vpool_name))
+
+    @staticmethod
+    def get_config_params(vdisk_name, vpool_name, api, timeout=GET_CONFIG_PARAMS_TIMEOUT):
+        """
+        Fetch the config parameters of a vDisk
+
+        :param vdisk_name: location of a vdisk on a vpool
+                           (e.g. /mnt/vpool/test.raw = test.raw, /mnt/vpool/volumes/test.raw = volumes/test.raw )
+        :type vdisk_name: str
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
+        :param api: specify a valid api connection to the setup
+        :type api: ci.helpers.api.OVSClient
+        :param timeout: time to wait for the task to complete
+        :type timeout: int
+        :return: a dict with config parameters, e.g.
+        {
+           'dtl_mode':u'a_sync',
+           'dtl_target':[
+              u'24f94196-13e8-43c1-afa7-4c44fa8b11ea'
+           ],
+           'pagecache_ratio':1.0,
+           'sco_size':4,
+           'write_buffer':512
+        }
+        :rtype: dict
+        """
+
+        vdisk = VDiskHelper.get_vdisk_by_name(vdisk_name=vdisk_name, vpool_name=vpool_name)
+        task_guid = api.get(api='/vdisks/{0}/get_config_params'.format(vdisk.guid))
+        task_result = api.wait_for_task(task_id=task_guid, timeout=timeout)
+
+        if not task_result[0]:
+            error_msg = "Setting config vDisk `{0}` has failed with error {1}".format(vdisk_name, task_result[1])
+            VDiskHelper.LOGGER.error(error_msg)
+            raise RuntimeError(error_msg)
+        else:
+            VDiskHelper.LOGGER.info("Setting config vDisk `{0}` should have succeeded".format(vdisk_name))
+            return task_result[1]

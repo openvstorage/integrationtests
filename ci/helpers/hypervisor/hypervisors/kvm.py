@@ -29,7 +29,7 @@ class KVM(object):
         Initializes the object with credentials and connection information
         """
         _ = password
-        self.sdk = Sdk(ip, username)
+        self.sdk = Sdk(ip, username, password)
 
     def get_state(self, vmid):
         """

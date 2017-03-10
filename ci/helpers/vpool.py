@@ -23,6 +23,16 @@ class VPoolHelper(object):
     """
     BackendHelper class
     """
+
+    class DtlStatus(object):
+        """
+        DTL ENUM class for a vPool
+        """
+
+        SYNC = "sync"
+        ASYNC = "a_sync"
+        DISABLED = "no_sync"
+
     LOGGER = LogHandler.get(source='helpers', name="ci_vpool")
 
     def __init__(self):
@@ -55,3 +65,22 @@ class VPoolHelper(object):
             return vpool
         else:
             raise VPoolNotFoundError("vPool with name `{0}` was not found!".format(vpool_name))
+
+    @staticmethod
+    def get_domains_by_vpool(vpool_name):
+        """
+        Get the domain_guids where the vpool is situated
+
+        :param vpool_name: name of a existing vpool
+        :type vpool_name: str
+        :return: a vpool object
+        :rtype: ovs.dal.hybrids.vpool
+        """
+
+        vpool = VPoolList.get_vpool_by_name(vpool_name)
+        domains = []
+        for storagedriver in list(vpool.storagedrivers):
+            for domain in list(storagedriver.storagerouter.regular_domains):
+                if domain not in domains:
+                    domains.append(domain)
+        return domains
