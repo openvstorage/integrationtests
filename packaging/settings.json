@@ -3,8 +3,8 @@
     "product_name": "Open vStorage Integration tests",
     "source_contents": "--transform 's,^,{0}-{1}/,' ci *.txt",
     "version": {
-        "major": 0,
-        "minor": 5,
-        "patch": 1
+        "major": 1,
+        "minor": 0,
+        "patch": 0
     }
 }

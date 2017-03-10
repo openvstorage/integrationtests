@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 from ovs.log.log_handler import LogHandler
-from ci.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 
 
 class LogrotateChecks(object):

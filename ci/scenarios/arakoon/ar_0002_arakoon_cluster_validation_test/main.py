@@ -17,8 +17,8 @@
 import time
 import uuid
 from ovs.log.log_handler import LogHandler
-from ci.helpers.init_manager import InitManager
-from ci.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.init_manager import InitManager
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ovs.extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
 
 

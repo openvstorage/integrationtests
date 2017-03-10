@@ -19,21 +19,21 @@ import time
 import socket
 import subprocess
 from libvirt import libvirtError
-from ci.helpers.api import OVSClient
-from ci.helpers.hypervisor.hypervisor import HypervisorFactory
-from ci.helpers.vpool import VPoolHelper
-from ci.helpers.vdisk import VDiskHelper
-from ci.helpers.domain import DomainHelper
-from ci.helpers.storagerouter import StoragerouterHelper
-from ci.helpers.storagedriver import StoragedriverHelper
-from ci.helpers.system import SystemHelper
+from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.helpers.domain import DomainHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.storagedriver import StoragedriverHelper
+from ci.api_lib.helpers.system import SystemHelper
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
-from ci.remove.vdisk import VDiskRemover
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
-from ci.helpers.init_manager import InitManager
+from ci.api_lib.helpers.init_manager import InitManager
 
 
 class AdvancedDTLTester(object):
@@ -99,8 +99,8 @@ class AdvancedDTLTester(object):
     def main(blocked):
         """
         Run all required methods for the test
-        status depends on attributes in class: ci.helpers.testtrailapi.TestrailResult
-        case_type depends on attributes in class: ci.helpers.testtrailapi.TestrailCaseType
+        status depends on attributes in class: ci.api_lib.helpers.testtrailapi.TestrailResult
+        case_type depends on attributes in class: ci.api_lib.helpers.testtrailapi.TestrailCaseType
         :param blocked: was the test blocked by other test?
         :return: results of test
         :rtype: dict

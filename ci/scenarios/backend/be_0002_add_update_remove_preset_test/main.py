@@ -17,12 +17,12 @@
 import json
 import time
 from ci.main import CONFIG_LOC
-from ci.helpers.api import OVSClient
-from ci.setup.backend import BackendSetup
+from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.setup.backend import BackendSetup
 from ovs.log.log_handler import LogHandler
-from ci.helpers.backend import BackendHelper
-from ci.remove.backend import BackendRemover
-from ci.validate.backend import BackendValidation
+from ci.api_lib.helpers.backend import BackendHelper
+from ci.api_lib.remove.backend import BackendRemover
+from ci.api_lib.validate.backend import BackendValidation
 
 
 class AddUpdateRemovePreset(object):
@@ -186,7 +186,7 @@ class AddUpdateRemovePreset(object):
         :param preset_definition: definition of the preset (e.g. preset_compression_no_encryption)
         :type preset_definition: str
         :param api: specify a valid api connection to the setup
-        :type api: ci.helpers.api.OVSClient
+        :type api: ci.api_lib.helpers.api.OVSClient
         :return:
         """
 

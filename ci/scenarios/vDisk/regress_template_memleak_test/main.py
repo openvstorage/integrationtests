@@ -17,13 +17,12 @@
 import json
 import time
 from ci.main import CONFIG_LOC
-from ci.helpers.api import OVSClient
-from ci.setup.vdisk import VDiskSetup
-from ci.helpers.vpool import VPoolHelper
-from ci.remove.vdisk import VDiskRemover
+from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
-from ci.validate.vdisk import VDiskValidation
-from ci.helpers.statistics import StatisticsHelper
+from ci.api_lib.helpers.statistics import StatisticsHelper
 from ovs.extensions.generic.sshclient import SSHClient
 
 

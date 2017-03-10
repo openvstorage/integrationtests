@@ -1,3 +1,0 @@
-# When rebuilding jenkins, copy dsvm.xml and run
-## cd ~/scp-plugin/target/jenkins-for-test/WEB-INF
-##java -jar jenkins-cli.jar -s http://127.0.0.1:8080 create-job dsvm-tempest-full > dsvm.xml

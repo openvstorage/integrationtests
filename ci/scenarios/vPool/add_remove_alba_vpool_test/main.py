@@ -17,18 +17,18 @@
 import json
 import time
 from ci.main import CONFIG_LOC
-from ci.helpers.api import OVSClient
-from ci.setup.vdisk import VDiskSetup
-from ci.setup.vpool import VPoolSetup
-from ci.helpers.vpool import VPoolHelper
-from ci.remove.vpool import VPoolRemover
-from ci.remove.vdisk import VDiskRemover
-from ci.setup.backend import BackendSetup
+from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.setup.vpool import VPoolSetup
+from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.remove.vpool import VPoolRemover
+from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.api_lib.setup.backend import BackendSetup
 from ovs.log.log_handler import LogHandler
-from ci.remove.backend import BackendRemover
-from ci.helpers.backend import BackendHelper
-from ci.validate.roles import RoleValidation
-from ci.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.remove.backend import BackendRemover
+from ci.api_lib.helpers.backend import BackendHelper
+from ci.api_lib.validate.roles import RoleValidation
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 
 
 class AddRemoveVPool(object):
@@ -245,7 +245,7 @@ class AddRemoveVPool(object):
         :param fragment_cache_cfg: details of a vpool its fragment cache
         :type fragment_cache_cfg: dict
         :param api: fragment_cache_cfg a valid api connection to the setup
-        :type api: ci.helpers.api.OVSClient
+        :type api: ci.api_lib.helpers.api.OVSClient
         :param storagerouter_ip: ip address of a existing storagerouter
         :type storagerouter_ip: str
         :param albabackend_name: name of a existing albabackend

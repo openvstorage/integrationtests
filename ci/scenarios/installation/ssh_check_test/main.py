@@ -16,7 +16,7 @@
 
 from ovs.log.log_handler import LogHandler
 from ovs.extensions.generic.sshclient import SSHClient
-from ci.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 
 
 class SshChecks(object):
