@@ -13,10 +13,7 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
-import time
 from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 
 

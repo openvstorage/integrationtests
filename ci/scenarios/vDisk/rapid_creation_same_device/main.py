@@ -14,9 +14,9 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import random
-from ci.helpers.vdisk import VDiskHelper
-from ci.helpers.system import SystemHelper
-from ci.remove.vdisk import VDiskRemover
+from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.helpers.system import SystemHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.lib.vdisk import VDiskController
 from ovs.log.log_handler import LogHandler
 
@@ -34,8 +34,8 @@ class VDiskControllerTester(object):
     def main(blocked):
         """
         Run all required methods for the test
-        status depends on attributes in class: ci.helpers.testtrailapi.TestrailResult
-        case_type depends on attributes in class: ci.helpers.testtrailapi.TestrailCaseType
+        status depends on attributes in class: ci.api_lib.helpers.testtrailapi.TestrailResult
+        case_type depends on attributes in class: ci.api_lib.helpers.testtrailapi.TestrailCaseType
         :param blocked: was the test blocked by other test?
         :return: results of test
         :rtype: dict

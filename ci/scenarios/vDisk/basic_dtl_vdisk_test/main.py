@@ -18,15 +18,14 @@ import json
 import time
 import random
 from ci.main import CONFIG_LOC
-from ci.helpers.api import OVSClient
-from ci.setup.vdisk import VDiskSetup
-from ci.helpers.vpool import VPoolHelper
-from ci.helpers.vdisk import VDiskHelper
-from ci.remove.vdisk import VDiskRemover
+from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.log.log_handler import LogHandler
-from ci.helpers.system import SystemHelper
-from ci.helpers.domain import DomainHelper
-from ci.helpers.storagedriver import StoragedriverHelper
+from ci.api_lib.helpers.domain import DomainHelper
+from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 
 
 class DTLChecks(object):

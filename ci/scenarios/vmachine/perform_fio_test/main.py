@@ -19,7 +19,6 @@ import time
 import subprocess
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
-from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.remove.vdisk import VDiskRemover

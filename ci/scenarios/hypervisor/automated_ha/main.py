@@ -22,18 +22,18 @@ import time
 import threading
 import uuid
 from datetime import datetime
-from ci.helpers.api import OVSClient
-from ci.helpers.exceptions import VDiskNotFoundError
-from ci.helpers.hypervisor.hypervisor import HypervisorFactory
-from ci.helpers.vpool import VPoolHelper
-from ci.helpers.vdisk import VDiskHelper
-from ci.helpers.storagerouter import StoragerouterHelper
-from ci.helpers.system import SystemHelper
-from ci.helpers.thread import ThreadHelper, Waiter
+from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.helpers.exceptions import VDiskNotFoundError
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.system import SystemHelper
+from ci.api_lib.helpers.thread import ThreadHelper, Waiter
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
-from ci.setup.vdisk import VDiskSetup
-from ci.remove.vdisk import VDiskRemover
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.services.service import ServiceManager
 from ovs.extensions.generic.sshclient import SSHClient
@@ -97,8 +97,8 @@ class HATester(object):
     def main(blocked):
         """
         Run all required methods for the test
-        status depends on attributes in class: ci.helpers.testtrailapi.TestrailResult
-        case_type depends on attributes in class: ci.helpers.testtrailapi.TestrailCaseType
+        status depends on attributes in class: ci.api_lib.helpers.testtrailapi.TestrailResult
+        case_type depends on attributes in class: ci.api_lib.helpers.testtrailapi.TestrailCaseType
         :param blocked: was the test blocked by other test?
         :return: results of test
         :rtype: dict
@@ -215,7 +215,7 @@ class HATester(object):
         :param cluster_info: information about the cluster, contains all dal objects
         :type cluster_info: dict
         :param api: api object to call the ovs api
-        :type api: ci.helpers.api.OVSClient
+        :type api: ci.api_lib.helpers.api.OVSClient
         :param vm_amount: amount of vms to deploy
         :type vm_amount: int
         :param timeout: timeout in seconds
@@ -732,7 +732,7 @@ class HATester(object):
         :param cluster_info: information about the cluster, contains all dal objects
         :type cluster_info: dict
         :param api: api object to call the ovs api
-        :type api: ci.helpers.api.OVSClient
+        :type api: ci.api_lib.helpers.api.OVSClient
         :param disk_amount: amount of disks to test fail over with
         :type disk_amount: int
         :param timeout: timeout in seconds
