@@ -1,6 +1,6 @@
 # Open vStorage integration tests
 Open vStorage automated integration tests.
-
+This suite is suitable for the Unstable releases of OpenvStorage.
 Theses tests are written in Python.
 
 ## Wiki
