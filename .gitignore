@@ -10,4 +10,3 @@
 syntax: regexp
 \._.*
 .orig$
-.gitmodules
