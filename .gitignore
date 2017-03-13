@@ -11,4 +11,3 @@ syntax: regexp
 \._.*
 .orig$
 .gitmodules
-.README.md
