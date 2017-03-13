@@ -10,5 +10,5 @@
 syntax: regexp
 \._.*
 .orig$
-.gitsubmodules
+.gitmodules
 .README.md
