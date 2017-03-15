@@ -70,6 +70,7 @@ def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, o
     results = {}
     blocked = False
     for test in tests:
+        print test
         module = importlib.import_module('{0}.main'.format(test))
         # check if the tests are not blocked by a previous test
         if not blocked:
@@ -147,7 +148,7 @@ def list_tests(cases=None, exclude=None, start_dir=TEST_SCENARIO_LOC, categories
         if os.path.isdir(current_path):
             scenarios.extend(list_tests(cases, exclude, current_path, categories, subcategories, current_depth + 1))
         else:
-            scenario = current_path.replace(depth_root, '').replace('/', '.')
+            scenario = start_dir.replace(depth_root, '').replace('/', '.')
             if len(cases) == 0 or cases == ['ALL'] or scenario in cases:
                 scenarios.append(scenario)
     return scenarios
