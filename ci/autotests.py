@@ -37,8 +37,7 @@ TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testrail.json"
 EXCLUDE_FLAG = "-exclude"
 
 
-def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True,
-        exclude_scenarios=[]):
+def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True, exclude_scenarios=None):
     """
     Run single, multiple or all test scenarios
 
@@ -57,20 +56,21 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
     :returns: results and possible testrail url
     :rtype: tuple
     """
+    if scenarios is None:
+        scenarios = ['ALL']
+    if exclude_scenarios is None:
+        exclude_scenarios = []
 
-    # grab the tests to execute
-    LOGGER.info("Collecting tests ...")
-    # filter out tests with EXCLUDE_FLAG
-    tests = [autotest for autotest in list_tests(scenarios) if autotest not in exclude_scenarios]
+    LOGGER.info("Collecting tests.")  # Grab the tests to execute
+    tests = [autotest for autotest in list_tests(scenarios) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
     # print tests to be executed
     LOGGER.info("Executing the following tests: {0}".format(tests))
     # execute the tests
-    LOGGER.info("Starting tests ...")
+    LOGGER.info("Starting tests.")
     results = {}
     blocked = False
     for test in tests:
         module = importlib.import_module('{0}.main'.format(test))
-
         # check if the tests are not blocked by a previous test
         if not blocked:
             module_result = module.run()
@@ -102,35 +102,54 @@ def run(scenarios=['ALL'], send_to_testrail=False, fail_on_failed_scenario=False
     return results, None
 
 
-def list_tests(wanted_tests=['ALL'], exclude=EXCLUDE_FLAG):
+def list_tests(cases=None, exclude=None, start_dir=TEST_SCENARIO_LOC, categories=None, subcategories=None, depth=1):
     """
     Lists the requested test scenarios
     :returns: all available test scenarios
     :rtype: list
     """
-    if isinstance(wanted_tests, str):
-        wanted_tests = [wanted_tests]
-    if not isinstance(wanted_tests, list):
-        raise TypeError('Wanted test argument is a {0}, expected a list'.format(type(wanted_tests)))
-    LOGGER.info("Listing tests ...")
-    if wanted_tests != ['ALL']:
-        converted_wanted_tests = [test.replace('.', '/') for test in wanted_tests]
+    if exclude is None:
+        exclude = [EXCLUDE_FLAG, '.pyc']
+    depth_root = '/opt/OpenvStorage/'
+    if cases is None:
+        cases = ['ALL']
+    if isinstance(cases, str):
+        cases = [cases]
+    if not isinstance(cases, list):
+        raise TypeError('The cases argument is of type {0}, expected a list or a string'.format(type(cases)))
+    elif subcategories is None and categories is None:
+        categories = []
+        subcategories = []
+        for index, case in enumerate(cases[:]):  # split
+            split_entry = case.split('.')
+            if len(split_entry) >= 3:
+                cases.pop(index)
+                categories.append(split_entry[2])
+            if len(case.split('.')) >= 4:
+                subcategories.append(split_entry[3])
+    # Depth meaning: 1 -> category of tests 2: -> subcategory of tests further: -> expected main.py or unexplored
     # collect sections
-    scenario_categories = os.listdir(TEST_SCENARIO_LOC)
+    entries = os.listdir(start_dir)
     # collect tests/scenarios under sections
     scenarios = []
-    for scenario_category in scenario_categories:
-        category_path = os.path.join(TEST_SCENARIO_LOC, scenario_category)
-        if scenario_category == 'example' or not os.path.isdir(category_path):
+    for entry in entries:
+        current_path = os.path.join(start_dir, entry)
+        current_depth = depth
+        if entry == 'example' or entry.startswith('__init__.py') or entry.endswith(tuple(exclude)):
             continue
-        for scenario in os.listdir(category_path):
-            if scenario.endswith(exclude) and wanted_tests == ['ALL']:
+        if depth == 1:
+            if not (os.path.basename(current_path) in categories or len(categories) == 0):
                 continue
-            scenario_path = os.path.join(category_path, scenario)
-            if os.path.isdir(scenario_path):
-                if wanted_tests != ['ALL'] and scenario_path.split('/', 3)[3] not in converted_wanted_tests:
-                    continue
-                scenarios.append("ci.scenarios.{0}.{1}".format(scenario_category, scenario))
+        elif depth == 2:
+            if not (os.path.basename(current_path) in subcategories or len(subcategories) == 0):
+                continue
+        # If all entries are directories -> go deeper
+        if os.path.isdir(current_path):
+            scenarios.extend(list_tests(cases, exclude, current_path, categories, subcategories, current_depth + 1))
+        else:
+            scenario = current_path.replace(depth_root, '').replace('/', '.')
+            if len(cases) == 0 or cases == ['ALL'] or scenario in cases:
+                scenarios.append(scenario)
     return scenarios
 
 
@@ -188,8 +207,7 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
             try:
                 section = tapi.get_section_by_name(project_id, suite_id, test_section)
             except Exception:
-                raise SectionNotFoundError("Section `{0}` is not available in testrail, "
-                                           "please add or correct your mistake.".format(test_section))
+                raise SectionNotFoundError("Section `{0}` is not available in testrail, please add or correct your mistake.".format(test_section))
 
             if hasattr(TestrailCaseType, test_result['case_type']):
                 case_type_id = tapi.get_case_type_by_name(getattr(TestrailCaseType, test_result['case_type']))['id']
