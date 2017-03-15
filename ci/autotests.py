@@ -70,7 +70,6 @@ def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, o
     results = {}
     blocked = False
     for test in tests:
-        print test
         module = importlib.import_module('{0}.main'.format(test))
         # check if the tests are not blocked by a previous test
         if not blocked:
