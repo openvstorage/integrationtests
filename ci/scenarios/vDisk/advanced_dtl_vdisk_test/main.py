@@ -110,7 +110,7 @@ class AdvancedDTLTester(object):
                 AdvancedDTLTester._execute_test()
                 return {'status': 'PASSED', 'case_type': AdvancedDTLTester.CASE_TYPE, 'errors': None}
             except Exception as ex:
-                return {'status': 'FAILED', 'case_type': AdvancedDTLTester.CASE_TYPE, 'errors': str(ex)}
+                return {'status': 'FAILED', 'case_type': AdvancedDTLTester.CASE_TYPE, 'errors': str(ex), 'blocking': False}
         else:
             return {'status': 'BLOCKED', 'case_type': AdvancedDTLTester.CASE_TYPE, 'errors': None}
 

@@ -95,7 +95,7 @@ class MigrateTester(object):
                 MigrateTester._execute_test()
                 return {'status': 'PASSED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
             except Exception as ex:
-                return {'status': 'FAILED', 'case_type': MigrateTester.CASE_TYPE, 'errors': str(ex)}
+                return {'status': 'FAILED', 'case_type': MigrateTester.CASE_TYPE, 'errors': str(ex), 'blocking': False}
         else:
             return {'status': 'BLOCKED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
 
