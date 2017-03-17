@@ -1,5 +1,5 @@
 {
-    "package_name": "openvstorage-tests",
+    "package_name": "openvstorage-test",
     "product_name": "Open vStorage Integration tests",
     "source_contents": "--transform 's,^,{0}-{1}/,' ci *.txt",
     "version": {
