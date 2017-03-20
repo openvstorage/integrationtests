@@ -3,6 +3,7 @@ Steps to a good test-request
 - Fill in as much information as possible
 - Highlight things to look out for
 - Specify the purpose of the test
+- Remove the arrows and sections that do not match the request
 <---------------------------------------------------------->
 
 ## Test description
@@ -17,6 +18,7 @@ Steps to a good test-request
 ```
 ```
 <---------------------------------------------------------->
+
 <---------------------------------------------------------->
 ### Potential problem that might occur
 // If the test is hypothetical, provide a short but detailed description of what to expect and why.
