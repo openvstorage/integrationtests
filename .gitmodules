@@ -1,3 +1,0 @@
-[submodule "ci/api_lib"]
-	path = ci/api_lib
-	url = https://github.com/openvstorage/automation-lib.git

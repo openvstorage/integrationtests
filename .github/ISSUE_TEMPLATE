@@ -1,0 +1,35 @@
+<---------------------------------------------------------->
+Steps to a good test-request
+- Fill in as much information as possible
+- Highlight things to look out for
+- Specify the purpose of the test
+- Remove the arrows and sections that do not match the request
+<---------------------------------------------------------->
+
+## Test description
+### Cover area
+// What area of the product does it cover? eg volumedriver
+### User story
+// Describe the user story here. What went during what eg. writing data to a vm
+<---------------------------------------------------------->
+### Problem that arrose
+// Explain the problem that you got during the execution of the user story. eg. vm gave write error
+#### Log
+```
+```
+<---------------------------------------------------------->
+
+<---------------------------------------------------------->
+### Potential problem that might occur
+// If the test is hypothetical, provide a short but detailed description of what to expect and why.
+<---------------------------------------------------------->
+### Special condition
+// Were there any special conditions to the user story? Something not out of the box. eg external arakoons
+None
+
+## Additional information
+### Setup
+//Keep the one that you are using
+- Hyperconverged
+- Hyperscale
+- Geoscale
