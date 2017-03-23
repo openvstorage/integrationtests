@@ -10,3 +10,4 @@
 syntax: regexp
 \._.*
 .orig$
+ci/api_lib/*
