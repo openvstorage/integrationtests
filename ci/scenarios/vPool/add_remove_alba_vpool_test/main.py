@@ -18,23 +18,25 @@ import json
 import time
 from ci.main import CONFIG_LOC
 from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.setup.vdisk import VDiskSetup
-from ci.api_lib.setup.vpool import VPoolSetup
-from ci.api_lib.helpers.vpool import VPoolHelper
-from ci.api_lib.remove.vpool import VPoolRemover
-from ci.api_lib.remove.vdisk import VDiskRemover
-from ci.api_lib.setup.backend import BackendSetup
-from ovs.log.log_handler import LogHandler
-from ci.api_lib.remove.backend import BackendRemover
 from ci.api_lib.helpers.backend import BackendHelper
-from ci.api_lib.validate.roles import RoleValidation
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.remove.backend import BackendRemover
+from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.api_lib.remove.vpool import VPoolRemover
+from ci.api_lib.setup.backend import BackendSetup
+from ci.api_lib.setup.vpool import VPoolSetup
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.validate.roles import RoleValidation
+from ci.autotests import gather_results
+from ovs.log.log_handler import LogHandler
 
 
 class AddRemoveVPool(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_add_extend_remove_vpool")
+    TEST = "ci_scenario_add_extend_remove_vpool"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
     ADD_EXTEND_REMOVE_VPOOL_TIMEOUT = 60
     VPOOL_NAME = "integrationtests-vpool"
     PRESET = {"name": "ciaddremovevpool",
@@ -55,6 +57,7 @@ class AddRemoveVPool(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -64,15 +67,7 @@ class AddRemoveVPool(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                AddRemoveVPool.validate_add_extend_remove_vpool()
-                return {'status': 'PASSED', 'case_type': AddRemoveVPool.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                AddRemoveVPool.LOGGER.error("Add-extend-remove vPool failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': AddRemoveVPool.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': AddRemoveVPool.CASE_TYPE, 'errors': None}
+        return AddRemoveVPool.validate_add_extend_remove_vpool()
 
     @staticmethod
     def validate_add_extend_remove_vpool(timeout=ADD_EXTEND_REMOVE_VPOOL_TIMEOUT):

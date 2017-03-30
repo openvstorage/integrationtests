@@ -30,6 +30,7 @@ from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper, Waiter
+from ci.autotests import gather_results
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
 from ci.api_lib.setup.vdisk import VDiskSetup
@@ -48,8 +49,8 @@ class HATester(object):
     Requires the parent hyper to know the keys from its vms
     """
     CASE_TYPE = 'FUNCTIONAL'
-    TEST_NAME = 'ci_scenario_hypervisor_ha_test'
-    LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
+    TEST = 'ci_scenario_hypervisor_ha_test'
+    LOGGER = LogHandler.get(source='scenario', name=TEST)
 
     SLEEP_TIME = 15
     HA_TIMEOUT = 300
@@ -94,6 +95,7 @@ class HATester(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -103,14 +105,7 @@ class HATester(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                HATester._execute_test()
-                return {'status': 'PASSED', 'case_type': HATester.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                return {'status': 'FAILED', 'case_type': HATester.CASE_TYPE, 'errors': str(ex), 'blocking': False}
-        else:
-            return {'status': 'BLOCKED', 'case_type': HATester.CASE_TYPE, 'errors': None}
+        return HATester._execute_test()
 
     @staticmethod
     def _execute_test():
@@ -259,9 +254,9 @@ class HATester(object):
             filled_number = str(vm_number).zfill(3)
             create_msg = '{0}_{1}'.format(str(uuid.uuid4()), filled_number)
             vm_name = '{0}_{1}'.format(HATester.VM_NAME, filled_number)
-            boot_vdisk_name = '{0}_vdisk_boot_{1}'.format(HATester.TEST_NAME, filled_number)
-            data_vdisk_name = '{0}_vdisk_data_{1}'.format(HATester.TEST_NAME, filled_number)
-            cd_vdisk_name = '{0}_vdisk_cd_{1}'.format(HATester.TEST_NAME, filled_number)
+            boot_vdisk_name = '{0}_vdisk_boot_{1}'.format(HATester.TEST, filled_number)
+            data_vdisk_name = '{0}_vdisk_data_{1}'.format(HATester.TEST, filled_number)
+            cd_vdisk_name = '{0}_vdisk_cd_{1}'.format(HATester.TEST, filled_number)
             boot_vdisk_path = '/mnt/{0}/{1}.raw'.format(vpool.name, boot_vdisk_name)
             data_vdisk_path = '/mnt/{0}/{1}.raw'.format(vpool.name, data_vdisk_name)
             cd_vdisk_path = '/mnt/{0}/{1}.raw'.format(vpool.name, cd_vdisk_name)
@@ -305,7 +300,7 @@ class HATester(object):
                 time.sleep(0.5)
 
             # Take snapshot to revert back to after every migrate scenario
-            data_snapshot_guid = VDiskSetup.create_snapshot('{0}_data'.format(HATester.TEST_NAME), data_vdisk.devicename, vpool.name, api, consistent=False)
+            data_snapshot_guid = VDiskSetup.create_snapshot('{0}_data'.format(HATester.TEST), data_vdisk.devicename, vpool.name, api, consistent=False)
             vm_info[vm_name] = {'data_snapshot_guid': data_snapshot_guid,
                                 'vdisks': [boot_vdisk, data_vdisk, cd_vdisk],
                                 'cd_path': cd_vdisk_path,
@@ -765,7 +760,7 @@ class HATester(object):
 
         for index in xrange(0, disk_amount):
             try:
-                vdisk_name = '{0}_vdisk{1}'.format(HATester.TEST_NAME, str(index).zfill(3))
+                vdisk_name = '{0}_vdisk{1}'.format(HATester.TEST, str(index).zfill(3))
                 data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, HATester.AMOUNT_TO_WRITE, std_2.storage_ip, api))
                 vdisk_info[vdisk_name] = data_vdisk
                 edge_configuration['volumename'].append(data_vdisk.devicename.rsplit('.', 1)[0].split('/', 1)[1])

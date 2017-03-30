@@ -18,12 +18,14 @@ import time
 from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.autotests import gather_results
 
 
 class ServiceChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_post_reboot_checks")
+    TEST = "ci_scenario_post_reboot_checks"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
     SERVICE_TIMEOUT = 5
     SERVICE_TRIES = 5
 
@@ -31,6 +33,7 @@ class ServiceChecks(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test

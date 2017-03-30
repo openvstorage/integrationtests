@@ -15,22 +15,25 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 import os
-from ci.api_lib.setup.arakoon import ArakoonSetup
-from ovs.log.log_handler import LogHandler
-from ci.api_lib.remove.arakoon import ArakoonRemover
-from ovs.extensions.generic.sshclient import SSHClient
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.remove.arakoon import ArakoonRemover
+from ci.api_lib.setup.arakoon import ArakoonSetup
+from ci.autotests import gather_results
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.log.log_handler import LogHandler
 
 
 class ArakoonArchiving(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_archiving")
+    TEST = "ci_scenario_archiving"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -40,15 +43,7 @@ class ArakoonArchiving(object):
         :rtype: dict
         """
 
-        if not blocked:
-            try:
-                ArakoonArchiving.test_archiving()
-                return {'status': 'PASSED', 'case_type': ArakoonArchiving.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                ArakoonArchiving.LOGGER.error("Arakoon archiving failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': ArakoonArchiving.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': ArakoonArchiving.CASE_TYPE, 'errors': None}
+        return ArakoonArchiving.test_archiving()
 
     @staticmethod
     def test_archiving(cluster_name='test_archiving', cluster_basedir='/var/tmp'):

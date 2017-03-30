@@ -14,21 +14,24 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from ovs.log.log_handler import LogHandler
-from ovs.extensions.generic.sshclient import SSHClient
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.autotests import gather_results
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.log.log_handler import LogHandler
 
 
 class SshChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_ssh_checks")
+    TEST = "ci_scenario_ssh_checks"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
     CHECK_USERS = ['root', 'ovs']
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -38,16 +41,7 @@ class SshChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                # execute tests twice, because of possible leftover constraints
-                SshChecks.validate_ssh()
-                return {'status': 'PASSED', 'case_type': SshChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                SshChecks.LOGGER.error("Backend add-remove failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': SshChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': SshChecks.CASE_TYPE, 'errors': None}
+        return SshChecks.validate_ssh()
 
     @staticmethod
     def validate_ssh():

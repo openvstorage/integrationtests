@@ -19,20 +19,21 @@ import time
 import subprocess
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
+from ci.api_lib.helpers.exceptions import ImageConvertError, VDiskNotFoundError
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.remove.vdisk import VDiskRemover
-from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.system import SystemHelper
-from ci.api_lib.helpers.exceptions import ImageConvertError
-from ci.api_lib.helpers.exceptions import VDiskNotFoundError
+from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.autotests import gather_results
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs.log.log_handler import LogHandler
 
 
 class FioOnVDiskChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_fio_on_vdisk")
+    TEST = "ci_scenario_fio_on_vdisk"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
     VDISK_SIZE = 1073741824  # 1 GB
     AMOUNT_VDISKS = 5
     AMOUNT_TO_WRITE = 10  # in MegaByte
@@ -45,6 +46,7 @@ class FioOnVDiskChecks(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -54,15 +56,7 @@ class FioOnVDiskChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                FioOnVDiskChecks.validate_fio_on_vdisks()
-                return {'status': 'PASSED', 'case_type': FioOnVDiskChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                FioOnVDiskChecks.LOGGER.error("Fio on vdisk checks failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': FioOnVDiskChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': FioOnVDiskChecks.CASE_TYPE, 'errors': None}
+        return FioOnVDiskChecks.validate_fio_on_vdisks()
 
     @staticmethod
     def validate_fio_on_vdisks(amount_vdisks=AMOUNT_VDISKS, amount_to_write=AMOUNT_TO_WRITE):

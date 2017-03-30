@@ -19,18 +19,20 @@ from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.lib.vdisk import VDiskController
 from ovs.log.log_handler import LogHandler
+from ci.autotests import gather_results
 
 
 class VDiskControllerTester(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST_NAME = "ci_scenario_rapid_create_delete_same_device"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    TEST = "ci_scenario_rapid_create_delete_same_device"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -40,14 +42,7 @@ class VDiskControllerTester(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                VDiskControllerTester._execute_test()
-                return {'status': 'PASSED', 'case_type': VDiskControllerTester.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                return {'status': 'FAILED', 'case_type': VDiskControllerTester.CASE_TYPE, 'errors': str(ex)}
-        else:
-            return {'status': 'BLOCKED', 'case_type': VDiskControllerTester.CASE_TYPE, 'errors': None}
+        VDiskControllerTester._execute_test()
 
     @staticmethod
     def _execute_test():
@@ -58,7 +53,7 @@ class VDiskControllerTester(object):
         local_sr = SystemHelper.get_local_storagerouter()
         VDiskControllerTester.LOGGER.info("Starting creation/deletion test.")
         # Elect vpool
-        assert len(local_sr.storagedrivers) > 0, 'Node {0} has no storagedriver. Cannot test {1}'.format(local_sr.ip, VDiskControllerTester.TEST_NAME)
+        assert len(local_sr.storagedrivers) > 0, 'Node {0} has no storagedriver. Cannot test {1}'.format(local_sr.ip, VDiskControllerTester.TEST)
         random_storagedriver = local_sr.storagedrivers[random.randint(0, len(local_sr.storagedrivers) - 1)]
         vpool = random_storagedriver.vpool
         disk_size = 1024 ** 3

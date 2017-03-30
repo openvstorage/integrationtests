@@ -14,19 +14,22 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.autotests import gather_results
+from ovs.log.log_handler import LogHandler
 
 
 class LogrotateChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_test_basic_logrotate")
+    TEST = "ci_scenario_test_basic_logrotate"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test

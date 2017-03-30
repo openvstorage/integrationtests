@@ -13,19 +13,22 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.autotests import gather_results
+from ovs.log.log_handler import LogHandler
 
 
 class RoleChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_add_append_remove_roles")
+    TEST = "ci_scenario_add_append_remove_roles"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -35,15 +38,7 @@ class RoleChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                RoleChecks.validate_add_append_remove_roles()
-                return {'status': 'PASSED', 'case_type': RoleChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                RoleChecks.LOGGER.error("Post installation service checks failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': RoleChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': RoleChecks.CASE_TYPE, 'errors': None}
+        return RoleChecks.validate_add_append_remove_roles()
 
     @staticmethod
     def validate_add_append_remove_roles():

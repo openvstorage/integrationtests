@@ -19,19 +19,21 @@ import time
 import random
 from ci.main import CONFIG_LOC
 from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.setup.vdisk import VDiskSetup
-from ci.api_lib.helpers.vpool import VPoolHelper
-from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.remove.vdisk import VDiskRemover
-from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
+from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.autotests import gather_results
+from ovs.log.log_handler import LogHandler
 
 
 class DTLChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_basic_dtl")
+    TEST = "ci_scenario_basic_dtl"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
     SIZE_VDISK = 52428800  # 50 MB
     VDISK_NAME = "integration-tests-basic-dtl"
 
@@ -39,6 +41,7 @@ class DTLChecks(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -48,15 +51,7 @@ class DTLChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                DTLChecks._execute_test()
-                return {'status': 'PASSED', 'case_type': DTLChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                DTLChecks.LOGGER.error("DTL checks failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': DTLChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': DTLChecks.CASE_TYPE, 'errors': None}
+        return DTLChecks._execute_test()
 
     @staticmethod
     def _execute_test():

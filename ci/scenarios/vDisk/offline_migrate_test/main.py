@@ -18,22 +18,23 @@ import json
 import time
 import random
 from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.helpers.vpool import VPoolHelper
-from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
-from ci.main import CONFIG_LOC
-from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.autotests import gather_results
+from ci.main import CONFIG_LOC
 from ovs.log.log_handler import LogHandler
 
 
 class MigrateTester(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST_NAME = "ci_scenario_vdisk_migrate_offline"
+    TEST = "ci_scenario_vdisk_migrate_offline"
     AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
     SLEEP_TIME = 15
     REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'fio']
     AMOUNT_VDISKS = 5
@@ -42,6 +43,7 @@ class MigrateTester(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -53,14 +55,7 @@ class MigrateTester(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                MigrateTester._execute_test()
-                return {'status': 'PASSED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                return {'status': 'FAILED', 'case_type': MigrateTester.CASE_TYPE, 'errors': str(ex)}
-        else:
-            return {'status': 'BLOCKED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
+        return MigrateTester._execute_test()
 
     @staticmethod
     def _execute_test(amount_vdisks=AMOUNT_VDISKS):
@@ -122,7 +117,7 @@ class MigrateTester(object):
             # create vdisk #
             ################
 
-            vdisk_name = "{0}_{1}".format(MigrateTester.TEST_NAME, i)
+            vdisk_name = "{0}_{1}".format(MigrateTester.TEST, i)
             try:
                 vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
                                                      size=10*1024**3, storagerouter_ip=std_1.storagerouter.ip,

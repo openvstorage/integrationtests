@@ -20,20 +20,21 @@ import socket
 import subprocess
 from libvirt import libvirtError
 from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.init_manager import InitManager
+from ci.api_lib.helpers.storagedriver import StoragedriverHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.helpers.domain import DomainHelper
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.api_lib.helpers.storagedriver import StoragedriverHelper
-from ci.api_lib.helpers.system import SystemHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.autotests import gather_results
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
-from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.init_manager import InitManager
 
 
 class AdvancedDTLTester(object):
@@ -47,8 +48,8 @@ class AdvancedDTLTester(object):
     """
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST_NAME = 'ci_scenario_advanced_dtl_test'
-    LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
+    TEST = 'ci_scenario_advanced_dtl_test'
+    LOGGER = LogHandler.get(source='scenario', name=TEST)
     SLEEP_TIME = 60
     SLEEP_TIME_BEFORE_SHUTDOWN = 30
     VM_CONNECTING_TIMEOUT = 5
@@ -96,6 +97,7 @@ class AdvancedDTLTester(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -105,14 +107,7 @@ class AdvancedDTLTester(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                AdvancedDTLTester._execute_test()
-                return {'status': 'PASSED', 'case_type': AdvancedDTLTester.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                return {'status': 'FAILED', 'case_type': AdvancedDTLTester.CASE_TYPE, 'errors': str(ex), 'blocking': False}
-        else:
-            return {'status': 'BLOCKED', 'case_type': AdvancedDTLTester.CASE_TYPE, 'errors': None}
+        return AdvancedDTLTester._execute_test()
 
     @staticmethod
     def _execute_test():
@@ -253,7 +248,7 @@ class AdvancedDTLTester(object):
         }
 
         # Create a new vdisk to test
-        boot_vdisk_name = '{0}_vdisk01'.format(AdvancedDTLTester.TEST_NAME)
+        boot_vdisk_name = '{0}_vdisk01'.format(AdvancedDTLTester.TEST)
         boot_vdisk_path = '/mnt/{0}/{1}.raw'.format(vpool.name, boot_vdisk_name)
         protocol = source_std.cluster_node_config['network_server_uri'].split(':')[0]
         disks = [{'mountpoint': boot_vdisk_path}]

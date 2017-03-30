@@ -17,20 +17,23 @@
 import json
 from ci.main import CONFIG_LOC
 from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.setup.backend import BackendSetup
 from ci.api_lib.remove.backend import BackendRemover
+from ci.api_lib.setup.backend import BackendSetup
+from ci.autotests import gather_results
 from ovs.log.log_handler import LogHandler
 
 
 class AddRemoveBackend(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_add_remove_backend")
+    TEST = "ci_scenario_add_remove_backend"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -40,16 +43,7 @@ class AddRemoveBackend(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                # execute tests twice, because of possible leftover constraints
-                AddRemoveBackend.validate_add_remove_backend()
-                return {'status': 'PASSED', 'case_type': AddRemoveBackend.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                AddRemoveBackend.LOGGER.error("Backend add-remove failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': AddRemoveBackend.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': AddRemoveBackend.CASE_TYPE, 'errors': None}
+        return AddRemoveBackend.validate_add_remove_backend()
 
     @staticmethod
     def validate_add_remove_backend(backend_name='integrationtests'):

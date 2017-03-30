@@ -18,20 +18,22 @@ import json
 import time
 from ci.main import CONFIG_LOC
 from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.helpers.exceptions import VDiskNotFoundError
+from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
-from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.system import SystemHelper
-from ci.api_lib.helpers.exceptions import VDiskNotFoundError
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.autotests import gather_results
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs.log.log_handler import LogHandler
 
 
 class VDiskDeploymentChecks(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_vdisk_deployment")
+    TEST = "ci_scenario_vdisk_deployment"
+    LOGGER = LogHandler.get(source="scenario", name=TEST)
     PREFIX = "integration-tests-deployment-"
     VDISK_SIZES = [2147483648000, 4294967296000, 8589934592000, 17179869184000, 34359738368000, 68719476736000]
     VDISK_CREATE_TIMEOUT = 150
@@ -43,6 +45,7 @@ class VDiskDeploymentChecks(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST)
     def main(blocked):
         """
         Run all required methods for the test
@@ -54,15 +57,7 @@ class VDiskDeploymentChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                VDiskDeploymentChecks.validate_vdisk_deployment()
-                return {'status': 'PASSED', 'case_type': VDiskDeploymentChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                VDiskDeploymentChecks.LOGGER.error("VDisk deployment failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': VDiskDeploymentChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': VDiskDeploymentChecks.CASE_TYPE, 'errors': None}
+        return VDiskDeploymentChecks.validate_vdisk_deployment()
 
     @staticmethod
     def validate_vdisk_deployment():
