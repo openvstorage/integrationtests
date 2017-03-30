@@ -43,16 +43,7 @@ class ServiceChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                # execute tests twice, because of possible leftover constraints
-                ServiceChecks.validate_services()
-                return {'status': 'PASSED', 'case_type': ServiceChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                ServiceChecks.LOGGER.error("Post installation service checks failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': ServiceChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': ServiceChecks.CASE_TYPE, 'errors': None}
+        return ServiceChecks.validate_services()
 
     @staticmethod
     def validate_services(tries=SERVICE_TRIES, timeout=SERVICE_TIMEOUT):

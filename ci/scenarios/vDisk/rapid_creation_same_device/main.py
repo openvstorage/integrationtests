@@ -42,7 +42,7 @@ class VDiskControllerTester(object):
         :return: results of test
         :rtype: dict
         """
-        VDiskControllerTester._execute_test()
+        return VDiskControllerTester._execute_test()
 
     @staticmethod
     def _execute_test():

@@ -402,8 +402,6 @@ class LogCollector(object):
             found_services = [service for service in ServiceManager.list_services(SSHClient(System.get_my_storagerouter()))]
             completed_units = []
             for item in units:
-                print item
-                print item.split('*')[0]
                 services = [service_name for service_name in found_services if service_name.startswith(item.split('*')[0])]
                 found_services = list(set(found_services) - set(services))
                 completed_units.extend(services)
@@ -459,7 +457,6 @@ def gather_results(case_type, logger, test_name):
                     blocked = args[blocked_index]
                 if blocked is True:
                     return {'status': 'BLOCKED', 'case_type': case_type, 'errors': None}
-                print inspect.getargspec(func)
                 result = func(*args, **kwargs)  # Execute the method
                 return {'status': 'PASSED', 'case_type': case_type, 'errors': result}
             except Exception as ex:

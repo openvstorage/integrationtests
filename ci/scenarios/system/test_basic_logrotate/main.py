@@ -39,15 +39,7 @@ class LogrotateChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                LogrotateChecks.validate_basic_log_rotate()
-                return {'status': 'PASSED', 'case_type': LogrotateChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                LogrotateChecks.LOGGER.error("Checking basic logrotated failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': LogrotateChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': LogrotateChecks.CASE_TYPE, 'errors': None}
+        return LogrotateChecks.validate_basic_log_rotate()
 
     @staticmethod
     def validate_basic_log_rotate():
