@@ -14,25 +14,28 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from ovs.log.log_handler import LogHandler
-from ovs.extensions.generic.remote import remote
-from ovs.dal.lists.servicelist import ServiceList
 from ovs.dal.hybrids.servicetype import ServiceType
-from ovs.extensions.generic.sshclient import SSHClient
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ovs.lib.generic import GenericController
+from ovs.dal.lists.servicelist import ServiceList
 from ovs.extensions.generic.configuration import Configuration
+from ovs.extensions.generic.remote import remote
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.lib.generic import GenericController
+from ovs.log.log_handler import LogHandler
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.autotests import gather_results
 
 
 class ArakoonCollapse(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_arakoon_collapse")
+    TEST_NAME = "ci_scenario_arakoon_collapse"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -41,15 +44,7 @@ class ArakoonCollapse(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                ArakoonCollapse.test_collapse()
-                return {'status': 'PASSED', 'case_type': ArakoonCollapse.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                ArakoonCollapse.LOGGER.error("Arakoon collapse failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': ArakoonCollapse.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': ArakoonCollapse.CASE_TYPE, 'errors': None}
+        return ArakoonCollapse.test_collapse()
 
     @staticmethod
     def test_collapse():

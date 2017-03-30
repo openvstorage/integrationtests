@@ -18,19 +18,21 @@ import json
 import time
 from ci.main import CONFIG_LOC
 from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.helpers.api import HttpException
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.autotests import gather_results
 from ovs.log.log_handler import LogHandler
 
 
 class VDiskTemplateChecks(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_vdisk_template")
+    TEST_NAME = "ci_scenario_vdisk_template"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     PREFIX = "integration-tests-template-"
-    VDISK_SIZE = 10737418240  # 10GB
+    VDISK_SIZE = 10 * 1024 ** 3  # 10GB
     TEMPLATE_CREATE_TIMEOUT = 180
     TEMPLATE_SLEEP_AFTER_CREATE = 5
     TEMPLATE_SLEEP_BEFORE_CHECK = 5
@@ -40,6 +42,7 @@ class VDiskTemplateChecks(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -51,15 +54,7 @@ class VDiskTemplateChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                VDiskTemplateChecks.validate_vdisk_clone()
-                return {'status': 'PASSED', 'case_type': VDiskTemplateChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                VDiskTemplateChecks.LOGGER.error("Template vdisk checks failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': VDiskTemplateChecks.CASE_TYPE, 'errors': str(ex)}
-        else:
-            return {'status': 'BLOCKED', 'case_type': VDiskTemplateChecks.CASE_TYPE, 'errors': None}
+        return VDiskTemplateChecks.validate_vdisk_clone()
 
     @staticmethod
     def validate_vdisk_clone():

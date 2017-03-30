@@ -16,15 +16,17 @@
 import time
 import timeout_decorator
 from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.system import SystemHelper
-from ovs.extensions.generic.sshclient import SSHClient
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.system import SystemHelper
+from ci.autotests import gather_results
+from ovs.extensions.generic.sshclient import SSHClient
 
 
 class PostRebootChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_post_reboot_checks")
+    TEST_NAME = "ci_scenario_post_reboot_checks"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     POST_REBOOT_TIMEOUT = 5
     POST_REBOOT_TRIES = 5
     SSH_REBOOT_DELAY = 5
@@ -34,6 +36,7 @@ class PostRebootChecks(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -43,22 +46,12 @@ class PostRebootChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                # execute tests twice, because of possible leftover constraints
-                PostRebootChecks.validate_post_reboot()
-                return {'status': 'PASSED', 'case_type': PostRebootChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                PostRebootChecks.LOGGER.error("Post reboot checks failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': PostRebootChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': PostRebootChecks.CASE_TYPE, 'errors': None}
+        return PostRebootChecks.validate_post_reboot()
 
     @staticmethod
     def validate_post_reboot(tries=POST_REBOOT_TRIES, timeout=POST_REBOOT_TIMEOUT):
         """
         Validate if all services come up after rebooting a node
-
         :param tries: amount of tries to check if ovs services are running
         :type tries: int
         :param timeout: timeout between tries
@@ -112,8 +105,7 @@ class PostRebootChecks(object):
                 amount_tries += 1
                 time.sleep(timeout)
 
-        assert len(non_running_services) == 0, \
-            "Found non running services `{0}` after reboot on node `{1}`".format(non_running_services, host_to_reboot)
+        assert len(non_running_services) == 0, "Found non running services `{0}` after reboot on node `{1}`".format(non_running_services, host_to_reboot)
 
         PostRebootChecks.LOGGER.info('Starting post-reboot vPool check on node `{0}`'.format(host_to_reboot))
 

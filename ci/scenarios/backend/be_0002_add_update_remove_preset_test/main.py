@@ -18,22 +18,25 @@ import json
 import time
 from ci.main import CONFIG_LOC
 from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.setup.backend import BackendSetup
-from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.backend import BackendHelper
 from ci.api_lib.remove.backend import BackendRemover
+from ci.api_lib.setup.backend import BackendSetup
 from ci.api_lib.validate.backend import BackendValidation
+from ci.autotests import gather_results
+from ovs.log.log_handler import LogHandler
 
 
 class AddUpdateRemovePreset(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_add_remove_backend")
+    TEST_NAME = "ci_scenario_add_remove_backend"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -43,16 +46,7 @@ class AddUpdateRemovePreset(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                # execute tests twice, because of possible leftover constraints
-                AddUpdateRemovePreset.validate_add_update_remove_preset()
-                return {'status': 'PASSED', 'case_type': AddUpdateRemovePreset.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                AddUpdateRemovePreset.LOGGER.error("Backend add-remove failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': AddUpdateRemovePreset.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': AddUpdateRemovePreset.CASE_TYPE, 'errors': None}
+        return AddUpdateRemovePreset.validate_add_update_remove_preset()
 
     @staticmethod
     def validate_add_update_remove_preset(preset_name='integrationtests'):

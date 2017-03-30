@@ -30,6 +30,7 @@ from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper, Waiter
+from ci.autotests import gather_results
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
 from ci.api_lib.setup.vdisk import VDiskSetup
@@ -94,6 +95,7 @@ class HATester(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -103,14 +105,7 @@ class HATester(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                HATester._execute_test()
-                return {'status': 'PASSED', 'case_type': HATester.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                return {'status': 'FAILED', 'case_type': HATester.CASE_TYPE, 'errors': str(ex), 'blocking': False}
-        else:
-            return {'status': 'BLOCKED', 'case_type': HATester.CASE_TYPE, 'errors': None}
+        return HATester._execute_test()
 
     @staticmethod
     def _execute_test():

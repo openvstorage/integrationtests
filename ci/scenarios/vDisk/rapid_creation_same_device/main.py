@@ -19,6 +19,7 @@ from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.lib.vdisk import VDiskController
 from ovs.log.log_handler import LogHandler
+from ci.autotests import gather_results
 
 
 class VDiskControllerTester(object):
@@ -31,6 +32,7 @@ class VDiskControllerTester(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -40,14 +42,7 @@ class VDiskControllerTester(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                VDiskControllerTester._execute_test()
-                return {'status': 'PASSED', 'case_type': VDiskControllerTester.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                return {'status': 'FAILED', 'case_type': VDiskControllerTester.CASE_TYPE, 'errors': str(ex)}
-        else:
-            return {'status': 'BLOCKED', 'case_type': VDiskControllerTester.CASE_TYPE, 'errors': None}
+        return VDiskControllerTester._execute_test()
 
     @staticmethod
     def _execute_test():

@@ -41,11 +41,9 @@ def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, o
     """
     Run single, multiple or all test scenarios
 
-    :param scenarios: run scenarios defined by the test_name, leave empty when ALL test scenarios need to be executed
-                      (e.g. ['ci.scenarios.alba.asd_benchmark', 'ci.scenarios.arakoon.collapse'])
+    :param scenarios: run scenarios defined by the test_name, leave empty when ALL test scenarios need to be executed (e.g. ['ci.scenarios.alba.asd_benchmark', 'ci.scenarios.arakoon.collapse'])
     :type scenarios: list
-    :param exclude_scenarios: exclude scenarios defined by the test_name
-                              (e.g. when scenarios=['ALL'] is specified, you can exclude some tests)
+    :param exclude_scenarios: exclude scenarios defined by the test_name (e.g. when scenarios=['ALL'] is specified, you can exclude some tests)
     :type scenarios: list
     :param send_to_testrail: send results of test to testrail in a new testplan
     :type send_to_testrail: bool
@@ -71,30 +69,21 @@ def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, o
     blocked = False
     for test in tests:
         module = importlib.import_module('{0}.main'.format(test))
-        # check if the tests are not blocked by a previous test
-        if not blocked:
-            module_result = module.run()
-        else:
-            module_result = module.run(blocked=True)
-
-        # check if a test has failed, if it has failed check if we should block all other tests
-        if hasattr(TestrailResult, module_result['status']):
+        module_result = module.run(blocked)
+        if hasattr(TestrailResult, module_result['status']):  # check if a test has failed, if it has failed check if we should block all other tests
             if getattr(TestrailResult, module_result['status']) == TestrailResult.FAILED and fail_on_failed_scenario:
                 if 'blocking' not in module_result:
-                    # if a test reports failed but blocked is not present = by default blocked == True
-                    blocked = True
+                    blocked = True  # if a test reports failed but blocked is not present = by default blocked == True
                 elif module_result['blocking'] is not False:
-                    # if a test reports failed but blocked != False
-                    blocked = True
+                    blocked = True  # if a test reports failed but blocked != False
         else:
-            raise AttributeError("Attribute `{0}` does not exists as status "
-                                 "in TestrailResult".format(module_result['status']))
+            raise AttributeError("Attribute `{0}` does not exists as status in TestrailResult".format(module_result['status']))
 
         # add test to results & also remove possible EXCLUDE_FLAGS on test name
         results[test.replace(EXCLUDE_FLAG, '')] = module_result
 
-    LOGGER.info("Start pushing tests to testrail ...")
     if send_to_testrail:
+        LOGGER.info("Start pushing tests to testrail ...")
         plan_url = push_to_testrail(results, only_add_given_cases=only_add_given_results)
         return results, plan_url
 
@@ -156,11 +145,9 @@ def list_tests(cases=None, exclude=None, start_dir=TEST_SCENARIO_LOC, categories
 def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True, only_add_given_cases=False):
     """
     Push results to testtrail
-
     :param config_path: path to testrail config file
     :type config_path: str
-    :param results: tests and results of test (e.g {'ci.scenarios.arakoon.collapse': {'status': 'FAILED'},
-                                                    'ci.scenarios.arakoon.archive': {'status': 'PASSED'}})
+    :param results: tests and results of test (e.g {'ci.scenarios.arakoon.collapse': {'status': 'FAILED'}, 'ci.scenarios.arakoon.archive': {'status': 'PASSED'}})
     :type results: dict
     :param skip_on_no_results: set the untested tests on SKIPPED
     :type skip_on_no_results: bool
@@ -188,8 +175,7 @@ def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True
         if not testtrail_config['username'] and testtrail_config['password']:
             raise RuntimeError("Invalid username or password specified for testrail")
         else:
-            tapi = TestrailApi(server=testtrail_config['url'], user=testtrail_config['username'],
-                               password=testtrail_config['password'])
+            tapi = TestrailApi(server=testtrail_config['url'], user=testtrail_config['username'], password=testtrail_config['password'])
     else:
         tapi = TestrailApi(testtrail_config['url'], key=testtrail_config['key'])
 
@@ -356,3 +342,123 @@ def _get_description():
     description_lines.append("{0}".format(_get_package_info()))
 
     return '\n'.join(description_lines)
+
+
+class LogCollector(object):
+    """
+    Exposes to methods to collect logs
+    """
+    DEFAULT_COMPONENTS = [{'framework': ['ovs-workers']}, 'volumedriver']
+    COMPONENT_MAPPING = {'framework': ['ovs-workers', 'ovs-webapp-api'],
+                         'arakoon': ['ovs-arakoon-*-abm', 'ovs-arakoon-*-nsm', 'ovs-arakoon-config'],
+                         'alba': ['ovs-albaproxy_*'],
+                         'volumedriver': ['ovs-volumedriver_*']}
+    
+    @staticmethod
+    def get_logs(components=None, since=None, until=None, auto_complete=True):
+        """
+        Get logs for specified components
+        :param components: list of components. Can be strings or dicts to specify which logs
+        :type components: list[str]
+        :param since: start collecting logs from this timestamp
+        :type since: str / DateTime
+        :param until: stop collecting when this timestamp is found
+        :type until: str / DateTime
+        :param auto_complete: replaced * with found entries, works around the journalctl flaw
+        :type auto_complete: bool
+        :return: all logs for the components listed
+        :rtype: str
+        """
+        LOGGER.debug('Grepping logs between {0} and {1}.'.format(since, until))
+        from ovs.log.log_reader import LogFileTimeParser
+        if components is None:
+            components = LogCollector.DEFAULT_COMPONENTS
+        units = []
+        mapping = LogCollector.COMPONENT_MAPPING
+        for component in components:
+            if isinstance(component, str):
+                if component not in mapping:
+                    raise KeyError('{0} cannot be found in the mapping. Available options are: {1}'.format(component, mapping.keys()))
+            if isinstance(component, dict):
+                for key in component.keys():
+                    if key not in mapping:
+                        raise KeyError('{0} cannot be found in the mapping. Available options are: {1}'.format(component, mapping.keys()))
+            if isinstance(component, str):
+                # All options
+                units.extend(mapping[component])
+            elif isinstance(component, dict):
+                # Query options
+                for compent_key, requested_units in component.iteritems():
+                    filters = [item.split('*')[0] for item in mapping[compent_key]]
+                    matched = [item for item in requested_units if item.startswith(tuple(filters))]
+                    if len(matched) == 0:
+                        raise ValueError('Could not match the following components: [0]. Consider the following prefixes: [1]'.format(requested_units, filters))
+                    units.extend(matched)
+        if auto_complete is True:
+            from ovs.extensions.services.service import ServiceManager
+            from ovs.extensions.generic.system import System
+            from ovs.extensions.generic.sshclient import SSHClient
+            found_services = [service for service in ServiceManager.list_services(SSHClient(System.get_my_storagerouter()))]
+            completed_units = []
+            for item in units:
+                services = [service_name for service_name in found_services if service_name.startswith(item.split('*')[0])]
+                found_services = list(set(found_services) - set(services))
+                completed_units.extend(services)
+            units = completed_units
+        units = ['{0}.service'.format(unit) for unit in units[:]]  # append .service
+        LOGGER.debug('Grepping logs for the following units: {0} between {1} and {2}.'.format(units, since, until))
+        return LogFileTimeParser.execute_search_on_remote(since=since, until=until, search_locations=units)
+
+
+def gather_results(case_type, logger, test_name):
+    """
+    Result gathering to be used as decorator for the autotests
+    Gathers the logs when the test has failed and will push these to testrail
+    Must be put on the main method of every class that is part of the suite
+    Replaces: 
+        if not blocked:
+            try:
+                HATester._execute_test()
+                return {'status': 'PASSED', 'case_type': HATester.CASE_TYPE, 'errors': None}
+            except Exception as ex:
+                return {'status': 'FAILED', 'case_type': HATester.CASE_TYPE, 'errors': str(ex), 'blocking': False}
+        else:
+            return {'status': 'BLOCKED', 'case_type': HATester.CASE_TYPE, 'errors': None}
+    from the main method
+    Now it becomes
+        @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+        def main(blocked):
+    :param case_type: case type specified in the main already
+    :type case_type: str
+    :param logger: logger instance specified already
+    :type logger: ovs.log.log_handler.LogHandler
+    :param test_name: name of the test(most likely name of the logger)
+    :type test_name: str
+    :return: 
+    """
+    import inspect
+    import datetime
+
+    def wrapper(func):
+        def wrapped(*args, **kwargs):
+            start = datetime.datetime.now()
+            try:
+                func_args = inspect.getargspec(func)[0]
+                try:
+                    blocked_index = func_args.index('blocked')  # Expect blocked
+                except ValueError as e:
+                    raise ValueError('Expected argument blocked but failed to retrieve it.')
+                blocked = kwargs.get('blocked', None)
+                if kwargs.get('blocked') is None:  # in args
+                    blocked = args[blocked_index]
+                if blocked is True:
+                    return {'status': 'BLOCKED', 'case_type': case_type, 'errors': None}
+                result = func(*args, **kwargs)  # Execute the method
+                return {'status': 'PASSED', 'case_type': case_type, 'errors': result}
+            except Exception as ex:
+                end = datetime.datetime.now()
+                result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(since=start, until=end)]
+                logger.error('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
+                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False }
+        return wrapped
+    return wrapper

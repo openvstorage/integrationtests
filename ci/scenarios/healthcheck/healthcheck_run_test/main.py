@@ -15,6 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
+from ci.autotests import gather_results
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
@@ -22,32 +23,26 @@ from ovs.log.log_handler import LogHandler
 class HealthCheckCI(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    LOGGER = LogHandler.get(source='scenario', name='ci_scenario_healthcheck')
+    TEST_NAME = 'ci_scenario_healthcheck'
+    LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
     REQUIRED_PACKAGES = ['openvstorage-health-check']
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
         Based on: https://github.com/openvstorage/home/issues/29 &
                   https://github.com/openvstorage/framework/issues/884
-        :param blocked: was the test blocked by other test?
+        :param blocked: was the test blocked by other test? Picked up by the decorator
         :type blocked: bool
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                result = HealthCheckCI.validate_healthcheck()
-                return {'status': 'PASSED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': result}
-            except Exception as ex:
-                HealthCheckCI.LOGGER.error('Healthcheck CI testing failed with error: {0}'.format(str(ex)))
-                return {'status': 'FAILED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': str(ex), 'blocking': False}
-        else:
-            return {'status': 'BLOCKED', 'case_type': HealthCheckCI.CASE_TYPE, 'errors': None}
+        return HealthCheckCI.validate_healthcheck()
 
     @staticmethod
     def validate_healthcheck():
