@@ -25,8 +25,8 @@ from ovs.extensions.generic.sshclient import SSHClient
 class PostRebootChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    TEST = "ci_scenario_post_reboot_checks"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_post_reboot_checks"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     POST_REBOOT_TIMEOUT = 5
     POST_REBOOT_TRIES = 5
     SSH_REBOOT_DELAY = 5
@@ -36,7 +36,7 @@ class PostRebootChecks(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

@@ -32,8 +32,8 @@ from ovs.log.log_handler import LogHandler
 class VDiskDeploymentChecks(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST = "ci_scenario_vdisk_deployment"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_vdisk_deployment"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     PREFIX = "integration-tests-deployment-"
     VDISK_SIZES = [2147483648000, 4294967296000, 8589934592000, 17179869184000, 34359738368000, 68719476736000]
     VDISK_CREATE_TIMEOUT = 150
@@ -45,7 +45,7 @@ class VDiskDeploymentChecks(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

@@ -33,8 +33,8 @@ from ci.autotests import gather_results
 class RollbackChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    TEST = "ci_scenario_rollback"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_rollback"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SIZE_VDISK = 52428800
     VDISK_NAME = "integration-tests-rollback"
     MAX_ROLLBACK_CHECKS = 20
@@ -49,7 +49,7 @@ class RollbackChecks(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

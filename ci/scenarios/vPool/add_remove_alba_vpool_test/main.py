@@ -35,8 +35,8 @@ from ovs.log.log_handler import LogHandler
 class AddRemoveVPool(object):
 
     CASE_TYPE = 'AT_QUICK'
-    TEST = "ci_scenario_add_extend_remove_vpool"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_add_extend_remove_vpool"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     ADD_EXTEND_REMOVE_VPOOL_TIMEOUT = 60
     VPOOL_NAME = "integrationtests-vpool"
     PRESET = {"name": "ciaddremovevpool",
@@ -57,7 +57,7 @@ class AddRemoveVPool(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

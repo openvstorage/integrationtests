@@ -30,8 +30,8 @@ from ovs.log.log_handler import LogHandler
 class VDiskTemplateChecks(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST = "ci_scenario_vdisk_template_memleak"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_vdisk_template_memleak"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     PREFIX = "integration-tests-templ-memleak-"
     VDISK_SIZE = 1073741824  # 1 GB
     AMOUNT_VDISKS = 10
@@ -45,7 +45,7 @@ class VDiskTemplateChecks(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

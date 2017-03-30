@@ -29,8 +29,8 @@ from ovs.log.log_handler import LogHandler
 class VDiskTemplateChecks(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST = "ci_scenario_vdisk_template"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_vdisk_template"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     PREFIX = "integration-tests-template-"
     VDISK_SIZE = 10 * 1024 ** 3  # 10GB
     TEMPLATE_CREATE_TIMEOUT = 180
@@ -42,7 +42,7 @@ class VDiskTemplateChecks(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

@@ -44,8 +44,8 @@ class MigrateTester(object):
     Required commands after ovs installation and required packages: usermod -a -G ovs libvirt-qemu
     """
     CASE_TYPE = 'FUNCTIONAL'
-    TEST = "ci_scenario_hypervisor_live_migrate"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_hypervisor_live_migrate"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SLEEP_TIME = 60
     VM_CONNECTING_TIMEOUT = 5
     REQUIRED_PACKAGES = ["qemu-kvm", "libvirt0", "python-libvirt", "virtinst", "genisoimage"]
@@ -80,7 +80,7 @@ class MigrateTester(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -178,7 +178,7 @@ class MigrateTester(object):
         }
 
         # Create a new vdisk to test
-        vdisk_name = "{0}_vdisk01".format(MigrateTester.TEST)
+        vdisk_name = "{0}_vdisk01".format(MigrateTester.TEST_NAME)
         vdisk_path = "/mnt/{0}/{1}.raw".format(vpool.name, vdisk_name)
         protocol = storagedriver_source.cluster_node_config['network_server_uri'].split(':')[0]
         disks = [{
@@ -213,7 +213,7 @@ class MigrateTester(object):
             MigrateTester.LOGGER.info("VDisk successfully created with guid `{0}`!".format(vdisk.guid))
 
             # Take snapshot to revert back to after every migrate scenario
-            snapshot_guid = VDiskSetup.create_snapshot(MigrateTester.TEST, vdisk.devicename, vpool.name, api,
+            snapshot_guid = VDiskSetup.create_snapshot(MigrateTester.TEST_NAME, vdisk.devicename, vpool.name, api,
                                                        consistent=False)
             MigrateTester.LOGGER.info("Snapshot successful of vdisk with guid {0}!".format(snapshot_guid))
             test_prepared = MigrateTester._prepare_migrate([source_client, destination_client], MigrateTester.VM_NAME)

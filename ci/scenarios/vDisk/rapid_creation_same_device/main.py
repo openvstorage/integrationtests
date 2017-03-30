@@ -25,14 +25,14 @@ from ci.autotests import gather_results
 class VDiskControllerTester(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST = "ci_scenario_rapid_create_delete_same_device"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_rapid_create_delete_same_device"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
 
     def __init__(self):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -53,7 +53,7 @@ class VDiskControllerTester(object):
         local_sr = SystemHelper.get_local_storagerouter()
         VDiskControllerTester.LOGGER.info("Starting creation/deletion test.")
         # Elect vpool
-        assert len(local_sr.storagedrivers) > 0, 'Node {0} has no storagedriver. Cannot test {1}'.format(local_sr.ip, VDiskControllerTester.TEST)
+        assert len(local_sr.storagedrivers) > 0, 'Node {0} has no storagedriver. Cannot test {1}'.format(local_sr.ip, VDiskControllerTester.TEST_NAME)
         random_storagedriver = local_sr.storagedrivers[random.randint(0, len(local_sr.storagedrivers) - 1)]
         vpool = random_storagedriver.vpool
         disk_size = 1024 ** 3

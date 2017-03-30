@@ -26,14 +26,14 @@ from ci.autotests import gather_results
 class ArakoonValidation(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST = "ci_scenario_arakoon_validation"
+    TEST_NAME = "ci_scenario_arakoon_validation"
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_arakoon_validation")
 
     def __init__(self):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

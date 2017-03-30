@@ -34,8 +34,8 @@ from ovs.log.log_handler import LogHandler
 class ScrubbingChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    TEST = "ci_scenario_scrubbing"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_scrubbing"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     AMOUNT_VDISKS_TO_SCRUB = 5
     SIZE_VDISK = 52428800  # 50M
     PREFIX = "integration-tests-scrubbing-"
@@ -49,7 +49,7 @@ class ScrubbingChecks(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

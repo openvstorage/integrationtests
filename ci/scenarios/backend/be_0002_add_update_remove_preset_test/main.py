@@ -29,14 +29,14 @@ from ovs.log.log_handler import LogHandler
 class AddUpdateRemovePreset(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST = "ci_scenario_add_remove_backend"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_add_remove_backend"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
 
     def __init__(self):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

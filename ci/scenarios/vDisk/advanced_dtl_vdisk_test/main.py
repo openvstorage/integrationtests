@@ -48,8 +48,8 @@ class AdvancedDTLTester(object):
     """
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST = 'ci_scenario_advanced_dtl_test'
-    LOGGER = LogHandler.get(source='scenario', name=TEST)
+    TEST_NAME = 'ci_scenario_advanced_dtl_test'
+    LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
     SLEEP_TIME = 60
     SLEEP_TIME_BEFORE_SHUTDOWN = 30
     VM_CONNECTING_TIMEOUT = 5
@@ -97,7 +97,7 @@ class AdvancedDTLTester(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -239,7 +239,7 @@ class AdvancedDTLTester(object):
                                                        AdvancedDTLTester.HYPERVISOR_TYPE)
 
         ##############
-        # SETUP TEST #
+        # SETUP TEST_NAME #
         ##############
 
         # Cache to validate properties
@@ -248,7 +248,7 @@ class AdvancedDTLTester(object):
         }
 
         # Create a new vdisk to test
-        boot_vdisk_name = '{0}_vdisk01'.format(AdvancedDTLTester.TEST)
+        boot_vdisk_name = '{0}_vdisk01'.format(AdvancedDTLTester.TEST_NAME)
         boot_vdisk_path = '/mnt/{0}/{1}.raw'.format(vpool.name, boot_vdisk_name)
         protocol = source_std.cluster_node_config['network_server_uri'].split(':')[0]
         disks = [{'mountpoint': boot_vdisk_path}]
@@ -293,7 +293,7 @@ class AdvancedDTLTester(object):
             cloud_init_created = True
 
             ##############
-            # START TEST #
+            # START TEST_NAME #
             ##############
             try:
                 #############

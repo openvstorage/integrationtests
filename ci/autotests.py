@@ -344,7 +344,6 @@ def _get_description():
     return '\n'.join(description_lines)
 
 
-# @todo support 14.04
 class LogCollector(object):
     """
     Exposes to methods to collect logs
@@ -370,7 +369,7 @@ class LogCollector(object):
         :return: all logs for the components listed
         :rtype: str
         """
-        LOGGER.debug('Grepping logs for between {0} and {1}.'.format(since, until))
+        LOGGER.debug('Grepping logs between {0} and {1}.'.format(since, until))
         from ovs.log.log_reader import LogFileTimeParser
         if components is None:
             components = LogCollector.DEFAULT_COMPONENTS
@@ -427,11 +426,8 @@ def gather_results(case_type, logger, test_name):
             return {'status': 'BLOCKED', 'case_type': HATester.CASE_TYPE, 'errors': None}
     from the main method
     Now it becomes
-        @gather_results(CASE_TYPE, LOGGER, TEST)
+        @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
         def main(blocked):
-    CASE_TYPE is the case type specified in the main already
-    LOGGER is the logger instance specified already
-    TEST is the testname (most likely name of the logger)
     :param case_type: case type specified in the main already
     :type case_type: str
     :param logger: logger instance specified already

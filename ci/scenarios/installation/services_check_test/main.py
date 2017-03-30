@@ -24,8 +24,8 @@ from ci.autotests import gather_results
 class ServiceChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    TEST = "ci_scenario_post_reboot_checks"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_post_reboot_checks"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SERVICE_TIMEOUT = 5
     SERVICE_TRIES = 5
 
@@ -33,7 +33,7 @@ class ServiceChecks(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

@@ -29,8 +29,8 @@ from ovs.log.log_handler import LogHandler
 class VDiskCloneChecks(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST = "ci_scenario_vdisk_clone"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_vdisk_clone"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     PREFIX = "integration-tests-clone-"
     VDISK_SIZE = 10737418240  # 10GB
     CLONE_CREATE_TIMEOUT = 180
@@ -42,7 +42,7 @@ class VDiskCloneChecks(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

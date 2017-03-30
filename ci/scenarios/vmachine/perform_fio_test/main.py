@@ -32,8 +32,8 @@ from ovs.log.log_handler import LogHandler
 class FioOnVDiskChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    TEST = "ci_scenario_fio_on_vdisk"
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    TEST_NAME = "ci_scenario_fio_on_vdisk"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     VDISK_SIZE = 1073741824  # 1 GB
     AMOUNT_VDISKS = 5
     AMOUNT_TO_WRITE = 10  # in MegaByte
@@ -46,7 +46,7 @@ class FioOnVDiskChecks(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test

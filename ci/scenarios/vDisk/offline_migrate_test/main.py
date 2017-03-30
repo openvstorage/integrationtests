@@ -32,9 +32,9 @@ from ovs.log.log_handler import LogHandler
 class MigrateTester(object):
 
     CASE_TYPE = 'FUNCTIONAL'
-    TEST = "ci_scenario_vdisk_migrate_offline"
+    TEST_NAME = "ci_scenario_vdisk_migrate_offline"
     AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
-    LOGGER = LogHandler.get(source="scenario", name=TEST)
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SLEEP_TIME = 15
     REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'fio']
     AMOUNT_VDISKS = 5
@@ -43,7 +43,7 @@ class MigrateTester(object):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -117,7 +117,7 @@ class MigrateTester(object):
             # create vdisk #
             ################
 
-            vdisk_name = "{0}_{1}".format(MigrateTester.TEST, i)
+            vdisk_name = "{0}_{1}".format(MigrateTester.TEST_NAME, i)
             try:
                 vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
                                                      size=10*1024**3, storagerouter_ip=std_1.storagerouter.ip,
