@@ -21,7 +21,7 @@ import threading
 import subprocess
 from datetime import datetime
 from libvirt import libvirtError
-from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.helpers.api import OVSClient, TimeOutError
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
@@ -244,6 +244,9 @@ class MigrateTester(object):
                                                         vpool_name=vpool.name,
                                                         snapshot_id=snapshot_guid,
                                                         api=api)
+                    except TimeOutError:
+                        MigrateTester.LOGGER.error('Rolling back to snapshot has timed out.')
+                        raise
                     except RuntimeError as ex:
                         MigrateTester.LOGGER.error("Rolling back to snapshot has failed. Got {0}".format(str(ex)))
                         raise
