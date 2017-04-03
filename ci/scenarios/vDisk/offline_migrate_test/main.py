@@ -17,7 +17,7 @@
 import json
 import time
 import random
-from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.helpers.api import OVSClient, TimeOutError
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
@@ -125,7 +125,10 @@ class MigrateTester(object):
                 # Fetch to validate if it was properly created
                 vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
                 values_to_check['vdisk'] = vdisk.serialize()
-            except RuntimeError as ex:
+            except TimeOutError:
+                MigrateTester.LOGGER.error("Creation of the vdisk has timed out.")
+                raise
+            except (RuntimeError, TimeOutError) as ex:
                 MigrateTester.LOGGER.info("Creation of vdisk failed: {0}".format(ex))
                 raise
             else:
