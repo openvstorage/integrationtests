@@ -83,16 +83,13 @@ class AutoTests(object):
                         blocked = True  # if a test reports failed but blocked != False
             else:
                 raise AttributeError("Attribute `{0}` does not exists as status in TestrailResult".format(module_result['status']))
-
             # add test to results & also remove possible EXCLUDE_FLAGS on test name
             results[test.replace(AutoTests.EXCLUDE_FLAG, '')] = module_result
-
+        logger.info("Finished tests.")
         if send_to_testrail:
-            logger.info("Start pushing tests to testrail ...")
+            logger.info("Start pushing tests to testrail.")
             plan_url = AutoTests.push_to_testrail(results, only_add_given_cases=only_add_given_results)
             return results, plan_url
-
-        logger.info("Finished tests...")
         return results, None
 
     @staticmethod
