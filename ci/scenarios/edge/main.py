@@ -47,7 +47,7 @@ class EdgeTester(object):
         'config_dest': '/tmp/cloud-init-config-migrate-test'
     }
     # DATA_TEST_CASES = [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]  # read write patterns to test (read, write)
-    DATA_TEST_CASES = [(0, 100)]
+    DATA_TEST_CASES = [(100, 0)]
     VDISK_THREAD_LIMIT = 5  # Each monitor thread queries x amount of vdisks
     FIO_VDISK_LIMIT = 50  # Each fio uses x disks
     IO_REFRESH_RATE = 5  # in seconds
@@ -80,10 +80,10 @@ class EdgeTester(object):
         # This test needs the api of another node which does not have the magic packet
         # Currently adding it statically, do not see another option
         # remote_api = OVSClient('10.100.187.31', 'admin', 'admin')  # This is a non apt-ee envir and should not be able to connect here
-        try:
-            compute_client = SSHClient('10.100.187.31', username='root', password='rooter')
-        except Exception as ex:
-            raise RuntimeError('Could not setup the compute client. Got {}'.format(str(ex)))
+        # try:
+        #     compute_client = SSHClient('10.100.187.31', username='root', password='rooter')
+        # except Exception as ex:
+        #     raise RuntimeError('Could not setup the compute client. Got {}'.format(str(ex)))
 
         vpool = None
         for vp in VPoolHelper.get_vpools():
@@ -96,8 +96,8 @@ class EdgeTester(object):
         std_2 = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
         str_1 = std_1.storagerouter  # Will act as volumedriver node
         str_2 = std_2.storagerouter  # Will act as volumedriver node
-        str_3 = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters() if storagerouter.guid not in [str_1.guid, str_2.guid]]  # Will act as compute node
-        # compute_client = SSHClient(str_3)  # Compute node is excluded from all migrations and shutdowns
+        str_3 = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters() if storagerouter.guid not in [str_1.guid, str_2.guid]][0]  # Will act as compute node
+        compute_client = SSHClient(str_3, username='root')  # Compute node is excluded from all migrations and shutdowns
         EdgeTester.LOGGER.info('Chosen source storagedriver is: {0}'.format(std_1.storage_ip))
         EdgeTester.LOGGER.info('Chosen destination storagedriver is: {0}'.format(std_2.storage_ip))
 
@@ -112,29 +112,37 @@ class EdgeTester(object):
             raise
 
     @staticmethod
-    def adjust_for_rerout(str, start_port, end_port, trigger_rerout=True):
+    def adjust_for_rerout(storagerouter, start_port, end_port, trigger_rerout=True, ip=None):
         """
         Force edge to rerout. Done by blocking all connections to the volumedriver port
-        :param str: storagerouter object of the node to execute the rerout on
-        :type str: ovs.dal.hybrids.storagerouter.StorageRouter
+        :param storagerouter: storagerouter object of the node to execute the rerout on
+        :type storagerouter: ovs.dal.hybrids.storagerouter.StorageRouter
         :param start_port: port to start blocking
         :type start_port: str
         :param end_port: port to end blocking
         :type end_port: str
         :param trigger_rerout: trigger or unblock the rerout
         :type trigger_rerout: bool
+        :param ip: ip to block connections on
+        :type ip: str
         :return: 
         """
         if 22 in xrange(int(end_port), int(start_port)):  # Avoid blocking ssh
             raise ValueError('Port 22 cannot be included in the ports.')
         port_range = "{0}:{1}".format(start_port, end_port)
         if trigger_rerout is True:
-            EdgeTester.LOGGER.debug('Closing off {0}'.format(port_range))
-            cmd = ["iptables", "-A", "INPUT", "-p", "tcp", "--dport", port_range, "-j", "DROP"]
+            input_rule = ["iptables", "-A", "INPUT"]
         else:
+            input_rule = ["iptables", "-D", "INPUT"]
             EdgeTester.LOGGER.debug('Opening {}'.format(port_range))
-            cmd = ["iptables", "-D", "INPUT", "-p", "tcp", "--dport", port_range, "-j", "DROP"]
-        client = SSHClient(str, username='root')
+        ip_extra = []
+        if isinstance(ip, str):
+            ip_extra = ['-s', ip]
+        port_rule = ["-p", "tcp", "--dport", port_range]
+        action = ["-j", "DROP"]
+        cmd = input_rule + ip_extra + port_rule + action
+        EdgeTester.LOGGER.debug('Closing off {0} on {1} with {2}'.format(port_range, storagerouter.ip, ' '.join(cmd)))
+        client = SSHClient(storagerouter, username='root')
         client.run(cmd)
 
     @staticmethod
@@ -240,7 +248,7 @@ class EdgeTester(object):
                 # Bringing original owner of the volume down
                 #########################
                 try:
-                    EdgeTester.adjust_for_rerout(std_2.storagerouter, std_2.ports['management'], std_2.ports['edge'], True)
+                    EdgeTester.adjust_for_rerout(std_2.storagerouter, std_2.ports['edge'], std_2.ports['edge'], True)
                     adjusted = True
                     downed_time = time.time()
                 except Exception as ex:
@@ -275,10 +283,12 @@ class EdgeTester(object):
                         time.sleep(0.05)
                 EdgeTester._validate_dal(values_to_check)
             except Exception as ex:
+                raise
+                logger.error('Got an exception while running configuration {}. Namely: {}'.format(configuration, str(ex)))
                 failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
             finally:
                 if adjusted is True:
-                    EdgeTester.adjust_for_rerout(std_2.storagerouter, std_2.ports['management'], std_2.ports['edge'], False)
+                    EdgeTester.adjust_for_rerout(std_2.storagerouter, std_2.ports['edge'], std_2.ports['edge'], False)
                 if screen_names:
                     for screen_name in screen_names:
                         pass  #@ Todo uncomment and remove pass
@@ -376,11 +386,12 @@ class EdgeTester(object):
             # exec bash to keep it running
             for index, cmd in enumerate(cmds):
                 screen_name = 'fio_{0}'.format(index)
-                cmds[index] = 'screen -S {0} -dm bash -c "while {1}; do :; done; exec bash"'.format(screen_name, ' '.join(cmd))
+                # cmds[index] = 'screen -S {0} -dm bash -c "while {1}; do :; done; exec bash"'.format(screen_name, ' '.join(cmd))
+                cmds[index] = ['screen', '-S', screen_name, '-dm', 'bash', '-c', 'while {0}; do :; done; exec bash'.format(' '.join(cmd))]
                 screen_names.append(screen_name)
         for cmd in cmds:
-            EdgeTester.LOGGER.info('Writing data with: {0}'.format(cmd))
-            client.run(cmd, allow_insecure=True)
+            EdgeTester.LOGGER.info('Writing data with: {0}'.format(' '.join(cmd)))
+            client.run(cmd)
         return screen_names
     
     @staticmethod
@@ -401,31 +412,31 @@ class EdgeTester(object):
         # Fetch them from the dal
         source_std = StoragedriverHelper.get_storagedriver_by_guid(values['source_std']['guid'])
         target_std = StoragedriverHelper.get_storagedriver_by_guid(values['target_std']['guid'])
-        vdisk = VDiskHelper.get_vdisk_by_guid(values['vdisk']['guid'])
-        if values['source_std'] == source_std.serialize():
-            # DAL values did not update - expecting a change in vdisks_guids
-            raise ValueError('Expecting the target Storagedriver to change but nothing happened...')
-        else:
-            # Expecting changes in vdisks_guids
-            if vdisk.guid in source_std.vdisks_guids:
-                raise ValueError('Vdisks guids were not updated after move for source storagedriver.')
+        for serialized_vdisk in values['vdisks']:
+            vdisk = VDiskHelper.get_vdisk_by_guid(serialized_vdisk['guid'])
+            if values['source_std'] != source_std.serialize():
+                # DAL values did not update - expecting a change in vdisks_guids
+                raise ValueError('Expecting the target Storagedriver to have remained the same.')
             else:
-                EdgeTester.LOGGER.info('All properties are updated for source storagedriver.')
-        if values['target_std'] == target_std.serialize():
-            raise ValueError('Expecting changes in the target Storagedriver but nothing changed.')
-        else:
-            if vdisk.guid not in target_std.vdisks_guids:
-                raise ValueError('Vdisks guids were not updated after move for target storagedriver.')
+                # Expecting changes in vdisks_guids
+                if vdisk.guid in source_std.vdisks_guids:
+                    EdgeTester.LOGGER.info('Vdisks were not moved according the DAL.')
+                else:
+                    raise ValueError('Vdisks were moved according the DAL.')
+            if values['target_std'] != target_std.serialize():
+                raise ValueError('Expecting no changes in the target Storagedriver.')
             else:
-                EdgeTester.LOGGER.info('All properties are updated for target storagedriver.')
-        if values["vdisk"] == vdisk.serialize():
-            raise ValueError('Expecting changes in the vdisk but nothing changed.')
-        else:
-            if vdisk.storagerouter_guid == target_std.storagerouter.guid:
-                EdgeTester.LOGGER.info('All properties are updated for vdisk.')
+                if vdisk.guid not in target_std.vdisks_guids:
+                    EdgeTester.LOGGER.info('Vdisks were not moved to the target according the DAL.')
+                else:
+                    raise ValueError('Vdisks guids were updated after move for target storagedriver.')
+            if values["vdisk"] != vdisk.serialize():
+                raise ValueError('Expecting no changes in the vdisk.')
             else:
-                ValueError('Expected {0} but found {1} for vdisk.storagerouter_guid'.format(vdisk.storagerouter_guid,
-                                                                                            vdisk.storagerouter_guid))
+                if vdisk.storagerouter_guid == source_std.storagerouter.guid:
+                    EdgeTester.LOGGER.info('Owner has remained the same.')
+                else:
+                    ValueError('Expected {0} but found {1} for vdisk.storagerouter_guid'.format(source_std.storagerouter.guid, vdisk.storagerouter_guid))
         EdgeTester.LOGGER.info('Move vdisk was successful according to the dal (which fetches volumedriver info).')
     
     @staticmethod
