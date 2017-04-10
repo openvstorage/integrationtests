@@ -10,24 +10,24 @@ Steps to keep in mind to write a useful qa request
 
 ### Cover area
 // What area of the product is affected?
-- [ ] alba
-- [ ] arakoon
-- [ ] framework
-- [ ] volumedriver
+- alba
+- arakoon
+- framework
+- volumedriver
 
 // What type of functionality was used
-- [ ] data import
-- [ ] setup
-- [ ] scrubbing
-- [ ] ...
+- data import
+- setup
+- scrubbing
+- ...
 
 // Which type of issue is this
-- [ ] data corruption/loss
-- [ ] maintainability
-- [ ] performance
-- [ ] reliability
-- [ ] scalability
-- [ ] stability
+- data corruption/loss
+- maintainability
+- performance
+- reliability
+- scalability
+- stability
 
 ### User story
 // Describe the user story/scenario here.
@@ -51,20 +51,25 @@ Steps to keep in mind to write a useful qa request
 // Were there any special specific actions related to the user story?
 // Something not out of the ordinary. eg external arakoons
 
+
 ## Additional information
 
 ### Setup
-// Be as specific/complete as possible
+// Be as specific as possible
+
 - Nr of nodes
-- [ ] external arakoons config for
--- [ ] config
--- [ ] ovsdb
--- [ ] abm
--- [ ] nsm
+- external arakoons config for
+-- abm
+-- config
+-- nsm
+-- ovsdb
+-- voldrv
+
 - Type of setup:
-- [ ] Hyperconverged
-- [ ] Hyperscale
-- [ ] Geoscale
+-- Hyperconverged
+-- Hyperscale
+-- Geoscale
+
 - Specific configuration settings
 -- backend
 -- preset
