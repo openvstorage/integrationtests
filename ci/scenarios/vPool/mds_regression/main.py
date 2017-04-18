@@ -14,16 +14,17 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import os
-import Queue
-import errno
+import re
 import json
 import math
+import uuid
+import time
+import errno
+import Queue
 import random
 import socket
-import subprocess
 import threading
-import time
-import uuid
+import subprocess
 from datetime import datetime
 from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.api import TimeOutError
@@ -34,12 +35,15 @@ from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper, Waiter
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
+from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.packages.package import PackageManager
+from ovs.lib.generic import GenericController
 from ovs.log.log_handler import LogHandler
 
 
@@ -49,7 +53,7 @@ class RegressionTester(object):
     TEST_NAME = 'ci_scenario_edge_test'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
 
-    SLEEP_TIME = 15
+    IO_TIME = 5 * 60  # Time to do IO for
     TEST_TIMEOUT = 300
     VM_CONNECTING_TIMEOUT = 5
 
@@ -87,10 +91,10 @@ class RegressionTester(object):
     with open(CONFIG_LOC, 'r') as JSON_CONFIG:
         SETUP_CFG = json.load(JSON_CONFIG)
 
-    # collect details about parent hypervisor
+    # Collect details about parent hypervisor
     PARENT_HYPERVISOR_INFO = SETUP_CFG['ci']['hypervisor']
 
-    # hypervisor details
+    # Hypervisor details
     HYPERVISOR_INFO = {'type': PARENT_HYPERVISOR_INFO['type'],
                        'user': SETUP_CFG['ci']['user']['shell']['username'],
                        'password': SETUP_CFG['ci']['user']['shell']['password']}
@@ -121,25 +125,40 @@ class RegressionTester(object):
                                                        hypervisor_info['user'],
                                                        hypervisor_info['password'],
                                                        hypervisor_info['type'])
-        vm_info, connection_messages, volume_amount = cls._prepare_vm_disks(cluster_info=cluster_info,
-                                                                            to_be_downed_client=to_be_downed_client,
-                                                                            cloud_image_path=cloud_image_path,
-                                                                            cloud_init_loc=cloud_init_loc,
-                                                                            api=api,
-                                                                            vm_amount=vm_amount,
-                                                                            port=listening_port,
-                                                                            hypervisor_ip=compute_client.ip)
-        vm_info = cls._create_vms(ip=compute_client.ip,
-                                  port=listening_port,
-                                  connection_messages=connection_messages,
-                                  vm_info=vm_info,
-                                  edge_details=edge_details,
-                                  hypervisor_client=computenode_hypervisor)
+        # vm_info, connection_messages, volume_amount = cls._prepare_vm_disks(cluster_info=cluster_info,
+        #                                                                     to_be_downed_client=to_be_downed_client,
+        #                                                                     cloud_image_path=cloud_image_path,
+        #                                                                     cloud_init_loc=cloud_init_loc,
+        #                                                                     api=api,
+        #                                                                     vm_amount=vm_amount,
+        #                                                                     port=listening_port,
+        #                                                                     hypervisor_ip=compute_client.ip)
+        # vm_info = cls._create_vms(ip=compute_client.ip,
+        #                           port=listening_port,
+        #                           connection_messages=connection_messages,
+        #                           vm_info=vm_info,
+        #                           edge_details=edge_details,
+        #                           hypervisor_client=computenode_hypervisor)
+        # @TODO: remove this section as it just rebuilds for faster testing
+        vp = VPoolHelper.get_vpool_by_name('myvpool01')
+        available_storagedrivers = [storagedriver for storagedriver in vp.storagedrivers]
+        std_1 = [std for std in available_storagedrivers if std.storage_ip == '10.100.69.121'][0]
+        std_2 = [std for std in available_storagedrivers if std.storage_ip == '10.100.69.120'][0]
+        str_1 = std_1.storagerouter  # Will act as volumedriver node
+        str_2 = std_2.storagerouter  # Will act as volumedriver node
+        str_3 = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters() if
+                 storagerouter.guid not in [str_1.guid, str_2.guid]][0]  # Will act as compute node
+
+        cluster_info = {'storagerouters': {'str3': str_3, 'str2': str_2, 'str1': str_1}, 'storagedrivers': {'std1': std_1, 'std2': std_2}, 'vpool': vp}
+        volume_amount = 3
+        vdisks = [VDiskHelper.get_vdisk_by_guid('b1f224c2-e263-4847-8835-5009db74ce50'), VDiskHelper.get_vdisk_by_guid('ef97599a-f35d-443e-a647-94ae5cd517d8')]
+        vm_info = {'HA-test_000': {'vdisks': vdisks, 'created': False, 'data_snapshot_guid': u'156fe4b0-2a85-4cfe-b74b-c82662a79c89', 'create_msg': '73e56a0c-3fd8-4c78-b8c9-cefdf30311ce_000', 'ip': '192.168.122.238', 'disks': [{'mountpoint': '/mnt/myvpool01/ci_scenario_edge_test_vdisk_boot_000.raw'}, {'mountpoint': '/mnt/myvpool01/ci_scenario_edge_test_vdisk_data_000.raw'}], 'cd_path': '/mnt/myvpool01/ci_scenario_edge_test_vdisk_cd_000.raw', 'networks': [{'model': 'e1000', 'mac': 'RANDOM', 'network': 'default'}]}}
         cls.run_test(cluster_info=cluster_info,
                      compute_client=compute_client,
                      is_ee=is_ee,
                      disk_amount=volume_amount,
-                     vm_info=vm_info)
+                     vm_info=vm_info,
+                     api=api)
 
     @classmethod
     def setup(cls, required_packages_cloud_init=REQUIRED_PACKAGE_CLOUD_INIT,
@@ -198,8 +217,7 @@ class RegressionTester(object):
         assert len(images) >= 1, 'Not enough images in `{0}`'.format(SETTINGS_LOC)
 
         image_path = images[0]  # check if image exists
-        assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0],
-                                                                                                           to_be_downed_client.ip)
+        assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
 
         cloud_init_loc = cloud_init_info['script_dest']  # Get the cloud init file
         to_be_downed_client.run(['wget', cloud_init_info['script_loc'], '-O', cloud_init_loc])
@@ -232,7 +250,7 @@ class RegressionTester(object):
         return api, cluster_info, compute_client, to_be_downed_client, is_ee, image_path, cloud_init_loc
 
     @classmethod
-    def run_test(cls, cluster_info, compute_client, is_ee, vm_info, disk_amount, vm_username=VM_USERNAME, vm_password=VM_PASSWORD,
+    def run_test(cls, cluster_info, compute_client, is_ee, vm_info, disk_amount, api, vm_username=VM_USERNAME, vm_password=VM_PASSWORD,
                  timeout=TEST_TIMEOUT, data_test_cases=DATA_TEST_CASES, logger=LOGGER):
         """
         Runs the test as described in https://github.com/openvstorage/dev_ops/issues/64
@@ -240,6 +258,7 @@ class RegressionTester(object):
         :param compute_client: SSHclient of the computenode
         :param is_ee: is entreprise edition or not
         :param vm_info: vm information
+        :param api: api instance
         :param disk_amount: amount of disks
         :param vm_username: username to login on all vms
         :param vm_password: password to login on all vms
@@ -263,12 +282,19 @@ class RegressionTester(object):
         if is_ee is True:
             # @ Todo create user instead
             ee_info = {'username': 'root', 'password': 'rooter'}
+
+        # Extract vdisk info from vm_info
+        vdisk_info = {}
+        for vm_name, vm_object in vm_info.iteritems():
+            for vdisk in vm_object['vdisks']:
+                vdisk_info.update({vdisk.name: vdisk})
         try:
             cls._adjust_automatic_scrubbing(disable=True)
             with remote(str_3.ip, [SSHClient]) as rem:
                 for test_run_nr, configuration in enumerate(data_test_cases):
                     r_semaphore = None
-                    threads = []
+                    threads = {'evented': {'io': [],
+                                           'snapshots': []}}
                     output_files = []
                     try:
                         logger.info('Starting the following configuration: {0}'.format(configuration))
@@ -277,29 +303,34 @@ class RegressionTester(object):
                                 vm_client = rem.SSHClient(vm_data['ip'], vm_username, vm_password)
                                 vm_client.file_create('/mnt/data/{0}.raw'.format(vm_data['create_msg']))
                                 vm_data['client'] = vm_client
-                        threads, monitoring_data, r_semaphore = cls._start_threads(volume_bundle=vm_info, target=cls._monitor_changes)
+                        io_thread_pairs, monitoring_data, r_semaphore = cls._start_io_polling_threads(volume_bundle=vdisk_info)
+                        threads['evented']['io'] = io_thread_pairs
                         for vm_name, vm_data in vm_info.iteritems():  # Write data
-                            screen_names, output_files = cls._write_data(client=compute_client,
+                            screen_names, output_files = cls._write_data(client=vm_data['client'],
                                                                          cmd_type='fio',
                                                                          configuration=configuration,
                                                                          file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])],
                                                                          ee_info=ee_info)
                             vm_data['screen_names'] = screen_names
-                        logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.SLEEP_TIME))
+                        logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
+                        threads['evented']['snapshots'] = cls._start_snapshotting_threads(volume_bundle=vdisk_info, api=api)
                         # @todo start another thread that will wait 10 min before deleting some snapshots
                         cls._keep_threads_running(r_semaphore=r_semaphore,
-                                                  threads=threads,
-                                                  shared_resource=monitoring_data)
+                                                  threads=threads['evented']['io'],
+                                                  shared_resource=monitoring_data,
+                                                  duration=cls.IO_TIME)
                         # Threads ready for monitoring at this point
-                        # Starting to scrub
-                        try:
-                            cls._start_scrubbing()
-                            downed_time = time.time()
-                        except Exception as ex:
-                            logger.error('Failed to stop. Got {0}'.format(str(ex)))
-                            raise
+                        cls._delete_snapshots(volume_bundle=vdisk_info, api=api)
+                        scrubbing_result = cls._start_scrubbing(volume_bundle=vdisk_info)  # Starting to scrub, offloaded to celery
+                        cls._trigger_mds_failover()  # Trigger mds failover while scrubber is busy
+                        # Do some monitoring further for 60s
+                        cls._keep_threads_running(r_semaphore=r_semaphore,
+                                                  threads=threads['evented']['io'],
+                                                  shared_resource=monitoring_data,
+                                                  duration=60)
                         time.sleep(cls.IO_REFRESH_RATE * 2)
-                        # Start IO polling
+                        downed_time = time.time()
+                        # Start IO polling to verify nothing went down
                         cls._poll_io(r_semaphore=r_semaphore,
                                      required_thread_amount=len(threads),
                                      shared_resource=monitoring_data,
@@ -308,12 +339,15 @@ class RegressionTester(object):
                                      output_files=output_files,
                                      client=compute_client,
                                      disk_amount=disk_amount)
+                        api.wait_for_task(task_id=scrubbing_result.id)  # Wait for scrubbing to finish
                         cls._validate(values_to_check, monitoring_data)
                     except Exception as ex:
+                        logger.error('Running the test for configuration {0} has failed because {1}'.format(configuration, str(ex)))
                         failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
+                        raise
                     finally:
-                        if threads:
-                            logger.info('Stopping iops monitoring')
+                        for thread_category, threads in threads['evented'].iteritems():
+                            logger.info('Stopping {} threads.'.format(thread_category))
                             for thread_pair in threads:
                                 if thread_pair[0].isAlive():
                                     thread_pair[1].set()
@@ -327,10 +361,12 @@ class RegressionTester(object):
                                 thread_pair[0].join()
                         for vm_name, vm_data in vm_info.iteritems():
                             for screen_name in vm_data.get('screen_names', []):
+                                logger.debug('Stopping screen {0} on {1}.'.format(screen_name, vm_data['client'].ip))
                                 vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
                             vm_data['screen_names'] = []
         finally:
             cls._adjust_automatic_scrubbing(disable=False)
+        assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @classmethod
     def _create_vms(cls, ip, port, connection_messages, vm_info, edge_details, hypervisor_client, timeout=TEST_TIMEOUT):
@@ -374,7 +410,6 @@ class RegressionTester(object):
         :param logger: logging instance
         :return: 
         """
-        str_3 = cluster_info['storagerouters']['str3']
         std_2 = cluster_info['storagedrivers']['std2']
         vpool = cluster_info['vpool']
         protocol = std_2.cluster_node_config['network_server_uri'].split(':')[0]
@@ -471,15 +506,13 @@ class RegressionTester(object):
         return vm_info, connection_messages, volume_amount
 
     @classmethod
-    def _start_threads(cls, volume_bundle, target, logger=LOGGER):
+    def _start_io_polling_threads(cls, volume_bundle, logger=LOGGER):
         """
-        Will start the 
-        :param volume_bundle: bundle of volumes
+        Will start the io polling threads
+        :param volume_bundle: bundle of volumes {vdiskname: vdisk object}
         :type volume_bundle: dict
         :param logger: logger instance
         :type logger: ovs.log.log_handler.LogHandler
-        :param target: function to start
-        :type target: func
         :return: threads, monitoring_data, r_semaphore
         :rtype: tuple(list, dict, ci.api_lib.helpers.thread.Waiter)
         """
@@ -503,7 +536,7 @@ class RegressionTester(object):
                             'io': {'down': [], 'descending': [], 'rising': [], 'highest': None, 'lowest': None},
                             'edge_clients': {'down': [], 'up': []}}
                     monitoring_data[volume_number_range] = monitor_resource
-                    threads.append(ThreadHelper.start_thread_with_event(target,
+                    threads.append(ThreadHelper.start_thread_with_event(target=cls._monitor_changes,
                                                                         name='iops_{0}'.format(current_thread_bundle['index']),
                                                                         args=(monitor_resource, vdisks, r_semaphore)))
                     current_thread_bundle['index'] = index + 1
@@ -560,11 +593,11 @@ class RegressionTester(object):
                 continue
             # Check if any errors occurred - possible due to the nature of the write data with screens
             # If the fio has had an error, it will break and output to the output file
-            # errors = {}
-            # for output_file in output_files:
-            #     errors.update(set(client.run('grep -a error {} || true'.format(re.escape(output_file)), allow_insecure=True).split()))
-            # if len(errors) > 0:
-            #     raise RuntimeError('Fio has reported errors: {} at {}'.format(', '.join(errors),datetime.today().strftime('%Y-%m-%d %H:%M:%S')))
+            errors = {}
+            for output_file in output_files:
+                errors.update(set(client.run('grep -a error {} || true'.format(re.escape(output_file)), allow_insecure=True).split()))
+            if len(errors) > 0:
+                raise RuntimeError('Fio has reported errors: {} at {}'.format(', '.join(errors), datetime.today().strftime('%Y-%m-%d %H:%M:%S')))
             # Calculate to see if IO is back
             io_volumes = cls._get_all_vdisks_with_io(shared_resource)
             logger.info('Currently got io for {0}: {1}'.format(len(io_volumes), io_volumes))
@@ -576,7 +609,7 @@ class RegressionTester(object):
             r_semaphore.wait()  # Unblock waiting threads
 
     @classmethod
-    def _keep_threads_running(cls, r_semaphore, threads, shared_resource, duration=SLEEP_TIME, logger=LOGGER):
+    def _keep_threads_running(cls, r_semaphore, threads, shared_resource, duration=IO_TIME, logger=LOGGER):
         """
         Keeps the threads running for the duration
         :param r_semaphore: Reverse semaphore, controlling object to sync the threads with
@@ -623,27 +656,134 @@ class RegressionTester(object):
         :type disable: bool
         :return:
         """
-        pass
+        celery_key = 'ovs/framework/scheduling/celery'
+        job_key = 'ovs.generic.execute_scrub'
+
+        def change_scheduled_task(task_name, state, disabled=False, cron=None, celery_key=celery_key):
+            if not Configuration.exists(celery_key):
+                Configuration.set(celery_key, {})
+            jobs = Configuration.get(celery_key)
+            if state == 'present':
+                if disabled:
+                    jobs[task_name] = None
+                    output = 'task {0}: disabled'.format(task_name)
+                else:
+                    jobs[task_name] = cron
+                    settings = ''
+                    for key, value in cron.iteritems():
+                        settings += "{0}: {1} ".format(key, value)
+                    output = 'task {0}: cron settings {1}'.format(task_name, settings)
+            else:
+                jobs.pop(task_name, None)
+                output = 'task {0}: removed, default settings will be applied.'.format(task_name)
+            Configuration.set(celery_key, jobs)
+            return output
+        if disable is True:
+            return change_scheduled_task(job_key, 'present', disabled=True)
+        return change_scheduled_task(job_key, 'absent')
+
+    @classmethod
+    def _start_snapshotting_threads(cls, volume_bundle, api, args=(), kwargs=None, logger=LOGGER):
+        """
+        Start the snapshotting threads
+        :param volume_bundle: bundle of volumes
+        :type volume_bundle: dict
+        :param api: api instance
+        :param logger: logging instance
+        :return: 
+        """
+        if kwargs is None:
+            kwargs = {}
+        threads = []
+        current_thread_bundle = {'index': 1, 'vdisks': []}
+        logger.info('Starting threads.')
+        try:
+            for index, (vdisk_name, vdisk_object) in enumerate(volume_bundle.iteritems(), 1):
+                vdisks = current_thread_bundle['vdisks']
+                vdisks.append(vdisk_object)
+                if index % cls.VDISK_THREAD_LIMIT == 0 or index == len(volume_bundle.keys()):
+                    threads.append(ThreadHelper.start_thread_with_event(target=cls._start_snapshots,
+                                                                        name='iops_{0}'.format(current_thread_bundle['index']),
+                                                                        args=(vdisks, api,) + args,
+                                                                        kwargs=kwargs))
+                    current_thread_bundle['index'] = index + 1
+                    current_thread_bundle['vdisks'] = []
+        except Exception:
+            for thread_pair in threads:  # Attempt to cleanup current inflight threads
+                if thread_pair[0].isAlive():
+                    thread_pair[1].set()
+            # Wait for threads to die
+            for thread_pair in threads:
+                thread_pair[0].join()
+            raise
+        return threads
 
     @staticmethod
-    def _start_snapshots():
-        pass
+    def _start_snapshots(vdisks, api, stop_event, interval=60):
+        """
+        Threading code that creates snapshots every x seconds
+        :param stop_event: Threading event that will stop the while loop
+        :type stop_event: threading._Event
+        :param interval: time between taking the snapshots
+        :type interval: int
+        :param vdisks: vdisk object
+        :type vdisks: list(ovs.dal.hybrids.vdisk.VDISK)
+        :return: None
+        :rtype: NoneType
+        """
+        while not stop_event.is_set():
+            start = time.time()
+            for vdisk in vdisks:
+                VDiskSetup.create_snapshot(snapshot_name='{0}_{1}'.format(vdisk.name, datetime.today().strftime('%Y-%m-%d %H:%M:%S')),
+                                           vdisk_name=vdisk.devicename,
+                                           vpool_name=vdisk.vpool.name,
+                                           api=api,
+                                           consistent=False,
+                                           sticky=False)
+            duration = time.time() - start
+            time.sleep(0 if duration > interval else interval - duration)
 
     @staticmethod
-    def _trigger_mds_failover():
-        pass
+    def _trigger_mds_failover(logger=LOGGER):
+        logger.debug('Starting the mds triggering.')
 
     @staticmethod
-    def _delete_snapshots():
-        pass
+    def _delete_snapshots(volume_bundle, api, amount_to_delete=3, logger=LOGGER):
+        """
+        Delete a random number of snapshots
+        :return: None
+        :rtype: NoneType
+        """
+        for index, (vdisk_name, vdisk_object) in enumerate(volume_bundle.iteritems(), 1):
+            snapshot_list = vdisk_object.snapshots
+            if len(snapshot_list) < 3:
+                raise RuntimeError('Need at least 3 snapshots to be able to leave the first and last snapshots.')
+            snapshots_allowed_to_remove = snapshot_list[1:-1]  # Do not remove first or last
+            while amount_to_delete > 0:
+                if len(snapshots_allowed_to_remove) == 0:
+                    logger.warning('No snapshots left to remove. Needed to remove at least {} more.'.format(amount_to_delete))
+                    break
+                snapshot = snapshots_allowed_to_remove.pop(random.randrange(0, len(snapshots_allowed_to_remove)))
+                logger.debug('Removing snapshot with guid {0}'.format(snapshot['guid']))
+                VDiskRemover.remove_snapshot(snapshot['guid'], vdisk_object.name, vdisk_object.vpool.name, api)
+                amount_to_delete -= 1
 
     @staticmethod
     def _run_pg_bench():
         pass
 
     @staticmethod
-    def _start_scrubbing():
-        pass
+    def _start_scrubbing(volume_bundle):
+        """
+        Starts scrubbing and offloads it to celery
+        :param volume_bundle: volume information
+        :return: Asynchronous result of a CeleryTask
+        :rtype: celery.result.AsyncResult
+        """
+        vdisk_guids = []
+        for vdisk_name, vdisk_object in volume_bundle.iteritems():
+            vdisk_guids.append(vdisk_object.guid)
+        return GenericController.execute_scrub.delay(vdisk_guids=vdisk_guids)
 
     @staticmethod
     def _generate_cloud_init(client, convert_script_loc, port, hypervisor_ip, create_msg, path=CLOUD_INIT_DATA['user-data_loc'],
