@@ -116,22 +116,22 @@ class EdgeTester(object):
         compute_client.run(['wget', fio_bin_url, '-O', fio_bin_loc])
         compute_client.file_chmod(fio_bin_loc, 755)
         try:
-            EdgeTester.test_rerout_fio(fio_bin_loc, vpool, compute_client, cluster_info, local_api, is_ee=is_ee)
+            EdgeTester.test_reroute_fio(fio_bin_loc, vpool, compute_client, cluster_info, local_api, is_ee=is_ee)
         except Exception:
             # compute_client.file_delete(fio_bin_loc)
             raise
 
     @staticmethod
-    def adjust_for_rerout(storagerouter, start_port=None, end_port=None, trigger_rerout=True, ip_to_block=None, additional_ports=None):
+    def adjust_for_reroute(storagerouter, start_port=None, end_port=None, trigger_rerout=True, ip_to_block=None, additional_ports=None):
         """
-        Force edge to rerout. Done by blocking all connections to the volumedriver port
-        :param storagerouter: storagerouter object of the node to execute the rerout on
+        Force edge to reroute. Done by blocking all connections to the volumedriver port
+        :param storagerouter: storagerouter object of the node to execute the reroute on
         :type storagerouter: ovs.dal.hybrids.storagerouter.StorageRouter
         :param start_port: port to start blocking
         :type start_port: int/str
         :param end_port: port to end blocking
         :type end_port: int/str
-        :param trigger_rerout: trigger or unblock the rerout
+        :param trigger_rerout: trigger or unblock the reroute
         :type trigger_rerout: bool
         :param ip_to_block: ip to block connections on
         :type ip_to_block: str
@@ -175,7 +175,7 @@ class EdgeTester(object):
             client.run(cmd)
 
     @staticmethod
-    def test_rerout_fio(fio_bin_path, vpool, compute_client, cluster_info, api, disk_amount=1, timeout=HA_TIMEOUT, is_ee=False, logger=LOGGER):
+    def test_reroute_fio(fio_bin_path, vpool, compute_client, cluster_info, api, disk_amount=1, timeout=HA_TIMEOUT, is_ee=False, logger=LOGGER):
         """
         Uses a modified fio to work with the openvstorage protocol
         :param fio_bin_path: path of the fio binary
@@ -246,11 +246,11 @@ class EdgeTester(object):
                                                  shared_resource=monitoring_data)
                 # Threads ready for monitoring at this point, they are waiting to resume
                 try:
-                    EdgeTester.adjust_for_rerout(std_2.storagerouter, trigger_rerout=True, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
+                    EdgeTester.adjust_for_reroute(std_2.storagerouter, trigger_rerout=True, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
                     adjusted = True
                     downed_time = time.time()
                 except Exception as ex:
-                    logger.error('Failed to adjust to rerout. Got {0}'.format(str(ex)))
+                    logger.error('Failed to adjust to reroute. Got {0}'.format(str(ex)))
                     raise
                 logger.info('Now waiting two refreshrate intervals to avoid caching. In total {}s'.format(EdgeTester.IO_REFRESH_RATE * 2))
                 time.sleep(EdgeTester.IO_REFRESH_RATE * 2)
@@ -264,13 +264,11 @@ class EdgeTester(object):
                                     disk_amount=disk_amount)
                 EdgeTester._validate_dal(values_to_check)  # Validate
             except Exceptiongoo:
-                # @ TODO remove raise
-                raise
                 logger.error('Got an exception while running configuration {}. Namely: {}'.format(configuration, str(ex)))
                 failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
             finally:
                 if adjusted is True:
-                    EdgeTester.adjust_for_rerout(std_2.storagerouter, trigger_rerout=False, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
+                    EdgeTester.adjust_for_reroute(std_2.storagerouter, trigger_rerout=False, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
                 for screen_name in screen_names:
                     compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
                     if threads:
