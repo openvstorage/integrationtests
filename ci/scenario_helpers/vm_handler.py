@@ -74,8 +74,8 @@ class VMHandler(object):
 
         for vm_number in xrange(0, vm_amount):
             filled_number = str(vm_number).zfill(3)
-            create_msg = '{0}_{1}'.format(str(uuid.uuid4()), filled_number)
-            vm_name = '{0}_{1}'.format(vm_name, filled_number)
+            vm_name = '{0}-{1}'.format(vm_name, filled_number)
+            create_msg = '{0}_{1}'.format(str(uuid.uuid4()), vm_name)
             boot_vdisk_name = '{0}_vdisk_boot_{1}'.format(vm_name, filled_number)
             data_vdisk_name = '{0}_vdisk_data_{1}'.format(vm_name, filled_number)
             cd_vdisk_name = '{0}_vdisk_cd_{1}'.format(vm_name, filled_number)
@@ -191,8 +191,9 @@ class VMHandler(object):
             assert len(vm_ip_info.keys()) == len(vm_info.keys()), 'Not all VMs started.'
         except:
             if listening_thread.isAlive():
-                listening_stop_object[1].set()
+                listening_stop_object.set()
             listening_thread.join(timeout=60)
+            raise
         return vm_info
 
     @staticmethod
@@ -230,15 +231,15 @@ class VMHandler(object):
             'sudo useradd {0}'.format(username),
             'sudo echo "{0}:{1}" | chpasswd'.format(username, password),
             'sudo adduser {0} sudo\n'.format(username),
-            'apt-get update',
-            'apt-get install fio -y',
-            'sed -ie "s/PermitRootLogin prohibit-password/PermitRootLogin yes/" /etc/ssh/sshd_config',
-            'sed -ie "s/PasswordAuthentication no/PasswordAuthentication yes/" /etc/ssh/sshd_config',
+            'sudo apt-get update',
+            'sudo apt-get install fio -y',
+            'sudo sed -ie "s/PermitRootLogin prohibit-password/PermitRootLogin yes/" /etc/ssh/sshd_config',
+            'sudo sed -ie "s/PasswordAuthentication no/PasswordAuthentication yes/" /etc/ssh/sshd_config',
             'sudo service ssh restart',
-            'parted /dev/vdb mklabel gpt mkpart 1 ext4 1MiB 5G',
-            'mkfs.ext4 /dev/vdb1',
-            'mkdir /mnt/data',
-            'mount /dev/vdb1 /mnt/data/',
+            'sudo parted -s /dev/vdb mklabel gpt mkpart primary ext4 0% 100%',
+            'sudo mkfs.ext4 /dev/vdb1',
+            'sudo mkdir /mnt/data',
+            'sudo mount /dev/vdb1 /mnt/data',
             'echo -n {0} | netcat -w 0 {1} {2}'.format(create_msg, hypervisor_ip, port)
 
         ]
@@ -257,7 +258,7 @@ class VMHandler(object):
             raise
 
     @staticmethod
-    def _listen_to_address(listening_host, listening_port, queue, connection_messages, timeout, stop_event, vm_name_prefix, logger=LOGGER):
+    def _listen_to_address(listening_host, listening_port, queue, connection_messages, timeout, stop_event, logger=LOGGER):
         """
         Listen for VMs that are ready
         :param listening_host: host to listen on
@@ -293,8 +294,7 @@ class VMHandler(object):
                     logger.debug('Connector said {0}'.format(data))
                     if data in connection_messages:
                         connection_messages.remove(data)
-                        vm_number = data.rsplit('_', 1)[-1]
-                        vm_name = '{0}_{1}'.format(vm_name_prefix, vm_number)
+                        vm_name = data.rsplit('_', 1)[-1]
                         logger.debug('Recognized sender as {0}'.format(vm_name))
                         vm_ips_info[vm_name] = {'ip': addr[0]}
             except Exception as ex:

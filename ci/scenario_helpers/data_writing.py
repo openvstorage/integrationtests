@@ -102,8 +102,7 @@ class DataWriter(object):
                 for index, volume in enumerate(vols):
                     fio_jobs.append('--name=test{0}'.format(index))
                     fio_jobs.append('--volumename={0}'.format(volume))
-                cmds.append(additional_settings + [edge_configuration[
-                                                       'fio_bin_location']] + config + additional_config + verify_config + output_config + fio_jobs)
+                cmds.append(additional_settings + [edge_configuration['fio_bin_location']] + config + additional_config + verify_config + output_config + fio_jobs)
         else:
             fio_jobs = []
             if file_locations:
@@ -111,7 +110,10 @@ class DataWriter(object):
                     fio_jobs.append('--name=test{0}'.format(index))
                     fio_jobs.append('--filename={0}'.format(file_location))
             additional_config = ['--ioengine=libaio', '--size={0}'.format(write_size)]
-            cmds.append(['fio'] + config + additional_config + fio_jobs)
+            output_file = '{0}/fio'.format(output_directory)
+            output_files.append(output_file)
+            output_config = ['--output={0}'.format(output_file), '--output-format={0}'.format(fio_output_format)]
+            cmds.append(['fio'] + config + additional_config + output_config + fio_jobs)
         if screen is True:
             # exec bash to keep it running
             for index, cmd in enumerate(cmds):

@@ -23,7 +23,6 @@ from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
-from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
@@ -32,6 +31,7 @@ from ci.main import SETTINGS_LOC
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
+from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
@@ -48,7 +48,7 @@ class RegressionTester(object):
     TEST_NAME = 'ci_scenario_edge_test'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
 
-    IO_TIME = 1 * 60  # Time to do IO for
+    IO_TIME = 2 * 60  # Time to do IO for
     TEST_TIMEOUT = 300
     VM_CONNECTING_TIMEOUT = 5
 
@@ -64,8 +64,8 @@ class RegressionTester(object):
 
     VM_WAIT_TIME = 300  # wait time before timing out on the vm install in seconds
 
-    DATA_TEST_CASES = [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]  # read write patterns to test (read, write)
-
+    # DATA_TEST_CASES = [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]  # read write patterns to test (read, write)
+    DATA_TEST_CASES = [(80, 20)]
     CLOUD_INIT_DATA = {
         'script_loc': 'https://raw.githubusercontent.com/kinvaris/cloud-init/master/create-config-drive',
         'script_dest': '/tmp/cloud_init_script.sh',
@@ -128,7 +128,7 @@ class RegressionTester(object):
                                                                                  port=listening_port,
                                                                                  hypervisor_ip=compute_client.ip,
                                                                                  vm_name=cls.VM_NAME,
-                                                                                 write_amount=cls.AMOUNT_TO_WRITE)
+                                                                                 write_amount=cls.AMOUNT_TO_WRITE * 20)
         vm_info = VMHandler.create_vms(ip=compute_client.ip,
                                        port=listening_port,
                                        connection_messages=connection_messages,
@@ -136,20 +136,31 @@ class RegressionTester(object):
                                        edge_details=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.TEST_TIMEOUT)
-        # @TODO: remove this section as it just rebuilds for faster testing
-        # vp = VPoolHelper.get_vpool_by_name('myvpool01')
+        # # @TODO: remove this section as it just rebuilds for faster testing
+        # from ci.api_lib.helpers.vdisk import VDiskHelper
+        # vp = VPoolHelper.get_vpool_by_name('mysyncvpool')
         # available_storagedrivers = [storagedriver for storagedriver in vp.storagedrivers]
-        # destination_storagedriver = [std for std in available_storagedrivers if std.storage_ip == '10.100.69.121'][0]
-        # source_storagedriver = [std for std in available_storagedrivers if std.storage_ip == '10.100.69.120'][0]
+        # destination_storagedriver = [std for std in available_storagedrivers if std.storage_ip == '10.100.188.32'][0]
+        # source_storagedriver = [std for std in available_storagedrivers if std.storage_ip == '10.100.188.33'][0]
         # str_1 = destination_storagedriver.storagerouter  # Will act as volumedriver node
         # str_2 = source_storagedriver.storagerouter  # Will act as volumedriver node
         # str_3 = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters() if
         #          storagerouter.guid not in [str_1.guid, str_2.guid]][0]  # Will act as compute node
-        #
+        # compute_client = SSHClient(str_3, username='root')
         # cluster_info = {'storagerouters': {'str3': str_3, 'str2': str_2, 'str1': str_1}, 'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver}, 'vpool': vp}
         # volume_amount = 3
-        # vdisks = [VDiskHelper.get_vdisk_by_guid('b1f224c2-e263-4847-8835-5009db74ce50'), VDiskHelper.get_vdisk_by_guid('ef97599a-f35d-443e-a647-94ae5cd517d8')]
-        # vm_info = {'HA-test_000': {'vdisks': vdisks, 'created': False, 'data_snapshot_guid': u'156fe4b0-2a85-4cfe-b74b-c82662a79c89', 'create_msg': '73e56a0c-3fd8-4c78-b8c9-cefdf30311ce_000', 'ip': '192.168.122.238', 'disks': [{'mountpoint': '/mnt/myvpool01/ci_scenario_edge_test_vdisk_boot_000.raw'}, {'mountpoint': '/mnt/myvpool01/ci_scenario_edge_test_vdisk_data_000.raw'}], 'cd_path': '/mnt/myvpool01/ci_scenario_edge_test_vdisk_cd_000.raw', 'networks': [{'model': 'e1000', 'mac': 'RANDOM', 'network': 'default'}]}}
+        # vdisks = [VDiskHelper.get_vdisk_by_guid('61c9e92a-df52-4026-938b-e3e3d8da925d'),  # boot
+        #           VDiskHelper.get_vdisk_by_guid('a2f5c5a5-d894-4ee1-b687-adf9f0a6b2ea'),  # cd
+        #           VDiskHelper.get_vdisk_by_guid('7e091881-3da3-4a59-bece-78f01d2f4fc3')]  # data
+        # vm_info = {'HA-test_000': {'vdisks': vdisks,
+        #                            'created': False,
+        #                            'data_snapshot_guid': u'156fe4b0-2a85-4cfe-b74b-c82662a79c89',
+        #                            'create_msg': 'f1143bd1-7eb0-4115-b9d7-ff1c1bfd8c07_HA-test-000',
+        #                            'ip': '192.168.122.239',
+        #                            'disks': [{'mountpoint': '/mnt/mysyncvpool/HA-test-000_vdisk_boot_000'},
+        #                                      {'mountpoint': '/mnt/mysyncvpool/HA-test-000_vdisk_data_000.raw'}],
+        #                            'cd_path': '/mnt/mysyncvpool/HA-test-000_vdisk_cd_000.raw',
+        #                            'networks': [{'model': 'e1000', 'mac': 'RANDOM', 'network': 'default'}]}}
         cls.run_test(cluster_info=cluster_info,
                      compute_client=compute_client,
                      is_ee=is_ee,
@@ -279,11 +290,12 @@ class RegressionTester(object):
             # @ Todo create user instead
             ee_info = {'username': 'root', 'password': 'rooter'}
 
-        # Extract vdisk info from vm_info
+        # Extract vdisk info from vm_info - only get the data ones
         vdisk_info = {}
         for vm_name, vm_object in vm_info.iteritems():
             for vdisk in vm_object['vdisks']:
-                vdisk_info.update({vdisk.name: vdisk})
+                if 'vdisk_data' in vdisk.name:
+                    vdisk_info.update({vdisk.name: vdisk})
         try:
             cls._adjust_automatic_scrubbing(disable=True)
             with remote(str_3.ip, [SSHClient]) as rem:
@@ -308,6 +320,8 @@ class RegressionTester(object):
                         io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
                         threads['evented']['io']['pairs'] = io_thread_pairs
                         threads['evented']['io']['r_semaphore'] = io_r_semaphore
+                        # @todo snapshot every minute
+                        threads['evented']['snapshots']['pairs'] = ThreadingHandler.start_snapshotting_threads(volume_bundle=vdisk_info, api=api, kwargs={'interval': 15})
                         for vm_name, vm_data in vm_info.iteritems():  # Write data
                             screen_names, output_files = DataWriter.write_data(client=vm_data['client'],
                                                                                cmd_type='fio',
@@ -317,8 +331,6 @@ class RegressionTester(object):
                                                                                data_to_write=cls.AMOUNT_TO_WRITE)
                             vm_data['screen_names'] = screen_names
                         logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
-                        # @todo snapshot every minute
-                        threads['evented']['snapshots']['pairs'] = ThreadingHandler.start_snapshotting_threads(volume_bundle=vdisk_info, api=api, kwargs={'interval': 15})
                         ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
                                                               threads=threads['evented']['io']['pairs'],
                                                               shared_resource=monitoring_data,
@@ -360,7 +372,7 @@ class RegressionTester(object):
                                 vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
                             vm_data['screen_names'] = []
                         if safety_set is True:
-                            cls._set_mds_safety(len(StoragerouterHelper.get_storagerouters()), checkup=True)
+                            cls._set_mds_safety(len(StorageRouterList.get_masters()), checkup=True)
                         if mds_triggered is True:  # Vdisks got moved at this point
                             for vdisk_name, vdisk_object in vdisk_info.iteritems():
                                 VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid,
@@ -399,8 +411,8 @@ class RegressionTester(object):
                 jobs.pop(task_name, None)
                 output = 'task {0}: removed, default settings will be applied.'.format(task_name)
             Configuration.set(celery_key, jobs)
-            service_name = 'ovs-scheduled-tasks'
-            for storagerouter in StoragerouterHelper.get_storagerouters():
+            service_name = 'scheduled-tasks'
+            for storagerouter in StorageRouterList.get_masters():
                 client = SSHClient(storagerouter, username='root')
                 ServiceManager.restart_service(service_name, client=client)
             return output
@@ -412,7 +424,7 @@ class RegressionTester(object):
     def _set_mds_safety(safety=None, checkup=False, logger=LOGGER):
         if safety is None:
             safety = len(StoragerouterHelper.get_storagerouters())
-        if safety <=0:
+        if safety <= 0:
             raise ValueError('Safety should be at least 1.')
         logger.debug('Setting the safety to {} and {} checkup'.format(safety, 'will' if checkup is True else 'false'))
         storagedriver_config = Configuration.get('/ovs/framework/storagedriver')
