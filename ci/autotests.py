@@ -83,16 +83,13 @@ class AutoTests(object):
                         blocked = True  # if a test reports failed but blocked != False
             else:
                 raise AttributeError("Attribute `{0}` does not exists as status in TestrailResult".format(module_result['status']))
-    
             # add test to results & also remove possible EXCLUDE_FLAGS on test name
             results[test.replace(AutoTests.EXCLUDE_FLAG, '')] = module_result
-    
+        logger.info("Finished tests.")
         if send_to_testrail:
-            logger.info("Start pushing tests to testrail ...")
+            logger.info("Start pushing tests to testrail.")
             plan_url = AutoTests.push_to_testrail(results, only_add_given_cases=only_add_given_results)
             return results, plan_url
-    
-        logger.info("Finished tests...")
         return results, None
 
     @staticmethod
@@ -165,17 +162,17 @@ class AutoTests(object):
         logger.info("Pushing tests to testrail ...")
         with open(config_path, "r") as JSON_CONFIG:
                 testtrail_config = json.load(JSON_CONFIG)
-    
+
         # fetch test-name based on environment, environment version & datetime
         test_title = "{0}_{1}_{2}".format(AutoTests._get_test_name(), AutoTests._get_ovs_version(), datetime.now())
-    
+
         # create description based on system settings (hardware & linux distro)
         description = AutoTests._get_description()
-    
+
         # setup testrail api connection
         if not testtrail_config['url']:
             raise RuntimeError("Invalid url for testrail")
-    
+
         if not testtrail_config['key']:
             # no key provided so we will continue with username & password
             if not testtrail_config['username'] and testtrail_config['password']:
@@ -184,10 +181,10 @@ class AutoTests(object):
                 tapi = TestrailApi(server=testtrail_config['url'], user=testtrail_config['username'], password=testtrail_config['password'])
         else:
             tapi = TestrailApi(testtrail_config['url'], key=testtrail_config['key'])
-    
+
         project_id = tapi.get_project_by_name(testtrail_config['project'])['id']
         suite_id = tapi.get_suite_by_name(project_id, testtrail_config['suite'])['id']
-    
+
         # check if test_case & test_section exists in test_suite
         for test_case, test_result in results.iteritems():
             test_name = test_case.split('.')[3]
@@ -200,7 +197,7 @@ class AutoTests(object):
                     section = tapi.get_section_by_name(project_id, suite_id, test_section)
                 except Exception:
                     raise SectionNotFoundError("Section `{0}` is not available in testrail, please add or correct your mistake.".format(test_section))
-    
+
                 if hasattr(TestrailCaseType, test_result['case_type']):
                     case_type_id = tapi.get_case_type_by_name(getattr(TestrailCaseType, test_result['case_type']))['id']
                 else:
@@ -208,11 +205,11 @@ class AutoTests(object):
                                          "in TestrailCaseType".format(test_result['case_type']))
                 # add case to existing section
                 tapi.add_case(section_id=section['id'], title=test_name, type_id=case_type_id)
-    
+
         # add plan
         plan = tapi.add_plan(project_id, test_title, description)
         # link suite to plan
-    
+
         if not only_add_given_cases:
             # add all tests to the test_suite, regardless of execution
             entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'])
@@ -228,14 +225,14 @@ class AutoTests(object):
             # only add tests to test_suite that have been executed
             entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'], case_ids=executed_case_ids,
                                         include_all=False)
-    
+
         # add results to test cases
         run_id = entry['runs'][0]['id']
         for test_case, test_result in results.iteritems():
             # check if test exists
             test_name = test_case.split('.')[3]
             test_id = tapi.get_test_by_name(run_id, test_name)['id']
-    
+
             if hasattr(TestrailResult, test_result['status']):
                 test_status_id = getattr(TestrailResult, test_result['status'])
             else:
@@ -246,13 +243,13 @@ class AutoTests(object):
                 tapi.add_result(test_id, test_status_id, comment=str(test_result['errors']))
             else:
                 tapi.add_result(test_id, test_status_id)
-    
+
         # end of adding results to testplan, setting other cases in SKIPPED
         if skip_on_no_results:
             for test in tapi.get_tests(run_id):
                 if test['status_id'] == TestrailResult.UNTESTED:
                     tapi.add_result(test['id'], int(TestrailResult.SKIPPED))
-    
+
         logger.info("Finished pushing tests to testrail ...")
         return plan['url']
 
@@ -266,10 +263,10 @@ class AutoTests(object):
         """
         command = "dpkg-query -W -f='${binary:Package} ${Version}\t${Description}\n' " \
                   "| grep '^openvstorage\|^volumedriver\|^alba\|^arakoon\|^python-celery'"
-    
+
         child_process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                          stderr=subprocess.PIPE)
-    
+
         (output, _error) = child_process.communicate()
         return output
 
@@ -297,7 +294,7 @@ class AutoTests(object):
         main_pkg = [pck for pck in packages.splitlines() if "openvstorage " in pck]
         if not main_pkg:
             return ""
-    
+
         return re.split("\s*", main_pkg[0])[1]
 
     @staticmethod
@@ -346,7 +343,7 @@ class AutoTests(object):
         # package info
         description_lines.append("# PACKAGE INFO")
         description_lines.append("{0}".format(AutoTests._get_package_info()))
-    
+
         return '\n'.join(description_lines)
 
 
@@ -359,7 +356,7 @@ class LogCollector(object):
                          'arakoon': ['ovs-arakoon-*-abm', 'ovs-arakoon-*-nsm', 'ovs-arakoon-config'],
                          'alba': ['ovs-albaproxy_*'],
                          'volumedriver': ['ovs-volumedriver_*']}
-    
+
     @staticmethod
     def get_logs(components=None, since=None, until=None, auto_complete=True):
         """

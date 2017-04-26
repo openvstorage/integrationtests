@@ -30,8 +30,10 @@ from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper, Waiter
+from ci.autotests import gather_results
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
+from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.extensions.generic.remote import remote
@@ -94,6 +96,7 @@ class HATester(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -103,14 +106,7 @@ class HATester(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                HATester._execute_test()
-                return {'status': 'PASSED', 'case_type': HATester.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                return {'status': 'FAILED', 'case_type': HATester.CASE_TYPE, 'errors': str(ex), 'blocking': False}
-        else:
-            return {'status': 'BLOCKED', 'case_type': HATester.CASE_TYPE, 'errors': None}
+        return HATester._execute_test()
 
     @staticmethod
     def _execute_test():
@@ -280,6 +276,9 @@ class HATester(object):
                 try:
                     data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, HATester.AMOUNT_TO_WRITE, std_2.storage_ip, api))
                     logger.info('VDisk data_vdisk successfully created!')
+                except TimeOutError:
+                    logger.error('The creation of the data vdisk has timed out.')
+                    raise
                 except RuntimeError as ex:
                     logger.error('Could not create the data vdisk. Got {0}'.format(str(ex)))
                     raise
@@ -770,6 +769,9 @@ class HATester(object):
                 vdisk_info[vdisk_name] = data_vdisk
                 edge_configuration['volumename'].append(data_vdisk.devicename.rsplit('.', 1)[0].split('/', 1)[1])
                 values_to_check['vdisks'].append(data_vdisk.serialize())
+            except TimeOutError:
+                logger.error('Creating the vdisk has timed out.')
+                raise
             except RuntimeError as ex:
                 logger.error('Could not create the vdisk. Got {0}'.format(str(ex)))
                 raise

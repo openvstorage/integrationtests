@@ -17,14 +17,15 @@
 import json
 import time
 import random
-from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.helpers.vpool import VPoolHelper
-from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.helpers.api import OVSClient, TimeOutError
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
-from ci.main import CONFIG_LOC
-from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.autotests import gather_results
+from ci.main import CONFIG_LOC
 from ovs.log.log_handler import LogHandler
 
 
@@ -42,6 +43,7 @@ class MigrateTester(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -53,14 +55,7 @@ class MigrateTester(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                MigrateTester._execute_test()
-                return {'status': 'PASSED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                return {'status': 'FAILED', 'case_type': MigrateTester.CASE_TYPE, 'errors': str(ex)}
-        else:
-            return {'status': 'BLOCKED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
+        return MigrateTester._execute_test()
 
     @staticmethod
     def _execute_test(amount_vdisks=AMOUNT_VDISKS):
@@ -130,7 +125,10 @@ class MigrateTester(object):
                 # Fetch to validate if it was properly created
                 vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
                 values_to_check['vdisk'] = vdisk.serialize()
-            except RuntimeError as ex:
+            except TimeOutError:
+                MigrateTester.LOGGER.error("Creation of the vdisk has timed out.")
+                raise
+            except (RuntimeError, TimeOutError) as ex:
                 MigrateTester.LOGGER.info("Creation of vdisk failed: {0}".format(ex))
                 raise
             else:

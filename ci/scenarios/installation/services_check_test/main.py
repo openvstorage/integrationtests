@@ -18,12 +18,14 @@ import time
 from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.autotests import gather_results
 
 
 class ServiceChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_post_reboot_checks")
+    TEST_NAME = "ci_scenario_post_reboot_checks"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SERVICE_TIMEOUT = 5
     SERVICE_TRIES = 5
 
@@ -31,6 +33,7 @@ class ServiceChecks(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -40,16 +43,7 @@ class ServiceChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                # execute tests twice, because of possible leftover constraints
-                ServiceChecks.validate_services()
-                return {'status': 'PASSED', 'case_type': ServiceChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                ServiceChecks.LOGGER.error("Post installation service checks failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': ServiceChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': ServiceChecks.CASE_TYPE, 'errors': None}
+        return ServiceChecks.validate_services()
 
     @staticmethod
     def validate_services(tries=SERVICE_TRIES, timeout=SERVICE_TIMEOUT):

@@ -14,19 +14,22 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 
-from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.autotests import gather_results
+from ovs.log.log_handler import LogHandler
 
 
 class LogrotateChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_test_basic_logrotate")
+    TEST_NAME = "ci_scenario_test_basic_logrotate"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -36,15 +39,7 @@ class LogrotateChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                LogrotateChecks.validate_basic_log_rotate()
-                return {'status': 'PASSED', 'case_type': LogrotateChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                LogrotateChecks.LOGGER.error("Checking basic logrotated failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': LogrotateChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': LogrotateChecks.CASE_TYPE, 'errors': None}
+        return LogrotateChecks.validate_basic_log_rotate()
 
     @staticmethod
     def validate_basic_log_rotate():

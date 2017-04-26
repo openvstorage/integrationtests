@@ -19,20 +19,22 @@ import time
 import subprocess
 from ci.main import CONFIG_LOC
 from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.helpers.exceptions import VDiskNotFoundError
+from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
-from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.system import SystemHelper
-from ci.api_lib.helpers.exceptions import VDiskNotFoundError
+from ci.api_lib.setup.vdisk import VDiskSetup
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs.log.log_handler import LogHandler
+from ci.autotests import gather_results
 
 
 class RollbackChecks(object):
 
     CASE_TYPE = 'AT_QUICK'
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_rollback")
+    TEST_NAME = "ci_scenario_rollback"
+    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SIZE_VDISK = 52428800
     VDISK_NAME = "integration-tests-rollback"
     MAX_ROLLBACK_CHECKS = 20
@@ -47,6 +49,7 @@ class RollbackChecks(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -56,15 +59,7 @@ class RollbackChecks(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                RollbackChecks.validate_rollback()
-                return {'status': 'PASSED', 'case_type': RollbackChecks.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                RollbackChecks.LOGGER.error("Rollback checks failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': RollbackChecks.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': RollbackChecks.CASE_TYPE, 'errors': None}
+        return RollbackChecks.validate_rollback()
 
     @staticmethod
     def validate_rollback():

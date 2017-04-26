@@ -21,7 +21,7 @@ import threading
 import subprocess
 from datetime import datetime
 from libvirt import libvirtError
-from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.helpers.api import OVSClient, TimeOutError
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
@@ -33,6 +33,7 @@ from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
+from ci.autotests import gather_results
 
 
 class MigrateTester(object):
@@ -79,6 +80,7 @@ class MigrateTester(object):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -90,14 +92,7 @@ class MigrateTester(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                MigrateTester._execute_test()
-                return {'status': 'PASSED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                return {'status': 'FAILED', 'case_type': MigrateTester.CASE_TYPE, 'errors': str(ex), 'blocking': False}
-        else:
-            return {'status': 'BLOCKED', 'case_type': MigrateTester.CASE_TYPE, 'errors': None}
+        return MigrateTester._execute_test()
 
     @staticmethod
     def _execute_test():
@@ -249,6 +244,9 @@ class MigrateTester(object):
                                                         vpool_name=vpool.name,
                                                         snapshot_id=snapshot_guid,
                                                         api=api)
+                    except TimeOutError:
+                        MigrateTester.LOGGER.error('Rolling back to snapshot has timed out.')
+                        raise
                     except RuntimeError as ex:
                         MigrateTester.LOGGER.error("Rolling back to snapshot has failed. Got {0}".format(str(ex)))
                         raise

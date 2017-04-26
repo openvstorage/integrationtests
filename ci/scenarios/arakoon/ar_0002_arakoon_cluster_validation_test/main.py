@@ -20,17 +20,20 @@ from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.init_manager import InitManager
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ovs.extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
+from ci.autotests import gather_results
 
 
 class ArakoonValidation(object):
 
     CASE_TYPE = 'FUNCTIONAL'
+    TEST_NAME = "ci_scenario_arakoon_validation"
     LOGGER = LogHandler.get(source="scenario", name="ci_scenario_arakoon_validation")
 
     def __init__(self):
         pass
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -39,15 +42,7 @@ class ArakoonValidation(object):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                ArakoonValidation.validate_cluster()
-                return {'status': 'PASSED', 'case_type': ArakoonValidation.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                ArakoonValidation.LOGGER.error("Arakoon collapse failed with error: {0}".format(str(ex)))
-                return {'status': 'FAILED', 'case_type': ArakoonValidation.CASE_TYPE, 'errors': ex}
-        else:
-            return {'status': 'BLOCKED', 'case_type': ArakoonValidation.CASE_TYPE, 'errors': None}
+        return ArakoonValidation.validate_cluster()
 
     @staticmethod
     def validate_cluster(cluster_name='ovsdb'):
