@@ -1,5 +1,5 @@
 <---------------------------------------------------------->
-Steps to a good test-request
+Steps to keep in mind to write a useful qa request
 - Fill in as much information as possible
 - Highlight things to look out for
 - Specify the purpose of the test
@@ -7,13 +7,36 @@ Steps to a good test-request
 <---------------------------------------------------------->
 
 ## Test description
+
 ### Cover area
-// What area of the product does it cover? eg volumedriver
+// What area of the product is affected?
+- alba
+- arakoon
+- framework
+- volumedriver
+
+// What type of functionality was used
+- data import
+- setup
+- scrubbing
+- ...
+
+// Which type of issue is this
+- data corruption/loss
+- maintainability
+- performance
+- reliability
+- scalability
+- stability
+
 ### User story
-// Describe the user story here. What went during what eg. writing data to a vm
+// Describe the user story/scenario here.
 <---------------------------------------------------------->
-### Problem that arrose
-// Explain the problem that you got during the execution of the user story. eg. vm gave write error
+
+### Problem that arose
+// Explain the problem that you got during the execution of the user story.
+// e.g. vm gave write error
+
 #### Log
 ```
 ```
@@ -23,13 +46,32 @@ Steps to a good test-request
 ### Potential problem that might occur
 // If the test is hypothetical, provide a short but detailed description of what to expect and why.
 <---------------------------------------------------------->
-### Special condition
-// Were there any special conditions to the user story? Something not out of the box. eg external arakoons
-None
+
+### Special conditions
+// Were there any special specific actions related to the user story?
+// Something not out of the ordinary. eg external arakoons
+
 
 ## Additional information
+
 ### Setup
-//Keep the one that you are using
-- Hyperconverged
-- Hyperscale
-- Geoscale
+// Be as specific as possible
+
+- Nr of nodes
+- external arakoons config for
+-- abm
+-- config
+-- nsm
+-- ovsdb
+-- voldrv
+
+- Type of setup:
+-- Hyperconverged
+-- Hyperscale
+-- Geoscale
+
+- Specific configuration settings
+-- backend
+-- preset
+-- vpool
+-- vdisk
