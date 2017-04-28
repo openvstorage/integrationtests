@@ -785,7 +785,7 @@ class HATester(object):
                 logger.info('Starting threads.')  # Separate because creating vdisks takes a while, while creating the threads does not
                 monitoring_data = {}
                 current_thread_bundle = {'index': 1, 'vdisks': []}
-                required_thread_amount = math.ceil(len(vdisk_info.keys()) / HATester.VDISK_THREAD_LIMIT)
+                required_thread_amount = math.ceil(float(len(vdisk_info.keys())) / HATester.VDISK_THREAD_LIMIT)
                 r_semaphore = Waiter(required_thread_amount + 1, auto_reset=True)  # Add another target to let this thread control the semaphore
                 for index, (vdisk_name, vdisk_object) in enumerate(vdisk_info.iteritems(), 1):
                     vdisks = current_thread_bundle['vdisks']
