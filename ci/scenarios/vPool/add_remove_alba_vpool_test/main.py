@@ -153,7 +153,8 @@ class AddRemoveVPool(object):
                 start = time.time()
                 try:
                     AddRemoveVPool._add_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME, fragment_cache_cfg=cfg, api=api,
-                                              albabackend_name=hdd_backend.name, timeout=timeout, preset_name=AddRemoveVPool.PRESET['name'],
+                                              block_cache_cfg=cfg, albabackend_name=hdd_backend.name, timeout=timeout,
+                                              preset_name=AddRemoveVPool.PRESET['name'],
                                               storagerouter_ip=storagerouter_ip)
                 except TimeOutError:
                     AddRemoveVPool.LOGGER.warning('Adding/extending the vpool has timed out after {0}s. Polling for another {1}s.'
@@ -226,8 +227,8 @@ class AddRemoveVPool(object):
         AddRemoveVPool.LOGGER.info("Finished to validate add-extend-remove vpool")
 
     @staticmethod
-    def _add_vpool(vpool_name, fragment_cache_cfg, api, storagerouter_ip, albabackend_name, preset_name, timeout, dtl_mode="a_sync",
-                   deduplication_mode="non_dedupe", dtl_transport="tcp"):
+    def _add_vpool(vpool_name, fragment_cache_cfg, api, storagerouter_ip, albabackend_name, preset_name, timeout,
+                   block_cache_cfg, dtl_mode="a_sync", deduplication_mode="non_dedupe", dtl_transport="tcp"):
         """
         Add a vpool
         :param vpool_name: name of a vpool
@@ -242,6 +243,8 @@ class AddRemoveVPool(object):
         :type albabackend_name: str
         :param timeout: specify a timeout
         :type timeout: int
+        :param block_cache_cfg: details of a vpool its block cache
+        :type block_cache_cfg: dict
         :param preset_name: name of a existing preset
         :type preset_name: str
         :return:
@@ -261,6 +264,7 @@ class AddRemoveVPool(object):
             "backend_name": albabackend_name,
             "preset": preset_name,
             "storage_ip": storagerouter_ip,
+            "block_cache": block_cache_cfg,
             "fragment_cache": fragment_cache_cfg,
             "storagedriver": storagedriver_cfg
         }
