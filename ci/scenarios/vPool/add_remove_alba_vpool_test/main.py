@@ -277,8 +277,7 @@ class AddRemoveVPool(object):
             "fragment_cache": fragment_cache_cfg,
             "storagedriver": storagedriver_cfg
         })
-        return VPoolSetup.add_vpool(vpool_name=vpool_name, vpool_details=vpool_cfg, api=api, storagerouter_ip=storagerouter_ip,
-                                    albabackend_name=albabackend_name, timeout=timeout)
+        return VPoolSetup.add_vpool(vpool_name=vpool_name, vpool_details=vpool_cfg, api=api, storagerouter_ip=storagerouter_ip, timeout=timeout)
 
 
 def run(blocked=False):

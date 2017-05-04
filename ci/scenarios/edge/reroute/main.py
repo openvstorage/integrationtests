@@ -14,7 +14,6 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import os
-import re
 import json
 import math
 import time
@@ -54,14 +53,14 @@ class EdgeTester(object):
     VDISK_THREAD_LIMIT = 5  # Each monitor thread queries x amount of vdisks
     FIO_VDISK_LIMIT = 50  # Each fio uses x disks
     IO_REFRESH_RATE = 5  # in seconds
-    AMOUNT_TO_WRITE = 100 * 1024 ** 3
+    AMOUNT_TO_WRITE = 1 * 1024 ** 3
     HA_TIMEOUT = 300  # In seconds
     SLEEP_TIME = 60  # Time to idle before going to block the edge
     FIO_BIN_EE = {'url': 'http://www.include.gr/fio.bin.latest.ee', 'location': '/tmp/fio.bin.latest'}
     FIO_BIN = {'url': 'http://www.include.gr/fio.bin.latest', 'location': '/tmp/fio.bin.latest'}
 
     @staticmethod
-    # @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -224,7 +223,7 @@ class EdgeTester(object):
         for index in xrange(0, disk_amount):
             try:
                 vdisk_name = '{0}_vdisk{1}'.format(EdgeTester.TEST_NAME, str(index).zfill(4))
-                data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, EdgeTester.AMOUNT_TO_WRITE, std_2.storage_ip, api))
+                data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, EdgeTester.AMOUNT_TO_WRITE * 2, std_2.storage_ip, api))
                 vdisk_info[vdisk_name] = data_vdisk
                 edge_configuration['volumename'].append(data_vdisk.devicename.rsplit('.', 1)[0].split('/', 1)[1])
                 values_to_check['vdisks'].append(data_vdisk.serialize())
@@ -263,7 +262,7 @@ class EdgeTester(object):
                                     client=compute_client,
                                     disk_amount=disk_amount)
                 EdgeTester._validate_dal(values_to_check)  # Validate
-            except Exceptiongoo:
+            except Exception:
                 logger.error('Got an exception while running configuration {}. Namely: {}'.format(configuration, str(ex)))
                 failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
             finally:
