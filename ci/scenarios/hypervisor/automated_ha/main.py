@@ -87,10 +87,10 @@ class HATester(object):
     # Collect details about parent hypervisor
     PARENT_HYPERVISOR_INFO = SETUP_CFG['ci']['hypervisor']
 
-    # Hypervisor details
-    HYPERVISOR_INFO = {'type': PARENT_HYPERVISOR_INFO['type'],
-                       'user': SETUP_CFG['ci']['user']['shell']['username'],
-                       'password': SETUP_CFG['ci']['user']['shell']['password']}
+    # hypervisor details
+    HYPERVISOR_TYPE = SETUP_CFG['ci']['local_hypervisor']['type']
+    HYPERVISOR_USER = SETUP_CFG['ci']['local_hypervisor']['user']
+    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['local_hypervisor']['password']
 
     def __init__(self):
         pass

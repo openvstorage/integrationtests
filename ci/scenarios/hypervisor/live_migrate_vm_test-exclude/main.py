@@ -45,6 +45,7 @@ class MigrateTester(object):
     """
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_hypervisor_live_migrate"
+
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     SLEEP_TIME = 60
     VM_CONNECTING_TIMEOUT = 5
@@ -72,9 +73,9 @@ class MigrateTester(object):
     VM_VRAM = 512  # In MB
 
     # hypervisor details
-    HYPERVISOR_TYPE = SETUP_CFG['ci']['hypervisor']
-    HYPERVISOR_USER = SETUP_CFG['ci']['user']['shell']['username']
-    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['user']['shell']['password']
+    HYPERVISOR_TYPE = SETUP_CFG['ci']['local_hypervisor']['type']
+    HYPERVISOR_USER = SETUP_CFG['ci']['local_hypervisor']['user']
+    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['local_hypervisor']['password']
 
     def __init__(self):
         pass
