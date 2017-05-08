@@ -25,11 +25,13 @@ from ci.api_lib.remove.backend import BackendRemover
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.remove.vpool import VPoolRemover
 from ci.api_lib.setup.backend import BackendSetup
+from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.setup.vpool import VPoolSetup
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.validate.roles import RoleValidation
 from ci.autotests import gather_results
 from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.sshclient import SSHClient
 from ovs.dal.exceptions import ObjectNotFoundException
 
 
@@ -148,13 +150,17 @@ class AddRemoveVPool(object):
 
         for cfg_name, cfg in vpool_configs.iteritems():
             # Create vpool
+            block_cache_cfg = None
+            local_client = SSHClient(SystemHelper.get_local_storagerouter(), username='root')
+            if SystemHelper.get_ovs_version(local_client).lower() == 'ee':
+                block_cache_cfg = cfg
             for storagerouter_ip in storagerouter_ips:
                 AddRemoveVPool.LOGGER.info("Add/extend vPool `{0}` on storagerouter `{1}`".format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
                 start = time.time()
                 try:
                     AddRemoveVPool._add_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME, fragment_cache_cfg=cfg, api=api,
-                                              albabackend_name=hdd_backend.name, timeout=timeout, preset_name=AddRemoveVPool.PRESET['name'],
-                                              storagerouter_ip=storagerouter_ip)
+                                              block_cache_cfg=block_cache_cfg, albabackend_name=hdd_backend.name, timeout=timeout,
+                                              preset_name=AddRemoveVPool.PRESET['name'], storagerouter_ip=storagerouter_ip)
                 except TimeOutError:
                     AddRemoveVPool.LOGGER.warning('Adding/extending the vpool has timed out after {0}s. Polling for another {1}s.'
                                                   .format(timeout, AddRemoveVPool.ADD_EXTEND_REMOVE_VPOOL_TIMEOUT_FORGIVING - timeout))
@@ -226,8 +232,8 @@ class AddRemoveVPool(object):
         AddRemoveVPool.LOGGER.info("Finished to validate add-extend-remove vpool")
 
     @staticmethod
-    def _add_vpool(vpool_name, fragment_cache_cfg, api, storagerouter_ip, albabackend_name, preset_name, timeout, dtl_mode="a_sync",
-                   deduplication_mode="non_dedupe", dtl_transport="tcp"):
+    def _add_vpool(vpool_name, fragment_cache_cfg, api, storagerouter_ip, albabackend_name, preset_name, timeout,
+                   block_cache_cfg=None, dtl_mode="a_sync", deduplication_mode="non_dedupe", dtl_transport="tcp"):
         """
         Add a vpool
         :param vpool_name: name of a vpool
@@ -242,10 +248,18 @@ class AddRemoveVPool(object):
         :type albabackend_name: str
         :param timeout: specify a timeout
         :type timeout: int
+        :param block_cache_cfg: details of a vpool its block cache
+        :type block_cache_cfg: dict
         :param preset_name: name of a existing preset
         :type preset_name: str
         :return:
         """
+        vpool_cfg = {}
+        if block_cache_cfg is not None:
+            if not isinstance(block_cache_cfg, dict):
+                raise TypeError('Block cache configuration should be a dict like the fragment cache.')
+            vpool_cfg.update({"block_cache": block_cache_cfg})
+
         storagedriver_cfg = {
             "sco_size": 4,
             "cluster_size": 4,
@@ -257,15 +271,14 @@ class AddRemoveVPool(object):
             "dtl_transport": dtl_transport,
             "dtl_mode": dtl_mode
         }
-        vpool_cfg = {
+        vpool_cfg.update({
             "backend_name": albabackend_name,
             "preset": preset_name,
             "storage_ip": storagerouter_ip,
             "fragment_cache": fragment_cache_cfg,
             "storagedriver": storagedriver_cfg
-        }
-        return VPoolSetup.add_vpool(vpool_name=vpool_name, vpool_details=vpool_cfg, api=api, storagerouter_ip=storagerouter_ip,
-                                    albabackend_name=albabackend_name, timeout=timeout)
+        })
+        return VPoolSetup.add_vpool(vpool_name=vpool_name, vpool_details=vpool_cfg, api=api, storagerouter_ip=storagerouter_ip, timeout=timeout)
 
 
 def run(blocked=False):
