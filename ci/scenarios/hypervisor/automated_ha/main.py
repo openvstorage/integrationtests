@@ -457,6 +457,7 @@ class HATester(object):
             failed_over = False
             try:
                 logger.info('Starting threads.')  # Separate because creating vdisks takes a while, while creating the threads does not
+
                 io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
                 screen_names, output_files = DataWriter.write_data(client=compute_client,
                                                                    cmd_type='fio',
