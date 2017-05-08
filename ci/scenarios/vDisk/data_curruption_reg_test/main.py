@@ -13,31 +13,26 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
 import json
 import time
 import random
 import socket
 import subprocess
 from libvirt import libvirtError
-from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.helpers.domain import DomainHelper
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.scenario_helpers.ci_constants import CIConstants
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
-from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.init_manager import InitManager
 
 
-class DataCorruptionTester(object):
+class DataCorruptionTester(CIConstants):
     """
     This is a regression test for https://github.com/openvstorage/integrationtests/issues/468
 

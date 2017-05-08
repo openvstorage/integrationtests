@@ -30,12 +30,13 @@ from ci.api_lib.setup.vpool import VPoolSetup
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.validate.roles import RoleValidation
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.log.log_handler import LogHandler
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.dal.exceptions import ObjectNotFoundException
 
 
-class AddRemoveVPool(object):
+class AddRemoveVPool(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_add_extend_remove_vpool"
@@ -50,7 +51,7 @@ class AddRemoveVPool(object):
               "fragment_size": 2097152
         }
     PREFIX = "integration-tests-vpool-"
-    VDISK_SIZE = 1073741824  # 1 GB
+    VDISK_SIZE = 1 * 1024 ** 3
     VDISK_CREATE_TIMEOUT = 60
     PRESET_CREATE_TIMEOUT = 60
     PRESET_REMOVE_TIMEOUT = 60

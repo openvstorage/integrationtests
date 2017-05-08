@@ -19,9 +19,10 @@ from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 
 
-class ServiceChecks(object):
+class ServiceChecks(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_post_reboot_checks"

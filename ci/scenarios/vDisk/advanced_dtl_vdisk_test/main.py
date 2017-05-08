@@ -13,7 +13,6 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
 import json
 import time
 import socket
@@ -32,12 +31,13 @@ from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
 
-class AdvancedDTLTester(object):
+class AdvancedDTLTester(CIConstants):
     """
     Exercice HA with a VM via edge & KVM
 
@@ -56,23 +56,12 @@ class AdvancedDTLTester(object):
     VM_CREATION_MESSAGE = 'I am created!'
     REQUIRED_PACKAGES = ['qemu-kvm', 'libvirt0', 'python-libvirt', 'virtinst', 'genisoimage']
     VM_NAME = 'DTL-test'
-    VM_WAIT_TIME = 300  # wait time before timing out on the vm install in seconds
     START_PARENT_TIMEOUT = 30
-    CLOUD_INIT_DATA = {
-        'script_loc': 'https://raw.githubusercontent.com/kinvaris/cloud-init/master/create-config-drive',
-        'script_dest': '/tmp/cloud_init_script.sh',
-        'user-data_loc': '/tmp/user-data-migrate-test',
-        'config_dest': '/tmp/cloud-init-config-migrate-test'
-    }
-    AMOUNT_TO_WRITE = 10 * 1024 ** 3  # 10 GB
     IO_PATTERN = (100, 0)  # read, write
     BLOCK_SIZE = 4  # in kb
     IO_DEPTH = 4
     with open(CONFIG_LOC, 'r') as JSON_CONFIG:
         SETUP_CFG = json.load(JSON_CONFIG)
-
-    # collect details about parent hypervisor
-    PARENT_HYPERVISOR_INFO = SETUP_CFG['ci']['hypervisor']
 
     # timeout between checks
     MIGRATE_TIMEOUT = 30
@@ -81,20 +70,6 @@ class AdvancedDTLTester(object):
     # validate dtl
     VM_FILENAME = '/root/dtl_file'
     VM_RANDOM = '/root/random_file'
-
-    # vm credentials & details
-    VM_USERNAME = 'root'
-    VM_PASSWORD = 'rooter'
-    VM_VCPUS = 1
-    VM_VRAM = 512  # In MB
-
-    # hypervisor details
-    HYPERVISOR_TYPE = SETUP_CFG['ci']['local_hypervisor']['type']
-    HYPERVISOR_USER = SETUP_CFG['ci']['local_hypervisor']['user']
-    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['local_hypervisor']['password']
-
-    def __init__(self):
-        pass
 
     @staticmethod
     @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
@@ -109,14 +84,74 @@ class AdvancedDTLTester(object):
         """
         return AdvancedDTLTester._execute_test()
 
+    @classmethod
+    def setup(cls):
+        #################
+        # PREREQUISITES #
+        #################
+        destination_str, source_str, compute_str = cls.get_storagerouters_for_ha()
+
+        with open(SETTINGS_LOC, 'r') as JSON_SETTINGS:
+            settings = json.load(JSON_SETTINGS)
+        # fetch the storagedrivers in the domain where the VOLDRV node is and sort them per vpool
+        vpools = {}
+        for std in DomainHelper.get_storagedrivers_in_same_domain(domain_guid=storagerouter.regular_domains[0]):
+            if std.vpool.name not in vpools:
+                vpools[std.vpool.name] = [std]
+            else:
+                vpools[std.vpool.name].append(std)
+
+        # fetch the vpool with at least 2 storagedrivers & DTL sync
+        filtered_vpools = [VPoolHelper.get_vpool_by_name(vpool_name=vpool_name)
+                           for vpool_name, storagedrivers in vpools.iteritems() if len(storagedrivers) >= 2 and
+                           VPoolHelper.get_vpool_by_name(vpool_name=vpool_name).configuration['dtl_mode'] ==
+                           VPoolHelper.DtlStatus.SYNC]
+        assert len(filtered_vpools) != 0, "We need at least a vPool with 2 storagedrivers of a vPool in the SAME domain"
+
+        # just pick the first vpool you find :)
+        vpool = filtered_vpools[0]
+        AdvancedDTLTester.LOGGER.info('vPool `{0}` has been chosen'.format(vpool.name))
+
+        # choose the storagedriver
+        storagedriver = [storagedriver for storagedriver in storagerouter.storagedrivers
+                         if storagedriver.vpool_guid == vpool.guid][0]
+        AdvancedDTLTester.LOGGER.info('Chosen source storagedriver / to be downed node is: {0}'
+                                      .format(storagedriver.storage_ip))
+
+        # build ssh client
+        to_be_downed_client = SSHClient(storagerouter.ip, username='root')
+
+        # check if enough images available
+        images = settings['images']
+        assert len(images) >= 1, 'Not enough images in `{0}`'.format(SETTINGS_LOC)
+
+        # check if image exists
+        image_path = images[0]
+        assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!' \
+            .format(images[0], to_be_downed_client.ip)
+
+        # Get the cloud init file
+        cloud_init_loc = AdvancedDTLTester.CLOUD_INIT_DATA['script_dest']
+        to_be_downed_client.run(['wget', AdvancedDTLTester.CLOUD_INIT_DATA['script_loc'], '-O', cloud_init_loc])
+        to_be_downed_client.file_chmod(cloud_init_loc, 755)
+        assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script on {0}' \
+            .format(compute.ip)
+
+        # Check if there are missing packages for the hypervisor
+        missing_packages = SystemHelper.get_missing_packages(compute.ip, AdvancedDTLTester.REQUIRED_PACKAGES)
+        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
+                                                                                         compute.ip, missing_packages)
+        cluster_info = {
+            'storagerouters': {'source_str': storagerouter, 'compute': compute},
+            'storagedrivers': {'source_std': storagedriver}
+        }
+
     @staticmethod
     def _execute_test():
         """
         Execute the live migration test
         """
-
         AdvancedDTLTester.LOGGER.info('Starting advanced DTL autotests test!')
-
         #################
         # PREREQUISITES #
         #################
@@ -132,22 +167,6 @@ class AdvancedDTLTester(object):
 
         with open(SETTINGS_LOC, 'r') as JSON_SETTINGS:
             settings = json.load(JSON_SETTINGS)
-
-        storagerouter = None  # Will act as volumedriver node
-        compute = None  # Will act as compute node
-
-        for node_ip, node_details in AdvancedDTLTester.PARENT_HYPERVISOR_INFO['vms'].iteritems():
-            if node_details['role'] == "VOLDRV" and storagerouter is None:
-                storagerouter = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-                AdvancedDTLTester.LOGGER.info('Node with IP `{0}` has been selected as VOLDRV node'
-                                              .format(node_ip))
-            elif node_details['role'] == "COMPUTE" and compute is None:
-                compute = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-                AdvancedDTLTester.LOGGER.info('Node with IP `{0}` has been selected as COMPUTE node'
-                                              .format(node_ip))
-            else:
-                AdvancedDTLTester.LOGGER.info('Node with IP `{0}` is not required or has a invalid role: {1}'
-                                              .format(node_ip, node_details['role']))
 
         # fetch the storagedrivers in the domain where the VOLDRV node is and sort them per vpool
         vpools = {}
@@ -211,7 +230,6 @@ class AdvancedDTLTester(object):
     def test_ha_vm(to_be_downed_client, image_path, vpool, cloud_init_loc, cluster_info):
         """
         Tests the HA using a virtual machine which will write in his own filesystem
-
         :param to_be_downed_client: sshclient of the storagerouter that will go down in this test
         :type to_be_downed_client: ovs.extensions.generic.sshclient.SSHClient
         :param image_path: path of the cloud init image
@@ -771,5 +789,4 @@ def run(blocked=False):
     return AdvancedDTLTester().main(blocked)
 
 if __name__ == '__main__':
-    # @todo remove print
-    print run()
+    run()

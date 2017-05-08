@@ -14,50 +14,33 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import os
-import json
 import math
 import time
 import errno
 import random
 from datetime import datetime
-from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.thread import ThreadHelper, Waiter
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
+from ci.api_lib.helpers.system import SystemHelper
 from ci.autotests import gather_results
-from ci.main import CONFIG_LOC
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.extensions.packages.package import PackageManager
 from ovs.log.log_handler import LogHandler
 
 
-class EdgeTester(object):
+class EdgeTester(CIConstants):
     """
     Test the edge magic
     """
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_edge_test'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
-
-    CLOUD_INIT_DATA = {
-        'script_loc': 'https://raw.githubusercontent.com/kinvaris/cloud-init/master/create-config-drive',
-        'script_dest': '/tmp/cloud_init_script.sh',
-        'user-data_loc': '/tmp/user-data-migrate-test',
-        'config_dest': '/tmp/cloud-init-config-migrate-test'
-    }
-    # DATA_TEST_CASES = [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]  # read write patterns to test (read, write)
-    DATA_TEST_CASES = [(100, 0)]
-    VDISK_THREAD_LIMIT = 5  # Each monitor thread queries x amount of vdisks
-    FIO_VDISK_LIMIT = 50  # Each fio uses x disks
-    IO_REFRESH_RATE = 5  # in seconds
-    AMOUNT_TO_WRITE = 1 * 1024 ** 3
     HA_TIMEOUT = 300  # In seconds
     SLEEP_TIME = 60  # Time to idle before going to block the edge
-    FIO_BIN_EE = {'url': 'http://www.include.gr/fio.bin.latest.ee', 'location': '/tmp/fio.bin.latest'}
-    FIO_BIN = {'url': 'http://www.include.gr/fio.bin.latest', 'location': '/tmp/fio.bin.latest'}
 
     @staticmethod
     @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
@@ -68,24 +51,15 @@ class EdgeTester(object):
         :return: results of test
         :rtype: dict
         """
-        return EdgeTester._execute_test()
+        return EdgeTester.start_test()
 
-    @staticmethod
-    def _execute_test():
-        with open(CONFIG_LOC, 'r') as config_file:
-            config = json.load(config_file)
-        local_api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
-        # This test needs the api of another node which does not have the magic packet
-        # Currently adding it statically, do not see another option
-        # remote_api = OVSClient('10.100.187.31', 'admin', 'admin')  # This is a non apt-ee envir and should not be able to connect here
-        # try:
-        #     compute_client = SSHClient('10.100.187.31', username='root', password='rooter')
-        # except Exception as ex:
-        #     raise RuntimeError('Could not setup the compute client. Got {}'.format(str(ex)))
+    @classmethod
+    def start_test(cls):
+        cluster_info, is_ee, fio_bin_loc = cls.setup()
+        cls.test_reroute_fio(fio_bin_loc, cluster_info, is_ee=is_ee)
+
+    @classmethod
+    def setup(cls):
         vpool = None
         for vp in VPoolHelper.get_vpools():
             if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
@@ -93,18 +67,20 @@ class EdgeTester(object):
                 break
         assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
         available_storagedrivers = [storagedriver for storagedriver in vpool.storagedrivers]
-        std_1 = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
-        std_2 = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
-        str_1 = std_1.storagerouter  # Will act as volumedriver node
-        str_2 = std_2.storagerouter  # Will act as volumedriver node
-        str_3 = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters() if storagerouter.guid not in [str_1.guid, str_2.guid]][0]  # Will act as compute node
-        compute_client = SSHClient(str_3, username='root')  # Compute node is excluded from all migrations and shutdowns
-        EdgeTester.LOGGER.info('Chosen destination storagedriver is: {0}'.format(std_1.storage_ip))
-        EdgeTester.LOGGER.info('Chosen original owning storagedriver is: {0}'.format(std_2.storage_ip))
+        destination_storagedriver = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
+        source_storagedriver = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
+        destination_storagerouter = destination_storagedriver.storagerouter  # Will act as volumedriver node
+        source_storagerouter = source_storagedriver.storagerouter  # Will act as volumedriver node
+        compute_storagerouter = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters()
+                                 if storagerouter.guid not in [destination_storagerouter.guid, source_storagerouter.guid]][0]  # Will act as compute node
+        compute_client = SSHClient(compute_storagerouter, username='root')  # Compute node is excluded from all migrations and shutdowns
+        EdgeTester.LOGGER.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
+        EdgeTester.LOGGER.info('Chosen original owning storagedriver is: {0}'.format(source_storagedriver.storage_ip))
 
-        cluster_info = {'storagerouters': {'str1': str_1, 'str2': str_2, 'str3': str_3}, 'storagedrivers': {'std1': std_1, 'std2': std_2}}
-        installed_versions = PackageManager.get_installed_versions(client=compute_client)
-        is_ee = 'volumedriver-ee-base' in installed_versions
+        cluster_info = {'storagerouters': {'destination': destination_storagerouter, 'source': source_storagerouter, 'compute': compute_storagerouter},
+                        'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver}}
+        source_client = SSHClient(source_storagerouter, 'rooter')
+        is_ee = SystemHelper.get_ovs_version(source_client) == 'ee'
         if is_ee is True:
             fio_bin_loc = EdgeTester.FIO_BIN_EE['location']
             fio_bin_url = EdgeTester.FIO_BIN_EE['url']
@@ -114,11 +90,7 @@ class EdgeTester(object):
 
         compute_client.run(['wget', fio_bin_url, '-O', fio_bin_loc])
         compute_client.file_chmod(fio_bin_loc, 755)
-        try:
-            EdgeTester.test_reroute_fio(fio_bin_loc, vpool, compute_client, cluster_info, local_api, is_ee=is_ee)
-        except Exception:
-            # compute_client.file_delete(fio_bin_loc)
-            raise
+        return cluster_info, is_ee, fio_bin_loc
 
     @staticmethod
     def adjust_for_reroute(storagerouter, start_port=None, end_port=None, trigger_rerout=True, ip_to_block=None, additional_ports=None):
@@ -173,20 +145,14 @@ class EdgeTester(object):
             EdgeTester.LOGGER.debug('Executing {0} on {1}'.format(storagerouter.ip, ' '.join(cmd)))
             client.run(cmd)
 
-    @staticmethod
-    def test_reroute_fio(fio_bin_path, vpool, compute_client, cluster_info, api, disk_amount=1, timeout=HA_TIMEOUT, is_ee=False, logger=LOGGER):
+    @classmethod
+    def test_reroute_fio(cls, fio_bin_path, cluster_info, disk_amount=1, timeout=HA_TIMEOUT, is_ee=False, logger=LOGGER):
         """
         Uses a modified fio to work with the openvstorage protocol
         :param fio_bin_path: path of the fio binary
         :type fio_bin_path: str
-        :param compute_client: client of the machine to execute the fio
-        :type compute_client: ovs.extensions.generic.sshclient.SSHClient
-        :param vpool: vpool DAL object of the vpool to use
-        :type vpool: ovs.dal.hybrids.vpool.VPool
         :param cluster_info: information about the cluster, contains all dal objects
         :type cluster_info: dict
-        :param api: api object to call the ovs api
-        :type api: ci.api_lib.helpers.api.OVSClient
         :param disk_amount: amount of disks to test fail over with
         :type disk_amount: int
         :param timeout: timeout in seconds
@@ -198,18 +164,22 @@ class EdgeTester(object):
         :return: None
         :rtype: NoneType
         """
-        std_1 = cluster_info['storagedrivers']['std1']
-        std_2 = cluster_info['storagedrivers']['std2']  # will be downed
+        api = cls.get_api_instance()
+        compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
+
+        destination_std = cluster_info['storagedrivers']['destination']
+        source_std = cluster_info['storagedrivers']['source']  # will be downed
+        vpool = source_std.vpool
 
         values_to_check = {
-            'source_std': std_2.serialize(),
-            'target_std': std_1.serialize(),
+            'source_std': source_std.serialize(),
+            'target_std': destination_std.serialize(),
             'vdisks': []
         }
         # Create vdisks
-        protocol = std_2.cluster_node_config['network_server_uri'].split(':')[0]
-        edge_configuration = {'fio_bin_location': fio_bin_path, 'hostname': std_2.storage_ip,
-                              'port': std_2.ports['edge'],
+        protocol = source_std.cluster_node_config['network_server_uri'].split(':')[0]
+        edge_configuration = {'fio_bin_location': fio_bin_path, 'hostname': source_std.storage_ip,
+                              'port': source_std.ports['edge'],
                               'protocol': protocol,
                               'volumename': []}
         vdisk_info = {}
@@ -223,7 +193,7 @@ class EdgeTester(object):
         for index in xrange(0, disk_amount):
             try:
                 vdisk_name = '{0}_vdisk{1}'.format(EdgeTester.TEST_NAME, str(index).zfill(4))
-                data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, EdgeTester.AMOUNT_TO_WRITE * 2, std_2.storage_ip, api))
+                data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, EdgeTester.AMOUNT_TO_WRITE * 2, source_std.storage_ip, api))
                 vdisk_info[vdisk_name] = data_vdisk
                 edge_configuration['volumename'].append(data_vdisk.devicename.rsplit('.', 1)[0].split('/', 1)[1])
                 values_to_check['vdisks'].append(data_vdisk.serialize())
@@ -245,7 +215,7 @@ class EdgeTester(object):
                                                  shared_resource=monitoring_data)
                 # Threads ready for monitoring at this point, they are waiting to resume
                 try:
-                    EdgeTester.adjust_for_reroute(std_2.storagerouter, trigger_rerout=True, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
+                    EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=True, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
                     adjusted = True
                     downed_time = time.time()
                 except Exception as ex:
@@ -267,7 +237,7 @@ class EdgeTester(object):
                 failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
             finally:
                 if adjusted is True:
-                    EdgeTester.adjust_for_reroute(std_2.storagerouter, trigger_rerout=False, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
+                    EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=False, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
                 for screen_name in screen_names:
                     compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
                     if threads:
@@ -418,7 +388,7 @@ class EdgeTester(object):
         return threads, monitoring_data, r_semaphore
 
     @staticmethod
-    def _write_data(client, cmd_type, configuration, edge_configuration=None, screen=True, data_to_write=AMOUNT_TO_WRITE,
+    def _write_data(client, cmd_type, configuration, edge_configuration=None, screen=True, data_to_write=CIConstants.AMOUNT_TO_WRITE,
                     file_locations=None, ee_info=None):
         """
         Fire and forget an IO test
@@ -536,7 +506,7 @@ class EdgeTester(object):
                 ValueError('Expected {0} but found {1} for vdisk.storagerouter_guid'.format(source_std.storagerouter.guid, vdisk.storagerouter_guid))
 
     @staticmethod
-    def _monitor_changes(results, vdisks, r_semaphore, stop_event, refresh_rate=IO_REFRESH_RATE):
+    def _monitor_changes(results, vdisks, r_semaphore, stop_event, refresh_rate=CIConstants.IO_REFRESH_RATE):
         """
         Threading method that will check for IOPS downtimes
         :param results: variable reserved for this thread

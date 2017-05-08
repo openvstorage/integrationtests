@@ -16,11 +16,12 @@
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
 
-class HealthCheckCI(object):
+class HealthCheckCI(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_healthcheck'

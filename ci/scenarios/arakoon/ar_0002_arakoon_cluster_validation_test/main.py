@@ -13,17 +13,17 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
 import time
 import uuid
 from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.init_manager import InitManager
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ovs.extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
 
 
-class ArakoonValidation(object):
+class ArakoonValidation(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_arakoon_validation"
