@@ -89,9 +89,9 @@ class AdvancedDTLTester(object):
     VM_VRAM = 512  # In MB
 
     # hypervisor details
-    HYPERVISOR_TYPE = PARENT_HYPERVISOR_INFO['type']
-    HYPERVISOR_USER = SETUP_CFG['ci']['user']['shell']['username']
-    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['user']['shell']['password']
+    HYPERVISOR_TYPE = SETUP_CFG['ci']['local_hypervisor']['type']
+    HYPERVISOR_USER = SETUP_CFG['ci']['local_hypervisor']['user']
+    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['local_hypervisor']['password']
 
     def __init__(self):
         pass
