@@ -20,13 +20,9 @@ import random
 import socket
 import subprocess
 from libvirt import libvirtError
-from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.helpers.domain import DomainHelper
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
@@ -34,7 +30,6 @@ from ci.api_lib.remove.vdisk import VDiskRemover
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.init_manager import InitManager
 
 
 class DataCorruptionTester(object):
@@ -87,9 +82,6 @@ class DataCorruptionTester(object):
     with open(SETTINGS_LOC, 'r') as JSON_SETTINGS:
         SETTINGS = json.load(JSON_SETTINGS)
 
-    # collect details about parent hypervisor
-    PARENT_HYPERVISOR_INFO = SETUP_CFG['ci']['hypervisor']
-
     # vm credentials & details
     VM_USERNAME = 'root'
     VM_PASSWORD = 'rooter'
@@ -97,9 +89,9 @@ class DataCorruptionTester(object):
     VM_VRAM = 512  # In MB
 
     # hypervisor details
-    HYPERVISOR_TYPE = PARENT_HYPERVISOR_INFO['type']
-    HYPERVISOR_USER = SETUP_CFG['ci']['user']['shell']['username']
-    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['user']['shell']['password']
+    HYPERVISOR_TYPE = SETUP_CFG['ci']['local_hypervisor']['type']
+    HYPERVISOR_USER = SETUP_CFG['ci']['local_hypervisor']['user']
+    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['local_hypervisor']['password']
 
     def __init__(self):
         pass
