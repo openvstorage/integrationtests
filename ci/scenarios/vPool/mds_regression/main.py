@@ -91,7 +91,7 @@ class RegressionTester(CIConstants):
                                                                                  port=listening_port,
                                                                                  hypervisor_ip=compute_client.ip,
                                                                                  vm_name=cls.VM_NAME,
-                                                                                 write_amount=cls.AMOUNT_TO_WRITE * 20)
+                                                                                 data_disk_size=cls.AMOUNT_TO_WRITE * 20)
         vm_info = VMHandler.create_vms(ip=compute_client.ip,
                                        port=listening_port,
                                        connection_messages=connection_messages,

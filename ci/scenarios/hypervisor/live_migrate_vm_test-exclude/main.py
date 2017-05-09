@@ -90,7 +90,7 @@ class MigrateTester(CIConstants):
             port=listening_port,
             hypervisor_ip=source_storagedriver.storage_ip,
             vm_name=cls.VM_NAME,
-            write_amount=cls.AMOUNT_TO_WRITE)
+            data_disk_size=cls.AMOUNT_TO_WRITE)
         vm_info = VMHandler.create_vms(ip=source_storagedriver.storage_ip,
                                        port=listening_port,
                                        connection_messages=connection_messages,
@@ -178,7 +178,7 @@ class MigrateTester(CIConstants):
 
         with remote(source_storagedriver.storage_ip, [SSHClient]) as rem:
             test_run_nr = 0
-            configuration = random.random(cls.DATA_TEST_CASES)
+            configuration = random.choice(cls.DATA_TEST_CASES)
             threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
                                    'snapshots': {'pairs': [], 'r_semaphore': None}}}
             output_files = []

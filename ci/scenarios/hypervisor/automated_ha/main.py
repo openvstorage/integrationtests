@@ -45,7 +45,6 @@ class HATester(CIConstants):
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
 
     IO_TIME = 15
-    HA_TIMEOUT = 300
     VM_CONNECTING_TIMEOUT = 5
     VM_NAME = 'HA-test'
 
@@ -147,7 +146,7 @@ class HATester(CIConstants):
             port=listening_port,
             hypervisor_ip=compute_ip,
             vm_name=cls.VM_NAME,
-            write_amount=cls.AMOUNT_TO_WRITE)
+            data_disk_size=cls.AMOUNT_TO_WRITE)
         vm_info = VMHandler.create_vms(ip=compute_ip,
                                        port=listening_port,
                                        connection_messages=connection_messages,

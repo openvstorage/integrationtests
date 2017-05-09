@@ -13,7 +13,6 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import json
 import time
 import random
 import socket
@@ -25,8 +24,6 @@ from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.scenario_helpers.ci_constants import CIConstants
-from ci.main import CONFIG_LOC
-from ci.main import SETTINGS_LOC
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
@@ -47,9 +44,7 @@ class DataCorruptionTester(CIConstants):
     SLEEP_TIME_BEFORE_SHUTDOWN = 30
     VM_CONNECTING_TIMEOUT = 5
     VM_CREATION_MESSAGE = 'I am created!'
-    REQUIRED_PACKAGES = ['qemu-kvm', 'libvirt0', 'python-libvirt', 'virtinst', 'genisoimage']
-    VM_NAME = 'DTL-test'
-    VM_WAIT_TIME = 300  # wait time before timing out on the vm install in seconds
+    VM_NAME = 'Data-corruption-test'
     START_PARENT_TIMEOUT = 30
     VDBENCH_ZIP = "http://fileserver.cloudfounders.com/Operations/IT/Software/vdbench/vdbench.zip"
     VM_VDBENCH_ZIP = "/root/vdbench.zip"
@@ -68,37 +63,6 @@ class DataCorruptionTester(CIConstants):
     VM_FILENAME = "/root/vdbench_file"  # lun
     VM_VDBENCH_CFG_PATH = "/root/vdbench_run.cfg"
 
-    # cloud init details
-    CLOUD_INIT_DATA = {
-        'script_loc': 'https://raw.githubusercontent.com/kinvaris/cloud-init/master/create-config-drive',
-        'script_dest': '/tmp/cloud_init_script.sh',
-        'user-data_loc': '/tmp/user-data-migrate-test',
-        'config_dest': '/tmp/cloud-init-config-migrate-test'
-    }
-
-    with open(CONFIG_LOC, 'r') as JSON_CONFIG:
-        SETUP_CFG = json.load(JSON_CONFIG)
-
-    with open(SETTINGS_LOC, 'r') as JSON_SETTINGS:
-        SETTINGS = json.load(JSON_SETTINGS)
-
-    # collect details about parent hypervisor
-    PARENT_HYPERVISOR_INFO = SETUP_CFG['ci']['hypervisor']
-
-    # vm credentials & details
-    VM_USERNAME = 'root'
-    VM_PASSWORD = 'rooter'
-    VM_VCPUS = 1
-    VM_VRAM = 512  # In MB
-
-    # hypervisor details
-    HYPERVISOR_TYPE = PARENT_HYPERVISOR_INFO['type']
-    HYPERVISOR_USER = SETUP_CFG['ci']['user']['shell']['username']
-    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['user']['shell']['password']
-
-    def __init__(self):
-        pass
-
     @staticmethod
     def main(blocked):
         """
@@ -112,25 +76,63 @@ class DataCorruptionTester(CIConstants):
         """
         if not blocked:
             try:
-                DataCorruptionTester._execute_test()
+                DataCorruptionTester.start_test()
                 return {'status': 'PASSED', 'case_type': DataCorruptionTester.CASE_TYPE, 'errors': None}
             except Exception as ex:
                 return {'status': 'FAILED', 'case_type': DataCorruptionTester.CASE_TYPE, 'errors': str(ex)}
         else:
             return {'status': 'BLOCKED', 'case_type': DataCorruptionTester.CASE_TYPE, 'errors': None}
 
-    @staticmethod
-    def _execute_test():
+    @classmethod
+    def start_test(cls):
+        storagedriver, cloud_image_path, cloud_init_loc = cls.setup()
+
+
+    @classmethod
+    def setup(cls, logger=LOGGER):
+        vpool = None
+        for vp in VPoolHelper.get_vpools():  # Get a suitable vpool with min. 2 storagedrivers
+            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
+                vpool = vp
+                break
+        assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
+
+        source_storagedriver = random.choice(vpool.storagedrivers)
+        logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
+
+        client = SSHClient(source_storagedriver.storagerouter, username='root')  # Build ssh clients
+
+        # Check if enough images available
+        images = cls.get_images()
+        assert len(images) >= 1, 'We require an cloud init bootable image file.'
+        image_path = images[0]
+        assert client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
+
+        # Get the cloud init file
+        cloud_init_loc = cls.CLOUD_INIT_DATA.get('script_dest')
+        client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
+        client.file_chmod(cloud_init_loc, 755)
+        assert client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
+        missing_packages = SystemHelper.get_missing_packages(client.ip, cls.REQUIRED_PACKAGE_CLOUD_INIT)
+        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
+                                                                                         client.ip,
+                                                                                         missing_packages)
+        missing_packages = SystemHelper.get_missing_packages(client.ip, cls.REQUIRED_PACKAGES_HYPERVISOR)
+        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
+                                                                                         client.ip,
+                                                                                         missing_packages)
+
+        return source_storagedriver, image_path, cloud_init_loc
+
+    @classmethod
+    def _execute_test(cls):
         """
         Execute the live migration test
         """
-
         DataCorruptionTester.LOGGER.info('Starting data corruption regression test')
-
         #################
         # PREREQUISITES #
         #################
-
         # Get a suitable vpool
         vpool = None
         for vp in VPoolHelper.get_vpools():
@@ -141,20 +143,18 @@ class DataCorruptionTester(CIConstants):
 
         # choose the storagedriver
         storagedriver = random.choice([st for st in vpool.storagedrivers])
-        DataCorruptionTester.LOGGER.info('Chosen source storagedriver: {0}'
-                                         .format(storagedriver.storage_ip))
+        DataCorruptionTester.LOGGER.info('Chosen source storagedriver: {0}'.format(storagedriver.storage_ip))
 
         # build ssh client
         client = SSHClient(storagedriver.storagerouter.ip, username='root')
 
         # check if enough images available
-        images = DataCorruptionTester.SETTINGS['images']
-        assert len(images) >= 1, 'Not enough images in `{0}`'.format(SETTINGS_LOC)
+        images = cls.get_images()
+        assert len(images) >= 1, 'We require the cloud init image.'
 
         # check if image exists
         image_path = images[0]
-        assert client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'\
-                                               .format(images[0], client.ip)
+        assert client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], client.ip)
 
         # Get the cloud init file
         cloud_init_loc = DataCorruptionTester.CLOUD_INIT_DATA['script_dest']

@@ -315,7 +315,7 @@ class AutoTests(object):
         with open(CONFIG_LOC, "r") as JSON_CONFIG:
                 ci_config = json.load(JSON_CONFIG)
         description_lines.append('# HYPERVISOR INFO')
-        description_lines.append('{0}'.format(ci_config['ci']['hypervisor']))
+        description_lines.append('{0}'.format(ci_config['ci']['local_hypervisor']['type']))
         description_lines.append('')  # New line gap
         # fetch hardware information
         description_lines.append("# HARDWARE INFO")

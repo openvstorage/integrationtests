@@ -46,7 +46,7 @@ class VMHandler(object):
 
     @classmethod
     def prepare_vm_disks(cls, source_storagedriver, cloud_image_path, cloud_init_loc, api, port,
-                         vm_amount, hypervisor_ip, vm_name, write_amount, logger=LOGGER):
+                         vm_amount, hypervisor_ip, vm_name, data_disk_size, logger=LOGGER):
         """
         Will create all necessary vdisks to create the bulk of vms
         :param source_storagedriver: storagedriver to create the disks on
@@ -55,7 +55,7 @@ class VMHandler(object):
         :param api: ovsclient instance
         :param vm_amount: amount of vms to test with
         :param vm_name: name prefix for the vms
-        :param write_amount: amount of data to read/write
+        :param data_disk_size: size of the data disk
         :param hypervisor_ip: ip of the hypervisor
         :param port: port to listen on
         :param logger: logging instance
@@ -97,7 +97,7 @@ class VMHandler(object):
                 original_boot_disk_name = boot_vdisk_name
                 logger.info('Boot VDisk successfully created.')
                 try:
-                    data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, write_amount, source_storagedriver.storage_ip, api))
+                    data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, data_disk_size, source_storagedriver.storage_ip, api))
                     logger.info('VDisk data_vdisk successfully created!')
                 except TimeOutError:
                     logger.error('The creation of the data vdisk has timed out.')
