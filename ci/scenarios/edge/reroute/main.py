@@ -13,20 +13,18 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import os
-import math
 import time
-import errno
 import random
-from datetime import datetime
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
-from ci.api_lib.helpers.thread import ThreadHelper, Waiter
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
+from ci.api_lib.helpers.thread import ThreadHelper
 from ci.autotests import gather_results
+from ci.scenario_helpers.data_writing import DataWriter
+from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
@@ -39,8 +37,8 @@ class EdgeTester(CIConstants):
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_edge_test'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
-    HA_TIMEOUT = 300  # In seconds
     SLEEP_TIME = 60  # Time to idle before going to block the edge
+    IO_TIME = 30
 
     @staticmethod
     @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
@@ -79,7 +77,7 @@ class EdgeTester(CIConstants):
 
         cluster_info = {'storagerouters': {'destination': destination_storagerouter, 'source': source_storagerouter, 'compute': compute_storagerouter},
                         'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver}}
-        source_client = SSHClient(source_storagerouter, 'rooter')
+        source_client = SSHClient(source_storagerouter, username='root')
         is_ee = SystemHelper.get_ovs_version(source_client) == 'ee'
         if is_ee is True:
             fio_bin_loc = EdgeTester.FIO_BIN_EE['location']
@@ -146,7 +144,7 @@ class EdgeTester(CIConstants):
             client.run(cmd)
 
     @classmethod
-    def test_reroute_fio(cls, fio_bin_path, cluster_info, disk_amount=1, timeout=HA_TIMEOUT, is_ee=False, logger=LOGGER):
+    def test_reroute_fio(cls, fio_bin_path, cluster_info, disk_amount=1, timeout=CIConstants.HA_TIMEOUT, is_ee=False, logger=LOGGER):
         """
         Uses a modified fio to work with the openvstorage protocol
         :param fio_bin_path: path of the fio binary
@@ -201,282 +199,52 @@ class EdgeTester(CIConstants):
                 logger.error('Could not create the vdisk. Got {0}'.format(str(ex)))
                 raise
         for configuration in EdgeTester.DATA_TEST_CASES:
-            # Milestones
-            threads = []
+            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
+                                   'snapshots': {'pairs': [], 'r_semaphore': None}}}
             screen_names = []
             adjusted = False
-            # Thread data
             try:
-                threads, monitoring_data, r_semaphore = EdgeTester._start_threads(volume_bundle=vdisk_info, target=EdgeTester._monitor_changes)
-                logger.info('Doing IO for {0}s before down the connection the owner node.'.format(EdgeTester.SLEEP_TIME))
-                screen_names, output_files = EdgeTester._write_data(compute_client, 'fio', configuration, edge_configuration, ee_info=ee_info)
-                EdgeTester._keep_threads_running(r_semaphore=r_semaphore,
-                                                 threads=threads,
-                                                 shared_resource=monitoring_data)
+                io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
+                threads['evented']['io']['pairs'] = io_thread_pairs
+                threads['evented']['io']['r_semaphore'] = io_r_semaphore
+                screen_names, output_files = DataWriter.write_data(client=compute_client,
+                                                                   cmd_type='fio',
+                                                                   configuration=configuration,
+                                                                   edge_configuration=edge_configuration,
+                                                                   ee_info=ee_info,
+                                                                   data_to_write=cls.AMOUNT_TO_WRITE)
+                logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
+                ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
+                                                      threads=threads['evented']['io']['pairs'],
+                                                      shared_resource=monitoring_data,
+                                                      duration=cls.IO_TIME)
                 # Threads ready for monitoring at this point, they are waiting to resume
-                try:
-                    EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=True, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
-                    adjusted = True
-                    downed_time = time.time()
-                except Exception as ex:
-                    logger.error('Failed to adjust to reroute. Got {0}'.format(str(ex)))
-                    raise
+                EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=True, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
+                adjusted = True
+                downed_time = time.time()
                 logger.info('Now waiting two refreshrate intervals to avoid caching. In total {}s'.format(EdgeTester.IO_REFRESH_RATE * 2))
-                time.sleep(EdgeTester.IO_REFRESH_RATE * 2)
-                EdgeTester._poll_io(r_semaphore=r_semaphore,
-                                    required_thread_amount=len(threads),
-                                    shared_resource=monitoring_data,
-                                    downed_time=downed_time,
-                                    timeout=timeout,
-                                    output_files=output_files,
-                                    client=compute_client,
-                                    disk_amount=disk_amount)
+                time.sleep(cls.IO_REFRESH_RATE * 2)
+                ThreadingHandler.poll_io(r_semaphore=threads['evented']['io']['r_semaphore'],
+                                         required_thread_amount=len(threads),
+                                         shared_resource=monitoring_data,
+                                         downed_time=downed_time,
+                                         timeout=timeout,
+                                         output_files=output_files,
+                                         client=compute_client,
+                                         disk_amount=disk_amount)
                 EdgeTester._validate_dal(values_to_check)  # Validate
-            except Exception:
-                logger.error('Got an exception while running configuration {}. Namely: {}'.format(configuration, str(ex)))
+            except Exception as ex:
+                logger.error('Got an exception while running configuration {0}. Namely: {1}'.format(configuration, str(ex)))
                 failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
             finally:
                 if adjusted is True:
                     EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=False, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
                 for screen_name in screen_names:
                     compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
-                    if threads:
-                        logger.info('Stopping iops monitoring')
-                        for thread_pair in threads:
-                            if thread_pair[0].isAlive():
-                                thread_pair[1].set()
-                            # Wait again to sync
-                            EdgeTester.LOGGER.info('Syncing threads')
-                            while r_semaphore.get_counter() < len(threads):  # Wait for the number of threads we currently have.
-                                time.sleep(0.05)
-                            r_semaphore.wait()  # Unlock them to let them stop (the object is set -> wont loop)
-                        # Wait for threads to die
-                        for thread_pair in threads:
-                            thread_pair[0].join()
+                    for thread_category, thread_collection in threads['evented'].iteritems():
+                        ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
 
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(failed_configurations)
-
-    @staticmethod
-    def _keep_threads_running(r_semaphore, threads, shared_resource, duration=SLEEP_TIME, logger=LOGGER):
-        """
-        Keeps the threads running for the duration
-        :param r_semaphore: Reverse semaphore, controlling object to sync the threads with
-        :type r_semaphore: ci.api_lib.helpers.thread.Waiter
-        :param threads: list of threads with their closing object
-        :type threads: list
-        :param shared_resource: Resources shared between all threads
-        :type shared_resource: dict
-        :param duration: time to keep running
-        :type duration: int
-        :param logger: logging instance
-        :type logger: ovs.log.log_handler.LogHandler
-        :return: None
-        """
-        now = time.time()
-        while time.time() - now < duration:
-            if r_semaphore.get_counter() < len(threads):
-                time.sleep(0.05)
-                continue
-            if time.time() - now % 1 == 0:
-                io_volumes = EdgeTester._get_all_vdisks_with_io(shared_resource)
-                logger.info('Currently got io for {0} volumes: {1}'.format(len(io_volumes), io_volumes))
-            r_semaphore.wait()
-
-    @staticmethod
-    def _poll_io(r_semaphore, required_thread_amount, shared_resource,  downed_time, disk_amount, timeout=HA_TIMEOUT, output_files=None,
-                 client=None, logger=LOGGER):
-        """
-        Will start IO polling
-        Prerequisite: all threads must have synced up before calling this function
-        :param r_semaphore: Reverse semaphore, controlling object to sync the threads with
-        :type r_semaphore: ci.api_lib.helpers.thread.Waiter
-        :param required_thread_amount: Amount of threads that should be accounted for
-        :type required_thread_amount: double / int
-        :param shared_resource: Resources shared between all threads
-        :type shared_resource: dict
-        :param downed_time: Time to start timeout from
-        :type downed_time: imt
-        :param timeout: Seconds that can elapse before timing out
-        :type timeout: int
-        :param output_files: OPTIONAL: files that can be checked for errors (fio write data will do this)
-        :type output_files: list[str]
-        :param client: client that points towards the output files
-        :type client: ovs.extensions.generic.sshclient.SSHClient
-        :param disk_amount: amount of disks that were checked with
-        :type disk_amount: int
-        :param logger: logging instance
-        :type logger: ovs.log.log_handler.LogHandler
-        :return: None
-        """
-        if output_files is None and client is None:
-            raise ValueError('When output files is specified, a compute client is needed.')
-        if output_files is None:
-            output_files = []
-        r_semaphore.wait()  # Start IO polling
-        while True:
-            if time.time() - downed_time > timeout:
-                raise RuntimeError('HA test timed out after {0}s.'.format(timeout))
-            if r_semaphore.get_counter() < required_thread_amount:
-                time.sleep(1)
-                continue
-            # Check if any errors occurred - possible due to the nature of the write data with screens
-            # If the fio has had an error, it will break and output to the output file
-            # errors = {}
-            # for output_file in output_files:
-            #     errors.update(set(client.run('grep -a error {} || true'.format(re.escape(output_file)), allow_insecure=True).split()))
-            # if len(errors) > 0:
-            #     raise RuntimeError('Fio has reported errors: {} at {}'.format(', '.join(errors),datetime.today().strftime('%Y-%m-%d %H:%M:%S')))
-            # Calculate to see if IO is back
-            io_volumes = EdgeTester._get_all_vdisks_with_io(shared_resource)
-            logger.info('Currently got io for {0}: {1}'.format(len(io_volumes), io_volumes))
-            if len(io_volumes) == disk_amount:
-                logger.info('All threads came through with IO at {0}. Waited {1}s for IO.'.format(
-                    datetime.today().strftime('%Y-%m-%d %H:%M:%S'), time.time() - downed_time))
-                break
-            logger.info('IO has not come through for {0}s.'.format(time.time() - downed_time))
-            r_semaphore.wait()  # Unblock waiting threads
-
-    @staticmethod
-    def _start_threads(volume_bundle, target, logger=LOGGER):
-        """
-        Will start the 
-        :param volume_bundle: bundle of volumes
-        :type volume_bundle: dict
-        :param logger: logger instance
-        :type logger: ovs.log.log_handler.LogHandler
-        :param target: function to start
-        :type target: func
-        :return: threads, monitoring_data, r_semaphore
-        :rtype: tuple(list, dict, ci.api_lib.helpers.thread.Waiter)
-        """
-        required_thread_amount = math.ceil(float(len(volume_bundle.keys())) / EdgeTester.VDISK_THREAD_LIMIT)  # Amount of threads we will need
-        r_semaphore = Waiter(required_thread_amount + 1, auto_reset=True)  # Add another target to let this thread control the semaphore
-        threads = []
-        monitoring_data = {}
-        current_thread_bundle = {'index': 1, 'vdisks': []}
-        logger.info('Starting threads.')  # Separate because creating vdisks takes a while, while creating the threads does not
-        try:
-            for index, (vdisk_name, vdisk_object) in enumerate(volume_bundle.iteritems(), 1):
-                vdisks = current_thread_bundle['vdisks']
-                volume_number_range = '{0}-{1}'.format(current_thread_bundle['index'], index)
-                vdisks.append(vdisk_object)
-                if index % EdgeTester.VDISK_THREAD_LIMIT == 0 or index == len(volume_bundle.keys()):
-                    # New thread bundle
-                    monitor_resource = {'general': {'io': [], 'edge_clients': {}}}
-                    # noinspection PyTypeChecker
-                    for vdisk in vdisks:
-                        monitor_resource[vdisk.name] = {
-                            'io': {'down': [], 'descending': [], 'rising': [], 'highest': None, 'lowest': None},
-                            'edge_clients': {'down': [], 'up': []}}
-                    monitoring_data[volume_number_range] = monitor_resource
-                    threads.append(ThreadHelper.start_thread_with_event(target,
-                                                                        name='iops_{0}'.format(current_thread_bundle['index']),
-                                                                        args=(monitor_resource, vdisks, r_semaphore)))
-                    current_thread_bundle['index'] = index + 1
-                    current_thread_bundle['vdisks'] = []
-        except Exception:
-            for thread_pair in threads:  # Attempt to cleanup current inflight threads
-                if thread_pair[0].isAlive():
-                    thread_pair[1].set()
-            while r_semaphore.get_counter() < len(threads):  # Wait for the number of threads we currently have.
-                time.sleep(0.05)
-            r_semaphore.wait()  # Unlock them to let them stop (the object is set -> wont loop)
-            # Wait for threads to die
-            for thread_pair in threads:
-                thread_pair[0].join()
-            raise
-        return threads, monitoring_data, r_semaphore
-
-    @staticmethod
-    def _write_data(client, cmd_type, configuration, edge_configuration=None, screen=True, data_to_write=CIConstants.AMOUNT_TO_WRITE,
-                    file_locations=None, ee_info=None):
-        """
-        Fire and forget an IO test
-        Starts a screen session detaches the sshclient
-        :param client: ovs ssh client for the vm
-        :type client: ovs.extensions.generic.sshclient.SSHClient
-        :param cmd_type: type of command. Was used to differentiate between dd and fio
-        :type cmd_type: str
-        :param configuration: configuration params for fio. eg (10, 90) first value represents read, second one write percentage
-        :type configuration: tuple
-        :param edge_configuration: configuration to fio over edge
-        :type edge_configuration: dict
-        :return: list of screen names (empty if screen is False), list of output files
-        :rtype: tuple(list, list)
-        """
-        bs = '4k'
-        iodepth = 32
-        fio_output_format = 'json'
-        write_size = data_to_write
-        cmds = []
-        screen_names = []
-        output_files = []
-        output_directory = '/tmp/{0}'.format(EdgeTester.TEST_NAME)
-        client.dir_create(output_directory)
-        try:
-            os.makedirs(output_directory)
-        except OSError as exception:
-            if exception.errno != errno.EEXIST:
-                raise
-        if cmd_type != 'fio':
-            raise ValueError('{0} is not supported for writing data.'.format(cmd_type))
-        config = ['--iodepth={0}'.format(iodepth), '--rw=randrw', '--bs={0}'.format(bs), '--direct=1',
-                  '--rwmixread={0}'.format(configuration[0]), '--rwmixwrite={0}'.format(configuration[1]), '--randrepeat=0']
-        if edge_configuration:
-            fio_vdisk_limit = EdgeTester.FIO_VDISK_LIMIT
-            volumes = edge_configuration['volumename']
-            fio_amount = int(math.ceil(float(len(volumes)) / fio_vdisk_limit))  # Amount of fio commands to prep
-            for fio_nr in xrange(0, fio_amount):
-                vols = volumes[fio_nr * fio_vdisk_limit: (fio_nr + 1) * fio_vdisk_limit]  # Subset the volume list
-                additional_settings = ['ulimit -n 4096;']  # Volumedriver envir params
-                # Append edge fio stuff
-                additional_config = ['--ioengine=openvstorage', '--hostname={0}'.format(edge_configuration['hostname']),
-                                     '--port={0}'.format(edge_configuration['port']), '--protocol={0}'.format(edge_configuration['protocol']),
-                                     '--enable_ha=1', '--group_reporting=1']
-                if ee_info is not None:
-                    additional_config.extend(['--username={0}'.format(ee_info['username']), '--password={0}'.format(ee_info['password'])])
-                verify_config = ['--verify=crc32c-intel', '--verifysort=1', '--verify_fatal=1', '--verify_backlog=1000000']
-                output_file = '{0}/fio_{1}-{2}'.format(output_directory, fio_nr, len(vols))
-                output_files.append(output_file)
-                output_config = ['--output={0}'.format(output_file), '--output-format={0}'.format(fio_output_format)]
-                # Generate test names for each volume
-                fio_jobs = []
-                for index, volume in enumerate(vols):
-                    fio_jobs.append('--name=test{0}'.format(index))
-                    fio_jobs.append('--volumename={0}'.format(volume))
-                cmds.append(additional_settings + [edge_configuration['fio_bin_location']] + config + additional_config + verify_config + output_config + fio_jobs)
-        else:
-            fio_jobs = []
-            if file_locations:
-                for index, file_location in enumerate(file_locations):
-                    fio_jobs.append('--name=test{0}'.format(index))
-                    fio_jobs.append('--filename={0}'.format(file_location))
-            additional_config = ['--ioengine=libaio', '--size={0}'.format(write_size)]
-            cmds.append(['fio'] + config + additional_config + fio_jobs)
-        if screen is True:
-            # exec bash to keep it running
-            for index, cmd in enumerate(cmds):
-                screen_name = 'fio_{0}'.format(index)
-                cmds[index] = ['screen', '-S', screen_name, '-dm', 'bash', '-c', 'while {0}; do :; done; exec bash'.format(' '.join(cmd))]
-                screen_names.append(screen_name)
-        for cmd in cmds:
-            EdgeTester.LOGGER.info('Writing data with: {0}'.format(' '.join(cmd)))
-            client.run(cmd)
-        return screen_names, output_files
-
-    @staticmethod
-    def _get_all_edge_clients(monitoring_data):
-        output = {}
-        for volume_number_range, monitor_resource in monitoring_data.iteritems():
-            output.update(monitor_resource['general']['edge_clients'])
-        return output
-
-    @staticmethod
-    def _get_all_vdisks_with_io(monitoring_data):
-        output = []
-        for volume_number_range, monitor_resource in monitoring_data.iteritems():
-            output.extend(monitor_resource['general']['io'])
-        return output
 
     @staticmethod
     def _validate_dal(values):
@@ -505,71 +273,7 @@ class EdgeTester(CIConstants):
             else:
                 ValueError('Expected {0} but found {1} for vdisk.storagerouter_guid'.format(source_std.storagerouter.guid, vdisk.storagerouter_guid))
 
-    @staticmethod
-    def _monitor_changes(results, vdisks, r_semaphore, stop_event, refresh_rate=CIConstants.IO_REFRESH_RATE):
-        """
-        Threading method that will check for IOPS downtimes
-        :param results: variable reserved for this thread
-        :type results: dict
-        :param vdisks: vdisk object
-        :type vdisks: list(ovs.dal.hybrids.vdisk.VDISK)
-        :param r_semaphore: semaphore object to lock threads
-        :type r_semaphore: ovs.extensions.generic.threadhelpers.Waiter
-        :param stop_event: Threading event to watch for
-        :type stop_event: threading._Event
-        :return: None
-        :rtype: NoneType
-        """
-        last_recorded_iops = {}
-        while not stop_event.is_set():
-            general_info = results['general']
-            general_info['in_progress'] = True
-            has_io = []
-            edge_info = {}
-            for vdisk in vdisks:
-                edge_info[vdisk.name] = []
-            # Reset counters
-            general_info['io'] = has_io
-            general_info['edge_clients'].update(edge_info)
-            now = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-            now_sec = time.time()
-            for vdisk in vdisks:
-                last_iops = last_recorded_iops.get(vdisk.name, 0)
-                result = results[vdisk.name]
-                vdisk_stats = vdisk.statistics
-                vdisk_edge_clients = vdisk.edge_clients
-                current_iops = vdisk_stats['4k_read_operations_ps'] + vdisk_stats['4k_write_operations_ps']
-                io_section = result['io']
-                if current_iops == 0:
-                    io_section['down'].append((now, current_iops))
-                else:
-                    has_io.append(vdisk.name)
-                    if last_iops >= current_iops:
-                        io_section['rising'].append((now, current_iops))
-                    else:
-                        io_section['descending'].append((now, current_iops))
-                    if current_iops > io_section['highest'] or io_section['highest'] is None:
-                        io_section['highest'] = current_iops
-                    if current_iops < io_section['lowest'] or io_section['lowest'] is None:
-                        io_section['lowest'] = current_iops
-                edge_client_section = result['edge_clients']
-                edge_info[vdisk.name] = vdisk_edge_clients
-                if len(vdisk_edge_clients) == 0:
-                    edge_client_section['down'].append((now, vdisk_edge_clients))
-                else:
-                    edge_client_section['up'].append((now, vdisk_edge_clients))
-                # Sleep to avoid caching
-                last_recorded_iops[vdisk.name] = current_iops
-            general_info['io'] = has_io
-            general_info['edge_clients'].update(edge_info)
-            duration = time.time() - now_sec
-            EdgeTester.LOGGER.debug('IO for {0} at {1}. Call took {2}'.format(has_io, now, duration))
-            EdgeTester.LOGGER.debug('Edge clients for {0} at {1}. Call took {2}'.format(edge_info, now, duration))
-            general_info['in_progress'] = False
-            time.sleep(0 if duration > refresh_rate else refresh_rate - duration)
-            r_semaphore.wait(30 * 60)  # Let each thread wait for another
-            
-                
+
 def run(blocked=False):
     """
     Run a test

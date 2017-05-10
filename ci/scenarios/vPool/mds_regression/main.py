@@ -25,6 +25,7 @@ from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.autotests import gather_results
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
 from ci.scenario_helpers.ci_constants import CIConstants
@@ -35,7 +36,6 @@ from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.extensions.packages.package import PackageManager
 from ovs.extensions.services.service import ServiceManager
 from ovs.lib.generic import GenericController
 from ovs.lib.mdsservice import MDSServiceController
@@ -58,7 +58,7 @@ class RegressionTester(CIConstants):
         SETUP_CFG = json.load(JSON_CONFIG)
 
     @classmethod
-    # @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(cls, blocked):
         """
         Run all required methods for the test
@@ -99,31 +99,6 @@ class RegressionTester(CIConstants):
                                        edge_details=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.TEST_TIMEOUT)
-        # # @TODO: remove this section as it just rebuilds for faster testing
-        # from ci.api_lib.helpers.vdisk import VDiskHelper
-        # vp = VPoolHelper.get_vpool_by_name('mysyncvpool')
-        # available_storagedrivers = [storagedriver for storagedriver in vp.storagedrivers]
-        # destination_storagedriver = [std for std in available_storagedrivers if std.storage_ip == '10.100.188.32'][0]
-        # source_storagedriver = [std for std in available_storagedrivers if std.storage_ip == '10.100.188.33'][0]
-        # str_1 = destination_storagedriver.storagerouter  # Will act as volumedriver node
-        # str_2 = source_storagedriver.storagerouter  # Will act as volumedriver node
-        # str_3 = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters() if
-        #          storagerouter.guid not in [str_1.guid, str_2.guid]][0]  # Will act as compute node
-        # compute_client = SSHClient(str_3, username='root')
-        # cluster_info = {'storagerouters': {'str3': str_3, 'str2': str_2, 'str1': str_1}, 'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver}, 'vpool': vp}
-        # volume_amount = 3
-        # vdisks = [VDiskHelper.get_vdisk_by_guid('61c9e92a-df52-4026-938b-e3e3d8da925d'),  # boot
-        #           VDiskHelper.get_vdisk_by_guid('a2f5c5a5-d894-4ee1-b687-adf9f0a6b2ea'),  # cd
-        #           VDiskHelper.get_vdisk_by_guid('7e091881-3da3-4a59-bece-78f01d2f4fc3')]  # data
-        # vm_info = {'HA-test_000': {'vdisks': vdisks,
-        #                            'created': False,
-        #                            'data_snapshot_guid': u'156fe4b0-2a85-4cfe-b74b-c82662a79c89',
-        #                            'create_msg': 'f1143bd1-7eb0-4115-b9d7-ff1c1bfd8c07_HA-test-000',
-        #                            'ip': '192.168.122.239',
-        #                            'disks': [{'mountpoint': '/mnt/mysyncvpool/HA-test-000_vdisk_boot_000'},
-        #                                      {'mountpoint': '/mnt/mysyncvpool/HA-test-000_vdisk_data_000.raw'}],
-        #                            'cd_path': '/mnt/mysyncvpool/HA-test-000_vdisk_cd_000.raw',
-        #                            'networks': [{'model': 'e1000', 'mac': 'RANDOM', 'network': 'default'}]}}
         cls.run_test(cluster_info=cluster_info,
                      compute_client=compute_client,
                      is_ee=is_ee,

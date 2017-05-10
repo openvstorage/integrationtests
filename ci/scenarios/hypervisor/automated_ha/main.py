@@ -274,7 +274,7 @@ class HATester(CIConstants):
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @classmethod
-    def test_ha_fio(cls, fio_bin_path, vpool, compute_client, cluster_info, is_ee,  api, disk_amount=1, timeout=HA_TIMEOUT, logger=LOGGER):
+    def test_ha_fio(cls, fio_bin_path, vpool, compute_client, cluster_info, is_ee,  api, disk_amount=1, timeout=CIConstants.HA_TIMEOUT, logger=LOGGER):
         """
         Uses a modified fio to work with the openvstorage protocol
         :param fio_bin_path: path of the fio binary
@@ -344,6 +344,8 @@ class HATester(CIConstants):
                 logger.info('Starting threads.')  # Separate because creating vdisks takes a while, while creating the threads does not
 
                 io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
+                threads['evented']['io']['pairs'] = io_thread_pairs
+                threads['evented']['io']['r_semaphore'] = io_r_semaphore
                 screen_names, output_files = DataWriter.write_data(client=compute_client,
                                                                    cmd_type='fio',
                                                                    configuration=configuration,
@@ -395,7 +397,7 @@ class HATester(CIConstants):
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @staticmethod
-    def _wait_and_move(vdisk_info, target_storagedriver, api, timeout=HA_TIMEOUT):
+    def _wait_and_move(vdisk_info, target_storagedriver, api, timeout=CIConstants.HA_TIMEOUT):
         start_time = time.time()
         to_be_downed_client = None
         while to_be_downed_client is None:

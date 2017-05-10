@@ -112,8 +112,8 @@ class AdvancedDTLTester(CIConstants):
         # PREREQUISITES #
         #################
         """
-                Execute the live migration test
-                """
+        Setup the advanced dtl test
+        """
         #################
         # PREREQUISITES #
         #################
@@ -122,18 +122,20 @@ class AdvancedDTLTester(CIConstants):
         source_storagedriver = None
         storagedrivers_domain_sorted = DomainHelper.get_storagedrivers_in_same_domain(domain_guid=source_str.regular_domains[0])
         for storagedriver in storagedrivers_domain_sorted:
+            if len(storagedriver.vpool.storagedrivers) < 2:
+                continue
             if storagedriver.guid in destination_str.storagedrivers_guids:
                 if destination_storagedriver is None and (source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
                     destination_storagedriver = storagedriver
+                    logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
                 continue
             if storagedriver.guid in source_str.storagedrivers_guids:
                 # Select if the source driver isn't select and destination is also unknown or the storagedriver has matches with the same vpool
                 if source_storagedriver is None and (destination_storagedriver is None or destination_storagedriver.vpool_guid == storagedriver.vpool_guid):
                     source_storagedriver = storagedriver
+                    logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
                 continue
         assert source_storagedriver is not None and destination_storagedriver is not None, 'We require at least two storagedrivers within the same domain.'
-        logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-        logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
 
         to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
         compute_client = SSHClient(compute_str, username='root')
@@ -265,7 +267,7 @@ class AdvancedDTLTester(CIConstants):
                     current_md5sum = ' '.join(vm_data['client'].run(['md5sum', AdvancedDTLTester.VM_FILENAME]).split())
                     if vm_data['original_md5sum'] != current_md5sum:
                         unmatching_checksum_vms.append(vm_name)
-                assert len(unmatching_checksum_vms) == 0, 'Not all data was read from the DTL. Checksums do not line up for {}'.format(', '.joi(unmatching_checksum_vms))
+                assert len(unmatching_checksum_vms) == 0, 'Not all data was read from the DTL. Checksums do not line up for {}'.format(', '.join(unmatching_checksum_vms))
                 logger.info('DTL is working correctly!')
             finally:
                 if vm_downed is True:
