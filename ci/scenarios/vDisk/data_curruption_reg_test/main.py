@@ -48,7 +48,7 @@ class DataCorruptionTester(object):
     VM_CONNECTING_TIMEOUT = 5
     VM_CREATION_MESSAGE = 'I am created!'
     REQUIRED_PACKAGES = ['qemu-kvm', 'libvirt0', 'python-libvirt', 'virtinst', 'genisoimage']
-    VM_NAME = 'DTL-test'
+    VM_NAME = 'Corruption_test'
     VM_WAIT_TIME = 300  # wait time before timing out on the vm install in seconds
     START_PARENT_TIMEOUT = 30
     VDBENCH_ZIP = "http://fileserver.cloudfounders.com/Operations/IT/Software/vdbench/vdbench.zip"

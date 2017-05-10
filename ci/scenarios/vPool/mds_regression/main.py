@@ -54,7 +54,7 @@ class RegressionTester(object):
 
     AMOUNT_TO_WRITE = 10 * 1024 ** 3
 
-    VM_NAME = 'HA-test'
+    VM_NAME = 'mds-regression'
     VM_OS_TYPE = 'ubuntu16.04'
 
     VM_USERNAME = 'root'  # vm credentials & details
