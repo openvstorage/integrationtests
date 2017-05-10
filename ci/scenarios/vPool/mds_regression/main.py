@@ -52,7 +52,7 @@ class RegressionTester(CIConstants):
     TEST_TIMEOUT = 300
     VM_CONNECTING_TIMEOUT = 5
 
-    VM_NAME = 'HA-test'
+    VM_NAME = 'mds-regression'
 
     with open(CONFIG_LOC, 'r') as JSON_CONFIG:
         SETUP_CFG = json.load(JSON_CONFIG)
