@@ -16,11 +16,11 @@
 import time
 from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
@@ -70,18 +70,27 @@ class HATester(CIConstants):
         # PREREQUISITES #
         #################
         destination_str, source_str, compute_str = cls.get_storagerouters_for_ha()
-        vpool = None
-        for vp in VPoolHelper.get_vpools():  # Get a suitable vpool with min. 2 storagedrivers
-            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
-                vpool = vp
-                break
-        assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
-
-        # Choose source & destination storage driver
-        destination_storagedriver = [storagedriver for storagedriver in destination_str.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]
-        source_storagedriver = [storagedriver for storagedriver in source_str.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]
-        logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-        logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
+        destination_storagedriver = None
+        source_storagedriver = None
+        storagedrivers_domain_sorted = DomainHelper.get_storagedrivers_in_same_domain(
+            domain_guid=source_str.regular_domains[0])
+        for storagedriver in storagedrivers_domain_sorted:
+            if len(storagedriver.vpool.storagedrivers) < 2:
+                continue
+            if storagedriver.guid in destination_str.storagedrivers_guids:
+                if destination_storagedriver is None and (
+                        source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
+                    destination_storagedriver = storagedriver
+                    logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
+                continue
+            if storagedriver.guid in source_str.storagedrivers_guids:
+                # Select if the source driver isn't select and destination is also unknown or the storagedriver has matches with the same vpool
+                if source_storagedriver is None and (
+                        destination_storagedriver is None or destination_storagedriver.vpool_guid == storagedriver.vpool_guid):
+                    source_storagedriver = storagedriver
+                    logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
+                continue
+        assert source_storagedriver is not None and destination_storagedriver is not None, 'We require at least two storagedrivers within the same domain.'
 
         to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
         compute_client = SSHClient(compute_str, username='root')

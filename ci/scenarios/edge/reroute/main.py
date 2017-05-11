@@ -14,10 +14,8 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import time
-import random
 from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.helpers.vpool import VPoolHelper
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
@@ -57,27 +55,35 @@ class EdgeTester(CIConstants):
         cls.test_reroute_fio(fio_bin_loc, cluster_info, is_ee=is_ee)
 
     @classmethod
-    def setup(cls):
-        vpool = None
-        for vp in VPoolHelper.get_vpools():
-            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
-                vpool = vp
-                break
-        assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
-        available_storagedrivers = [storagedriver for storagedriver in vpool.storagedrivers]
-        destination_storagedriver = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
-        source_storagedriver = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
-        destination_storagerouter = destination_storagedriver.storagerouter  # Will act as volumedriver node
-        source_storagerouter = source_storagedriver.storagerouter  # Will act as volumedriver node
-        compute_storagerouter = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters()
-                                 if storagerouter.guid not in [destination_storagerouter.guid, source_storagerouter.guid]][0]  # Will act as compute node
-        compute_client = SSHClient(compute_storagerouter, username='root')  # Compute node is excluded from all migrations and shutdowns
-        EdgeTester.LOGGER.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-        EdgeTester.LOGGER.info('Chosen original owning storagedriver is: {0}'.format(source_storagedriver.storage_ip))
+    def setup(cls, logger=LOGGER):
+        destination_str, source_str, compute_str = cls.get_storagerouters_for_ha()
+        destination_storagedriver = None
+        source_storagedriver = None
+        storagedrivers_domain_sorted = DomainHelper.get_storagedrivers_in_same_domain(
+            domain_guid=source_str.regular_domains[0])
+        for storagedriver in storagedrivers_domain_sorted:
+            if len(storagedriver.vpool.storagedrivers) < 2:
+                continue
+            if storagedriver.guid in destination_str.storagedrivers_guids:
+                if destination_storagedriver is None and (
+                        source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
+                    destination_storagedriver = storagedriver
+                    logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
+                continue
+            if storagedriver.guid in source_str.storagedrivers_guids:
+                # Select if the source driver isn't select and destination is also unknown or the storagedriver has matches with the same vpool
+                if source_storagedriver is None and (
+                        destination_storagedriver is None or destination_storagedriver.vpool_guid == storagedriver.vpool_guid):
+                    source_storagedriver = storagedriver
+                    logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
+                continue
+        assert source_storagedriver is not None and destination_storagedriver is not None, 'We require at least two storagedrivers within the same domain.'
 
-        cluster_info = {'storagerouters': {'destination': destination_storagerouter, 'source': source_storagerouter, 'compute': compute_storagerouter},
+        cluster_info = {'storagerouters': {'destination': destination_str, 'source': source_str, 'compute': compute_str},
                         'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver}}
-        source_client = SSHClient(source_storagerouter, username='root')
+        source_client = SSHClient(source_str, username='root')
+        compute_client = SSHClient(compute_str, username='root')
+
         is_ee = SystemHelper.get_ovs_version(source_client) == 'ee'
         if is_ee is True:
             fio_bin_loc = EdgeTester.FIO_BIN_EE['location']
