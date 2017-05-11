@@ -29,8 +29,8 @@ class DataWriter(object):
     FIO_VDISK_LIMIT = 50
 
     @classmethod
-    def write_data(cls, client, cmd_type, configuration, data_to_write, fio_vdisk_limit=FIO_VDISK_LIMIT, edge_configuration=None,
-                   screen=True, file_locations=None, ee_info=None, logger=LOGGER):
+    def write_data(cls, client, cmd_type, data_to_write=None, configuration=None, fio_vdisk_limit=FIO_VDISK_LIMIT, edge_configuration=None,
+                   screen=True, file_locations=None, ee_info=None, vdbench_config=None, logger=LOGGER):
         """
         Write data to a specific host.
         Can write data within a screen
@@ -54,6 +54,8 @@ class DataWriter(object):
         :type ee_info: dict
         :param logger: logging instance
         :type logger: ovs.log.log_handler.LogHandler
+        :param vdbench_config: configuration voor vdbench type
+        :type vdbench_config: dict
         :raises OSError: if it fails to create a output directory
         :raises ValueError: if an unknown cmd_type is supplied
         :return: list of screen names (empty if screen is False), list of output files
@@ -73,47 +75,56 @@ class DataWriter(object):
         except OSError as exception:
             if exception.errno != errno.EEXIST:
                 raise
-        if cmd_type != 'fio':
+        if cmd_type not in ['fio', 'vdbench']:
             raise ValueError('{0} is not supported for writing data.'.format(cmd_type))
-        config = ['--iodepth={0}'.format(iodepth), '--rw=randrw', '--bs={0}'.format(bs), '--direct=1',
-                  '--rwmixread={0}'.format(configuration[0]), '--rwmixwrite={0}'.format(configuration[1]),
-                  '--randrepeat=0']
-        if edge_configuration:
-            volumes = edge_configuration['volumename']
-            fio_amount = int(math.ceil(float(len(volumes)) / fio_vdisk_limit))  # Amount of fio commands to prep
-            for fio_nr in xrange(0, fio_amount):
-                vols = volumes[fio_nr * fio_vdisk_limit: (fio_nr + 1) * fio_vdisk_limit]  # Subset the volume list
-                additional_settings = ['ulimit -n 4096;']  # Volumedriver envir params
-                # Append edge fio stuff
-                additional_config = ['--ioengine=openvstorage', '--hostname={0}'.format(edge_configuration['hostname']),
-                                     '--port={0}'.format(edge_configuration['port']),
-                                     '--protocol={0}'.format(edge_configuration['protocol']),
-                                     '--enable_ha=1', '--group_reporting=1']
-                if ee_info is not None:
-                    additional_config.extend(
-                        ['--username={0}'.format(ee_info['username']), '--password={0}'.format(ee_info['password'])])
-                verify_config = ['--verify=crc32c-intel', '--verifysort=1', '--verify_fatal=1',
-                                 '--verify_backlog=1000000']
-                output_file = '{0}/fio_{1}-{2}'.format(output_directory, fio_nr, len(vols))
+        if cmd_type == 'fio':
+            if not isinstance(configuration, tuple):
+                raise TypeError('Expecting a tuple with (read%, write%)')
+            if not isinstance(data_to_write, int):
+                raise TypeError('Expecting an number of bytes to write to be an integer.')
+            config = ['--iodepth={0}'.format(iodepth), '--rw=randrw', '--bs={0}'.format(bs), '--direct=1',
+                      '--rwmixread={0}'.format(configuration[0]), '--rwmixwrite={0}'.format(configuration[1]),
+                      '--randrepeat=0']
+            if edge_configuration:
+                volumes = edge_configuration['volumename']
+                fio_amount = int(math.ceil(float(len(volumes)) / fio_vdisk_limit))  # Amount of fio commands to prep
+                for fio_nr in xrange(0, fio_amount):
+                    vols = volumes[fio_nr * fio_vdisk_limit: (fio_nr + 1) * fio_vdisk_limit]  # Subset the volume list
+                    additional_settings = ['ulimit -n 4096;']  # Volumedriver envir params
+                    # Append edge fio stuff
+                    additional_config = ['--ioengine=openvstorage', '--hostname={0}'.format(edge_configuration['hostname']),
+                                         '--port={0}'.format(edge_configuration['port']),
+                                         '--protocol={0}'.format(edge_configuration['protocol']),
+                                         '--enable_ha=1', '--group_reporting=1']
+                    if ee_info is not None:
+                        additional_config.extend(
+                            ['--username={0}'.format(ee_info['username']), '--password={0}'.format(ee_info['password'])])
+                    verify_config = ['--verify=crc32c-intel', '--verifysort=1', '--verify_fatal=1',
+                                     '--verify_backlog=1000000']
+                    output_file = '{0}/fio_{1}-{2}'.format(output_directory, fio_nr, len(vols))
+                    output_files.append(output_file)
+                    output_config = ['--output={0}'.format(output_file), '--output-format={0}'.format(fio_output_format)]
+                    # Generate test names for each volume
+                    fio_jobs = []
+                    for index, volume in enumerate(vols):
+                        fio_jobs.append('--name=test{0}'.format(index))
+                        fio_jobs.append('--volumename={0}'.format(volume))
+                    cmds.append(additional_settings + [edge_configuration['fio_bin_location']] + config + additional_config + verify_config + output_config + fio_jobs)
+            else:
+                fio_jobs = []
+                if file_locations:
+                    for index, file_location in enumerate(file_locations):
+                        fio_jobs.append('--name=test{0}'.format(index))
+                        fio_jobs.append('--filename={0}'.format(file_location))
+                additional_config = ['--ioengine=libaio', '--size={0}'.format(write_size)]
+                output_file = '{0}/fio'.format(output_directory)
                 output_files.append(output_file)
                 output_config = ['--output={0}'.format(output_file), '--output-format={0}'.format(fio_output_format)]
-                # Generate test names for each volume
-                fio_jobs = []
-                for index, volume in enumerate(vols):
-                    fio_jobs.append('--name=test{0}'.format(index))
-                    fio_jobs.append('--volumename={0}'.format(volume))
-                cmds.append(additional_settings + [edge_configuration['fio_bin_location']] + config + additional_config + verify_config + output_config + fio_jobs)
-        else:
-            fio_jobs = []
-            if file_locations:
-                for index, file_location in enumerate(file_locations):
-                    fio_jobs.append('--name=test{0}'.format(index))
-                    fio_jobs.append('--filename={0}'.format(file_location))
-            additional_config = ['--ioengine=libaio', '--size={0}'.format(write_size)]
-            output_file = '{0}/fio'.format(output_directory)
-            output_files.append(output_file)
-            output_config = ['--output={0}'.format(output_file), '--output-format={0}'.format(fio_output_format)]
-            cmds.append(['fio'] + config + additional_config + output_config + fio_jobs)
+                cmds.append(['fio'] + config + additional_config + output_config + fio_jobs)
+        elif cmd_type == 'vdbench':
+            if not isinstance(vdbench_config, dict):
+                raise TypeError('Vdbench config param should be a dictionary with all required params.')
+            cmds.append([vdbench_config['bin_location'], '-vr', '-f', vdbench_config['config_location']])
         if screen is True:
             # exec bash to keep it running
             for index, cmd in enumerate(cmds):

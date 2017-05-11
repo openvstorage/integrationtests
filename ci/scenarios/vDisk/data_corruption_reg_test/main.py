@@ -15,16 +15,20 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import random
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.system import SystemHelper
+from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ci.scenario_helpers.data_writing import DataWriter
+from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.network import NetworkHelper
-from ci.scenario_helpers.vm_handler import VMHandler
 
 
+# @ todo fix this test. No validation and offloads to fio. Done refactoring though
+# Initial fix also done. vdbench actually runs >>
 class DataCorruptionTester(CIConstants):
     """
     This is a regression test for https://github.com/openvstorage/integrationtests/issues/468
@@ -36,30 +40,25 @@ class DataCorruptionTester(CIConstants):
     CASE_TYPE = 'STABILITY'
     TEST_NAME = 'ci_scenario_data_corruption'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
-    SLEEP_TIME = 60
-    SLEEP_TIME_BEFORE_SHUTDOWN = 30
-    VM_CONNECTING_TIMEOUT = 5
-    VM_CREATION_MESSAGE = 'I am created!'
+
     VM_NAME = 'Data-corruption-test'
-    START_PARENT_TIMEOUT = 30
-    VDBENCH_ZIP = "http://fileserver.cloudfounders.com/Operations/IT/Software/vdbench/vdbench.zip"
-    VM_VDBENCH_ZIP = "/root/vdbench.zip"
-    AMOUNT_THREADS = 4  # threads
-    AMOUNT_TO_WRITE = 3  # in GB, size
-    AMOUNT_DATA_ERRORS = 1  # data_errors
-    VDBENCH_TIME = 7200  # in seconds
-    VDBENCH_INTERVAL = 1  # in seconds
-    WORKLOAD = ['wd1']  # wd
-    IO_RATE = 'max'  # iorate
-    RUNNAME = 'data_cor_run'  # rd
-    # xfersize
-    XFERSIZE = '(4k,25.68,8k,26.31,16k,6.4,32k,7.52,60k,10.52,128k,9.82,252k,7.31,504k,6.19,984k,0.23,1032k,0.02)'
-    READ_PERCENTAGE = 50  # rdpct
-    RANDOM_SEEK_PERCENTAGE = 100  # seekpct
-    VM_FILENAME = "/root/vdbench_file"  # lun
+    VDBENCH_ZIP = "http://fileserver.cloudfounders.com/Operations/IT/Software/vdbench/vdbench.zip"  # Fetch location
+    VM_VDBENCH_ZIP = "/root/vdbench.zip"  # Fetch destination
+
+    AMOUNT_THREADS = 4  # Amount of workers
+    AMOUNT_DATA_ERRORS = 1  # Nr of data errors that may occur
+    VDBENCH_TIME = 120 * 60  # Time of run (seconds)
+    VDBENCH_INTERVAL = 1  # Reporting interval (seconds)
+    IO_RATE = 'max'  # Rate of the IO
+    XFERSIZE = '(4k,25.68,8k,26.31,16k,6.4,32k,7.52,60k,10.52,128k,9.82,252k,7.31,504k,6.19,984k,0.23,1032k,0.02)'  # Transfer sizes
+    READ_PERCENTAGE = 50  # RW percent
+    RANDOM_SEEK_PERCENTAGE = 100  # Random seeks to throw in
+
+    VM_FILENAME = "/root/vdbench_file"  # File to use for IO
     VM_VDBENCH_CFG_PATH = "/root/vdbench_run.cfg"
 
     @staticmethod
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
         """
         Run all required methods for the test
@@ -70,20 +69,13 @@ class DataCorruptionTester(CIConstants):
         :return: results of test
         :rtype: dict
         """
-        if not blocked:
-            try:
-                DataCorruptionTester.start_test()
-                return {'status': 'PASSED', 'case_type': DataCorruptionTester.CASE_TYPE, 'errors': None}
-            except Exception as ex:
-                return {'status': 'FAILED', 'case_type': DataCorruptionTester.CASE_TYPE, 'errors': str(ex)}
-        else:
-            return {'status': 'BLOCKED', 'case_type': DataCorruptionTester.CASE_TYPE, 'errors': None}
+        DataCorruptionTester.start_test()
 
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
         api = cls.get_api_instance()
         storagedriver, cloud_image_path, cloud_init_loc = cls.setup()
-        compute_ip = storagedriver.storagerouter.storage_ip
+        compute_ip = storagedriver.storage_ip
         listening_port = NetworkHelper.get_free_port(compute_ip)
         protocol = storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
         edge_details = {'port': storagedriver.ports['edge'],
@@ -158,49 +150,76 @@ class DataCorruptionTester(CIConstants):
         :rtype: NoneType
         """
         with remote(storagedriver.storage_ip, [SSHClient]) as rem:
-            for vm_name, vm_data in vm_info.iteritems():
-                vm_client = rem.SSHClient(vm_data['ip'], cls.VM_USERNAME, cls.VM_PASSWORD)
-                vm_client.file_create('/mnt/data/{0}.raw'.format(vm_data['create_msg']))
-                vm_data['client'] = vm_client
-                # install fio on the VM
-                logger.info('Installing vdbench on {0}.'.format(vm_name))
-                cls._deploy_vdbench(client=vm_data['client'],
-                                    zip_remote_location=cls.VDBENCH_ZIP,
-                                    unzip_location=cls.VM_VDBENCH_ZIP,
-                                    amount_of_errors=cls.AMOUNT_DATA_ERRORS,
-                                    vdbench_config_path=cls.VM_VDBENCH_CFG_PATH,
-                                    lun_location=cls.VM_FILENAME,
-                                    thread_amount=cls.AMOUNT_THREADS,
-                                    write_amount=cls.AMOUNT_TO_WRITE,
-                                    workload=cls.WORKLOAD,
-                                    xfersize=cls.XFERSIZE,
-                                    read_percentage=cls.READ_PERCENTAGE,
-                                    random_seek_percentage=cls.RANDOM_SEEK_PERCENTAGE,
-                                    name_of_run=cls.RUNNAME,
-                                    io_rate=cls.IO_RATE,
-                                    duration=cls.VDBENCH_TIME,
-                                    interval=cls.VDBENCH_INTERVAL
-                                    )
-            for vm_name, vm_data in vm_info.iteritems():
-                logger.info('Starting VDBENCH on {0}!'.format(vm_name))
-                vm_data['client'].run('screen -S fio -dm bash -c "./vdbench -vr -f {0}"'.format(cls.VM_VDBENCH_CFG_PATH).split())
-            logger.info('Finished VDBENCH without errors!')
-            logger.info('No data corruption detected!')
+            try:
+                for vm_name, vm_data in vm_info.iteritems():
+                    vm_client = rem.SSHClient(vm_data['ip'], cls.VM_USERNAME, cls.VM_PASSWORD)
+                    vm_client.file_create('/mnt/data/{0}.raw'.format(vm_data['create_msg']))
+                    vm_data['client'] = vm_client
+                    # install fio on the VM
+                    logger.info('Installing vdbench on {0}.'.format(vm_name))
+                    cls._deploy_vdbench(client=vm_data['client'],
+                                        zip_remote_location=cls.VDBENCH_ZIP,
+                                        unzip_location=cls.VM_VDBENCH_ZIP,
+                                        amount_of_errors=cls.AMOUNT_DATA_ERRORS,
+                                        vdbench_config_path=cls.VM_VDBENCH_CFG_PATH,
+                                        lun_location=cls.VM_FILENAME,
+                                        thread_amount=cls.AMOUNT_THREADS,
+                                        write_amount=cls.AMOUNT_TO_WRITE,
+                                        xfersize=cls.XFERSIZE,
+                                        read_percentage=cls.READ_PERCENTAGE,
+                                        random_seek_percentage=cls.RANDOM_SEEK_PERCENTAGE,
+                                        io_rate=cls.IO_RATE,
+                                        duration=cls.VDBENCH_TIME,
+                                        interval=cls.VDBENCH_INTERVAL
+                                        )
+                for vm_name, vm_data in vm_info.iteritems():
+                    logger.info('Starting VDBENCH on {0}!'.format(vm_name))
+                    DataWriter.write_data(vm_data['client'], 'vdbench', vdbench_config={'bin_location': cls.VM_VDBENCH_ZIP.replace('.zip', ''),
+                                                                                        'config_location': cls.VM_VDBENCH_CFG_PATH})
+                    vm_data['client'].run('screen -S fio -dm bash -c "./vdbench -vr -f {0}"'.format(cls.VM_VDBENCH_CFG_PATH).split())
+                    vm_data['screen_names'] = ['fio']
+                logger.info('Finished VDBENCH without errors!')
+                logger.info('No data corruption detected!')
+            finally:
+                for vm_name, vm_data in vm_info.iteritems():
+                    for screen_name in vm_data.get('screen_names', []):
+                        logger.debug('Stopping screen {0} on {1}.'.format(screen_name, vm_data['client'].ip))
+                        vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
+                    vm_data['screen_names'] = []
 
     @staticmethod
     def _deploy_vdbench(client, zip_remote_location, unzip_location, amount_of_errors, vdbench_config_path, lun_location,
-                        thread_amount, write_amount, workload, xfersize, read_percentage, random_seek_percentage,
-                        name_of_run, io_rate, duration, interval, logger=LOGGER):
+                        thread_amount, write_amount, xfersize, read_percentage, random_seek_percentage,
+                        io_rate, duration, interval, logger=LOGGER):
+        """
+        Deploy a vdbench config file
+        :param client: client location
+        :param zip_remote_location: zip location to fetch vdbench from
+        :param unzip_location: destination for download and unzip location
+        :param amount_of_errors: how many errors before vdbench stops
+        :param vdbench_config_path: configuration file path for vdbench
+        :param lun_location: what file to use to write/read to
+        :param thread_amount: amount of worker threads
+        :param write_amount: amount of data to process in bytes
+        :param xfersize: data transfer size 
+        :param read_percentage: percentage to read
+        :param random_seek_percentage: how often a seek to a random lba will be generated
+        :param io_rate: 
+        :param duration: 
+        :param interval: 
+        :param logger: 
+        :return: 
+        """
         client.run(['apt-get', 'install', 'unzip', 'openjdk-9-jre-headless', '-y'])
         client.run(['wget', zip_remote_location, '-O', unzip_location])
         logger.info('Successfully fetched vdbench ZIP')
         client.run(['unzip', unzip_location])
         logger.info('Successfully unzipped vdbench ZIP')
         config_lines = [
-            '"data_errors={0}"'.format(amount_of_errors),
-            '"sd=sd1,lun={0},threads={1},size={2}g"'.format(lun_location, thread_amount, write_amount),
-            '"wd={0},sd=(sd1),xfersize={1},rdpct={2},seekpct={3},openflags=directio"'.format(workload, xfersize, read_percentage, random_seek_percentage),
-            '"rd={0},iorate={1},elapsed={2},interval={3}"'.format(name_of_run, io_rate, duration, interval)
+            'data_errors={0}'.format(amount_of_errors),
+            'sd=sd1,lun={0},threads={1},size={2}'.format(lun_location, thread_amount, write_amount),  # Storage definition
+            'wd=wd1,sd=(sd1),xfersize={0},rdpct={1},seekpct={2},openflags=directio'.format(xfersize, read_percentage, random_seek_percentage),  # Set the workload
+            'rd=rd1,wd=wd1,iorate={0},elapsed={1},interval={2}'.format(io_rate, duration, interval)  # Setup a run definition
         ]
         client.file_write(vdbench_config_path, '\n'.join(config_lines))
         logger.info('Successfully deployed config')
