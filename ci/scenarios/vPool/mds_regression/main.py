@@ -101,7 +101,6 @@ class RegressionTester(CIConstants):
                                        timeout=cls.TEST_TIMEOUT)
         cls.run_test(cluster_info=cluster_info,
                      compute_client=compute_client,
-                     is_ee=is_ee,
                      disk_amount=volume_amount,
                      vm_info=vm_info,
                      api=api)
@@ -195,13 +194,12 @@ class RegressionTester(CIConstants):
         return api, cluster_info, compute_client, to_be_downed_client, is_ee, image_path, cloud_init_loc
 
     @classmethod
-    def run_test(cls, cluster_info, compute_client, is_ee, vm_info, disk_amount, api, vm_username=CIConstants.VM_USERNAME, vm_password=CIConstants.VM_PASSWORD,
+    def run_test(cls, cluster_info, compute_client, vm_info, disk_amount, api, vm_username=CIConstants.VM_USERNAME, vm_password=CIConstants.VM_PASSWORD,
                  timeout=TEST_TIMEOUT, data_test_cases=CIConstants.DATA_TEST_CASES, logger=LOGGER):
         """
         Runs the test as described in https://github.com/openvstorage/dev_ops/issues/64
         :param cluster_info: information about the cluster
         :param compute_client: SSHclient of the computenode
-        :param is_ee: is entreprise edition or not
         :param vm_info: vm information
         :param api: api instance
         :param disk_amount: amount of disks
@@ -223,11 +221,6 @@ class RegressionTester(CIConstants):
         }
         # Prep VM listener #
         failed_configurations = []
-        ee_info = None
-        if is_ee is True:
-            # @ Todo create user instead
-            ee_info = {'username': 'root', 'password': 'rooter'}
-
         # Extract vdisk info from vm_info - only get the data ones
         vdisk_info = {}
         for vm_name, vm_object in vm_info.iteritems():
@@ -261,12 +254,11 @@ class RegressionTester(CIConstants):
                         # @todo snapshot every minute
                         threads['evented']['snapshots']['pairs'] = ThreadingHandler.start_snapshotting_threads(volume_bundle=vdisk_info, api=api, kwargs={'interval': 15})
                         for vm_name, vm_data in vm_info.iteritems():  # Write data
-                            screen_names, output_files = DataWriter.write_data(client=vm_data['client'],
-                                                                               cmd_type='fio',
-                                                                               configuration=configuration,
-                                                                               file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])],
-                                                                               ee_info=ee_info,
-                                                                               data_to_write=cls.AMOUNT_TO_WRITE)
+                            screen_names, output_files = DataWriter.write_data_fio(client=vm_data['client'],
+                                                                                   fio_configuration={
+                                                                                       'io_size': cls.AMOUNT_TO_WRITE,
+                                                                                       'configuration': configuration},
+                                                                                   file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
                             vm_data['screen_names'] = screen_names
                         logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
                         ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],

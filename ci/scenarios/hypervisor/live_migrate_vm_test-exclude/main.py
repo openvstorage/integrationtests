@@ -196,12 +196,11 @@ class MigrateTester(CIConstants):
                 threads['evented']['io']['pairs'] = io_thread_pairs
                 threads['evented']['io']['r_semaphore'] = io_r_semaphore
                 for vm_name, vm_data in vm_info.iteritems():  # Write data
-                    screen_names, output_files = DataWriter.write_data(client=vm_data['client'],
-                                                                       cmd_type='fio',
-                                                                       configuration=configuration,
-                                                                       file_locations=['/mnt/data/{0}.raw'.format(
-                                                                           vm_data['create_msg'])],
-                                                                       data_to_write=cls.AMOUNT_TO_WRITE)
+                    screen_names, output_files =DataWriter.write_data_fio(client=vm_data['client'],
+                                                                          fio_configuration={
+                                                                              'io_size': cls.AMOUNT_TO_WRITE,
+                                                                              'configuration': configuration},
+                                                                          file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
                     vm_data['screen_names'] = screen_names
                 logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
                 ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],

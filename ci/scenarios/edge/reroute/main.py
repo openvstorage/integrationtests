@@ -59,24 +59,22 @@ class EdgeTester(CIConstants):
         destination_str, source_str, compute_str = cls.get_storagerouters_for_ha()
         destination_storagedriver = None
         source_storagedriver = None
-        storagedrivers_domain_sorted = DomainHelper.get_storagedrivers_in_same_domain(
-            domain_guid=source_str.regular_domains[0])
-        for storagedriver in storagedrivers_domain_sorted:
+        if len(source_str.regular_domains) == 0:
+            storagedrivers = StoragedriverHelper.get_storagedrivers()
+        else:
+            storagedrivers = DomainHelper.get_storagedrivers_in_same_domain(domain_guid=source_str.regular_domains[0])
+        for storagedriver in storagedrivers:
             if len(storagedriver.vpool.storagedrivers) < 2:
                 continue
             if storagedriver.guid in destination_str.storagedrivers_guids:
-                if destination_storagedriver is None and (
-                        source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
+                if destination_storagedriver is None and (source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
                     destination_storagedriver = storagedriver
                     logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-                continue
-            if storagedriver.guid in source_str.storagedrivers_guids:
+            elif storagedriver.guid in source_str.storagedrivers_guids:
                 # Select if the source driver isn't select and destination is also unknown or the storagedriver has matches with the same vpool
-                if source_storagedriver is None and (
-                        destination_storagedriver is None or destination_storagedriver.vpool_guid == storagedriver.vpool_guid):
+                if source_storagedriver is None and (destination_storagedriver is None or destination_storagedriver.vpool_guid == storagedriver.vpool_guid):
                     source_storagedriver = storagedriver
                     logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
-                continue
         assert source_storagedriver is not None and destination_storagedriver is not None, 'We require at least two storagedrivers within the same domain.'
 
         cluster_info = {'storagerouters': {'destination': destination_str, 'source': source_str, 'compute': compute_str},
@@ -185,21 +183,19 @@ class EdgeTester(CIConstants):
         edge_configuration = {'fio_bin_location': fio_bin_path, 'hostname': source_std.storage_ip,
                               'port': source_std.ports['edge'],
                               'protocol': protocol,
-                              'volumename': []}
+                              'volumenames': []}
         vdisk_info = {}
         failed_configurations = []
 
-        ee_info = None
         if is_ee is True:
-            # @ Todo create user instead
-            ee_info = {'username': 'root', 'password': 'rooter'}
+            edge_configuration.update(cls.get_shell_user())
 
         for index in xrange(0, disk_amount):
             try:
                 vdisk_name = '{0}_vdisk{1}'.format(EdgeTester.TEST_NAME, str(index).zfill(4))
                 data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, EdgeTester.AMOUNT_TO_WRITE * 2, source_std.storage_ip, api))
                 vdisk_info[vdisk_name] = data_vdisk
-                edge_configuration['volumename'].append(data_vdisk.devicename.rsplit('.', 1)[0].split('/', 1)[1])
+                edge_configuration['volumenames'].append(data_vdisk.devicename.rsplit('.', 1)[0].split('/', 1)[1])
                 values_to_check['vdisks'].append(data_vdisk.serialize())
             except RuntimeError as ex:
                 logger.error('Could not create the vdisk. Got {0}'.format(str(ex)))
@@ -213,12 +209,10 @@ class EdgeTester(CIConstants):
                 io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
                 threads['evented']['io']['pairs'] = io_thread_pairs
                 threads['evented']['io']['r_semaphore'] = io_r_semaphore
-                screen_names, output_files = DataWriter.write_data(client=compute_client,
-                                                                   cmd_type='fio',
-                                                                   configuration=configuration,
-                                                                   edge_configuration=edge_configuration,
-                                                                   ee_info=ee_info,
-                                                                   data_to_write=cls.AMOUNT_TO_WRITE)
+                screen_names, output_files = DataWriter.write_data_fio(client=compute_client,
+                                                                       fio_configuration={'io_size': cls.AMOUNT_TO_WRITE,
+                                                                                          'configuration': configuration},
+                                                                       edge_configuration=edge_configuration)
                 logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
                 ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
                                                       threads=threads['evented']['io']['pairs'],

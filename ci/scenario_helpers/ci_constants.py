@@ -19,6 +19,8 @@ from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
+from ovs.lib.helpers.toolbox import Toolbox
+
 
 class CIConstants(object):
     """
@@ -88,12 +90,29 @@ class CIConstants(object):
     def get_parent_hypervisor_instance(cls):
         """
         Fetches the parent hypervisor instance
-        :return: 
+        :return: Hypervisor instance
         """
+        required_params = {'ip': (str, Toolbox.regex_ip),
+                           'user': (str, None),
+                           'password': (str, None),
+                           'type': (str, ['KVM', 'VMWARE'])}
+        if not isinstance(cls.PARENT_HYPERVISOR_INFO, dict):
+            raise TypeError('Expecting the parenthypervisor entry to be present in the configuration.')
+        Toolbox.verify_required_params(required_params, cls.PARENT_HYPERVISOR_INFO)
         return HypervisorFactory.get(cls.PARENT_HYPERVISOR_INFO['ip'],
                                      cls.PARENT_HYPERVISOR_INFO['user'],
                                      cls.PARENT_HYPERVISOR_INFO['password'],
                                      cls.PARENT_HYPERVISOR_INFO['type'])
+
+    @classmethod
+    def get_shell_user(cls):
+        """
+        Gets the user configured within the setup
+        :return: dict with the users credentials
+        :rtype: dict
+        """
+        return {'username': cls.SETUP_CFG['ci']['user']['api']['username'],
+                'password': cls.SETUP_CFG['ci']['user']['shell']['password']}
 
     @classmethod
     def get_storagerouters_for_ha(cls):

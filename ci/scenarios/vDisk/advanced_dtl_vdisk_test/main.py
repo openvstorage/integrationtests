@@ -120,21 +120,22 @@ class AdvancedDTLTester(CIConstants):
         destination_str, source_str, compute_str = cls.get_storagerouters_for_ha()
         destination_storagedriver = None
         source_storagedriver = None
-        storagedrivers_domain_sorted = DomainHelper.get_storagedrivers_in_same_domain(domain_guid=source_str.regular_domains[0])
-        for storagedriver in storagedrivers_domain_sorted:
+        if len(source_str.regular_domains) == 0:
+            storagedrivers = StoragedriverHelper.get_storagedrivers()
+        else:
+            storagedrivers = DomainHelper.get_storagedrivers_in_same_domain(domain_guid=source_str.regular_domains[0])
+        for storagedriver in storagedrivers:
             if len(storagedriver.vpool.storagedrivers) < 2:
                 continue
             if storagedriver.guid in destination_str.storagedrivers_guids:
                 if destination_storagedriver is None and (source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
                     destination_storagedriver = storagedriver
                     logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-                continue
-            if storagedriver.guid in source_str.storagedrivers_guids:
+            elif storagedriver.guid in source_str.storagedrivers_guids:
                 # Select if the source driver isn't select and destination is also unknown or the storagedriver has matches with the same vpool
                 if source_storagedriver is None and (destination_storagedriver is None or destination_storagedriver.vpool_guid == storagedriver.vpool_guid):
                     source_storagedriver = storagedriver
                     logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
-                continue
         assert source_storagedriver is not None and destination_storagedriver is not None, 'We require at least two storagedrivers within the same domain.'
 
         to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
@@ -231,11 +232,11 @@ class AdvancedDTLTester(CIConstants):
                 threads['evented']['io']['pairs'] = io_thread_pairs
                 threads['evented']['io']['r_semaphore'] = io_r_semaphore
                 for vm_name, vm_data in vm_info.iteritems():  # Write data
-                    screen_names, output_files = DataWriter.write_data(client=vm_data['client'],
-                                                                       cmd_type='fio',
-                                                                       configuration=cls.IO_PATTERN,
-                                                                       file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])],
-                                                                       data_to_write=cls.AMOUNT_TO_WRITE)
+                    screen_names, output_files = DataWriter.write_data_fio(client=vm_data['client'],
+                                                                           fio_configuration={
+                                                                               'io_size': cls.AMOUNT_TO_WRITE,
+                                                                               'configuration': cls.IO_PATTERN},
+                                                                           file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
                     vm_data['screen_names'] = screen_names
                 logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
                 ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
