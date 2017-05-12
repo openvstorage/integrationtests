@@ -13,10 +13,8 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import os
 import math
 import uuid
-import errno
 from ovs.log.log_handler import LogHandler
 from ovs.lib.helpers.toolbox import Toolbox
 

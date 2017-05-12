@@ -73,7 +73,7 @@ class AdvancedDTLTester(CIConstants):
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
         api = cls.get_api_instance()
-        cluster_info, cloud_image_path, cloud_init_loc = cls.setup()
+        cluster_info, cloud_image_path, cloud_init_loc, is_ee = cls.setup()
         compute_ip = cluster_info['storagerouters']['compute'].ip
         listening_port = NetworkHelper.get_free_port(compute_ip)
 
@@ -81,7 +81,10 @@ class AdvancedDTLTester(CIConstants):
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
         edge_details = {'port': source_storagedriver.ports['edge'], 'hostname': source_storagedriver.storage_ip,
                         'protocol': protocol}
-
+        edge_user_info = {}
+        if is_ee is True:
+            edge_user_info = cls.get_shell_user()
+            edge_details.update(edge_user_info)
         computenode_hypervisor = HypervisorFactory.get(compute_ip,
                                                        hypervisor_info['user'],
                                                        hypervisor_info['password'],
@@ -96,12 +99,13 @@ class AdvancedDTLTester(CIConstants):
             port=listening_port,
             hypervisor_ip=compute_ip,
             vm_name=cls.VM_NAME,
-            data_disk_size=cls.AMOUNT_TO_WRITE * 2)
+            data_disk_size=cls.AMOUNT_TO_WRITE * 2,
+            edge_user_info=edge_user_info)
         vm_info = VMHandler.create_vms(ip=compute_ip,
                                        port=listening_port,
                                        connection_messages=connection_messages,
                                        vm_info=vm_info,
-                                       edge_details=edge_details,
+                                       edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.VM_WAIT_TIME)
         cls.run_test(vm_info=vm_info, cluster_info=cluster_info, disk_amount=volume_amount)
@@ -167,7 +171,8 @@ class AdvancedDTLTester(CIConstants):
                         'storagedrivers': {'destination': destination_storagedriver,
                                            'source': source_storagedriver}}
 
-        return cluster_info, image_path, cloud_init_loc
+        is_ee = SystemHelper.get_ovs_version(to_be_downed_client) == 'ee'
+        return cluster_info, image_path, cloud_init_loc, is_ee
 
     @classmethod
     def run_test(cls, vm_info, cluster_info, disk_amount, logger=LOGGER):

@@ -69,14 +69,17 @@ class MigrateTester(CIConstants):
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
         api = cls.get_api_instance()
-        cluster_info, cloud_init_loc, cloud_image_path = cls.setup()
+        cluster_info, cloud_init_loc, cloud_image_path, is_ee = cls.setup()
         source_storagedriver = cluster_info['storagedrivers']['source']
         listening_port = NetworkHelper.get_free_port(source_storagedriver.storage_ip)
 
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
         edge_details = {'port': source_storagedriver.ports['edge'], 'hostname': source_storagedriver.storage_ip,
                         'protocol': protocol}
-
+        edge_user_info = {}
+        if is_ee is True:
+            edge_user_info = cls.get_shell_user()
+            edge_details.update(edge_user_info)
         source_hypervisor = HypervisorFactory.get(source_storagedriver.storage_ip,
                                                   hypervisor_info['user'],
                                                   hypervisor_info['password'],
@@ -90,12 +93,13 @@ class MigrateTester(CIConstants):
             port=listening_port,
             hypervisor_ip=source_storagedriver.storage_ip,
             vm_name=cls.VM_NAME,
-            data_disk_size=cls.AMOUNT_TO_WRITE)
+            data_disk_size=cls.AMOUNT_TO_WRITE,
+            edge_user_info=edge_user_info)
         vm_info = VMHandler.create_vms(ip=source_storagedriver.storage_ip,
                                        port=listening_port,
                                        connection_messages=connection_messages,
                                        vm_info=vm_info,
-                                       edge_details=edge_details,
+                                       edge_configuration=edge_details,
                                        hypervisor_client=source_hypervisor,
                                        timeout=cls.VM_CREATE_TIMEOUT)
         cls.live_migrate(vm_info, cluster_info, volume_amount, hypervisor_info)
@@ -145,7 +149,9 @@ class MigrateTester(CIConstants):
         assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
                                                                                          compute_client.ip,
                                                                                          missing_packages)
-        return cluster_info, cloud_init_loc, image_path
+
+        is_ee = SystemHelper.get_ovs_version(to_be_downed_client) == 'ee'
+        return cluster_info, cloud_init_loc, image_path, is_ee
 
     @classmethod
     def live_migrate(cls, vm_info, cluster_info, disk_amount, hypervisor_info, logger=LOGGER):

@@ -111,7 +111,7 @@ class CIConstants(object):
         :return: dict with the users credentials
         :rtype: dict
         """
-        return {'username': cls.SETUP_CFG['ci']['user']['api']['username'],
+        return {'username': cls.SETUP_CFG['ci']['user']['shell']['username'],
                 'password': cls.SETUP_CFG['ci']['user']['shell']['password']}
 
     @classmethod

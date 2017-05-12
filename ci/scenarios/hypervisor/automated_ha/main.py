@@ -138,9 +138,11 @@ class HATester(CIConstants):
 
         source_storagedriver = cluster_info['storagedrivers']['source']
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
-        edge_details = {'port': source_storagedriver.ports['edge'], 'hostname': source_storagedriver.storage_ip,
-                        'protocol': protocol}
-
+        edge_details = {'port': source_storagedriver.ports['edge'], 'hostname': source_storagedriver.storage_ip, 'protocol': protocol}
+        edge_user_info = {}
+        if is_ee is True:
+            edge_user_info = cls.get_shell_user()
+            edge_details.update(edge_user_info)
         computenode_hypervisor = HypervisorFactory.get(compute_ip,
                                                        hypervisor_info['user'],
                                                        hypervisor_info['password'],
@@ -154,22 +156,22 @@ class HATester(CIConstants):
             port=listening_port,
             hypervisor_ip=compute_ip,
             vm_name=cls.VM_NAME,
-            data_disk_size=cls.AMOUNT_TO_WRITE)
+            data_disk_size=cls.AMOUNT_TO_WRITE,
+            edge_user_info=edge_user_info)
         vm_info = VMHandler.create_vms(ip=compute_ip,
                                        port=listening_port,
                                        connection_messages=connection_messages,
                                        vm_info=vm_info,
-                                       edge_details=edge_details,
+                                       edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.HA_TIMEOUT)
         cls.run_test(cluster_info=cluster_info,
-                     is_ee=is_ee,
                      disk_amount=volume_amount,
                      vm_info=vm_info,
                      api=api)
 
     @classmethod
-    def run_test(cls, vm_info, cluster_info, api, disk_amount, is_ee, logger=LOGGER):
+    def run_test(cls, vm_info, cluster_info, api, disk_amount, logger=LOGGER):
         """
         Tests the HA using a virtual machine which will write in his own filesystem
         :param cluster_info: information about the cluster, contains all dal objects
@@ -191,11 +193,6 @@ class HATester(CIConstants):
             'target_std': destination_storagedriver.serialize()
         }
 
-        ee_info = None
-        if is_ee is True:
-            # @ Todo create user instead
-            ee_info = {'username': 'root', 'password': 'rooter'}
-        
         vm_to_stop = HATester.PARENT_HYPERVISOR_INFO['vms'][source_storagedriver.storage_ip]['name']
         parent_hypervisor = HypervisorFactory.get(HATester.PARENT_HYPERVISOR_INFO['ip'],
                                                   HATester.PARENT_HYPERVISOR_INFO['user'],

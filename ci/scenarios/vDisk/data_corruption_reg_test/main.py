@@ -74,14 +74,17 @@ class DataCorruptionTester(CIConstants):
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
         api = cls.get_api_instance()
-        storagedriver, cloud_image_path, cloud_init_loc = cls.setup()
+        storagedriver, cloud_image_path, cloud_init_loc, is_ee = cls.setup()
         compute_ip = storagedriver.storage_ip
         listening_port = NetworkHelper.get_free_port(compute_ip)
         protocol = storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
         edge_details = {'port': storagedriver.ports['edge'],
                         'hostname': storagedriver.storage_ip,
                         'protocol': protocol}
-
+        edge_user_info = {}
+        if is_ee is True:
+            edge_user_info = cls.get_shell_user()
+            edge_details.update(edge_user_info)
         computenode_hypervisor = HypervisorFactory.get(compute_ip,
                                                        hypervisor_info['user'],
                                                        hypervisor_info['password'],
@@ -95,12 +98,13 @@ class DataCorruptionTester(CIConstants):
             port=listening_port,
             hypervisor_ip=compute_ip,
             vm_name=cls.VM_NAME,
-            data_disk_size=cls.AMOUNT_TO_WRITE)
+            data_disk_size=cls.AMOUNT_TO_WRITE,
+            edge_user_info=edge_user_info)
         vm_info = VMHandler.create_vms(ip=compute_ip,
                                        port=listening_port,
                                        connection_messages=connection_messages,
                                        vm_info=vm_info,
-                                       edge_details=edge_details,
+                                       edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.HA_TIMEOUT)
         cls.run_test(storagedriver=storagedriver, vm_info=vm_info)
@@ -135,7 +139,8 @@ class DataCorruptionTester(CIConstants):
         missing_packages = SystemHelper.get_missing_packages(client.ip, cls.REQUIRED_PACKAGES_HYPERVISOR)
         assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), client.ip, missing_packages)
 
-        return source_storagedriver, image_path, cloud_init_loc
+        is_ee = SystemHelper.get_ovs_version(client) == 'ee'
+        return source_storagedriver, image_path, cloud_init_loc, is_ee
 
     @classmethod
     def run_test(cls, storagedriver, vm_info, logger=LOGGER):

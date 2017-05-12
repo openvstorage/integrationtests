@@ -96,7 +96,7 @@ class RegressionTester(CIConstants):
                                        port=listening_port,
                                        connection_messages=connection_messages,
                                        vm_info=vm_info,
-                                       edge_details=edge_details,
+                                       edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.TEST_TIMEOUT)
         cls.run_test(cluster_info=cluster_info,
