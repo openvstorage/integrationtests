@@ -13,7 +13,6 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
 import json
 import time
 import subprocess
@@ -27,17 +26,18 @@ from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vpool import VPoolSetup
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
 
-class ScrubbingChecks(object):
+class ScrubbingChecks(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_scrubbing"
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     AMOUNT_VDISKS_TO_SCRUB = 5
-    SIZE_VDISK = 52428800  # 50M
+    SIZE_VDISK = 50 * 1024 ** 2
     PREFIX = "integration-tests-scrubbing-"
     MAX_SCRUBBING_CHECKS = 20
     SCRUBBING_TIMEOUT = 45

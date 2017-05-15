@@ -13,7 +13,6 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
 import json
 import time
 from ci.main import CONFIG_LOC
@@ -25,17 +24,19 @@ from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
+from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
 
-class VDiskDeploymentChecks(object):
+class VDiskDeploymentChecks(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_vdisk_deployment"
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     PREFIX = "integration-tests-deployment-"
-    VDISK_SIZES = [2147483648000, 4294967296000, 8589934592000, 17179869184000, 34359738368000, 68719476736000]
+    VDISK_SIZES = [200 * 1024 ** 3, 400 * 1024 ** 3, 800 * 1024 ** 3, 1600 * 1024 ** 3, 3200 * 1024 ** 3, 6400 * 1024 ** 3]
     VDISK_CREATE_TIMEOUT = 150
     VDISK_CHECK_TIMEOUT = 10
     VDISK_CHECK_AMOUNT = 30
@@ -59,15 +60,13 @@ class VDiskDeploymentChecks(object):
         """
         return VDiskDeploymentChecks.validate_vdisk_deployment()
 
-    @staticmethod
-    def validate_vdisk_deployment():
+    @classmethod
+    def validate_vdisk_deployment(cls):
         """
         Validate if vdisk deployment works via various ways
         INFO: 1 vPool should be available on 1 storagerouter
-
         :return:
         """
-
         VDiskDeploymentChecks.LOGGER.info("Starting to validate the vdisk deployment")
 
         with open(CONFIG_LOC, "r") as JSON_CONFIG:
@@ -120,11 +119,13 @@ class VDiskDeploymentChecks(object):
         # ========
         for size in VDiskDeploymentChecks.VDISK_SIZES:
             qemu_disk_name = VDiskDeploymentChecks.PREFIX+str(size)+'-qemu'
-            create_command = ["qemu-img", "create", "openvstorage+{0}:{1}:{2}/{3}".format(protocol, storage_ip, edge_port, qemu_disk_name), "{0}B".format(size)]
-            VDiskDeploymentChecks.LOGGER.info("Starting to create vdisk `{0}` on node `{1}` "
-                                              "with edgeport `{2}` and size `{3}` via `{4}`"
-                                              .format(qemu_disk_name, storage_ip, edge_port, size, protocol))
-            client.run(create_command)
+            edge_info = {'port': edge_port,
+                         'protocol': protocol,
+                         'ip': storage_ip,
+                         }
+            if SystemHelper.get_ovs_version(client) == 'ee':
+                edge_info.update(cls.get_shell_user())
+            VMHandler.create_image(client, qemu_disk_name, size, edge_info)
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(qemu_disk_name))
             VDiskDeploymentChecks._check_vdisk(vdisk_name=qemu_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(qemu_disk_name))

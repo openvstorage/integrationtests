@@ -13,17 +13,17 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
 import json
 from ci.main import CONFIG_LOC
 from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.remove.backend import BackendRemover
 from ci.api_lib.setup.backend import BackendSetup
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.log.log_handler import LogHandler
 
 
-class AddRemoveBackend(object):
+class AddRemoveBackend(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_add_remove_backend"

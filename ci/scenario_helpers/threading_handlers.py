@@ -185,12 +185,13 @@ class ThreadingHandler(object):
                 continue
             # Check if any errors occurred - possible due to the nature of the write data with screens
             # If the fio has had an error, it will break and output to the output file
-            errors = {}
+            errors = set()
             for output_file in output_files:
                 errors.update(set(
-                    client.run('grep -a error {} || true'.format(re.escape(output_file)), allow_insecure=True).split()))
+                    client.run('grep -a error {0} || true'.format(re.escape(output_file)), allow_insecure=True).splitlines()))
             if len(errors) > 0:
-                raise RuntimeError('Fio has reported errors: {} at {}'.format(', '.join(errors), datetime.today().strftime('%Y-%m-%d %H:%M:%S')))
+                raise RuntimeError('Fio has reported errors: {} at {}. Fetched from {}: {}'
+                                   .format(', '.join(errors), datetime.today().strftime('%Y-%m-%d %H:%M:%S'), client.ip, ', '.join(output_files)))
             # Calculate to see if IO is back
             io_volumes = cls.get_all_vdisks_with_io(shared_resource)
             logger.info('Currently got io for {0}: {1}'.format(len(io_volumes), io_volumes))

@@ -25,6 +25,7 @@ from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs.lib.helpers.toolbox import Toolbox
 from ovs.log.log_handler import LogHandler
 
 
@@ -45,8 +46,8 @@ class VMHandler(object):
     VM_OS_TYPE = 'ubuntu16.04'
 
     @classmethod
-    def prepare_vm_disks(cls, source_storagedriver, cloud_image_path, cloud_init_loc, api, port,
-                         vm_amount, hypervisor_ip, vm_name, write_amount, logger=LOGGER):
+    def prepare_vm_disks(cls, source_storagedriver, cloud_image_path, cloud_init_loc, api, port, vm_amount, hypervisor_ip,
+                         vm_name, data_disk_size, edge_user_info=None, logger=LOGGER):
         """
         Will create all necessary vdisks to create the bulk of vms
         :param source_storagedriver: storagedriver to create the disks on
@@ -55,15 +56,28 @@ class VMHandler(object):
         :param api: ovsclient instance
         :param vm_amount: amount of vms to test with
         :param vm_name: name prefix for the vms
-        :param write_amount: amount of data to read/write
+        :param data_disk_size: size of the data disk
         :param hypervisor_ip: ip of the hypervisor
         :param port: port to listen on
+        :param edge_user_info: user information for the edge. Optional
         :param logger: logging instance
         :return: 
         """
+        if isinstance(edge_user_info, dict):
+            required_edge_params = {'username': (str, None, False),
+                                    'password': (str, None, False)}
+            Toolbox.verify_required_params(required_edge_params, edge_user_info)
+        if edge_user_info is None:
+            edge_user_info = {}
+
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
         vpool = source_storagedriver.vpool
         client = SSHClient(source_storagedriver.storagerouter, username='root')
+
+        edge_configuration = {'ip': source_storagedriver.storage_ip,
+                              'port': source_storagedriver.ports['edge'],
+                              'protocol': protocol}
+        edge_configuration.update(edge_user_info)
 
         original_boot_disk_name = None  # Cloning purposes
         original_data_disk_name = None  # Cloning purposes
@@ -85,11 +99,7 @@ class VMHandler(object):
             if vm_number == 0:
                 try:
                     # Create VDISKs
-                    ovs_path = 'openvstorage+{0}:{1}:{2}/{3}'.format(protocol, source_storagedriver.storage_ip,
-                                                                     source_storagedriver.ports['edge'],
-                                                                     boot_vdisk_name)
-                    logger.info('Copying the image to the vdisk with command `qemu-img convert {0}`'.format(ovs_path))
-                    client.run(['qemu-img', 'convert', cloud_image_path, ovs_path])
+                    cls.convert_image(client, cloud_image_path, boot_vdisk_name, edge_configuration)
                 except RuntimeError as ex:
                     logger.error('Could not covert the image. Got {0}'.format(str(ex)))
                     raise
@@ -97,7 +107,7 @@ class VMHandler(object):
                 original_boot_disk_name = boot_vdisk_name
                 logger.info('Boot VDisk successfully created.')
                 try:
-                    data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, write_amount, source_storagedriver.storage_ip, api))
+                    data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, data_disk_size, source_storagedriver.storage_ip, api))
                     logger.info('VDisk data_vdisk successfully created!')
                 except TimeOutError:
                     logger.error('The creation of the data vdisk has timed out.')
@@ -125,10 +135,7 @@ class VMHandler(object):
             #######################
             iso_loc = cls._generate_cloud_init(client=client, convert_script_loc=cloud_init_loc,
                                                port=port, hypervisor_ip=hypervisor_ip, create_msg=create_msg)
-            client.run(['qemu-img', 'convert', iso_loc, 'openvstorage+{0}:{1}:{2}/{3}'.format(protocol,
-                                                                                              source_storagedriver.storage_ip,
-                                                                                              source_storagedriver.ports['edge'],
-                                                                                              cd_vdisk_name)])
+            cls.convert_image(client, iso_loc, cd_vdisk_name, edge_configuration)
             cd_creation_time = time.time()
             cd_vdisk = None
             while cd_vdisk is None:
@@ -159,14 +166,14 @@ class VMHandler(object):
         return vm_info, connection_messages, volume_amount
 
     @classmethod
-    def create_vms(cls, ip, port, connection_messages, vm_info, edge_details, hypervisor_client, timeout):
+    def create_vms(cls, ip, port, connection_messages, vm_info, edge_configuration, hypervisor_client, timeout):
         """
         Create multiple VMs and wait for their creation to be completed
         :param ip: ip to listen on
         :param port: port to listen on
         :param connection_messages: connection messages to lookout for
         :param vm_info: information about the vms
-        :param edge_details: details of the edge
+        :param edge_configuration: details of the edge
         :param hypervisor_client: hypervisor instance
         :param timeout: timeout listening
         :return: 
@@ -182,7 +189,7 @@ class VMHandler(object):
                               hypervisor_client=hypervisor_client,
                               disks=vm_data['disks'],
                               networks=vm_data['networks'],
-                              edge_details=edge_details,
+                              edge_configuration=edge_configuration,
                               cd_path=vm_data['cd_path'])
             listening_thread.join()  # Wait for all to finish
             vm_ip_info = listening_queue.get()
@@ -305,14 +312,14 @@ class VMHandler(object):
         queue.put(vm_ips_info)
 
     @staticmethod
-    def create_vm(hypervisor_client, disks, networks, edge_details, cd_path, vm_name, vcpus=VM_VCPUS, ram=VM_VRAM,
+    def create_vm(hypervisor_client, disks, networks, edge_configuration, cd_path, vm_name, vcpus=VM_VCPUS, ram=VM_VRAM,
                   os_type=VM_OS_TYPE, logger=LOGGER):
         """
         Creates and wait for the VM to be fully connected
         :param hypervisor_client: hypervisor client instance
         :param disks: disk info
         :param networks: network info
-        :param edge_details: edge info
+        :param edge_configuration: edge info
         :param cd_path: cd info
         :param vcpus: number of virtual cpus
         :param ram: amount of ram
@@ -321,8 +328,6 @@ class VMHandler(object):
         :param logger: logging instance
         :return: None
         """
-        edge_hostname = edge_details['hostname']
-        edge_port = edge_details['port']
         logger.info('Creating VM `{0}`'.format(vm_name))
         hypervisor_client.sdk.create_vm(vm_name,
                                         vcpus=vcpus,
@@ -330,9 +335,7 @@ class VMHandler(object):
                                         cdrom_iso=cd_path,
                                         disks=disks,
                                         networks=networks,
-                                        ovs_vm=True,
-                                        hostname=edge_hostname,
-                                        edge_port=edge_port,
+                                        edge_configuration=edge_configuration,
                                         start=True,
                                         os_type=os_type)
         logger.info('Created VM `{0}`!'.format(vm_name))
@@ -396,3 +399,47 @@ class VMHandler(object):
                 raise
             else:
                 pass
+
+    @staticmethod
+    def create_image(client, diskname, disk_size, edge_info, logger=LOGGER):
+        """
+        Converts an image file with qemu over edge connection
+        :return: None
+        """
+        required_edge_params = {'port': (int, {'min': 1, 'max': 65565}),
+                                'protocol': (str, ['tcp', 'udp', 'rdma']),
+                                'ip': (str, Toolbox.regex_ip),
+                                'username': (str, None, False),
+                                'password': (str, None, False)}
+        Toolbox.verify_required_params(required_edge_params, edge_info)
+        if edge_info.get('username') and edge_info.get('password'):
+            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'], edge_info['ip'],
+                                                                                                  edge_info['port'], diskname,
+                                                                                                  edge_info['username'], edge_info['password'])
+        else:
+            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}".format(edge_info['protocol'], edge_info['ip'], edge_info['port'], diskname)
+        cmd = ["qemu-img", "create", ovs_edge_connection, "{0}B".format(disk_size)]
+        logger.debug('Converting an image with qemu using: {}'.format(' '.join(cmd)))
+        client.run(cmd)
+
+    @staticmethod
+    def convert_image(client, image_location, diskname, edge_info, logger=LOGGER):
+        required_edge_params = {'port': (int, {'min': 1, 'max': 65565}),
+                                'protocol': (str, ['tcp', 'udp', 'rdma']),
+                                'ip': (str, Toolbox.regex_ip),
+                                'username': (str, None, False),
+                                'password': (str, None, False)}
+        Toolbox.verify_required_params(required_edge_params, edge_info)
+        if edge_info.get('username') and edge_info.get('password'):
+            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'],
+                                                                                                  edge_info['ip'],
+                                                                                                  edge_info['port'],
+                                                                                                  diskname,
+                                                                                                  edge_info['username'],
+                                                                                                  edge_info['password'])
+        else:
+            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}".format(edge_info['protocol'], edge_info['ip'],
+                                                                        edge_info['port'], diskname)
+        cmd = ["qemu-img", "convert", image_location, ovs_edge_connection]
+        logger.debug('Converting an image with qemu using: {}'.format(' '.join(cmd)))
+        client.run(cmd)

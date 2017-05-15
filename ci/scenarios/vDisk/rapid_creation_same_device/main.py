@@ -17,12 +17,13 @@ import random
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.lib.vdisk import VDiskController
 from ovs.log.log_handler import LogHandler
-from ci.autotests import gather_results
 
 
-class VDiskControllerTester(object):
+class VDiskControllerTester(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_rapid_create_delete_same_device"
