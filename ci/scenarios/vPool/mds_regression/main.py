@@ -83,15 +83,21 @@ class RegressionTester(CIConstants):
                                                        hypervisor_info['user'],
                                                        hypervisor_info['password'],
                                                        hypervisor_info['type'])
-        vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(source_storagedriver=source_storagedriver,
-                                                                                 cloud_image_path=cloud_image_path,
-                                                                                 cloud_init_loc=cloud_init_loc,
-                                                                                 api=api,
-                                                                                 vm_amount=vm_amount,
-                                                                                 port=listening_port,
-                                                                                 hypervisor_ip=compute_client.ip,
-                                                                                 vm_name=cls.VM_NAME,
-                                                                                 data_disk_size=cls.AMOUNT_TO_WRITE * 20)
+        edge_user_info = {}
+        if is_ee is True:
+            edge_user_info = cls.get_shell_user()
+            edge_details.update(edge_user_info)
+        vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
+            source_storagedriver=source_storagedriver,
+            cloud_image_path=cloud_image_path,
+            cloud_init_loc=cloud_init_loc,
+            api=api,
+            vm_amount=vm_amount,
+            port=listening_port,
+            hypervisor_ip=compute_client.ip,
+            vm_name=cls.VM_NAME,
+            data_disk_size=cls.AMOUNT_TO_WRITE * 2,
+            edge_user_info=edge_user_info)
         vm_info = VMHandler.create_vms(ip=compute_client.ip,
                                        port=listening_port,
                                        connection_messages=connection_messages,

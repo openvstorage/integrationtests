@@ -131,6 +131,8 @@ class CIConstants(object):
                     voldr_str_2 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
             elif node_details['role'] == "COMPUTE" and compute_str is None:
                 compute_str = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
+        assert voldr_str_1 is not None and voldr_str_2 is not None and compute_str is not None,\
+            'Could not fetch 2 storagediver nodes and 1 compute node based on the setup.json config.'
         return voldr_str_1, voldr_str_2, compute_str
 
     @classmethod

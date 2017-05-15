@@ -127,8 +127,9 @@ class DataWriter(object):
         """
         @todo support output files
         Write data using vdbench.
-        :param binary_location: 
-        :param config_location: 
+        :param client: sshclient instance
+        :param binary_location: path to the binary file
+        :param config_location: path to the config location
         :param screen: offload command to a screen 
         :param loop_screen: loop the screen command indefinitely
         :param logger: logging instance
