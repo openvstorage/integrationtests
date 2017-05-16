@@ -51,6 +51,7 @@ class DTLChecks(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return DTLChecks._execute_test()
 
     @staticmethod

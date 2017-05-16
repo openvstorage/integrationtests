@@ -37,12 +37,12 @@ class AddRemoveBackend(CIConstants):
     def main(blocked):
         """
         Run all required methods for the test
-
         :param blocked: was the test blocked by other test?
         :type blocked: bool
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return AddRemoveBackend.validate_add_remove_backend()
 
     @staticmethod

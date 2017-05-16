@@ -43,6 +43,7 @@ class VDiskControllerTester(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return VDiskControllerTester._execute_test()
 
     @staticmethod

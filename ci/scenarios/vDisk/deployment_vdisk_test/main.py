@@ -58,6 +58,7 @@ class VDiskDeploymentChecks(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return VDiskDeploymentChecks.validate_vdisk_deployment()
 
     @classmethod

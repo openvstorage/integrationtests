@@ -47,6 +47,7 @@ class EdgeTester(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return EdgeTester.start_test()
 
     @classmethod

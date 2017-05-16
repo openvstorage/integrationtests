@@ -37,11 +37,11 @@ class ArakoonValidation(CIConstants):
     def main(blocked):
         """
         Run all required methods for the test
-
         :param blocked: was the test blocked by other test?
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return ArakoonValidation.validate_cluster()
 
     @staticmethod

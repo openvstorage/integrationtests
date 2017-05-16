@@ -57,6 +57,7 @@ class VDiskTemplateChecks(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return VDiskTemplateChecks.validate_vdisk_clone()
 
     @staticmethod

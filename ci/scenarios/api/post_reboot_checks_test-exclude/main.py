@@ -47,6 +47,7 @@ class PostRebootChecks(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return PostRebootChecks.validate_post_reboot()
 
     @staticmethod

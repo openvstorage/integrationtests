@@ -68,6 +68,7 @@ class AdvancedDTLTester(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return AdvancedDTLTester.start_test()
 
     @classmethod

@@ -59,6 +59,7 @@ class RollbackChecks(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return RollbackChecks.validate_rollback()
 
     @staticmethod

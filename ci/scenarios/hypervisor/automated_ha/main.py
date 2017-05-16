@@ -60,6 +60,7 @@ class HATester(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return HATester.start_test()
 
     @classmethod
@@ -409,7 +410,7 @@ class HATester(CIConstants):
         for service in services:
             if target_storagedriver.vpool.name not in service:
                 continue
-            while ServiceManager.get_service_status(service, to_be_downed_client)[0] is False:
+            while ServiceManager.get_service_status(service, to_be_downed_client) != 'active':
                 if time.time() - start_time > timeout:
                     raise RuntimeError('Service {0} did not come up after {1}s. Something must be wrong with it.'.format(service, HATester.HA_TIMEOUT))
                 time.sleep(1)

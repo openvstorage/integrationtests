@@ -33,12 +33,12 @@ class RoleChecks(CIConstants):
     def main(blocked):
         """
         Run all required methods for the test
-
         :param blocked: was the test blocked by other test?
         :type blocked: bool
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return RoleChecks.validate_add_append_remove_roles()
 
     @staticmethod

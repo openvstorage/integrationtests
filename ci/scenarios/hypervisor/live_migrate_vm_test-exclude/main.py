@@ -64,6 +64,7 @@ class MigrateTester(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return MigrateTester.start_test()
 
     @classmethod

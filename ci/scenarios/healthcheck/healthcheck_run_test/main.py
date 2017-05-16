@@ -43,6 +43,7 @@ class HealthCheckCI(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return HealthCheckCI.validate_healthcheck()
 
     @staticmethod

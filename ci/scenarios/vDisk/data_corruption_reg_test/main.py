@@ -69,6 +69,7 @@ class DataCorruptionTester(CIConstants):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         DataCorruptionTester.start_test()
 
     @classmethod
