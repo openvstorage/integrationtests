@@ -25,6 +25,7 @@ from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
@@ -121,8 +122,13 @@ class FioOnVDiskChecks(CIConstants):
                                              "protocol `{3}` & diskname `{4}`"
                                              .format(image_path, storage_ip, edge_port, protocol, disk_name))
                 FioOnVDiskChecks.LOGGER.info("Converting image...")
-                client.run(["qemu-img", "convert", image_path, "openvstorage+{0}:{1}:{2}/{3}"
-                           .format(protocol, storage_ip, edge_port, disk_name)])
+                edge_info = {'port': edge_port,
+                             'protocol': protocol,
+                             'ip': storage_ip,
+                             }
+                if SystemHelper.get_ovs_version(client) == 'ee':
+                    edge_info.update(FioOnVDiskChecks.get_shell_user())
+                VMHandler.create_image(client, disk_name, FioOnVDiskChecks.VDISK_SIZE, edge_info)
                 FioOnVDiskChecks.LOGGER.info("Creating a tap blk device for image...")
                 tap_dir = client.run(["tap-ctl", "create", "-a", "openvstorage+{0}:{1}:{2}/{3}"
                                      .format(protocol, storage_ip, edge_port, disk_name)])
