@@ -13,7 +13,9 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.lists.servicelist import ServiceList
 from ovs.extensions.generic.configuration import Configuration
@@ -21,11 +23,9 @@ from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.generic import GenericController
 from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.autotests import gather_results
 
 
-class ArakoonCollapse(object):
+class ArakoonCollapse(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_arakoon_collapse"
@@ -39,11 +39,11 @@ class ArakoonCollapse(object):
     def main(blocked):
         """
         Run all required methods for the test
-
         :param blocked: was the test blocked by other test?
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return ArakoonCollapse.test_collapse()
 
     @staticmethod

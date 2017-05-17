@@ -13,7 +13,6 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
 import json
 import time
 from ci.main import CONFIG_LOC
@@ -23,10 +22,11 @@ from ci.api_lib.remove.backend import BackendRemover
 from ci.api_lib.setup.backend import BackendSetup
 from ci.api_lib.validate.backend import BackendValidation
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.log.log_handler import LogHandler
 
 
-class AddUpdateRemovePreset(object):
+class AddUpdateRemovePreset(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_add_remove_backend"
@@ -40,12 +40,12 @@ class AddUpdateRemovePreset(object):
     def main(blocked):
         """
         Run all required methods for the test
-
         :param blocked: was the test blocked by other test?
         :type blocked: bool
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return AddUpdateRemovePreset.validate_add_update_remove_preset()
 
     @staticmethod

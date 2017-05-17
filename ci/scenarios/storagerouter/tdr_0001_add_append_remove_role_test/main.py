@@ -15,10 +15,11 @@
 # but WITHOUT ANY WARRANTY of any kind.
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.log.log_handler import LogHandler
 
 
-class RoleChecks(object):
+class RoleChecks(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_add_append_remove_roles"
@@ -32,12 +33,12 @@ class RoleChecks(object):
     def main(blocked):
         """
         Run all required methods for the test
-
         :param blocked: was the test blocked by other test?
         :type blocked: bool
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return RoleChecks.validate_add_append_remove_roles()
 
     @staticmethod

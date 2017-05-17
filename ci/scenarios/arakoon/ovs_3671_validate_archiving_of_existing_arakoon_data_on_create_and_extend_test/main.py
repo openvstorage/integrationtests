@@ -13,17 +13,17 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
 import os
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.remove.arakoon import ArakoonRemover
 from ci.api_lib.setup.arakoon import ArakoonSetup
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
 
-class ArakoonArchiving(object):
+class ArakoonArchiving(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_archiving"
@@ -37,12 +37,11 @@ class ArakoonArchiving(object):
     def main(blocked):
         """
         Run all required methods for the test
-
         :param blocked: was the test blocked by other test?
         :return: results of test
         :rtype: dict
         """
-
+        _ = blocked
         return ArakoonArchiving.test_archiving()
 
     @staticmethod

@@ -13,7 +13,6 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
 import json
 import time
 import random
@@ -26,10 +25,11 @@ from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.main import CONFIG_LOC
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.log.log_handler import LogHandler
 
 
-class MigrateTester(object):
+class MigrateTester(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_vdisk_migrate_offline"
@@ -55,6 +55,7 @@ class MigrateTester(object):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return MigrateTester._execute_test()
 
     @staticmethod

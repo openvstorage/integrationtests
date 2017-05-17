@@ -13,7 +13,6 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-
 import json
 import time
 import subprocess
@@ -25,12 +24,13 @@ from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
-from ci.autotests import gather_results
 
 
-class RollbackChecks(object):
+class RollbackChecks(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_rollback"
@@ -59,6 +59,7 @@ class RollbackChecks(object):
         :return: results of test
         :rtype: dict
         """
+        _ = blocked
         return RollbackChecks.validate_rollback()
 
     @staticmethod
