@@ -186,8 +186,7 @@ class MigrateTester(CIConstants):
         with remote(source_storagedriver.storage_ip, [SSHClient]) as rem:
             test_run_nr = 0
             configuration = random.choice(cls.DATA_TEST_CASES)
-            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
-                                   'snapshots': {'pairs': [], 'r_semaphore': None}}}
+            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None}}}
             output_files = []
             try:
                 logger.info('Starting the following configuration: {0}'.format(configuration))
@@ -210,8 +209,8 @@ class MigrateTester(CIConstants):
                                                                           file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
                     vm_data['screen_names'] = screen_names
                 logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
-                ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                      threads=threads['evented']['io']['pairs'],
+                ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                      threads=io_thread_pairs,
                                                       shared_resource=monitoring_data,
                                                       duration=cls.IO_TIME)
                 # Threads ready for monitoring at this point
@@ -226,9 +225,10 @@ class MigrateTester(CIConstants):
                     logger.error('Failed to stop. Got {0}'.format(str(ex)))
                     raise
                 downed_time = time.time()
+                time.sleep(cls.IO_REFRESH_RATE * 2)
                 # Start IO polling to verify nothing went down
-                ThreadingHandler.poll_io(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                         required_thread_amount=len(threads),
+                ThreadingHandler.poll_io(r_semaphore=io_r_semaphore,
+                                         required_thread_amount=len(io_thread_pairs),
                                          shared_resource=monitoring_data,
                                          downed_time=downed_time,
                                          timeout=cls.FAILOVER_TIMEOUT,
@@ -236,8 +236,8 @@ class MigrateTester(CIConstants):
                                          client=client,
                                          disk_amount=disk_amount)
                 # Do some more IO to trigger ownership migration
-                ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                      threads=threads['evented']['io']['pairs'],
+                ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                      threads=io_thread_pairs,
                                                       shared_resource=monitoring_data,
                                                       duration=cls.IO_TIME)
                 cls._validate_move(values_to_check)
