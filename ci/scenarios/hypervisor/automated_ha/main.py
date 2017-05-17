@@ -14,6 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import time
+import random
 from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.domain import DomainHelper
@@ -128,12 +129,12 @@ class HATester(CIConstants):
         compute_client.run(['wget', fio_bin_url, '-O', fio_bin_loc])
         compute_client.file_chmod(fio_bin_loc, 755)
         assert compute_client.file_exists(fio_bin_loc), 'Could not get the latest fio binary.'
-        return cluster_info, is_ee, image_path, cloud_init_loc
+        return cluster_info, is_ee, image_path, cloud_init_loc, fio_bin_loc
 
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
         api = cls.get_api_instance()
-        cluster_info, is_ee, cloud_image_path, cloud_init_loc = cls.setup()
+        cluster_info, is_ee, cloud_image_path, cloud_init_loc, fio_bin_path = cls.setup()
         compute_ip = cluster_info['storagerouters']['compute'].ip
         listening_port = NetworkHelper.get_free_port(compute_ip)
 
@@ -166,19 +167,17 @@ class HATester(CIConstants):
                                        edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.HA_TIMEOUT)
-        cls.run_test(cluster_info=cluster_info,
-                     disk_amount=volume_amount,
-                     vm_info=vm_info,
-                     api=api)
+        cls.run_test(cluster_info=cluster_info, vm_info=vm_info)
+        # cls.test_ha_fio(fio_bin_path, cluster_info, is_ee, api)
 
     @classmethod
-    def run_test(cls, vm_info, cluster_info, api, disk_amount, logger=LOGGER):
+    def run_test(cls, vm_info, cluster_info, logger=LOGGER):
         """
         Tests the HA using a virtual machine which will write in his own filesystem
         :param cluster_info: information about the cluster, contains all dal objects
         :type cluster_info: dict
-        :param api: api object to call the ovs api
-        :type api: ci.api_lib.helpers.api.OVSClient
+        :param vm_info: info about the vms
+        :param logger: logging instance
         :return: None
         :rtype: NoneType
         """
@@ -201,92 +200,85 @@ class HATester(CIConstants):
                                                   HATester.PARENT_HYPERVISOR_INFO['type'])
         # Extract vdisk info from vm_info
         vdisk_info = {}
+        disk_amount = 0
         for vm_name, vm_object in vm_info.iteritems():
             for vdisk in vm_object['vdisks']:
+                # Ignore the cd vdisk as no IO will come from it
+                if vdisk.name == vm_object['cd_path'].replace('.raw', '').split('/')[-1]:
+                    continue
+                disk_amount += 1
                 vdisk_info.update({vdisk.name: vdisk})
                 
         with remote(compute_client.ip, [SSHClient]) as rem:
-            for test_run_nr, configuration in enumerate(HATester.DATA_TEST_CASES):
-                threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
-                                       'snapshots': {'pairs': [], 'r_semaphore': None}}}
-                output_files = []
-                vm_downed = False
-                failed_over = False
+            configuration = random.choice(cls.DATA_TEST_CASES)
+            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None}}}
+            output_files = []
+            vm_downed = False
+            try:
+                logger.info('Starting the following configuration: {0}'.format(configuration))
+                for vm_name, vm_data in vm_info.iteritems():
+                    vm_client = rem.SSHClient(vm_data['ip'], cls.VM_USERNAME, cls.VM_PASSWORD)
+                    vm_client.file_create('/mnt/data/{0}.raw'.format(vm_data['create_msg']))
+                    vm_data['client'] = vm_client
+                io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
+                threads['evented']['io']['pairs'] = io_thread_pairs
+                threads['evented']['io']['r_semaphore'] = io_r_semaphore
+                for vm_name, vm_data in vm_info.iteritems():  # Write data
+                    screen_names, output_files = DataWriter.write_data_fio(client=vm_data['client'],
+                                                                           fio_configuration={
+                                                                               'io_size': cls.AMOUNT_TO_WRITE,
+                                                                               'configuration': configuration},
+                                                                           file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
+                    vm_data['screen_names'] = screen_names
+                logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
+                ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                      threads=io_thread_pairs,
+                                                      shared_resource=monitoring_data,
+                                                      duration=cls.IO_TIME)
+                # Threads ready for monitoring at this point
+                #########################
+                # Bringing original owner of the volume down
+                #########################
                 try:
-                    logger.info('Starting the following configuration: {0}'.format(configuration))
-                    if test_run_nr == 0:  # Build reusable ssh clients
-                        for vm_name, vm_data in vm_info.iteritems():
-                            vm_client = rem.SSHClient(vm_data['ip'], cls.VM_USERNAME, cls.VM_PASSWORD)
-                            vm_client.file_create('/mnt/data/{0}.raw'.format(vm_data['create_msg']))
-                            vm_data['client'] = vm_client
-                    else:
-                        for vm_name, vm_data in vm_info.iteritems():
-                            vm_data['client'].run(['rm', '/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
-                    io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
-                    threads['evented']['io']['pairs'] = io_thread_pairs
-                    threads['evented']['io']['r_semaphore'] = io_r_semaphore
-                    for vm_name, vm_data in vm_info.iteritems():  # Write data
-                        screen_names, output_files = DataWriter.write_data_fio(client=vm_data['client'],
-                                                                               fio_configuration={
-                                                                                   'io_size': cls.AMOUNT_TO_WRITE,
-                                                                                   'configuration': configuration},
-                                                                               file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
-                        vm_data['screen_names'] = screen_names
-                    logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
-                    ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                          threads=threads['evented']['io']['pairs'],
-                                                          shared_resource=monitoring_data,
-                                                          duration=cls.IO_TIME)
-                    # Threads ready for monitoring at this point
-                    #########################
-                    # Bringing original owner of the volume down
-                    #########################
-                    try:
-                        logger.info('Stopping {0}.'.format(vm_to_stop))
-                        VMHandler.stop_vm(hypervisor=parent_hypervisor, vmid=vm_to_stop)
-                        vm_downed = True
-                    except Exception as ex:
-                        logger.error('Failed to stop. Got {0}'.format(str(ex)))
-                        raise
-                    downed_time = time.time()
-                    # Start IO polling to verify nothing went down
-                    ThreadingHandler.poll_io(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                             required_thread_amount=len(threads),
-                                             shared_resource=monitoring_data,
-                                             downed_time=downed_time,
-                                             timeout=cls.HA_TIMEOUT,
-                                             output_files=output_files,
-                                             client=compute_client,
-                                             disk_amount=disk_amount)
-                    failed_over = True
-                    HATester._validate(values_to_check, monitoring_data)
+                    logger.info('Stopping {0}.'.format(vm_to_stop))
+                    VMHandler.stop_vm(hypervisor=parent_hypervisor, vmid=vm_to_stop)
+                    vm_downed = True
                 except Exception as ex:
-                    logger.error('Running the test for configuration {0} has failed because {1}'.format(configuration, str(ex)))
-                    failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
-                finally:
-                    if vm_downed is True:
-                        VMHandler.start_vm(parent_hypervisor, vm_to_stop)
-                    for thread_category, thread_collection in threads['evented'].iteritems():
-                        ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
-                    for vm_name, vm_data in vm_info.iteritems():
-                        for screen_name in vm_data.get('screen_names', []):
-                            logger.debug('Stopping screen {0} on {1}.'.format(screen_name, vm_data['client'].ip))
-                            vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
-                        vm_data['screen_names'] = []
-                    if failed_over:
-                        cls._wait_and_move(vdisk_info, source_storagedriver.storagerouter.guid, api)
+                    logger.error('Failed to stop. Got {0}'.format(str(ex)))
+                    raise
+                downed_time = time.time()
+                time.sleep(HATester.IO_REFRESH_RATE * 2)
+                # Start IO polling to verify nothing went down
+                ThreadingHandler.poll_io(r_semaphore=io_r_semaphore,
+                                         required_thread_amount=len(io_thread_pairs),
+                                         shared_resource=monitoring_data,
+                                         downed_time=downed_time,
+                                         timeout=cls.HA_TIMEOUT,
+                                         output_files=output_files,
+                                         client=compute_client,
+                                         disk_amount=disk_amount)
+                HATester._validate(values_to_check, monitoring_data)
+            except Exception as ex:
+                logger.error('Running the test for configuration {0} has failed because {1}'.format(configuration, str(ex)))
+                failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
+            finally:
+                if vm_downed is True:
+                    VMHandler.start_vm(parent_hypervisor, vm_to_stop)
+                for thread_category, thread_collection in threads['evented'].iteritems():
+                    ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
+                for vm_name, vm_data in vm_info.iteritems():
+                    for screen_name in vm_data.get('screen_names', []):
+                        logger.debug('Stopping screen {0} on {1}.'.format(screen_name, vm_data['client'].ip))
+                        vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
+                    vm_data['screen_names'] = []
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @classmethod
-    def test_ha_fio(cls, fio_bin_path, vpool, compute_client, cluster_info, is_ee,  api, disk_amount=1, timeout=CIConstants.HA_TIMEOUT, logger=LOGGER):
+    def test_ha_fio(cls, fio_bin_path, cluster_info, is_ee,  api, disk_amount=1, timeout=CIConstants.HA_TIMEOUT, logger=LOGGER):
         """
         Uses a modified fio to work with the openvstorage protocol
         :param fio_bin_path: path of the fio binary
         :type fio_bin_path: str
-        :param compute_client: client of the machine to execute the fio
-        :type compute_client: ovs.extensions.generic.sshclient.SSHClient
-        :param vpool: vpool DAL object of the vpool to use
-        :type vpool: ovs.dal.hybrids.vpool.VPool
         :param cluster_info: information about the cluster, contains all dal objects
         :type cluster_info: dict
         :param api: api object to call the ovs api
@@ -300,6 +292,9 @@ class HATester(CIConstants):
         """
         destination_storagedriver = cluster_info['storagedrivers']['destination']
         source_storagedriver = cluster_info['storagedrivers']['source']
+        vpool = destination_storagedriver.vpool
+
+        compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
 
         vm_to_stop = HATester.PARENT_HYPERVISOR_INFO['vms'][source_storagedriver.storage_ip]['name']
         parent_hypervisor = HypervisorFactory.get(HATester.PARENT_HYPERVISOR_INFO['ip'],
@@ -335,65 +330,58 @@ class HATester(CIConstants):
             except RuntimeError as ex:
                 logger.error('Could not create the vdisk. Got {0}'.format(str(ex)))
                 raise
+        configuration = random.choice(cls.DATA_TEST_CASES)
+        threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None}}}
+        vm_downed = False
+        screen_names = []
+        try:
+            logger.info('Starting threads.')  # Separate because creating vdisks takes a while, while creating the threads does not
 
-        for configuration in HATester.DATA_TEST_CASES:
-            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
-                                   'snapshots': {'pairs': [], 'r_semaphore': None}}}
-            vm_downed = False
-            screen_names = []
-            failed_over = False
+            io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
+            threads['evented']['io']['pairs'] = io_thread_pairs
+            threads['evented']['io']['r_semaphore'] = io_r_semaphore
+            screen_names, output_files = DataWriter.write_data_fio(client=compute_client,
+                                                                   fio_configuration={'io_size': cls.AMOUNT_TO_WRITE,
+                                                                                      'configuration': configuration},
+                                                                   edge_configuration=edge_configuration)
+            logger.info('Doing IO for {0}s before bringing down the node.'.format(HATester.IO_TIME))
+            ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                  threads=io_thread_pairs,
+                                                  shared_resource=monitoring_data,
+                                                  duration=cls.IO_TIME)
+            # Threads ready for monitoring at this point
+            #########################
+            # Bringing original owner of the volume down
+            #########################
             try:
-                logger.info('Starting threads.')  # Separate because creating vdisks takes a while, while creating the threads does not
-
-                io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
-                threads['evented']['io']['pairs'] = io_thread_pairs
-                threads['evented']['io']['r_semaphore'] = io_r_semaphore
-                screen_names, output_files = DataWriter.write_data_fio(client=compute_client,
-                                                                       fio_configuration={'io_size': cls.AMOUNT_TO_WRITE,
-                                                                                          'configuration': configuration},
-                                                                       edge_configuration=edge_configuration)
-                logger.info('Doing IO for {0}s before bringing down the node.'.format(HATester.IO_TIME))
-                ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                      threads=threads['evented']['io']['pairs'],
-                                                      shared_resource=monitoring_data,
-                                                      duration=cls.IO_TIME)
-                # Threads ready for monitoring at this point
-                #########################
-                # Bringing original owner of the volume down
-                #########################
-                try:
-                    logger.info('Stopping {0}.'.format(vm_to_stop))
-                    VMHandler.stop_vm(hypervisor=parent_hypervisor, vmid=vm_to_stop)
-                    downed_time = time.time()
-                    vm_downed = True
-                except Exception as ex:
-                    logger.error('Failed to stop. Got {0}'.format(str(ex)))
-                    raise
-                time.sleep(HATester.IO_REFRESH_RATE)
-                # Start IO polling to verify nothing went down
-                ThreadingHandler.poll_io(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                         required_thread_amount=len(threads),
-                                         shared_resource=monitoring_data,
-                                         downed_time=downed_time,
-                                         timeout=timeout,
-                                         output_files=output_files,
-                                         client=compute_client,
-                                         disk_amount=disk_amount)
-                HATester._validate(values_to_check, monitoring_data)
+                logger.info('Stopping {0}.'.format(vm_to_stop))
+                VMHandler.stop_vm(hypervisor=parent_hypervisor, vmid=vm_to_stop)
+                downed_time = time.time()
+                vm_downed = True
             except Exception as ex:
-                failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
-            finally:
-                if vm_downed is True:
-                    VMHandler.start_vm(parent_hypervisor, vm_to_stop)
-                if screen_names:
-                    for screen_name in screen_names:
-                        compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
-                for thread_category, thread_collection in threads['evented'].iteritems():
-                    ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
-                if failed_over:
-                    # Wait for the downed node to come back up
-                    cls._wait_and_move(vdisk_info, source_storagedriver.storagerouter.guid, api)
-
+                logger.error('Failed to stop. Got {0}'.format(str(ex)))
+                raise
+            time.sleep(HATester.IO_REFRESH_RATE * 2)
+            # Start IO polling to verify nothing went down
+            ThreadingHandler.poll_io(r_semaphore=io_r_semaphore,
+                                     required_thread_amount=len(io_thread_pairs),
+                                     shared_resource=monitoring_data,
+                                     downed_time=downed_time,
+                                     timeout=timeout,
+                                     output_files=output_files,
+                                     client=compute_client,
+                                     disk_amount=disk_amount)
+            HATester._validate(values_to_check, monitoring_data)
+        except Exception as ex:
+            failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
+        finally:
+            if vm_downed is True:
+                VMHandler.start_vm(parent_hypervisor, vm_to_stop)
+            if screen_names:
+                for screen_name in screen_names:
+                    compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
+            for thread_category, thread_collection in threads['evented'].iteritems():
+                ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @staticmethod

@@ -109,7 +109,7 @@ class AdvancedDTLTester(CIConstants):
                                        edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.VM_WAIT_TIME)
-        cls.run_test(vm_info=vm_info, cluster_info=cluster_info, disk_amount=volume_amount)
+        cls.run_test(vm_info=vm_info, cluster_info=cluster_info)
 
     @classmethod
     def setup(cls, logger=LOGGER):
@@ -176,12 +176,14 @@ class AdvancedDTLTester(CIConstants):
         return cluster_info, image_path, cloud_init_loc, is_ee
 
     @classmethod
-    def run_test(cls, vm_info, cluster_info, disk_amount, logger=LOGGER):
+    def run_test(cls, vm_info, cluster_info, logger=LOGGER):
         """
         Tests the DTL using a virtual machine which will write in his own filesystem
         Expects last data to be pulled from the DTL and not backend
         :param cluster_info: information about the cluster, contains all dal objects
         :type cluster_info: dict
+        :param vm_info: info about the vms
+        :param logger: logging instance
         :return: None
         :rtype: NoneType
         """
@@ -196,11 +198,23 @@ class AdvancedDTLTester(CIConstants):
                                                   AdvancedDTLTester.PARENT_HYPERVISOR_INFO['user'],
                                                   AdvancedDTLTester.PARENT_HYPERVISOR_INFO['password'],
                                                   AdvancedDTLTester.PARENT_HYPERVISOR_INFO['type'])
-
         vm_to_stop = cls.PARENT_HYPERVISOR_INFO['vms'][source_std.storage_ip]['name']
+
         vdisk_info = {}
+        disk_amount = 0
         for vm_name, vm_object in vm_info.iteritems():
             for vdisk in vm_object['vdisks']:
+                # Ignore the cd vdisk as no IO will come from it
+                if vdisk.name == vm_object['cd_path'].replace('.raw', '').split('/')[-1]:
+                    continue
+                disk_amount += 1
+                vdisk_info.update({vdisk.name: vdisk})
+
+        for vm_name, vm_object in vm_info.iteritems():
+            for vdisk in vm_object['vdisks']:
+                # Ignore the cd vdisk as no IO will come from it
+                if vdisk.name == vm_object['cd_path'].replace('.raw', '').split('/')[-1]:
+                    continue
                 vdisk_info.update({vdisk.name: vdisk})
 
         # Cache to validate properties
@@ -208,8 +222,7 @@ class AdvancedDTLTester(CIConstants):
             'source_std': source_std.serialize()
         }
         with remote(compute_str.ip, [SSHClient]) as rem:
-            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
-                                   'snapshots': {'pairs': [], 'r_semaphore': None}}}
+            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None}}}
             vm_downed = False
             output_files = []
             try:
@@ -233,8 +246,7 @@ class AdvancedDTLTester(CIConstants):
                     logger.info('Original MD5SUM for VM {0}: {1}.'.format(vm_name, original_md5sum))
                 logger.info('Finished to WRITE file while proxy is offline!')
                 logger.info("Starting fio to generate IO for failing over.".format(AdvancedDTLTester.IO_TIME))
-                io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(
-                    volume_bundle=vdisk_info)
+                io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
                 threads['evented']['io']['pairs'] = io_thread_pairs
                 threads['evented']['io']['r_semaphore'] = io_r_semaphore
                 for vm_name, vm_data in vm_info.iteritems():  # Write data
@@ -245,8 +257,8 @@ class AdvancedDTLTester(CIConstants):
                                                                            file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
                     vm_data['screen_names'] = screen_names
                 logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
-                ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                      threads=threads['evented']['io']['pairs'],
+                ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                      threads=io_thread_pairs,
                                                       shared_resource=monitoring_data,
                                                       duration=cls.IO_TIME)
                 ##############################################
@@ -255,9 +267,10 @@ class AdvancedDTLTester(CIConstants):
                 VMHandler.stop_vm(hypervisor=parent_hypervisor, vmid=vm_to_stop)
                 vm_downed = True
                 downed_time = time.time()
+                time.sleep(cls.IO_REFRESH_RATE * 2)
                 # Start IO polling to verify nothing went down
-                ThreadingHandler.poll_io(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                         required_thread_amount=len(threads),
+                ThreadingHandler.poll_io(r_semaphore=io_r_semaphore,
+                                         required_thread_amount=len(io_thread_pairs),
                                          shared_resource=monitoring_data,
                                          downed_time=downed_time,
                                          timeout=cls.HA_TIMEOUT,

@@ -179,7 +179,7 @@ class ThreadingHandler(object):
         r_semaphore.wait()  # Start IO polling
         while True:
             if time.time() - downed_time > timeout:
-                raise RuntimeError('HA test timed out after {0}s.'.format(timeout))
+                raise RuntimeError('Polling timed out after {0}s.'.format(timeout))
             if r_semaphore.get_counter() < required_thread_amount:
                 time.sleep(1)
                 continue
@@ -200,6 +200,10 @@ class ThreadingHandler(object):
                     datetime.today().strftime('%Y-%m-%d %H:%M:%S'), time.time() - downed_time))
                 break
             logger.info('IO has not come through for {0}s.'.format(time.time() - downed_time))
+            if r_semaphore.get_counter() < required_thread_amount:
+                if time.time() - downed_time > timeout:
+                    raise RuntimeError('Polling timed out after {0}s.'.format(timeout))
+                time.sleep(1)
             r_semaphore.wait()  # Unblock waiting threads
 
     @classmethod
