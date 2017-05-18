@@ -59,7 +59,7 @@ class DataWriter(object):
         Toolbox.verify_required_params(required_fio_params, fio_configuration)
         if isinstance(edge_configuration, dict):
             required_edge_params = {'volumenames': (list, str),
-                                    'port': (int, {'min': 1, 'max': 65565}),
+                                    'port': (int, {'min': 1, 'max': 65535}),
                                     'protocol': (str, ['tcp', 'udp', 'rdma']),
                                     'hostname': (str, None),
                                     'fio_bin_location': (str, None),
@@ -103,11 +103,11 @@ class DataWriter(object):
                 cmds.append(current_cmd)
         else:
             current_cmd = ['fio'] + cmd
+            current_cmd.extend(['--ioengine=libaio', '--size={0}'.format(write_size)])
             if file_locations:
                 for index, file_location in enumerate(file_locations):
                     current_cmd.append('--name=test{0}'.format(index))
                     current_cmd.append('--filename={0}'.format(file_location))
-            current_cmd.extend(['--ioengine=libaio', '--size={0}'.format(write_size)])
             output_file = '{0}/fio'.format(output_directory)
             output_files.append(output_file)
             current_cmd.extend(['--output={0}'.format(output_file), '--output-format={0}'.format(fio_output_format)])
