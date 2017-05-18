@@ -404,7 +404,7 @@ class VMHandler(object):
     def create_blktap_device(client, diskname, edge_info, logger=LOGGER):
         """
         Creates a blk tap device from a vdisk
-        :return: None
+        :return: blktap device location
         """
         required_edge_params = {'port': (int, {'min': 1, 'max': 65565}),
                                 'protocol': (str, ['tcp', 'udp', 'rdma']),

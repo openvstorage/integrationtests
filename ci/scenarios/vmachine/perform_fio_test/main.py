@@ -16,7 +16,6 @@
 import json
 import time
 import subprocess
-from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
 from ci.api_lib.helpers.exceptions import ImageConvertError, VDiskNotFoundError
 from ci.api_lib.helpers.vpool import VPoolHelper
@@ -81,9 +80,6 @@ class FioOnVDiskChecks(CIConstants):
         with open(SETTINGS_LOC, "r") as JSON_SETTINGS:
             settings = json.load(JSON_SETTINGS)
 
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
-
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
 
@@ -130,8 +126,7 @@ class FioOnVDiskChecks(CIConstants):
                 FioOnVDiskChecks.LOGGER.info("Converting image...")
                 edge_info = {'port': edge_port,
                              'protocol': protocol,
-                             'ip': storage_ip,
-                             }
+                             'ip': storage_ip}
                 if SystemHelper.get_ovs_version(client) == 'ee':
                     edge_info.update(FioOnVDiskChecks.get_shell_user())
                 VMHandler.create_image(client, disk_name, FioOnVDiskChecks.VDISK_SIZE, edge_info)
