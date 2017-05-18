@@ -16,7 +16,6 @@
 import json
 import time
 import subprocess
-from ci.main import CONFIG_LOC
 from ci.main import SETTINGS_LOC
 from ci.api_lib.helpers.exceptions import ImageConvertError, VDiskNotFoundError
 from ci.api_lib.helpers.vpool import VPoolHelper
@@ -25,6 +24,7 @@ from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
@@ -39,6 +39,7 @@ class FioOnVDiskChecks(CIConstants):
     AMOUNT_TO_WRITE = 10 * 1024 ** 2  # in MegaByte
     PREFIX = "integration-tests-fio-"
     REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'qemu', 'fio']
+    REQUIRED_PACKAGES_EE = ['blktap-openvstorage-ee-utils', 'qemu', 'fio']
     VDISK_CHECK_TIMEOUT = 10
     VDISK_CHECK_AMOUNT = 30
 
@@ -79,9 +80,6 @@ class FioOnVDiskChecks(CIConstants):
         with open(SETTINGS_LOC, "r") as JSON_SETTINGS:
             settings = json.load(JSON_SETTINGS)
 
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
-
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
 
@@ -97,8 +95,13 @@ class FioOnVDiskChecks(CIConstants):
         client = SSHClient(storagedriver.storage_ip, username='root')
 
         # check if there are missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
+        if SystemHelper.get_ovs_version(client) == 'ee':
+            missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
+                                                             FioOnVDiskChecks.REQUIRED_PACKAGES_EE)
+        else:
+            missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
                                                              FioOnVDiskChecks.REQUIRED_PACKAGES)
+
         assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
             .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
 
@@ -121,11 +124,14 @@ class FioOnVDiskChecks(CIConstants):
                                              "protocol `{3}` & diskname `{4}`"
                                              .format(image_path, storage_ip, edge_port, protocol, disk_name))
                 FioOnVDiskChecks.LOGGER.info("Converting image...")
-                client.run(["qemu-img", "convert", image_path, "openvstorage+{0}:{1}:{2}/{3}"
-                           .format(protocol, storage_ip, edge_port, disk_name)])
+                edge_info = {'port': edge_port,
+                             'protocol': protocol,
+                             'ip': storage_ip}
+                if SystemHelper.get_ovs_version(client) == 'ee':
+                    edge_info.update(FioOnVDiskChecks.get_shell_user())
+                VMHandler.create_image(client, disk_name, FioOnVDiskChecks.VDISK_SIZE, edge_info)
                 FioOnVDiskChecks.LOGGER.info("Creating a tap blk device for image...")
-                tap_dir = client.run(["tap-ctl", "create", "-a", "openvstorage+{0}:{1}:{2}/{3}"
-                                     .format(protocol, storage_ip, edge_port, disk_name)])
+                tap_dir = VMHandler.create_blktap_device(client, disk_name, edge_info)
                 FioOnVDiskChecks.LOGGER.info("Created a tap blk device at location `{0}`".format(tap_dir))
                 FioOnVDiskChecks.LOGGER.info("Finished putting vdisk `{0}` in the vPool!".format(disk_name))
                 FioOnVDiskChecks.LOGGER.info("Starting fio test on vdisk `{0}` with blktap `{1}`".format(disk_name,

@@ -401,6 +401,29 @@ class VMHandler(object):
                 pass
 
     @staticmethod
+    def create_blktap_device(client, diskname, edge_info, logger=LOGGER):
+        """
+        Creates a blk tap device from a vdisk
+        :return: blktap device location
+        """
+        required_edge_params = {'port': (int, {'min': 1, 'max': 65565}),
+                                'protocol': (str, ['tcp', 'udp', 'rdma']),
+                                'ip': (str, Toolbox.regex_ip),
+                                'username': (str, None, False),
+                                'password': (str, None, False)}
+        Toolbox.verify_required_params(required_edge_params, edge_info)
+        if edge_info.get('username') and edge_info.get('password'):
+            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'], edge_info['ip'],
+                                                                                                  edge_info['port'], diskname,
+                                                                                                  edge_info['username'], edge_info['password'])
+        else:
+            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}".format(edge_info['protocol'], edge_info['ip'], edge_info['port'], diskname)
+
+        cmd = ["tap-ctl", "create", "-a", ovs_edge_connection]
+        logger.debug('Creating blktap device: {}'.format(' '.join(cmd)))
+        return client.run(cmd)
+
+    @staticmethod
     def create_image(client, diskname, disk_size, edge_info, logger=LOGGER):
         """
         Converts an image file with qemu over edge connection
@@ -418,6 +441,7 @@ class VMHandler(object):
                                                                                                   edge_info['username'], edge_info['password'])
         else:
             ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}".format(edge_info['protocol'], edge_info['ip'], edge_info['port'], diskname)
+
         cmd = ["qemu-img", "create", ovs_edge_connection, "{0}B".format(disk_size)]
         logger.debug('Converting an image with qemu using: {}'.format(' '.join(cmd)))
         client.run(cmd)
