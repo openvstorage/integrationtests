@@ -40,6 +40,7 @@ class FioOnVDiskChecks(CIConstants):
     AMOUNT_TO_WRITE = 10 * 1024 ** 2  # in MegaByte
     PREFIX = "integration-tests-fio-"
     REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'qemu', 'fio']
+    REQUIRED_PACKAGES_EE = ['blktap-openvstorage-ee-utils', 'qemu', 'fio']
     VDISK_CHECK_TIMEOUT = 10
     VDISK_CHECK_AMOUNT = 30
 
@@ -98,8 +99,13 @@ class FioOnVDiskChecks(CIConstants):
         client = SSHClient(storagedriver.storage_ip, username='root')
 
         # check if there are missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
+        if SystemHelper.get_ovs_version(client) == 'ee':
+            missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
+                                                             FioOnVDiskChecks.REQUIRED_PACKAGES_EE)
+        else:
+            missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
                                                              FioOnVDiskChecks.REQUIRED_PACKAGES)
+
         assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
             .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
 
@@ -130,8 +136,7 @@ class FioOnVDiskChecks(CIConstants):
                     edge_info.update(FioOnVDiskChecks.get_shell_user())
                 VMHandler.create_image(client, disk_name, FioOnVDiskChecks.VDISK_SIZE, edge_info)
                 FioOnVDiskChecks.LOGGER.info("Creating a tap blk device for image...")
-                tap_dir = client.run(["tap-ctl", "create", "-a", "openvstorage+{0}:{1}:{2}/{3}"
-                                     .format(protocol, storage_ip, edge_port, disk_name)])
+                tap_dir = VMHandler.create_blktap_device(client, disk_name, edge_info)
                 FioOnVDiskChecks.LOGGER.info("Created a tap blk device at location `{0}`".format(tap_dir))
                 FioOnVDiskChecks.LOGGER.info("Finished putting vdisk `{0}` in the vPool!".format(disk_name))
                 FioOnVDiskChecks.LOGGER.info("Starting fio test on vdisk `{0}` with blktap `{1}`".format(disk_name,
