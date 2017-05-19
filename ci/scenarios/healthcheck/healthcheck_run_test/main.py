@@ -26,7 +26,6 @@ class HealthCheckCI(CIConstants):
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_healthcheck'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
-    REQUIRED_PACKAGES = ['openvstorage-health-check']
 
     def __init__(self):
         pass
@@ -76,11 +75,6 @@ class HealthCheckCI(CIConstants):
         # check if there are missing packages
         for ip in node_ips:
             HealthCheckCI.LOGGER.info('Starting the healthcheck on node `{0}`'.format(ip))
-
-            missing_packages = SystemHelper.get_missing_packages(ip, HealthCheckCI.REQUIRED_PACKAGES)
-            assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'\
-                .format(len(missing_packages), ip, missing_packages)
-
             ########################################
             # Testing command line, on remote node #
             ########################################

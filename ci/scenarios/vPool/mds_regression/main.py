@@ -173,15 +173,6 @@ class RegressionTester(CIConstants):
         to_be_downed_client.run(['wget', cloud_init_info['script_loc'], '-O', cloud_init_loc])
         to_be_downed_client.file_chmod(cloud_init_loc, 755)
         assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-
-        missing_packages = SystemHelper.get_missing_packages(to_be_downed_client.ip, required_packages_cloud_init)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         to_be_downed_client.ip,
-                                                                                         missing_packages)
-        missing_packages = SystemHelper.get_missing_packages(compute_client.ip, required_packages_hypervisor)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         compute_client.ip,
-                                                                                         missing_packages)
         cluster_info = {'storagerouters': {'destination': destination_str, 'source': source_str, 'compute': compute_str},
                         'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver},
                         'vpool': vpool}

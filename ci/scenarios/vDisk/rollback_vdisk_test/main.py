@@ -73,7 +73,6 @@ class RollbackChecks(CIConstants):
         """
 
         RollbackChecks.LOGGER.info("Starting to validate the rollback")
-
         with open(CONFIG_LOC, "r") as JSON_CONFIG:
             config = json.load(JSON_CONFIG)
 
@@ -82,22 +81,13 @@ class RollbackChecks(CIConstants):
             config['ci']['user']['api']['username'],
             config['ci']['user']['api']['password']
         )
-
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
-
         vpool = vpools[0]  # just pick the first vpool you find
         assert len(vpool.storagedrivers) >= 1, "Not enough Storagedrivers to test"
 
         # create vdisks and write some stuff on it
         storagedriver = vpool.storagedrivers[0]  # just pick the first storagedriver you find
-
-        # check for possible missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver.storagerouter.ip,
-                                                             RollbackChecks.REQUIRED_PACKAGES)
-        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
-            .format(len(missing_packages), storagedriver.storagerouter.ip, missing_packages)
-
         # start actual test
         for cloned in list(RollbackChecks.TYPE_TEST_RUN):
             start = time.time()

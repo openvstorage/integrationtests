@@ -135,11 +135,6 @@ class DataCorruptionTester(CIConstants):
         client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
         client.file_chmod(cloud_init_loc, 755)
         assert client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-        missing_packages = SystemHelper.get_missing_packages(client.ip, cls.REQUIRED_PACKAGE_CLOUD_INIT)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), client.ip, missing_packages)
-        missing_packages = SystemHelper.get_missing_packages(client.ip, cls.REQUIRED_PACKAGES_HYPERVISOR)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), client.ip, missing_packages)
-
         is_ee = SystemHelper.get_ovs_version(source_storagedriver.storagerouter) == 'ee'
         return source_storagedriver, image_path, cloud_init_loc, is_ee
 

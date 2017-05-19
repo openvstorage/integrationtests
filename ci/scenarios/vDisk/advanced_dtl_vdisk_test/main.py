@@ -142,10 +142,7 @@ class AdvancedDTLTester(CIConstants):
                     source_storagedriver = storagedriver
                     logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
         assert source_storagedriver is not None and destination_storagedriver is not None, 'We require at least two storagedrivers within the same domain.'
-
         to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
-        compute_client = SSHClient(compute_str, username='root')
-
         # Check if enough images available
         images = cls.get_images()
         assert len(images) >= 1, 'We require an cloud init bootable image file.'
@@ -157,15 +154,6 @@ class AdvancedDTLTester(CIConstants):
         to_be_downed_client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
         to_be_downed_client.file_chmod(cloud_init_loc, 755)
         assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-        missing_packages = SystemHelper.get_missing_packages(to_be_downed_client.ip, cls.REQUIRED_PACKAGE_CLOUD_INIT)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         to_be_downed_client.ip,
-                                                                                         missing_packages)
-        missing_packages = SystemHelper.get_missing_packages(compute_client.ip, cls.REQUIRED_PACKAGES_HYPERVISOR)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         compute_client.ip,
-                                                                                         missing_packages)
-
         cluster_info = {'storagerouters': {'destination': destination_str,
                                            'source': source_str,
                                            'compute': compute_str},
@@ -194,10 +182,7 @@ class AdvancedDTLTester(CIConstants):
         compute_client = SSHClient(compute_str)
 
         # setup hypervisor details
-        parent_hypervisor = HypervisorFactory.get(AdvancedDTLTester.PARENT_HYPERVISOR_INFO['ip'],
-                                                  AdvancedDTLTester.PARENT_HYPERVISOR_INFO['user'],
-                                                  AdvancedDTLTester.PARENT_HYPERVISOR_INFO['password'],
-                                                  AdvancedDTLTester.PARENT_HYPERVISOR_INFO['type'])
+        parent_hypervisor = cls.get_parent_hypervisor_instance()
         vm_to_stop = cls.PARENT_HYPERVISOR_INFO['vms'][source_std.storage_ip]['name']
 
         vdisk_info = {}
@@ -292,6 +277,8 @@ class AdvancedDTLTester(CIConstants):
             finally:
                 if vm_downed is True:
                     VMHandler.start_vm(parent_hypervisor, vm_to_stop)
+                    logger.debug('Started {0}'.format(vm_to_stop))
+                    SystemHelper.idle_till_ovs_is_up(source_std.storage_ip, **cls.get_shell_user())
                 for thread_category, thread_collection in threads['evented'].iteritems():
                     ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
                 for vm_name, vm_data in vm_info.iteritems():

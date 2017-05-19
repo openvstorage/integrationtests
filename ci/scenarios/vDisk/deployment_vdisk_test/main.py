@@ -91,13 +91,6 @@ class VDiskDeploymentChecks(CIConstants):
         storage_ip = storagedriver.storage_ip
         edge_port = storagedriver.ports['edge']
         client = SSHClient(storagedriver.storage_ip, username='root')
-
-        # check if there are missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
-                                                             VDiskDeploymentChecks.REQUIRED_PACKAGES)
-        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
-            .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
-
         # =======
         # VIA API
         # =======

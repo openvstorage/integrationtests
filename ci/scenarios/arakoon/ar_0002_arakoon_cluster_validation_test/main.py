@@ -16,11 +16,12 @@
 import time
 import uuid
 from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.init_manager import InitManager
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.services.service import ServiceManager
 
 
 class ArakoonValidation(CIConstants):
@@ -63,16 +64,15 @@ class ArakoonValidation(CIConstants):
         master_storagerouters.sort()
         arakoon_service_name = "ovs-arakoon-{0}".format(cluster_name)
         for storagerouter_ip in master_storagerouters:
+            client = SSHClient(storagerouter_ip, username='root')
             # check if service file is available
-            ArakoonValidation.LOGGER.info("Validating if cluster service `{0}` is available on node `{1}`"
-                                          .format(cluster_name, storagerouter_ip))
-            assert InitManager.service_exists(arakoon_service_name, storagerouter_ip), \
-                "Service file of `{0}` does not exists on storagerouter `{1}`".format(cluster_name, storagerouter_ip)
-
+            ArakoonValidation.LOGGER.info("Validating if cluster service `{0}` is available on node `{1}`".format(cluster_name, storagerouter_ip))
+            assert ServiceManager.has_service(arakoon_service_name, client), "Service file of `{0}` does not exists on storagerouter `{1}`"\
+                .format(cluster_name, storagerouter_ip)
             # check if service is running on system
             ArakoonValidation.LOGGER.info("Validating if cluster service `{0}` is running on node `{1}`"
                                           .format(cluster_name, storagerouter_ip))
-            assert InitManager.service_running(arakoon_service_name, storagerouter_ip), \
+            assert ServiceManager.get_service_status(arakoon_service_name, client) == 'active', \
                 "Service of `{0}` is not running on storagerouter `{1}`".format(cluster_name, storagerouter_ip)
 
         # perform nop, get and set on cluster

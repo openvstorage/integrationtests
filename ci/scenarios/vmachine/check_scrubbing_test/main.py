@@ -89,12 +89,6 @@ class ScrubbingChecks(CIConstants):
         # create vdisks and write some stuff on it
         storagedriver = vpool.storagedrivers[0]  # just pick the first storagedriver you find
 
-        # check for possible missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip,
-                                                             ScrubbingChecks.REQUIRED_PACKAGES)
-        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
-            .format(len(missing_packages), storagedriver.storage_ip, missing_packages)
-
         # start actual test
         for cloned in list(ScrubbingChecks.TYPE_TEST_RUN):
             start = time.time()
