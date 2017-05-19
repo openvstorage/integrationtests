@@ -7,7 +7,7 @@ Build-Depends: python (>= 2.7.2)
 
 Package: openvstorage-test
 Architecture: amd64
-Depends: fio (>= 2.2.10), blktap-dkms (>= 2.0.93), libvirt-bin (>= 1.3.1-0), genisoimage (>= 9:1.1.11),
+Depends: blktap-dkms (>= 2.0.93), libvirt-bin (>= 1.3.1-0), genisoimage (>= 9:1.1.11),
  openvstorage (>= 2.8), openvstorage (<< 2.10), openvstorage-automation-lib (>= 0.2),
  openvstorage-automation-lib (<< 0.3), openvstorage-health-check (>= 3.3), openvstorage-health-check (<< 3.4)
 Description: openvStorage autotest suite
