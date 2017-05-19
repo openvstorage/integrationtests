@@ -124,7 +124,7 @@ class VDiskDeploymentChecks(CIConstants):
                          'protocol': protocol,
                          'ip': storage_ip,
                          }
-            if SystemHelper.get_ovs_version(client) == 'ee':
+            if SystemHelper.get_ovs_version(storagedriver.storagerouter) == 'ee':
                 edge_info.update(cls.get_shell_user())
             VMHandler.create_image(client, qemu_disk_name, size, edge_info)
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(qemu_disk_name))
@@ -139,15 +139,13 @@ class VDiskDeploymentChecks(CIConstants):
         for size in VDiskDeploymentChecks.VDISK_SIZES:
             truncate_disk_name = VDiskDeploymentChecks.PREFIX+str(size)+'-trunc'
             VDiskDeploymentChecks.LOGGER.info("Starting to create vdisk `{0}` on vPool `{1}` on node `{2}` "
-                                              "with size `{3}`".format(truncate_disk_name, vpool.name,
-                                                                       storagedriver.storage_ip, size))
+                                              "with size `{3}`".format(truncate_disk_name, vpool.name,storagedriver.storage_ip, size))
             client.run(["truncate", "-s", str(size), "/mnt/{0}/{1}.raw".format(vpool.name, truncate_disk_name)])
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(truncate_disk_name))
             VDiskDeploymentChecks._check_vdisk(vdisk_name=truncate_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(truncate_disk_name))
             VDiskRemover.remove_vdisk_by_name(truncate_disk_name+'.raw', vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(truncate_disk_name))
-
         VDiskDeploymentChecks.LOGGER.info("Finished to validate the vdisk deployment")
 
     @staticmethod

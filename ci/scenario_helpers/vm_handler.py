@@ -139,6 +139,8 @@ class VMHandler(object):
             cd_creation_time = time.time()
             cd_vdisk = None
             while cd_vdisk is None:
+                if time.time() - cd_creation_time > 60:
+                    raise RuntimeError('Could not fetch the cd vdisk after {}s'.format(time.time() - cd_creation_time))
                 try:
                     cd_vdisk = VDiskHelper.get_vdisk_by_name(cd_vdisk_name, vpool.name)
                 except VDiskNotFoundError:
@@ -406,7 +408,7 @@ class VMHandler(object):
         Creates a blk tap device from a vdisk
         :return: blktap device location
         """
-        required_edge_params = {'port': (int, {'min': 1, 'max': 65565}),
+        required_edge_params = {'port': (int, {'min': 1, 'max': 65535}),
                                 'protocol': (str, ['tcp', 'udp', 'rdma']),
                                 'ip': (str, Toolbox.regex_ip),
                                 'username': (str, None, False),
@@ -426,10 +428,10 @@ class VMHandler(object):
     @staticmethod
     def create_image(client, diskname, disk_size, edge_info, logger=LOGGER):
         """
-        Converts an image file with qemu over edge connection
+        Creates an image file with qemu over edge connection with a particular seize
         :return: None
         """
-        required_edge_params = {'port': (int, {'min': 1, 'max': 65565}),
+        required_edge_params = {'port': (int, {'min': 1, 'max': 65535}),
                                 'protocol': (str, ['tcp', 'udp', 'rdma']),
                                 'ip': (str, Toolbox.regex_ip),
                                 'username': (str, None, False),
@@ -448,7 +450,11 @@ class VMHandler(object):
 
     @staticmethod
     def convert_image(client, image_location, diskname, edge_info, logger=LOGGER):
-        required_edge_params = {'port': (int, {'min': 1, 'max': 65565}),
+        """
+        Converts an image file with qemu over edge connection
+        :return: None
+        """
+        required_edge_params = {'port': (int, {'min': 1, 'max': 65535}),
                                 'protocol': (str, ['tcp', 'udp', 'rdma']),
                                 'ip': (str, Toolbox.regex_ip),
                                 'username': (str, None, False),

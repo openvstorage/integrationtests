@@ -151,7 +151,7 @@ class MigrateTester(CIConstants):
                                                                                          compute_client.ip,
                                                                                          missing_packages)
 
-        is_ee = SystemHelper.get_ovs_version(to_be_downed_client) == 'ee'
+        is_ee = SystemHelper.get_ovs_version(source_storagerouter) == 'ee'
         return cluster_info, cloud_init_loc, image_path, is_ee
 
     @classmethod

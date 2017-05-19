@@ -172,7 +172,7 @@ class AdvancedDTLTester(CIConstants):
                         'storagedrivers': {'destination': destination_storagedriver,
                                            'source': source_storagedriver}}
 
-        is_ee = SystemHelper.get_ovs_version(to_be_downed_client) == 'ee'
+        is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
         return cluster_info, image_path, cloud_init_loc, is_ee
 
     @classmethod

@@ -84,7 +84,7 @@ class EdgeTester(CIConstants):
         source_client = SSHClient(source_str, username='root')
         compute_client = SSHClient(compute_str, username='root')
 
-        is_ee = SystemHelper.get_ovs_version(source_client) == 'ee'
+        is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
         if is_ee is True:
             fio_bin_loc = EdgeTester.FIO_BIN_EE['location']
             fio_bin_url = EdgeTester.FIO_BIN_EE['url']

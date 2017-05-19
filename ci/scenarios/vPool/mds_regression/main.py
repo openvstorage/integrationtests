@@ -186,7 +186,7 @@ class RegressionTester(CIConstants):
                         'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver},
                         'vpool': vpool}
 
-        is_ee = SystemHelper.get_ovs_version(to_be_downed_client) == 'ee'
+        is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
         if is_ee is True:
             fio_bin_loc = cls.FIO_BIN_EE['location']
             fio_bin_url = cls.FIO_BIN_EE['url']
