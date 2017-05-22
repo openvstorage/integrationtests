@@ -186,7 +186,7 @@ class AutoTests(object):
         # check if test_case & test_section exists in test_suite
         for test_case, test_result in results.iteritems():
             test_name = test_case.split('.')[3]
-            test_section = test_case.split('.')[2].title()
+            test_section = test_case.split('.')[2].capitalize()
             try:
                 tapi.get_case_by_name(project_id, suite_id, test_name)
             except Exception:
@@ -215,7 +215,7 @@ class AutoTests(object):
             # collect case_ids of executed tests
             executed_case_ids = []
             for test_case in results.iterkeys():
-                section_id = tapi.get_section_by_name(project_id, suite_id, test_case.split('.')[2].title().strip())['id']
+                section_id = tapi.get_section_by_name(project_id, suite_id, test_case.split('.')[2].capitalize().strip())['id']
                 executed_case_ids.append(tapi.get_case_by_name(project_id=project_id, suite_id=suite_id,
                                                                name=test_case.split('.')[3], section_id=section_id)['id'])
             # only add tests to test_suite that have been executed

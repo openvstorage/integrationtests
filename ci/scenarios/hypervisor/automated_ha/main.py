@@ -18,6 +18,7 @@ import random
 from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.network import NetworkHelper
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
@@ -138,10 +139,7 @@ class HATester(CIConstants):
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        computenode_hypervisor = HypervisorFactory.get(compute_ip,
-                                                       hypervisor_info['user'],
-                                                       hypervisor_info['password'],
-                                                       hypervisor_info['type'])
+        computenode_hypervisor = HypervisorFactory.get(compute_ip, hypervisor_info['user'], hypervisor_info['password'], hypervisor_info['type'])
         vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
             source_storagedriver=source_storagedriver,
             cloud_image_path=cloud_image_path,
@@ -273,6 +271,8 @@ class HATester(CIConstants):
         :type fio_bin_path: str
         :param cluster_info: information about the cluster, contains all dal objects
         :type cluster_info: dict
+        :param is_ee: is it an ee version or not
+        :type is_ee: bool
         :param api: api object to call the ovs api
         :type api: ci.api_lib.helpers.api.OVSClient
         :param disk_amount: amount of disks to test fail over with
