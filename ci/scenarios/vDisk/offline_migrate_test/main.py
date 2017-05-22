@@ -102,12 +102,6 @@ class MigrateTester(CIConstants):
             'source_std': std_1.serialize(),
             'target_std': std_2.serialize()
         }
-
-        # Check if there are missing packages
-        missing_packages = SystemHelper.get_missing_packages(std_1.storage_ip, MigrateTester.REQUIRED_PACKAGES)
-        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}"\
-            .format(len(missing_packages), std_1.storage_ip, missing_packages)
-
         ###############################
         # start deploying & migrating #
         ###############################

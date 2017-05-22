@@ -130,7 +130,6 @@ class MigrateTester(CIConstants):
                         'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver}}
 
         to_be_downed_client = SSHClient(source_storagerouter, username='root')  # Build ssh clients
-        compute_client = SSHClient(compute_storagerouter, username='root')
         # Check if enough images available
         images = cls.get_images()
         assert len(images) >= 1, 'We require an cloud init bootable image file.'
@@ -142,15 +141,6 @@ class MigrateTester(CIConstants):
         to_be_downed_client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
         to_be_downed_client.file_chmod(cloud_init_loc, 755)
         assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-        missing_packages = SystemHelper.get_missing_packages(to_be_downed_client.ip, cls.REQUIRED_PACKAGE_CLOUD_INIT)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         to_be_downed_client.ip,
-                                                                                         missing_packages)
-        missing_packages = SystemHelper.get_missing_packages(compute_client.ip, cls.REQUIRED_PACKAGES_HYPERVISOR)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         compute_client.ip,
-                                                                                         missing_packages)
-
         is_ee = SystemHelper.get_ovs_version(source_storagerouter) == 'ee'
         return cluster_info, cloud_init_loc, image_path, is_ee
 

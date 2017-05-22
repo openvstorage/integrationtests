@@ -29,9 +29,6 @@ class CIConstants(object):
     FIO_BIN = {'url': 'http://www.include.gr/fio.bin.latest', 'location': '/tmp/fio.bin.latest'}
     FIO_BIN_EE = {'url': 'http://www.include.gr/fio.bin.latest.ee', 'location': '/tmp/fio.bin.latest'}
 
-    REQUIRED_PACKAGES_HYPERVISOR = ['qemu-kvm', 'libvirt0', 'python-libvirt', 'virtinst']
-    REQUIRED_PACKAGE_CLOUD_INIT = ['genisoimage']
-
     with open(CONFIG_LOC, 'r') as JSON_CONFIG:
         SETUP_CFG = json.load(JSON_CONFIG)
 
@@ -142,4 +139,3 @@ class CIConstants(object):
         :return: 
         """
         return cls.SETTINGS['images']
-

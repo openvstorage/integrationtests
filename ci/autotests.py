@@ -24,12 +24,11 @@ import math
 import importlib
 import subprocess
 from datetime import datetime
-from ci.api_lib.helpers.system import SystemHelper
-from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.exceptions import SectionNotFoundError
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
 from ci.main import CONFIG_LOC
+from ovs.log.log_handler import LogHandler
 
 
 class AutoTests(object):
@@ -45,7 +44,6 @@ class AutoTests(object):
     def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True, exclude_scenarios=None):
         """
         Run single, multiple or all test scenarios
-    
         :param scenarios: run scenarios defined by the test_name, leave empty when ALL test scenarios need to be executed (e.g. ['ci.scenarios.alba.asd_benchmark', 'ci.scenarios.arakoon.collapse'])
         :type scenarios: list
         :param exclude_scenarios: exclude scenarios defined by the test_name (e.g. when scenarios=['ALL'] is specified, you can exclude some tests)
@@ -73,8 +71,8 @@ class AutoTests(object):
         results = {}
         blocked = False
         for test in tests:
-            module = importlib.import_module('{0}.main'.format(test))
-            module_result = module.run(blocked)
+            mod = importlib.import_module('{0}.main'.format(test))
+            module_result = mod.run(blocked)
             if hasattr(TestrailResult, module_result['status']):  # check if a test has failed, if it has failed check if we should block all other tests
                 if getattr(TestrailResult, module_result['status']) == TestrailResult.FAILED and fail_on_failed_scenario:
                     if 'blocking' not in module_result:
@@ -188,7 +186,7 @@ class AutoTests(object):
         # check if test_case & test_section exists in test_suite
         for test_case, test_result in results.iteritems():
             test_name = test_case.split('.')[3]
-            test_section = SystemHelper.upper_case_first_letter(test_case.split('.')[2])
+            test_section = test_case.split('.')[2].capitalize()
             try:
                 tapi.get_case_by_name(project_id, suite_id, test_name)
             except Exception:
@@ -217,9 +215,7 @@ class AutoTests(object):
             # collect case_ids of executed tests
             executed_case_ids = []
             for test_case in results.iterkeys():
-                section_id = tapi.get_section_by_name(project_id, suite_id,
-                                                      SystemHelper.upper_case_first_letter(test_case.split('.')[2])
-                                                      .strip())['id']
+                section_id = tapi.get_section_by_name(project_id, suite_id, test_case.split('.')[2].capitalize().strip())['id']
                 executed_case_ids.append(tapi.get_case_by_name(project_id=project_id, suite_id=suite_id,
                                                                name=test_case.split('.')[3], section_id=section_id)['id'])
             # only add tests to test_suite that have been executed

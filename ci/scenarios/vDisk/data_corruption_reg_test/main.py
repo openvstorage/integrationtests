@@ -27,8 +27,7 @@ from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
 
-# @ todo fix this test. No validation and offloads to fio. Done refactoring though
-# Initial fix also done. vdbench actually runs >>
+# @ todo fix this test. No validation, just launches the vdbench async
 class DataCorruptionTester(CIConstants):
     """
     This is a regression test for https://github.com/openvstorage/integrationtests/issues/468
@@ -135,11 +134,6 @@ class DataCorruptionTester(CIConstants):
         client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
         client.file_chmod(cloud_init_loc, 755)
         assert client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-        missing_packages = SystemHelper.get_missing_packages(client.ip, cls.REQUIRED_PACKAGE_CLOUD_INIT)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), client.ip, missing_packages)
-        missing_packages = SystemHelper.get_missing_packages(client.ip, cls.REQUIRED_PACKAGES_HYPERVISOR)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), client.ip, missing_packages)
-
         is_ee = SystemHelper.get_ovs_version(source_storagedriver.storagerouter) == 'ee'
         return source_storagedriver, image_path, cloud_init_loc, is_ee
 
@@ -180,11 +174,10 @@ class DataCorruptionTester(CIConstants):
                                               )
                 for vm_name, vm_data in vm_info.iteritems():
                     logger.info('Starting VDBENCH on {0}!'.format(vm_name))
-                    DataWriter.write_data_vdbench(client=vm_data['client'],
-                                                  binary_location=cls.VM_VDBENCH_ZIP.replace('.zip', ''),
-                                                  config_location=cls.VM_VDBENCH_CFG_PATH)
-                    vm_data['client'].run('screen -S fio -dm bash -c "./vdbench -vr -f {0}"'.format(cls.VM_VDBENCH_CFG_PATH).split())
-                    vm_data['screen_names'] = ['fio']
+                    screen_names, output_files = DataWriter.write_data_vdbench(client=vm_data['client'],
+                                                                               binary_location=cls.VM_VDBENCH_ZIP.replace('.zip', ''),
+                                                                               config_location=cls.VM_VDBENCH_CFG_PATH)
+                    vm_data['screen_names'] = screen_names
                 logger.info('Finished VDBENCH without errors!')
                 logger.info('No data corruption detected!')
             finally:

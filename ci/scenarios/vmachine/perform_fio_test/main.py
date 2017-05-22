@@ -74,9 +74,6 @@ class FioOnVDiskChecks(CIConstants):
         # Setup base information
         storagedriver = vpool.storagedrivers[0]
         client = SSHClient(storagedriver.storagerouter, username='root')
-        # Check if there are missing packages
-        missing_packages = SystemHelper.get_missing_packages(storagedriver.storage_ip, FioOnVDiskChecks.REQUIRED_PACKAGES)
-        assert len(missing_packages) == 0, "Missing {0} package(s) on `{1}`: {2}".format(len(missing_packages), storagedriver.storage_ip, missing_packages)
         # Check if image exists
         assert client.file_exists(images[0]), "Image `{0}` does not exists on `{1}`!".format(images[0], storagedriver.storage_ip)
         image_path = images[0]

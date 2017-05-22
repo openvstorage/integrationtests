@@ -16,9 +16,9 @@
 import time
 import random
 from ci.api_lib.helpers.api import TimeOutError
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.network import NetworkHelper
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
@@ -31,7 +31,6 @@ from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.extensions.services.service import ServiceManager
 from ovs.log.log_handler import LogHandler
 
 
@@ -107,11 +106,6 @@ class HATester(CIConstants):
         to_be_downed_client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
         to_be_downed_client.file_chmod(cloud_init_loc, 755)
         assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-        missing_packages = SystemHelper.get_missing_packages(to_be_downed_client.ip, cls.REQUIRED_PACKAGE_CLOUD_INIT)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), to_be_downed_client.ip, missing_packages)
-        missing_packages = SystemHelper.get_missing_packages(compute_client.ip, cls.REQUIRED_PACKAGES_HYPERVISOR)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages), compute_client.ip, missing_packages)
-
         cluster_info = {'storagerouters': {'destination': destination_str,
                                            'source': source_str,
                                            'compute': compute_str},
@@ -145,10 +139,7 @@ class HATester(CIConstants):
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        computenode_hypervisor = HypervisorFactory.get(compute_ip,
-                                                       hypervisor_info['user'],
-                                                       hypervisor_info['password'],
-                                                       hypervisor_info['type'])
+        computenode_hypervisor = HypervisorFactory.get(compute_ip, hypervisor_info['user'], hypervisor_info['password'], hypervisor_info['type'])
         vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
             source_storagedriver=source_storagedriver,
             cloud_image_path=cloud_image_path,
@@ -194,10 +185,7 @@ class HATester(CIConstants):
         }
 
         vm_to_stop = HATester.PARENT_HYPERVISOR_INFO['vms'][source_storagedriver.storage_ip]['name']
-        parent_hypervisor = HypervisorFactory.get(HATester.PARENT_HYPERVISOR_INFO['ip'],
-                                                  HATester.PARENT_HYPERVISOR_INFO['user'],
-                                                  HATester.PARENT_HYPERVISOR_INFO['password'],
-                                                  HATester.PARENT_HYPERVISOR_INFO['type'])
+        parent_hypervisor = cls.get_parent_hypervisor_instance()
         # Extract vdisk info from vm_info
         vdisk_info = {}
         disk_amount = 0
@@ -264,6 +252,8 @@ class HATester(CIConstants):
             finally:
                 if vm_downed is True:
                     VMHandler.start_vm(parent_hypervisor, vm_to_stop)
+                    logger.debug('Started {0}'.format(vm_to_stop))
+                    SystemHelper.idle_till_ovs_is_up(source_storagedriver.storage_ip, **cls.get_shell_user())
                 for thread_category, thread_collection in threads['evented'].iteritems():
                     ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
                 for vm_name, vm_data in vm_info.iteritems():
@@ -281,12 +271,15 @@ class HATester(CIConstants):
         :type fio_bin_path: str
         :param cluster_info: information about the cluster, contains all dal objects
         :type cluster_info: dict
+        :param is_ee: is it an ee version or not
+        :type is_ee: bool
         :param api: api object to call the ovs api
         :type api: ci.api_lib.helpers.api.OVSClient
         :param disk_amount: amount of disks to test fail over with
         :type disk_amount: int
         :param timeout: timeout in seconds
         :type timeout: int
+        :param logger: logging instance
         :return: None
         :rtype: NoneType
         """
@@ -297,9 +290,7 @@ class HATester(CIConstants):
         compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
 
         vm_to_stop = HATester.PARENT_HYPERVISOR_INFO['vms'][source_storagedriver.storage_ip]['name']
-        parent_hypervisor = HypervisorFactory.get(HATester.PARENT_HYPERVISOR_INFO['ip'],
-                                                  HATester.PARENT_HYPERVISOR_INFO['user'], HATester.PARENT_HYPERVISOR_INFO['password'],
-                                                  HATester.PARENT_HYPERVISOR_INFO['type'])
+        parent_hypervisor = cls.get_parent_hypervisor_instance()
         values_to_check = {
             'source_std': source_storagedriver.serialize(),
             'target_std': destination_storagedriver.serialize(),
@@ -377,33 +368,13 @@ class HATester(CIConstants):
         finally:
             if vm_downed is True:
                 VMHandler.start_vm(parent_hypervisor, vm_to_stop)
+                SystemHelper.idle_till_ovs_is_up(source_storagedriver.storage_ip, **cls.get_shell_user())
             if screen_names:
                 for screen_name in screen_names:
                     compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
             for thread_category, thread_collection in threads['evented'].iteritems():
                 ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
-
-    @staticmethod
-    def _wait_and_move(vdisk_info, target_storagedriver, api, timeout=CIConstants.HA_TIMEOUT):
-        start_time = time.time()
-        to_be_downed_client = None
-        while to_be_downed_client is None:
-            try:
-                to_be_downed_client = SSHClient(target_storagedriver.storagerouter, username='root')
-            except:
-                pass
-            time.sleep(1)
-        services = ServiceManager.list_services(to_be_downed_client)
-        for service in services:
-            if target_storagedriver.vpool.name not in service:
-                continue
-            while ServiceManager.get_service_status(service, to_be_downed_client) != 'active':
-                if time.time() - start_time > timeout:
-                    raise RuntimeError('Service {0} did not come up after {1}s. Something must be wrong with it.'.format(service, HATester.HA_TIMEOUT))
-                time.sleep(1)
-        for vdisk_name, vdisk_object in vdisk_info.iteritems():
-                VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid, target_storagerouter_guid=target_storagedriver.storagerouter.guid, api=api)
 
     @staticmethod
     def _validate(values_to_check, monitoring_data):
