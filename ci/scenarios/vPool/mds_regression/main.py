@@ -112,14 +112,9 @@ class RegressionTester(CIConstants):
                      api=api)
 
     @classmethod
-    def setup(cls, required_packages_cloud_init=CIConstants.REQUIRED_PACKAGE_CLOUD_INIT, required_packages_hypervisor=CIConstants.REQUIRED_PACKAGES_HYPERVISOR,
-              cloud_init_info=CIConstants.CLOUD_INIT_DATA, logger=LOGGER):
+    def setup(cls, cloud_init_info=CIConstants.CLOUD_INIT_DATA, logger=LOGGER):
         """
         Performs all required actions to start the testrun
-        :param required_packages_cloud_init: packages required the run cloud init
-        :type required_packages_cloud_init: list
-        :param required_packages_hypervisor: packages required to be a hypervisor
-        :type required_packages_hypervisor: list
         :param cloud_init_info: cloud init settings
         :type cloud_init_info: dict
         :param logger: logging instance
@@ -316,7 +311,7 @@ class RegressionTester(CIConstants):
         celery_key = 'ovs/framework/scheduling/celery'
         job_key = 'ovs.generic.execute_scrub'
 
-        def change_scheduled_task(task_name, state, disabled=False, cron=None, celery_key=celery_key):
+        def change_scheduled_task(task_name, state, disabled=False, cron=None):
             if not Configuration.exists(celery_key):
                 Configuration.set(celery_key, {})
             jobs = Configuration.get(celery_key)

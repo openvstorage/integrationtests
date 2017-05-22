@@ -71,8 +71,8 @@ class AutoTests(object):
         results = {}
         blocked = False
         for test in tests:
-            module = importlib.import_module('{0}.main'.format(test))
-            module_result = module.run(blocked)
+            mod = importlib.import_module('{0}.main'.format(test))
+            module_result = mod.run(blocked)
             if hasattr(TestrailResult, module_result['status']):  # check if a test has failed, if it has failed check if we should block all other tests
                 if getattr(TestrailResult, module_result['status']) == TestrailResult.FAILED and fail_on_failed_scenario:
                     if 'blocking' not in module_result:
