@@ -18,6 +18,7 @@ from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.system import SystemHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
@@ -107,7 +108,15 @@ class DataCorruptionTester(CIConstants):
                                        edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.HA_TIMEOUT)
-        cls.run_test(storagedriver=storagedriver, vm_info=vm_info)
+        try:
+            cls.run_test(storagedriver=storagedriver, vm_info=vm_info)
+        finally:
+            for vm_name, vm_object in vm_info.iteritems():
+                for vdisk in vm_object['vdisks']:
+                    VDiskRemover.remove_vdisk(vdisk.guid)
+            for vm_name in vm_info.keys():
+                computenode_hypervisor.sdk.destroy(vm_name)
+                computenode_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
     def setup(cls, logger=LOGGER):
@@ -144,6 +153,7 @@ class DataCorruptionTester(CIConstants):
         https://github.com/openvstorage/integrationtests/issues/468
         :param storagedriver: storagedriver to use for the VM its vdisks
         :type storagedriver: ovs.dal.hybrids.storagedriver.StorageDriver
+        :param logger: logging instance
         :param vm_info: information about all vms
         :type vm_info: dict
         :return: None

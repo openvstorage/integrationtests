@@ -13,18 +13,15 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import json
 import time
 import random
-from ci.api_lib.helpers.api import OVSClient, TimeOutError
+from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
-from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
-from ci.main import CONFIG_LOC
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.log.log_handler import LogHandler
 
@@ -38,9 +35,6 @@ class MigrateTester(CIConstants):
     SLEEP_TIME = 15
     REQUIRED_PACKAGES = ['blktap-openvstorage-utils', 'fio']
     AMOUNT_VDISKS = 5
-
-    def __init__(self):
-        pass
 
     @staticmethod
     @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
@@ -58,45 +52,29 @@ class MigrateTester(CIConstants):
         _ = blocked
         return MigrateTester._execute_test()
 
-    @staticmethod
-    def _execute_test(amount_vdisks=AMOUNT_VDISKS):
+    @classmethod
+    def _execute_test(cls, amount_vdisks=AMOUNT_VDISKS):
         """
         Executes a offline migration
-
         :param amount_vdisks: amount of vdisks to test
         :type amount_vdisks: int
         :return:
         """
-
         MigrateTester.LOGGER.info("Starting offline migrate test.")
-
-        with open(CONFIG_LOC, "r") as config_file:
-            config = json.load(config_file)
-
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
-
-        # Get a suitable vpool
-        vpool = None
+        api = cls.get_api_instance()
+        vpool = None  # Get a suitable vpool
         for vp in VPoolHelper.get_vpools():
             if len(vp.storagedrivers) >= 2:
                 vpool = vp
                 break
         assert vpool is not None, "Not enough vPools to test. Requires 1 with at least 2 storagedrivers and found 0."
-
         ##########################
         # Setup base information #
         ##########################
-
         # Executor storagedriver_1 is current system
         std_1 = random.choice([st for st in vpool.storagedrivers])
-
         # Get a random other storagedriver to migrate to
         std_2 = random.choice([st for st in vpool.storagedrivers if st != std_1])
-
         # Cache to validate properties
         values_to_check = {
             'source_std': std_1.serialize(),
@@ -105,53 +83,42 @@ class MigrateTester(CIConstants):
         ###############################
         # start deploying & migrating #
         ###############################
-
-        for i in xrange(amount_vdisks):
-
-            ################
-            # create vdisk #
-            ################
-
-            vdisk_name = "{0}_{1}".format(MigrateTester.TEST_NAME, i)
-            try:
-                vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
-                                                     size=10*1024**3, storagerouter_ip=std_1.storagerouter.ip,
-                                                     api=api)
-                # Fetch to validate if it was properly created
-                vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
-                values_to_check['vdisk'] = vdisk.serialize()
-            except TimeOutError:
-                MigrateTester.LOGGER.error("Creation of the vdisk has timed out.")
-                raise
-            except (RuntimeError, TimeOutError) as ex:
-                MigrateTester.LOGGER.info("Creation of vdisk failed: {0}".format(ex))
-                raise
-            else:
-
+        created_vdisks = []
+        try:
+            for i in xrange(amount_vdisks):
                 ################
-                # move vdisk #
+                # create vdisk #
                 ################
-
-                time.sleep(MigrateTester.SLEEP_TIME)
+                vdisk_name = "{0}_{1}".format(MigrateTester.TEST_NAME, i)
                 try:
-                    MigrateTester.LOGGER.info("Moving vdisk {0} from {1} to {2}"
-                                              .format(vdisk_guid, std_1.storage_ip, std_2.storage_ip))
-                    VDiskSetup.move_vdisk(vdisk_guid=vdisk_guid,
-                                          target_storagerouter_guid=std_2.storagerouter_guid, api=api)
-                    time.sleep(MigrateTester.SLEEP_TIME)
-
-                    #################
-                    # validate move #
-                    #################
-
-                    MigrateTester.LOGGER.info("Validating move...")
-                    MigrateTester._validate_move(values_to_check)
-                except Exception as ex:
-                    MigrateTester.LOGGER.exception('Failed during migation: {0}'.format(ex))
+                    vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw',
+                                                         vpool_name=vpool.name,
+                                                         size=cls.AMOUNT_TO_WRITE * 5,
+                                                         storagerouter_ip=std_1.storagerouter.ip,
+                                                         api=api)
+                    vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)  # Fetch to validate if it was properly created
+                    created_vdisks.append(vdisk)
+                    values_to_check['vdisk'] = vdisk.serialize()
+                except TimeOutError:
+                    MigrateTester.LOGGER.error("Creation of the vdisk has timed out.")
+                    raise
+                except (RuntimeError, TimeOutError) as ex:
+                    MigrateTester.LOGGER.info("Creation of vdisk failed: {0}".format(ex))
                     raise
                 else:
-                    MigrateTester._cleanup_vdisk(vdisk_name, vpool.name)
-
+                    time.sleep(MigrateTester.SLEEP_TIME)
+                    try:
+                        MigrateTester.LOGGER.info("Moving vdisk {0} from {1} to {2}".format(vdisk_guid, std_1.storage_ip, std_2.storage_ip))
+                        VDiskSetup.move_vdisk(vdisk_guid=vdisk_guid, target_storagerouter_guid=std_2.storagerouter_guid, api=api)
+                        time.sleep(MigrateTester.SLEEP_TIME)
+                        MigrateTester.LOGGER.info("Validating move...")
+                        MigrateTester._validate_move(values_to_check)
+                    except Exception as ex:
+                        MigrateTester.LOGGER.exception('Failed during migation: {0}'.format(ex))
+                        raise
+        finally:
+            for vdisk in created_vdisks:
+                VDiskRemover.remove_vdisk(vdisk.guid)
         MigrateTester.LOGGER.info("Finished offline migrate test.")
 
     @staticmethod
@@ -215,25 +182,6 @@ class MigrateTester(CIConstants):
                 ValueError('Expected {0} but found {1} for vdisk.storagerouter_guid'.format(vdisk.storagerouter_guid,
                                                                                             vdisk.storagerouter_guid))
         MigrateTester.LOGGER.info('Move vdisk was successful according to the dal.')
-
-    @staticmethod
-    def _cleanup_vdisk(vdisk_name, vpool_name, blocking=True):
-        """
-        Attempt to cleanup vdisk
-        :param vdisk_name: name of the vdisk
-        :param vpool_name: name of the vpool
-        :param blocking: boolean to determine whether errors should raise or not
-        :return:
-        """
-        # Cleanup vdisk
-        try:
-            VDiskRemover.remove_vdisk_by_name('{0}.raw'.format(vdisk_name), vpool_name)
-        except Exception as ex:
-            MigrateTester.LOGGER.error(str(ex))
-            if blocking is True:
-                raise
-            else:
-                pass
 
 
 def run(blocked=False):

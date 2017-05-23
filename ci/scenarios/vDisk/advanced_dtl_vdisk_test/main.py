@@ -16,19 +16,20 @@
 import time
 from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
-from ci.autotests import gather_results
 from ci.api_lib.helpers.thread import ThreadHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ci.scenario_helpers.data_writing import DataWriter
+from ci.scenario_helpers.threading_handlers import ThreadingHandler
+from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.service import ServiceManager
 from ovs.log.log_handler import LogHandler
-from ci.scenario_helpers.data_writing import DataWriter
-from ci.scenario_helpers.threading_handlers import ThreadingHandler
-from ci.scenario_helpers.vm_handler import VMHandler
-from ci.api_lib.helpers.network import NetworkHelper
 
 
 class AdvancedDTLTester(CIConstants):
@@ -108,7 +109,15 @@ class AdvancedDTLTester(CIConstants):
                                        edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.VM_WAIT_TIME)
-        cls.run_test(vm_info=vm_info, cluster_info=cluster_info)
+        try:
+            cls.run_test(vm_info=vm_info, cluster_info=cluster_info)
+        finally:
+            for vm_name, vm_object in vm_info.iteritems():
+                for vdisk in vm_object['vdisks']:
+                    VDiskRemover.remove_vdisk(vdisk.guid)
+            for vm_name in vm_info.keys():
+                computenode_hypervisor.sdk.destroy(vm_name)
+                computenode_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
     def setup(cls, logger=LOGGER):
