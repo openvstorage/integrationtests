@@ -14,12 +14,14 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import time
+import random
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.domain import DomainHelper
-from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
@@ -80,10 +82,9 @@ class EdgeTester(CIConstants):
 
         cluster_info = {'storagerouters': {'destination': destination_str, 'source': source_str, 'compute': compute_str},
                         'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver}}
-        source_client = SSHClient(source_str, username='root')
         compute_client = SSHClient(compute_str, username='root')
 
-        is_ee = SystemHelper.get_ovs_version(source_client) == 'ee'
+        is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
         if is_ee is True:
             fio_bin_loc = EdgeTester.FIO_BIN_EE['location']
             fio_bin_url = EdgeTester.FIO_BIN_EE['url']
@@ -201,50 +202,50 @@ class EdgeTester(CIConstants):
             except RuntimeError as ex:
                 logger.error('Could not create the vdisk. Got {0}'.format(str(ex)))
                 raise
-        for configuration in EdgeTester.DATA_TEST_CASES:
-            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
-                                   'snapshots': {'pairs': [], 'r_semaphore': None}}}
-            screen_names = []
-            adjusted = False
-            try:
-                io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
-                threads['evented']['io']['pairs'] = io_thread_pairs
-                threads['evented']['io']['r_semaphore'] = io_r_semaphore
-                screen_names, output_files = DataWriter.write_data_fio(client=compute_client,
-                                                                       fio_configuration={'io_size': cls.AMOUNT_TO_WRITE,
-                                                                                          'configuration': configuration},
-                                                                       edge_configuration=edge_configuration)
-                logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
-                ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                      threads=threads['evented']['io']['pairs'],
-                                                      shared_resource=monitoring_data,
-                                                      duration=cls.IO_TIME)
-                # Threads ready for monitoring at this point, they are waiting to resume
-                EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=True, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
-                adjusted = True
-                downed_time = time.time()
-                logger.info('Now waiting two refreshrate intervals to avoid caching. In total {}s'.format(EdgeTester.IO_REFRESH_RATE * 2))
-                time.sleep(cls.IO_REFRESH_RATE * 2)
-                ThreadingHandler.poll_io(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                         required_thread_amount=len(threads),
-                                         shared_resource=monitoring_data,
-                                         downed_time=downed_time,
-                                         timeout=timeout,
-                                         output_files=output_files,
-                                         client=compute_client,
-                                         disk_amount=disk_amount)
-                EdgeTester._validate_dal(values_to_check)  # Validate
-            except Exception as ex:
-                logger.error('Got an exception while running configuration {0}. Namely: {1}'.format(configuration, str(ex)))
-                failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
-            finally:
-                if adjusted is True:
-                    EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=False, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
-                for screen_name in screen_names:
-                    compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
-                    for thread_category, thread_collection in threads['evented'].iteritems():
-                        ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
-
+        configuration = random.choice(cls.DATA_TEST_CASES)
+        threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None}}}
+        screen_names = []
+        adjusted = False
+        try:
+            io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
+            threads['evented']['io']['pairs'] = io_thread_pairs
+            threads['evented']['io']['r_semaphore'] = io_r_semaphore
+            screen_names, output_files = DataWriter.write_data_fio(client=compute_client,
+                                                                   fio_configuration={'io_size': cls.AMOUNT_TO_WRITE,
+                                                                                      'configuration': configuration},
+                                                                   edge_configuration=edge_configuration)
+            logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
+            ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                  threads=io_thread_pairs,
+                                                  shared_resource=monitoring_data,
+                                                  duration=cls.IO_TIME)
+            # Threads ready for monitoring at this point, they are waiting to resume
+            EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=True, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
+            adjusted = True
+            downed_time = time.time()
+            logger.info('Now waiting two refreshrate intervals to avoid caching. In total {}s'.format(EdgeTester.IO_REFRESH_RATE * 2))
+            time.sleep(cls.IO_REFRESH_RATE * 2)
+            ThreadingHandler.poll_io(r_semaphore=io_r_semaphore,
+                                     required_thread_amount=len(io_thread_pairs),
+                                     shared_resource=monitoring_data,
+                                     downed_time=downed_time,
+                                     timeout=timeout,
+                                     output_files=output_files,
+                                     client=compute_client,
+                                     disk_amount=disk_amount)
+            EdgeTester._validate_dal(values_to_check)  # Validate
+        except Exception as ex:
+            logger.error('Got an exception while running configuration {0}. Namely: {1}'.format(configuration, str(ex)))
+            failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
+        finally:
+            if adjusted is True:
+                EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=False, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
+            for screen_name in screen_names:
+                compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
+                for thread_category, thread_collection in threads['evented'].iteritems():
+                    ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
+            for vdisk in vdisk_info.values():
+                VDiskRemover.remove_vdisk(vdisk.guid)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(failed_configurations)
 
     @staticmethod

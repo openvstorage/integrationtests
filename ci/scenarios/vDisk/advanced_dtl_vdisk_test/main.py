@@ -16,20 +16,20 @@
 import time
 from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
-from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.autotests import gather_results
 from ci.api_lib.helpers.thread import ThreadHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ci.scenario_helpers.data_writing import DataWriter
+from ci.scenario_helpers.threading_handlers import ThreadingHandler
+from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.service import ServiceManager
 from ovs.log.log_handler import LogHandler
-from ci.scenario_helpers.data_writing import DataWriter
-from ci.scenario_helpers.threading_handlers import ThreadingHandler
-from ci.scenario_helpers.vm_handler import VMHandler
-from ci.api_lib.helpers.network import NetworkHelper
 
 
 class AdvancedDTLTester(CIConstants):
@@ -109,7 +109,15 @@ class AdvancedDTLTester(CIConstants):
                                        edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.VM_WAIT_TIME)
-        cls.run_test(vm_info=vm_info, cluster_info=cluster_info, disk_amount=volume_amount)
+        try:
+            cls.run_test(vm_info=vm_info, cluster_info=cluster_info)
+        finally:
+            for vm_name, vm_object in vm_info.iteritems():
+                for vdisk in vm_object['vdisks']:
+                    VDiskRemover.remove_vdisk(vdisk.guid)
+            for vm_name in vm_info.keys():
+                computenode_hypervisor.sdk.destroy(vm_name)
+                computenode_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
     def setup(cls, logger=LOGGER):
@@ -142,10 +150,7 @@ class AdvancedDTLTester(CIConstants):
                     source_storagedriver = storagedriver
                     logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
         assert source_storagedriver is not None and destination_storagedriver is not None, 'We require at least two storagedrivers within the same domain.'
-
         to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
-        compute_client = SSHClient(compute_str, username='root')
-
         # Check if enough images available
         images = cls.get_images()
         assert len(images) >= 1, 'We require an cloud init bootable image file.'
@@ -157,31 +162,24 @@ class AdvancedDTLTester(CIConstants):
         to_be_downed_client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
         to_be_downed_client.file_chmod(cloud_init_loc, 755)
         assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-        missing_packages = SystemHelper.get_missing_packages(to_be_downed_client.ip, cls.REQUIRED_PACKAGE_CLOUD_INIT)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         to_be_downed_client.ip,
-                                                                                         missing_packages)
-        missing_packages = SystemHelper.get_missing_packages(compute_client.ip, cls.REQUIRED_PACKAGES_HYPERVISOR)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         compute_client.ip,
-                                                                                         missing_packages)
-
         cluster_info = {'storagerouters': {'destination': destination_str,
                                            'source': source_str,
                                            'compute': compute_str},
                         'storagedrivers': {'destination': destination_storagedriver,
                                            'source': source_storagedriver}}
 
-        is_ee = SystemHelper.get_ovs_version(to_be_downed_client) == 'ee'
+        is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
         return cluster_info, image_path, cloud_init_loc, is_ee
 
     @classmethod
-    def run_test(cls, vm_info, cluster_info, disk_amount, logger=LOGGER):
+    def run_test(cls, vm_info, cluster_info, logger=LOGGER):
         """
         Tests the DTL using a virtual machine which will write in his own filesystem
         Expects last data to be pulled from the DTL and not backend
         :param cluster_info: information about the cluster, contains all dal objects
         :type cluster_info: dict
+        :param vm_info: info about the vms
+        :param logger: logging instance
         :return: None
         :rtype: NoneType
         """
@@ -192,24 +190,27 @@ class AdvancedDTLTester(CIConstants):
         compute_client = SSHClient(compute_str)
 
         # setup hypervisor details
-        parent_hypervisor = HypervisorFactory.get(AdvancedDTLTester.PARENT_HYPERVISOR_INFO['ip'],
-                                                  AdvancedDTLTester.PARENT_HYPERVISOR_INFO['user'],
-                                                  AdvancedDTLTester.PARENT_HYPERVISOR_INFO['password'],
-                                                  AdvancedDTLTester.PARENT_HYPERVISOR_INFO['type'])
-
+        parent_hypervisor = cls.get_parent_hypervisor_instance()
         vm_to_stop = cls.PARENT_HYPERVISOR_INFO['vms'][source_std.storage_ip]['name']
+
         vdisk_info = {}
+        disk_amount = 0
         for vm_name, vm_object in vm_info.iteritems():
             for vdisk in vm_object['vdisks']:
+                # Ignore the cd vdisk as no IO will come from it
+                if vdisk.name == vm_object['cd_path'].replace('.raw', '').split('/')[-1]:
+                    continue
+                disk_amount += 1
                 vdisk_info.update({vdisk.name: vdisk})
 
         # Cache to validate properties
         values_to_check = {
-            'source_std': source_std.serialize()
+            'source_std': source_std.serialize(),
+            'vdisks': vdisk_info.values()
         }
+
         with remote(compute_str.ip, [SSHClient]) as rem:
-            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
-                                   'snapshots': {'pairs': [], 'r_semaphore': None}}}
+            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None}}}
             vm_downed = False
             output_files = []
             try:
@@ -233,8 +234,7 @@ class AdvancedDTLTester(CIConstants):
                     logger.info('Original MD5SUM for VM {0}: {1}.'.format(vm_name, original_md5sum))
                 logger.info('Finished to WRITE file while proxy is offline!')
                 logger.info("Starting fio to generate IO for failing over.".format(AdvancedDTLTester.IO_TIME))
-                io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(
-                    volume_bundle=vdisk_info)
+                io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
                 threads['evented']['io']['pairs'] = io_thread_pairs
                 threads['evented']['io']['r_semaphore'] = io_r_semaphore
                 for vm_name, vm_data in vm_info.iteritems():  # Write data
@@ -245,8 +245,8 @@ class AdvancedDTLTester(CIConstants):
                                                                            file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
                     vm_data['screen_names'] = screen_names
                 logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
-                ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                      threads=threads['evented']['io']['pairs'],
+                ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                      threads=io_thread_pairs,
                                                       shared_resource=monitoring_data,
                                                       duration=cls.IO_TIME)
                 ##############################################
@@ -255,9 +255,10 @@ class AdvancedDTLTester(CIConstants):
                 VMHandler.stop_vm(hypervisor=parent_hypervisor, vmid=vm_to_stop)
                 vm_downed = True
                 downed_time = time.time()
+                time.sleep(cls.IO_REFRESH_RATE * 2)
                 # Start IO polling to verify nothing went down
-                ThreadingHandler.poll_io(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                         required_thread_amount=len(threads),
+                ThreadingHandler.poll_io(r_semaphore=io_r_semaphore,
+                                         required_thread_amount=len(io_thread_pairs),
                                          shared_resource=monitoring_data,
                                          downed_time=downed_time,
                                          timeout=cls.HA_TIMEOUT,
@@ -279,6 +280,8 @@ class AdvancedDTLTester(CIConstants):
             finally:
                 if vm_downed is True:
                     VMHandler.start_vm(parent_hypervisor, vm_to_stop)
+                    logger.debug('Started {0}'.format(vm_to_stop))
+                    SystemHelper.idle_till_ovs_is_up(source_std.storage_ip, **cls.get_shell_user())
                 for thread_category, thread_collection in threads['evented'].iteritems():
                     ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
                 for vm_name, vm_data in vm_info.iteritems():
@@ -298,22 +301,19 @@ class AdvancedDTLTester(CIConstants):
         """
         source_std = StoragedriverHelper.get_storagedriver_by_guid(values_to_check['source_std']['guid'])
         source_std.invalidate_dynamics([])
-        vdisk = VDiskHelper.get_vdisk_by_guid(values_to_check['vdisk']['guid'])
-        AdvancedDTLTester.LOGGER.info('Source is documented as {0} and vdisk is now on {1}'.format(source_std.storagerouter.guid, vdisk.storagerouter_guid))
-        checks = 0
-        while checks <= AdvancedDTLTester.MIGRATE_CHECKS:
-            if vdisk.storagerouter_guid != source_std.storagerouter.guid:
-                AdvancedDTLTester.LOGGER.info('Move vdisk was successful according to the dal, '
-                                              'source was {0} and destination is now {1}'
-                                              .format(source_std.storagerouter.guid, vdisk.storagerouter_guid))
-                return
-            else:
-                AdvancedDTLTester.LOGGER.info('Move vdisk was NOT YET successful according to the dal, '
-                                              'source was {0} and destination is now {1}, sleeping for {2} seconds'
-                                              .format(source_std.storagerouter.guid, vdisk.storagerouter_guid,
-                                                      AdvancedDTLTester.MIGRATE_TIMEOUT))
-                checks += 1
-                time.sleep(AdvancedDTLTester.MIGRATE_TIMEOUT)
+        for vdisk in values_to_check['vdisks']:
+            AdvancedDTLTester.LOGGER.info('Source is documented as {0} and vdisk is now on {1}'.format(source_std.storagerouter.guid, vdisk.storagerouter_guid))
+            checks = 0
+            while checks <= AdvancedDTLTester.MIGRATE_CHECKS:
+                if vdisk.storagerouter_guid != source_std.storagerouter.guid:
+                    AdvancedDTLTester.LOGGER.info('Move vdisk was successful according to the dal, source was {0} and destination is now {1}'
+                                                  .format(source_std.storagerouter.guid, vdisk.storagerouter_guid))
+                    return
+                else:
+                    AdvancedDTLTester.LOGGER.info('Move vdisk was NOT YET successful according to the dal, source was {0} and destination is now {1}, sleeping for {2} seconds'
+                                                  .format(source_std.storagerouter.guid, vdisk.storagerouter_guid, AdvancedDTLTester.MIGRATE_TIMEOUT))
+                    checks += 1
+                    time.sleep(AdvancedDTLTester.MIGRATE_TIMEOUT)
         raise ValueError("Move vdisk has FAILED!")
 
 

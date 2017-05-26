@@ -23,6 +23,7 @@ from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
@@ -103,7 +104,15 @@ class MigrateTester(CIConstants):
                                        edge_configuration=edge_details,
                                        hypervisor_client=source_hypervisor,
                                        timeout=cls.VM_CREATE_TIMEOUT)
-        cls.live_migrate(vm_info, cluster_info, volume_amount, hypervisor_info)
+        try:
+            cls.live_migrate(vm_info, cluster_info, volume_amount, hypervisor_info)
+        finally:
+            for vm_name, vm_object in vm_info.iteritems():
+                for vdisk in vm_object['vdisks']:
+                    VDiskRemover.remove_vdisk(vdisk.guid)
+            for vm_name in vm_info.keys():
+                source_hypervisor.sdk.destroy(vm_name)
+                source_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
     def setup(cls, logger=LOGGER):
@@ -130,7 +139,6 @@ class MigrateTester(CIConstants):
                         'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver}}
 
         to_be_downed_client = SSHClient(source_storagerouter, username='root')  # Build ssh clients
-        compute_client = SSHClient(compute_storagerouter, username='root')
         # Check if enough images available
         images = cls.get_images()
         assert len(images) >= 1, 'We require an cloud init bootable image file.'
@@ -142,16 +150,7 @@ class MigrateTester(CIConstants):
         to_be_downed_client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
         to_be_downed_client.file_chmod(cloud_init_loc, 755)
         assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-        missing_packages = SystemHelper.get_missing_packages(to_be_downed_client.ip, cls.REQUIRED_PACKAGE_CLOUD_INIT)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         to_be_downed_client.ip,
-                                                                                         missing_packages)
-        missing_packages = SystemHelper.get_missing_packages(compute_client.ip, cls.REQUIRED_PACKAGES_HYPERVISOR)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         compute_client.ip,
-                                                                                         missing_packages)
-
-        is_ee = SystemHelper.get_ovs_version(to_be_downed_client) == 'ee'
+        is_ee = SystemHelper.get_ovs_version(source_storagerouter) == 'ee'
         return cluster_info, cloud_init_loc, image_path, is_ee
 
     @classmethod
@@ -186,8 +185,7 @@ class MigrateTester(CIConstants):
         with remote(source_storagedriver.storage_ip, [SSHClient]) as rem:
             test_run_nr = 0
             configuration = random.choice(cls.DATA_TEST_CASES)
-            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
-                                   'snapshots': {'pairs': [], 'r_semaphore': None}}}
+            threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None}}}
             output_files = []
             try:
                 logger.info('Starting the following configuration: {0}'.format(configuration))
@@ -210,8 +208,8 @@ class MigrateTester(CIConstants):
                                                                           file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
                     vm_data['screen_names'] = screen_names
                 logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
-                ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                      threads=threads['evented']['io']['pairs'],
+                ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                      threads=io_thread_pairs,
                                                       shared_resource=monitoring_data,
                                                       duration=cls.IO_TIME)
                 # Threads ready for monitoring at this point
@@ -226,9 +224,10 @@ class MigrateTester(CIConstants):
                     logger.error('Failed to stop. Got {0}'.format(str(ex)))
                     raise
                 downed_time = time.time()
+                time.sleep(cls.IO_REFRESH_RATE * 2)
                 # Start IO polling to verify nothing went down
-                ThreadingHandler.poll_io(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                         required_thread_amount=len(threads),
+                ThreadingHandler.poll_io(r_semaphore=io_r_semaphore,
+                                         required_thread_amount=len(io_thread_pairs),
                                          shared_resource=monitoring_data,
                                          downed_time=downed_time,
                                          timeout=cls.FAILOVER_TIMEOUT,
@@ -236,8 +235,8 @@ class MigrateTester(CIConstants):
                                          client=client,
                                          disk_amount=disk_amount)
                 # Do some more IO to trigger ownership migration
-                ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                      threads=threads['evented']['io']['pairs'],
+                ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                      threads=io_thread_pairs,
                                                       shared_resource=monitoring_data,
                                                       duration=cls.IO_TIME)
                 cls._validate_move(values_to_check)

@@ -153,7 +153,7 @@ class AddRemoveVPool(CIConstants):
             # Create vpool
             block_cache_cfg = None
             local_client = SSHClient(SystemHelper.get_local_storagerouter(), username='root')
-            if SystemHelper.get_ovs_version(local_client).lower() == 'ee':
+            if SystemHelper.get_ovs_version().lower() == 'ee':
                 block_cache_cfg = cfg
             for storagerouter_ip in storagerouter_ips:
                 AddRemoveVPool.LOGGER.info("Add/extend vPool `{0}` on storagerouter `{1}`".format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))

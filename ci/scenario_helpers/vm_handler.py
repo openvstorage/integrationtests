@@ -139,6 +139,8 @@ class VMHandler(object):
             cd_creation_time = time.time()
             cd_vdisk = None
             while cd_vdisk is None:
+                if time.time() - cd_creation_time > 60:
+                    raise RuntimeError('Could not fetch the cd vdisk after {}s'.format(time.time() - cd_creation_time))
                 try:
                     cd_vdisk = VDiskHelper.get_vdisk_by_name(cd_vdisk_name, vpool.name)
                 except VDiskNotFoundError:
@@ -401,12 +403,12 @@ class VMHandler(object):
                 pass
 
     @staticmethod
-    def create_image(client, diskname, disk_size, edge_info, logger=LOGGER):
+    def create_blktap_device(client, diskname, edge_info, logger=LOGGER):
         """
-        Converts an image file with qemu over edge connection
-        :return: None
+        Creates a blk tap device from a vdisk
+        :return: blktap device location
         """
-        required_edge_params = {'port': (int, {'min': 1, 'max': 65565}),
+        required_edge_params = {'port': (int, {'min': 1, 'max': 65535}),
                                 'protocol': (str, ['tcp', 'udp', 'rdma']),
                                 'ip': (str, Toolbox.regex_ip),
                                 'username': (str, None, False),
@@ -418,13 +420,41 @@ class VMHandler(object):
                                                                                                   edge_info['username'], edge_info['password'])
         else:
             ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}".format(edge_info['protocol'], edge_info['ip'], edge_info['port'], diskname)
+
+        cmd = ["tap-ctl", "create", "-a", ovs_edge_connection]
+        logger.debug('Creating blktap device: {}'.format(' '.join(cmd)))
+        return client.run(cmd)
+
+    @staticmethod
+    def create_image(client, diskname, disk_size, edge_info, logger=LOGGER):
+        """
+        Creates an image file with qemu over edge connection with a particular seize
+        :return: None
+        """
+        required_edge_params = {'port': (int, {'min': 1, 'max': 65535}),
+                                'protocol': (str, ['tcp', 'udp', 'rdma']),
+                                'ip': (str, Toolbox.regex_ip),
+                                'username': (str, None, False),
+                                'password': (str, None, False)}
+        Toolbox.verify_required_params(required_edge_params, edge_info)
+        if edge_info.get('username') and edge_info.get('password'):
+            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'], edge_info['ip'],
+                                                                                                  edge_info['port'], diskname,
+                                                                                                  edge_info['username'], edge_info['password'])
+        else:
+            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}".format(edge_info['protocol'], edge_info['ip'], edge_info['port'], diskname)
+
         cmd = ["qemu-img", "create", ovs_edge_connection, "{0}B".format(disk_size)]
         logger.debug('Converting an image with qemu using: {}'.format(' '.join(cmd)))
         client.run(cmd)
 
     @staticmethod
     def convert_image(client, image_location, diskname, edge_info, logger=LOGGER):
-        required_edge_params = {'port': (int, {'min': 1, 'max': 65565}),
+        """
+        Converts an image file with qemu over edge connection
+        :return: None
+        """
+        required_edge_params = {'port': (int, {'min': 1, 'max': 65535}),
                                 'protocol': (str, ['tcp', 'udp', 'rdma']),
                                 'ip': (str, Toolbox.regex_ip),
                                 'username': (str, None, False),

@@ -24,12 +24,11 @@ import math
 import importlib
 import subprocess
 from datetime import datetime
-from ci.api_lib.helpers.system import SystemHelper
-from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.exceptions import SectionNotFoundError
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
 from ci.main import CONFIG_LOC
+from ovs.log.log_handler import LogHandler
 
 
 class AutoTests(object):
@@ -45,7 +44,6 @@ class AutoTests(object):
     def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True, exclude_scenarios=None):
         """
         Run single, multiple or all test scenarios
-    
         :param scenarios: run scenarios defined by the test_name, leave empty when ALL test scenarios need to be executed (e.g. ['ci.scenarios.alba.asd_benchmark', 'ci.scenarios.arakoon.collapse'])
         :type scenarios: list
         :param exclude_scenarios: exclude scenarios defined by the test_name (e.g. when scenarios=['ALL'] is specified, you can exclude some tests)
@@ -65,7 +63,7 @@ class AutoTests(object):
         if exclude_scenarios is None:
             exclude_scenarios = AutoTests.CONFIG.get('exclude_scenarios', [])
         logger.info("Collecting tests.")  # Grab the tests to execute
-        tests = [autotest for autotest in AutoTests.list_tests(scenarios) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
+        tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
         # print tests to be executed
         logger.info("Executing the following tests: {0}".format(tests))
         # execute the tests
@@ -73,8 +71,8 @@ class AutoTests(object):
         results = {}
         blocked = False
         for test in tests:
-            module = importlib.import_module('{0}.main'.format(test))
-            module_result = module.run(blocked)
+            mod = importlib.import_module('{0}.main'.format(test))
+            module_result = mod.run(blocked)
             if hasattr(TestrailResult, module_result['status']):  # check if a test has failed, if it has failed check if we should block all other tests
                 if getattr(TestrailResult, module_result['status']) == TestrailResult.FAILED and fail_on_failed_scenario:
                     if 'blocking' not in module_result:
@@ -114,7 +112,7 @@ class AutoTests(object):
             for index, case in enumerate(cases[:]):  # split
                 split_entry = case.split('.')
                 if len(split_entry) >= 3:
-                    cases.pop(index)
+                    cases.remove(case)  # Instead of pop to remove the index error
                     categories.append(split_entry[2])
                 if len(case.split('.')) >= 4:
                     subcategories.append(split_entry[3])
@@ -136,7 +134,7 @@ class AutoTests(object):
                     continue
             # If all entries are directories -> go deeper
             if os.path.isdir(current_path):
-                scenarios.extend(AutoTests.list_tests(cases, exclude, current_path, categories, subcategories, current_depth + 1))
+                scenarios.extend(AutoTests.list_tests(cases[:], exclude, current_path, categories, subcategories, current_depth + 1))
             else:
                 scenario = start_dir.replace(depth_root, '').replace('/', '.')
                 if len(cases) == 0 or cases == ['ALL'] or scenario in cases:
@@ -188,7 +186,7 @@ class AutoTests(object):
         # check if test_case & test_section exists in test_suite
         for test_case, test_result in results.iteritems():
             test_name = test_case.split('.')[3]
-            test_section = SystemHelper.upper_case_first_letter(test_case.split('.')[2])
+            test_section = test_case.split('.')[2].capitalize()
             try:
                 tapi.get_case_by_name(project_id, suite_id, test_name)
             except Exception:
@@ -217,9 +215,7 @@ class AutoTests(object):
             # collect case_ids of executed tests
             executed_case_ids = []
             for test_case in results.iterkeys():
-                section_id = tapi.get_section_by_name(project_id, suite_id,
-                                                      SystemHelper.upper_case_first_letter(test_case.split('.')[2])
-                                                      .strip())['id']
+                section_id = tapi.get_section_by_name(project_id, suite_id, test_case.split('.')[2].capitalize().strip())['id']
                 executed_case_ids.append(tapi.get_case_by_name(project_id=project_id, suite_id=suite_id,
                                                                name=test_case.split('.')[3], section_id=section_id)['id'])
             # only add tests to test_suite that have been executed
@@ -450,7 +446,7 @@ def gather_results(case_type, logger, test_name):
                 func_args = inspect.getargspec(func)[0]
                 try:
                     blocked_index = func_args.index('blocked')  # Expect blocked
-                except ValueError as e:
+                except ValueError:
                     raise ValueError('Expected argument blocked but failed to retrieve it.')
                 blocked = kwargs.get('blocked', None)
                 if kwargs.get('blocked') is None:  # in args
@@ -463,6 +459,6 @@ def gather_results(case_type, logger, test_name):
                 end = datetime.datetime.now()
                 result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(since=start, until=end)]
                 logger.error('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
-                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False }
+                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False}
         return wrapped
     return wrapper

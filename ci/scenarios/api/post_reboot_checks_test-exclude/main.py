@@ -98,15 +98,14 @@ class PostRebootChecks(CIConstants):
         PostRebootChecks.LOGGER.info('Starting post-reboot service check on node `{0}`'.format(host_to_reboot))
         amount_tries = 0
         non_running_services = None
+        client = SSHClient(host_to_reboot, username='root')
         while tries >= amount_tries:
-            non_running_services = SystemHelper.get_non_running_ovs_services(host_to_reboot)
-
+            non_running_services = SystemHelper.get_non_running_ovs_services(client)
             if len(non_running_services) == 0:
                 break
             else:
                 amount_tries += 1
                 time.sleep(timeout)
-
         assert len(non_running_services) == 0, "Found non running services `{0}` after reboot on node `{1}`".format(non_running_services, host_to_reboot)
 
         PostRebootChecks.LOGGER.info('Starting post-reboot vPool check on node `{0}`'.format(host_to_reboot))

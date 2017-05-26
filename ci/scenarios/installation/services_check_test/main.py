@@ -20,6 +20,7 @@ from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.extensions.generic.sshclient import SSHClient
 
 
 class ServiceChecks(CIConstants):
@@ -61,25 +62,20 @@ class ServiceChecks(CIConstants):
         ServiceChecks.LOGGER.info('Starting validating services')
         storagerouter_ips = StoragerouterHelper.get_storagerouter_ips()
         assert len(storagerouter_ips) >= 1, "We need at least 1 storagerouters!"
-
         # commence test
         for storagerouter_ip in storagerouter_ips:
             ServiceChecks.LOGGER.info('Starting service check on node `{0}`'.format(storagerouter_ip))
             amount_tries = 0
             non_running_services = None
+            client = SSHClient(storagerouter_ip, username='root')
             while tries >= amount_tries:
-                non_running_services = SystemHelper.get_non_running_ovs_services(storagerouter_ip)
-
+                non_running_services = SystemHelper.get_non_running_ovs_services(client)
                 if len(non_running_services) == 0:
                     break
                 else:
                     amount_tries += 1
                     time.sleep(timeout)
-
-            assert len(non_running_services) == 0, \
-                "Found non running services `{0}` after reboot on node `{1}`".format(non_running_services,
-                                                                                     storagerouter_ip)
-
+            assert len(non_running_services) == 0, "Found non running services `{0}` after reboot on node `{1}`".format(non_running_services, storagerouter_ip)
             ServiceChecks.LOGGER.info('Finished validating services on node `{0}`'.format(storagerouter_ip))
         ServiceChecks.LOGGER.info('Finished validating services')
 

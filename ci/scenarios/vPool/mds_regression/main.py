@@ -105,21 +105,24 @@ class RegressionTester(CIConstants):
                                        edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.TEST_TIMEOUT)
-        cls.run_test(cluster_info=cluster_info,
-                     compute_client=compute_client,
-                     disk_amount=volume_amount,
-                     vm_info=vm_info,
-                     api=api)
+        try:
+            cls.run_test(cluster_info=cluster_info,
+                         compute_client=compute_client,
+                         disk_amount=volume_amount,
+                         vm_info=vm_info,
+                         api=api)
+        finally:
+            for vm_name, vm_object in vm_info.iteritems():
+                for vdisk in vm_object['vdisks']:
+                    VDiskRemover.remove_vdisk(vdisk.guid)
+            for vm_name in vm_info.keys():
+                computenode_hypervisor.sdk.destroy(vm_name)
+                computenode_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
-    def setup(cls, required_packages_cloud_init=CIConstants.REQUIRED_PACKAGE_CLOUD_INIT, required_packages_hypervisor=CIConstants.REQUIRED_PACKAGES_HYPERVISOR,
-              cloud_init_info=CIConstants.CLOUD_INIT_DATA, logger=LOGGER):
+    def setup(cls, cloud_init_info=CIConstants.CLOUD_INIT_DATA, logger=LOGGER):
         """
         Performs all required actions to start the testrun
-        :param required_packages_cloud_init: packages required the run cloud init
-        :type required_packages_cloud_init: list
-        :param required_packages_hypervisor: packages required to be a hypervisor
-        :type required_packages_hypervisor: list
         :param cloud_init_info: cloud init settings
         :type cloud_init_info: dict
         :param logger: logging instance
@@ -173,20 +176,11 @@ class RegressionTester(CIConstants):
         to_be_downed_client.run(['wget', cloud_init_info['script_loc'], '-O', cloud_init_loc])
         to_be_downed_client.file_chmod(cloud_init_loc, 755)
         assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-
-        missing_packages = SystemHelper.get_missing_packages(to_be_downed_client.ip, required_packages_cloud_init)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         to_be_downed_client.ip,
-                                                                                         missing_packages)
-        missing_packages = SystemHelper.get_missing_packages(compute_client.ip, required_packages_hypervisor)
-        assert len(missing_packages) == 0, 'Missing {0} package(s) on `{1}`: {2}'.format(len(missing_packages),
-                                                                                         compute_client.ip,
-                                                                                         missing_packages)
         cluster_info = {'storagerouters': {'destination': destination_str, 'source': source_str, 'compute': compute_str},
                         'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver},
                         'vpool': vpool}
 
-        is_ee = SystemHelper.get_ovs_version(to_be_downed_client) == 'ee'
+        is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
         if is_ee is True:
             fio_bin_loc = cls.FIO_BIN_EE['location']
             fio_bin_url = cls.FIO_BIN_EE['url']
@@ -236,84 +230,80 @@ class RegressionTester(CIConstants):
         try:
             cls._adjust_automatic_scrubbing(disable=True)
             with remote(compute_str.ip, [SSHClient]) as rem:
-                for test_run_nr, configuration in enumerate(data_test_cases):
-                    threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
-                                           'snapshots': {'pairs': [], 'r_semaphore': None}}}
-                    output_files = []
-                    safety_set = False
-                    mds_triggered = False
-                    try:
-                        logger.info('Starting the following configuration: {0}'.format(configuration))
-                        if test_run_nr == 0:  # Build reusable ssh clients
-                            for vm_name, vm_data in vm_info.iteritems():
-                                vm_client = rem.SSHClient(vm_data['ip'], vm_username, vm_password)
-                                vm_client.file_create('/mnt/data/{0}.raw'.format(vm_data['create_msg']))
-                                vm_data['client'] = vm_client
-                        else:
-                            for vm_name, vm_data in vm_info.iteritems():
-                                vm_data['client'].run(['rm', '/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
-                        cls._set_mds_safety(1, checkup=True)  # Set the safety to trigger the mds
-                        safety_set = True
-                        io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
-                        threads['evented']['io']['pairs'] = io_thread_pairs
-                        threads['evented']['io']['r_semaphore'] = io_r_semaphore
-                        # @todo snapshot every minute
-                        threads['evented']['snapshots']['pairs'] = ThreadingHandler.start_snapshotting_threads(volume_bundle=vdisk_info, api=api, kwargs={'interval': 15})
-                        for vm_name, vm_data in vm_info.iteritems():  # Write data
-                            screen_names, output_files = DataWriter.write_data_fio(client=vm_data['client'],
-                                                                                   fio_configuration={
-                                                                                       'io_size': cls.AMOUNT_TO_WRITE,
-                                                                                       'configuration': configuration},
-                                                                                   file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
-                            vm_data['screen_names'] = screen_names
-                        logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
-                        ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                              threads=threads['evented']['io']['pairs'],
-                                                              shared_resource=monitoring_data,
-                                                              duration=cls.IO_TIME / 2)
-                        ThreadHelper.stop_evented_threads(threads['evented']['snapshots']['pairs'],
-                                                          threads['evented']['snapshots']['r_semaphore'])  # Stop snapshotting
-                        cls._delete_snapshots(volume_bundle=vdisk_info, api=api)
-                        scrubbing_result = cls._start_scrubbing(volume_bundle=vdisk_info)  # Starting to scrub, offloaded to celery
-                        cls._trigger_mds_issue(vdisk_info, destination_storagedriver.storagerouter.guid, api)  # Trigger mds failover while scrubber is busy
-                        mds_triggered = True
-                        # Do some monitoring further for 60s
-                        ThreadingHandler.keep_threads_running(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                              threads=threads['evented']['io']['pairs'],
-                                                              shared_resource=monitoring_data,
-                                                              duration=cls.IO_TIME / 2)
-                        time.sleep(cls.IO_REFRESH_RATE * 2)
-                        downed_time = time.time()
-                        # Start IO polling to verify nothing went down
-                        ThreadingHandler.poll_io(r_semaphore=threads['evented']['io']['r_semaphore'],
-                                                 required_thread_amount=len(threads),
-                                                 shared_resource=monitoring_data,
-                                                 downed_time=downed_time,
-                                                 timeout=timeout,
-                                                 output_files=output_files,
-                                                 client=compute_client,
-                                                 disk_amount=disk_amount)
-                        api.wait_for_task(task_id=scrubbing_result.id)  # Wait for scrubbing to finish
-                        cls._validate(values_to_check, monitoring_data)
-                    except Exception as ex:
-                        logger.error('Running the test for configuration {0} has failed because {1}'.format(configuration, str(ex)))
-                        failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
-                        raise
-                    finally:
-                        for thread_category, thread_collection in threads['evented'].iteritems():
-                            ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
-                        for vm_name, vm_data in vm_info.iteritems():
-                            for screen_name in vm_data.get('screen_names', []):
-                                logger.debug('Stopping screen {0} on {1}.'.format(screen_name, vm_data['client'].ip))
-                                vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
-                            vm_data['screen_names'] = []
-                        if safety_set is True:
-                            cls._set_mds_safety(len(StorageRouterList.get_masters()), checkup=True)
-                        if mds_triggered is True:  # Vdisks got moved at this point
-                            for vdisk_name, vdisk_object in vdisk_info.iteritems():
-                                VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid,
-                                                      target_storagerouter_guid=source_storagedriver.storagerouter.guid,
-                                                      api=api)
+                configuration = random.choice(data_test_cases)
+                threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None},
+                                       'snapshots': {'pairs': [], 'r_semaphore': None}}}
+                output_files = []
+                safety_set = False
+                mds_triggered = False
+                try:
+                    logger.info('Starting the following configuration: {0}'.format(configuration))
+                    for vm_name, vm_data in vm_info.iteritems():
+                        vm_client = rem.SSHClient(vm_data['ip'], vm_username, vm_password)
+                        vm_client.file_create('/mnt/data/{0}.raw'.format(vm_data['create_msg']))
+                        vm_data['client'] = vm_client
+                    cls._set_mds_safety(1, checkup=True)  # Set the safety to trigger the mds
+                    safety_set = True
+                    io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
+                    threads['evented']['io']['pairs'] = io_thread_pairs
+                    threads['evented']['io']['r_semaphore'] = io_r_semaphore
+                    # @todo snapshot every minute
+                    threads['evented']['snapshots']['pairs'] = ThreadingHandler.start_snapshotting_threads(volume_bundle=vdisk_info, api=api, kwargs={'interval': 15})
+                    for vm_name, vm_data in vm_info.iteritems():  # Write data
+                        screen_names, output_files = DataWriter.write_data_fio(client=vm_data['client'],
+                                                                               fio_configuration={
+                                                                                   'io_size': cls.AMOUNT_TO_WRITE,
+                                                                                   'configuration': configuration},
+                                                                               file_locations=['/mnt/data/{0}.raw'.format(vm_data['create_msg'])])
+                        vm_data['screen_names'] = screen_names
+                    logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
+                    ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                          threads=io_thread_pairs,
+                                                          shared_resource=monitoring_data,
+                                                          duration=cls.IO_TIME / 2)
+                    ThreadHelper.stop_evented_threads(threads['evented']['snapshots']['pairs'],
+                                                      threads['evented']['snapshots']['r_semaphore'])  # Stop snapshotting
+                    cls._delete_snapshots(volume_bundle=vdisk_info, api=api)
+                    scrubbing_result = cls._start_scrubbing(volume_bundle=vdisk_info)  # Starting to scrub, offloaded to celery
+                    cls._trigger_mds_issue(vdisk_info, destination_storagedriver.storagerouter.guid, api)  # Trigger mds failover while scrubber is busy
+                    mds_triggered = True
+                    # Do some monitoring further for 60s
+                    ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
+                                                          threads=io_thread_pairs,
+                                                          shared_resource=monitoring_data,
+                                                          duration=cls.IO_TIME / 2)
+                    time.sleep(cls.IO_REFRESH_RATE * 2)
+                    downed_time = time.time()
+                    # Start IO polling to verify nothing went down
+                    ThreadingHandler.poll_io(r_semaphore=io_r_semaphore,
+                                             required_thread_amount=len(io_thread_pairs),
+                                             shared_resource=monitoring_data,
+                                             downed_time=downed_time,
+                                             timeout=timeout,
+                                             output_files=output_files,
+                                             client=compute_client,
+                                             disk_amount=disk_amount)
+                    api.wait_for_task(task_id=scrubbing_result.id)  # Wait for scrubbing to finish
+                    cls._validate(values_to_check, monitoring_data)
+                except Exception as ex:
+                    logger.error('Running the test for configuration {0} has failed because {1}'.format(configuration, str(ex)))
+                    failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
+                    raise
+                finally:
+                    for thread_category, thread_collection in threads['evented'].iteritems():
+                        ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
+                    for vm_name, vm_data in vm_info.iteritems():
+                        for screen_name in vm_data.get('screen_names', []):
+                            logger.debug('Stopping screen {0} on {1}.'.format(screen_name, vm_data['client'].ip))
+                            vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
+                        vm_data['screen_names'] = []
+                    if safety_set is True:
+                        cls._set_mds_safety(len(StorageRouterList.get_masters()), checkup=True)
+                    if mds_triggered is True:  # Vdisks got moved at this point
+                        for vdisk_name, vdisk_object in vdisk_info.iteritems():
+                            VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid,
+                                                  target_storagerouter_guid=source_storagedriver.storagerouter.guid,
+                                                  api=api)
         finally:
             cls._adjust_automatic_scrubbing(disable=False)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
@@ -329,7 +319,7 @@ class RegressionTester(CIConstants):
         celery_key = 'ovs/framework/scheduling/celery'
         job_key = 'ovs.generic.execute_scrub'
 
-        def change_scheduled_task(task_name, state, disabled=False, cron=None, celery_key=celery_key):
+        def change_scheduled_task(task_name, state, disabled=False, cron=None):
             if not Configuration.exists(celery_key):
                 Configuration.set(celery_key, {})
             jobs = Configuration.get(celery_key)

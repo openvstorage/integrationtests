@@ -61,7 +61,7 @@ class DTLChecks(CIConstants):
 
         REQUIREMENTS:
         * 1 vPool should be available with 1 storagedriver
-        * 1 vPool should be available with 2 or more storagedrivers in 2 seperate domains
+        * 1 vPool should be available with 2 or more storagedrivers in 2 separate domains
 
         OPTIONAL:
         * 1 vPool with 1 storagedriver with disabled DTL
@@ -164,7 +164,7 @@ class DTLChecks(CIConstants):
                     #####################################
 
                     correct_msg = "vDisk {0} with {1} storagedriver(s) has correct DTL status: ".format(vdisk_name, a_s)
-                    if a_s == 1 and vdisk.dtl_status == VDiskHelper.DtlStatus.CHECKUP:
+                    if a_s == 1 and vdisk.dtl_status == VDiskHelper.DtlStatus.STANDALONE:
                         DTLChecks.LOGGER.info(correct_msg + vdisk.dtl_status)
                     elif a_s >= 2 and vdisk.dtl_status == VDiskHelper.DtlStatus.SYNC:
                         DTLChecks.LOGGER.info(correct_msg + vdisk.dtl_status)
