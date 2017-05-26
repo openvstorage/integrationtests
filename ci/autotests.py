@@ -63,7 +63,7 @@ class AutoTests(object):
         if exclude_scenarios is None:
             exclude_scenarios = AutoTests.CONFIG.get('exclude_scenarios', [])
         logger.info("Collecting tests.")  # Grab the tests to execute
-        tests = [autotest for autotest in AutoTests.list_tests(scenarios) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
+        tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
         # print tests to be executed
         logger.info("Executing the following tests: {0}".format(tests))
         # execute the tests
@@ -112,7 +112,7 @@ class AutoTests(object):
             for index, case in enumerate(cases[:]):  # split
                 split_entry = case.split('.')
                 if len(split_entry) >= 3:
-                    cases.pop(index)
+                    cases.remove(case)  # Instead of pop to remove the index error
                     categories.append(split_entry[2])
                 if len(case.split('.')) >= 4:
                     subcategories.append(split_entry[3])
@@ -134,7 +134,7 @@ class AutoTests(object):
                     continue
             # If all entries are directories -> go deeper
             if os.path.isdir(current_path):
-                scenarios.extend(AutoTests.list_tests(cases, exclude, current_path, categories, subcategories, current_depth + 1))
+                scenarios.extend(AutoTests.list_tests(cases[:], exclude, current_path, categories, subcategories, current_depth + 1))
             else:
                 scenario = start_dir.replace(depth_root, '').replace('/', '.')
                 if len(cases) == 0 or cases == ['ALL'] or scenario in cases:
@@ -446,7 +446,7 @@ def gather_results(case_type, logger, test_name):
                 func_args = inspect.getargspec(func)[0]
                 try:
                     blocked_index = func_args.index('blocked')  # Expect blocked
-                except ValueError as e:
+                except ValueError:
                     raise ValueError('Expected argument blocked but failed to retrieve it.')
                 blocked = kwargs.get('blocked', None)
                 if kwargs.get('blocked') is None:  # in args
@@ -459,6 +459,6 @@ def gather_results(case_type, logger, test_name):
                 end = datetime.datetime.now()
                 result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(since=start, until=end)]
                 logger.error('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
-                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False }
+                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False}
         return wrapped
     return wrapper
