@@ -105,11 +105,19 @@ class RegressionTester(CIConstants):
                                        edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.TEST_TIMEOUT)
-        cls.run_test(cluster_info=cluster_info,
-                     compute_client=compute_client,
-                     disk_amount=volume_amount,
-                     vm_info=vm_info,
-                     api=api)
+        try:
+            cls.run_test(cluster_info=cluster_info,
+                         compute_client=compute_client,
+                         disk_amount=volume_amount,
+                         vm_info=vm_info,
+                         api=api)
+        finally:
+            for vm_name, vm_object in vm_info.iteritems():
+                for vdisk in vm_object['vdisks']:
+                    VDiskRemover.remove_vdisk(vdisk.guid)
+            for vm_name in vm_info.keys():
+                computenode_hypervisor.sdk.destroy(vm_name)
+                computenode_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
     def setup(cls, cloud_init_info=CIConstants.CLOUD_INIT_DATA, logger=LOGGER):

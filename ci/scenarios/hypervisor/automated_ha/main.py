@@ -23,6 +23,7 @@ from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
@@ -158,7 +159,15 @@ class HATester(CIConstants):
                                        edge_configuration=edge_details,
                                        hypervisor_client=computenode_hypervisor,
                                        timeout=cls.HA_TIMEOUT)
-        cls.run_test(cluster_info=cluster_info, vm_info=vm_info)
+        try:
+            cls.run_test(cluster_info=cluster_info, vm_info=vm_info)
+        finally:
+            for vm_name, vm_object in vm_info.iteritems():
+                for vdisk in vm_object['vdisks']:
+                    VDiskRemover.remove_vdisk(vdisk.guid)
+            for vm_name in vm_info.keys():
+                computenode_hypervisor.sdk.destroy(vm_name)
+                computenode_hypervisor.sdk.undefine(vm_name)
         # cls.test_ha_fio(fio_bin_path, cluster_info, is_ee, api)
 
     @classmethod
@@ -374,6 +383,8 @@ class HATester(CIConstants):
                     compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
             for thread_category, thread_collection in threads['evented'].iteritems():
                 ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
+            for vdisk in vdisk_info.values():
+                VDiskRemover.remove_vdisk(vdisk.guid)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @staticmethod

@@ -13,14 +13,11 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import json
 import time
-from ci.main import CONFIG_LOC
-from ci.api_lib.helpers.api import OVSClient
+from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
-from ci.api_lib.validate.vdisk import VDiskValidation
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.log.log_handler import LogHandler
@@ -38,9 +35,6 @@ class VDiskCloneChecks(CIConstants):
     CLONE_SLEEP_BEFORE_CHECK = 5
     CLONE_SLEEP_BEFORE_DELETE = 5
 
-    def __init__(self):
-        pass
-
     @staticmethod
     @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
     def main(blocked):
@@ -57,79 +51,60 @@ class VDiskCloneChecks(CIConstants):
         _ = blocked
         return VDiskCloneChecks.validate_vdisk_clone()
 
-    @staticmethod
-    def validate_vdisk_clone():
+    @classmethod
+    def validate_vdisk_clone(cls):
         """
         Validate if vdisk deployment works via various ways
         INFO: 1 vPool should be available on 2 storagerouters
-
         :return:
         """
-
-        VDiskCloneChecks.LOGGER.info("Starting to validate clone vdisks")
-
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
-
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
-
+        cls.LOGGER.info("Starting to validate clone vdisks")
+        api = cls.get_api_instance()
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
-
         try:
             vpool = next((vpool for vpool in vpools if len(vpool.storagedrivers) >= 2))
         except StopIteration:
             assert False, "Not enough Storagedrivers to test"
-
-        # setup base information
+        # Setup base information
         storagedriver_source = vpool.storagedrivers[0]
         storagedriver_destination = vpool.storagedrivers[1]
 
-        # create required vdisk for test
-        vdisk_name = VDiskCloneChecks.PREFIX+'1'
-        assert VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
-                                       size=VDiskCloneChecks.VDISK_SIZE, api=api,
-                                       storagerouter_ip=storagedriver_source.storagerouter.ip) is not None
-        time.sleep(VDiskCloneChecks.CLONE_SLEEP_AFTER_CREATE)
-
-        #################################
-        # clone vdisk from new snapshot #
-        #################################
-
-        new_vdisk_name = vdisk_name+'-clone-nosnapshot'
-        assert VDiskSetup.create_clone(vdisk_name=vdisk_name+'.raw', vpool_name=vpool.name,
-                                       new_vdisk_name=new_vdisk_name+'.raw',
-                                       storagerouter_ip=storagedriver_destination.storagerouter.ip, api=api) is not None
-        time.sleep(VDiskCloneChecks.CLONE_SLEEP_BEFORE_CHECK)
-        assert VDiskValidation.check_required_vdisk(vdisk_name=new_vdisk_name+'.raw', vpool_name=vpool.name) is not None
-        time.sleep(VDiskCloneChecks.CLONE_SLEEP_BEFORE_DELETE)
-        assert VDiskRemover.remove_vdisk_by_name(vdisk_name=new_vdisk_name + '.raw', vpool_name=vpool.name)
-
-        ######################################
-        # clone vdisk from existing snapshot #
-        ######################################
-
-        new_vdisk_name = vdisk_name + '-clone-snapshot'
-        snapshot_id = VDiskSetup.create_snapshot(vdisk_name=vdisk_name+'.raw', vpool_name=vpool.name,
-                                                 snapshot_name=VDiskCloneChecks.PREFIX+'snapshot', api=api)
-        assert VDiskSetup.create_clone(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
-                                       new_vdisk_name=new_vdisk_name + '.raw',
-                                       storagerouter_ip=storagedriver_destination.storagerouter.ip, api=api,
-                                       snapshot_id=snapshot_id)
-        time.sleep(VDiskCloneChecks.CLONE_SLEEP_BEFORE_CHECK)
-        assert VDiskValidation.check_required_vdisk(vdisk_name=new_vdisk_name + '.raw',
-                                                    vpool_name=vpool.name) is not None
-        time.sleep(VDiskCloneChecks.CLONE_SLEEP_BEFORE_DELETE)
-        assert VDiskRemover.remove_vdisk_by_name(vdisk_name=new_vdisk_name + '.raw', vpool_name=vpool.name)
-
-        # remove parent vdisk
-        assert VDiskRemover.remove_vdisk_by_name(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name)
-
-        VDiskCloneChecks.LOGGER.info("Finished validating clone vdisks")
+        vdisks = []
+        try:
+            # Create required vdisk for test
+            original_vdisk_name = '{0}_{1}'.format(cls.PREFIX, str(1).zfill(3))
+            cls.LOGGER.info("Creating the vdisk: {0} to clone".format(original_vdisk_name))
+            original_vdisk = VDiskHelper.get_vdisk_by_guid(
+                VDiskSetup.create_vdisk(vdisk_name=original_vdisk_name, vpool_name=vpool.name, size=cls.VDISK_SIZE, api=api,
+                                        storagerouter_ip=storagedriver_source.storagerouter.ip))
+            vdisks.append(original_vdisk)
+            time.sleep(cls.CLONE_SLEEP_AFTER_CREATE)
+            ###############
+            # Clone vdisk #
+            ###############
+            cloned_vdisk_name = original_vdisk_name+'-clone-nosnapshot'
+            cloned_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_clone(vdisk_name=original_vdisk_name,
+                                                                                 vpool_name=vpool.name,
+                                                                                 new_vdisk_name=cloned_vdisk_name,
+                                                                                 storagerouter_ip=storagedriver_destination.storagerouter.ip,
+                                                                                 api=api)['vdisk_guid'])
+            vdisks.append(cloned_vdisk)
+            time.sleep(cls.CLONE_SLEEP_BEFORE_CHECK)
+            ######################################
+            # clone vdisk from existing snapshot #
+            ######################################
+            cloned_vdisk_name = original_vdisk_name + '-clone-snapshot'
+            snapshot_id = VDiskSetup.create_snapshot(vdisk_name=original_vdisk_name, vpool_name=vpool.name, snapshot_name=cls.PREFIX+'snapshot', api=api)
+            cloned_vdisk = VDiskHelper.get_vdisk_by_guid(
+                VDiskSetup.create_clone(vdisk_name=original_vdisk_name, vpool_name=vpool.name,
+                                        new_vdisk_name=cloned_vdisk_name,
+                                        storagerouter_ip=storagedriver_destination.storagerouter.ip, api=api,
+                                        snapshot_id=snapshot_id)['vdisk_guid'])
+            vdisks.append(cloned_vdisk)
+        finally:
+            VDiskRemover.remove_vdisks_with_structure(vdisks)
+        cls.LOGGER.info("Finished validating clone vdisks")
 
 
 def run(blocked=False):
