@@ -23,6 +23,7 @@ from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
@@ -103,7 +104,15 @@ class MigrateTester(CIConstants):
                                        edge_configuration=edge_details,
                                        hypervisor_client=source_hypervisor,
                                        timeout=cls.VM_CREATE_TIMEOUT)
-        cls.live_migrate(vm_info, cluster_info, volume_amount, hypervisor_info)
+        try:
+            cls.live_migrate(vm_info, cluster_info, volume_amount, hypervisor_info)
+        finally:
+            for vm_name, vm_object in vm_info.iteritems():
+                for vdisk in vm_object['vdisks']:
+                    VDiskRemover.remove_vdisk(vdisk.guid)
+            for vm_name in vm_info.keys():
+                source_hypervisor.sdk.destroy(vm_name)
+                source_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
     def setup(cls, logger=LOGGER):

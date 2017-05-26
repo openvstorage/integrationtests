@@ -84,7 +84,8 @@ class VDiskCloneChecks(CIConstants):
             # Clone vdisk #
             ###############
             cloned_vdisk_name = original_vdisk_name+'-clone-nosnapshot'
-            cloned_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_clone(vdisk_name=cloned_vdisk_name, vpool_name=vpool.name,
+            cloned_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_clone(vdisk_name=original_vdisk_name,
+                                                                                 vpool_name=vpool.name,
                                                                                  new_vdisk_name=cloned_vdisk_name,
                                                                                  storagerouter_ip=storagedriver_destination.storagerouter.ip,
                                                                                  api=api)['vdisk_guid'])
@@ -96,13 +97,13 @@ class VDiskCloneChecks(CIConstants):
             cloned_vdisk_name = original_vdisk_name + '-clone-snapshot'
             snapshot_id = VDiskSetup.create_snapshot(vdisk_name=original_vdisk_name, vpool_name=vpool.name, snapshot_name=cls.PREFIX+'snapshot', api=api)
             cloned_vdisk = VDiskHelper.get_vdisk_by_guid(
-                VDiskSetup.create_clone(vdisk_name=original_vdisk_name + '.raw', vpool_name=vpool.name,
-                                        new_vdisk_name=cloned_vdisk_name + '.raw',
+                VDiskSetup.create_clone(vdisk_name=original_vdisk_name, vpool_name=vpool.name,
+                                        new_vdisk_name=cloned_vdisk_name,
                                         storagerouter_ip=storagedriver_destination.storagerouter.ip, api=api,
                                         snapshot_id=snapshot_id)['vdisk_guid'])
+            vdisks.append(cloned_vdisk)
         finally:
-            for vdisk in vdisks:
-                VDiskRemover.remove_vdisk(vdisk.guid)
+            VDiskRemover.remove_vdisks_with_structure(vdisks)
         cls.LOGGER.info("Finished validating clone vdisks")
 
 

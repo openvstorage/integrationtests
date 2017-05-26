@@ -14,6 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import time
+
 from ci.api_lib.helpers.api import HttpException
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
@@ -29,7 +30,7 @@ class VDiskTemplateChecks(CIConstants):
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_vdisk_template"
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
-    PREFIX = "integration-tests-template-"
+    PREFIX = "integration-tests-template"
     VDISK_SIZE = 10 * 1024 ** 3  # 10GB
     TEMPLATE_CREATE_TIMEOUT = 180
     TEMPLATE_SLEEP_AFTER_CREATE = 5
@@ -106,8 +107,10 @@ class VDiskTemplateChecks(CIConstants):
                 VDiskRemover.remove_vdisk(vdisk.guid)
         try:
             # template vdisk from clone (should fail) #
-            parent_vdisk = VDiskSetup.create_vdisk(vdisk_name=parent_vdisk_name, vpool_name=vpool.name, api=api, size=cls.VDISK_SIZE,
-                                                   storagerouter_ip=storagedriver_source.storagerouter.ip)
+            parent_vdisk = VDiskHelper.get_vdisk_by_guid(
+                VDiskSetup.create_vdisk(vdisk_name=parent_vdisk_name, vpool_name=vpool.name, api=api,
+                                        size=cls.VDISK_SIZE,
+                                        storagerouter_ip=storagedriver_source.storagerouter.ip))
             vdisks.append(parent_vdisk)
             # create a clone from the vdisk
             clone_vdisk_name = '{0}_clone'.format(parent_vdisk_name)
@@ -125,8 +128,15 @@ class VDiskTemplateChecks(CIConstants):
             except RuntimeError:
                 cls.LOGGER.info("Setting vdisk `{0}` as template failed as expected (because vdisk is clone)!".format(clone_vdisk_name))
         finally:
-            for vdisk in vdisks:
+            parent_vdisks = []
+            while len(vdisks) > 0:  # Remove clones first
+                vdisk = vdisks.pop()
+                if vdisk.parent_vdisk_guid is None:
+                    parent_vdisks.append(vdisk)
+                    continue
                 VDiskRemover.remove_vdisk(vdisk.guid)
+            for parent_vdisk in parent_vdisks:
+                VDiskRemover.remove_vdisk(parent_vdisk.guid)
         cls.LOGGER.info("Finished to validate template vdisks")
 
 

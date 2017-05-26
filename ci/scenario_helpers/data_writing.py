@@ -78,13 +78,13 @@ class DataWriter(object):
         client.dir_create(output_directory)
         cmd = ['--iodepth={0}'.format(iodepth), '--rw=randrw', '--bs={0}'.format(bs), '--direct=1',
                '--rwmixread={0}'.format(configuration[0]), '--rwmixwrite={0}'.format(configuration[1]),
-               '--randrepeat=0']  # Base config for both edge fio and file fio
+               '--randrepeat=0', '--size={0}'.format(write_size)]  # Base config for both edge fio and file fio
         if edge_configuration:
             volumes = edge_configuration['volumenames']
             fio_amount = int(math.ceil(float(len(volumes)) / fio_vdisk_limit))  # Amount of fio commands to prep
             for fio_nr in xrange(0, fio_amount):
                 vols = volumes[fio_nr * fio_vdisk_limit: (fio_nr + 1) * fio_vdisk_limit]  # Subset the volume list
-                current_cmd = ['ulimit -n 4096;', edge_configuration['fio_bin_location']] + cmd  # Volumedriver envir params + binary location prepended
+                current_cmd = [edge_configuration['fio_bin_location']] + cmd
                 # Append edge fio stuff
                 current_cmd.extend(['--ioengine=openvstorage', '--hostname={0}'.format(edge_configuration['hostname']),
                                     '--port={0}'.format(edge_configuration['port']),
@@ -103,7 +103,7 @@ class DataWriter(object):
                 cmds.append(current_cmd)
         else:
             current_cmd = ['fio'] + cmd
-            current_cmd.extend(['--ioengine=libaio', '--size={0}'.format(write_size)])
+            current_cmd.extend(['--ioengine=libaio'])
             if file_locations:
                 for index, file_location in enumerate(file_locations):
                     current_cmd.append('--name=test{0}'.format(index))
@@ -142,7 +142,7 @@ class DataWriter(object):
         if screen is True:
             screen_name = 'vdbench_0'
             cmd = cls._prepend_screen(' '.join(cmd), screen_name, loop_screen)
-            screen_names.append(screen_names)
+            screen_names.append(screen_name)
         logger.debug('Writing data with: {0}'.format(' '.join(cmd)))
         client.run(cmd)
         return screen_names, output_files
