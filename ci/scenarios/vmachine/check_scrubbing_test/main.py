@@ -86,7 +86,7 @@ class ScrubbingChecks(CIConstants):
                     vdisks = created_vdisks['clones']
                 else:
                     vdisks = created_vdisks['parents']
-                stored_map = cls._prepare_for_scrubbing(vdisks, storagedriver, fio_bin_loc, is_ee)
+                stored_map = cls._prepare_for_scrubbing(vdisks, storagedriver, fio_bin_loc, is_ee, api)
                 cls._validate_scrubbing(stored_map)
             finally:
                 for vdisk_type, vdisk_list in created_vdisks.iteritems():
@@ -131,7 +131,7 @@ class ScrubbingChecks(CIConstants):
                 raise RuntimeError(error_msg)
 
     @classmethod
-    def _prepare_for_scrubbing(cls, vdisks, storagedriver, fio_bin_location, is_ee):
+    def _prepare_for_scrubbing(cls, vdisks, storagedriver, fio_bin_location, is_ee, api):
         """
         Writes data to the vdisks
         :param vdisks: list of vdisks
@@ -152,6 +152,10 @@ class ScrubbingChecks(CIConstants):
                                       edge_configuration=edge_configuration,
                                       screen=False,
                                       loop_screen=False)
+        for vdisk in vdisks:  # Snapshot to give the volumedriver a point of reference to scrub towards
+            VDiskSetup.create_snapshot(snapshot_name='{}_snapshot01'.format(vdisk.name),
+                                       vdisk_name=vdisk.name,
+                                       vpool_name=vdisk.vpool.name, api=api, consistent=False, sticky=False)
         stored_map = {}
         for vdisk in vdisks:
             stored_map[vdisk.guid] = vdisk.statistics['stored']
