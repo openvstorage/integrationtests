@@ -72,7 +72,7 @@ class HATester(CIConstants):
         #################
         # PREREQUISITES #
         #################
-        destination_str, source_str, compute_str = cls.get_storagerouters_for_ha()
+        destination_str, source_str, compute_str = cls.get_storagerouters_by_role()
         destination_storagedriver = None
         source_storagedriver = None
         if len(source_str.regular_domains) == 0:
