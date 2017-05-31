@@ -101,7 +101,7 @@ class RollbackChecks(CIConstants):
             end = time.time()
             # clean base disks from clones
             if cloned:
-                RollbackChecks._delete_remaining_vdisks(base_vdisks=deployed_vdisks[1])
+                RollbackChecks._delete_remaining_vdisks(base_vdisks=deployed_vdisks[1], api=api)
                 RollbackChecks.LOGGER.info("Finished deleting base vdisks")
             else:
                 RollbackChecks.LOGGER.info("Skipped deleting base vdisks")
@@ -112,25 +112,24 @@ class RollbackChecks(CIConstants):
         RollbackChecks.LOGGER.info("Finished to validate the rollback")
 
     @staticmethod
-    def _delete_remaining_vdisks(base_vdisks):
+    def _delete_remaining_vdisks(base_vdisks, api):
         """
         Delete remaining base vdisks (when performing cloned=True)
-
         :param base_vdisks: vdisk_guids of a base_vdisks ['a15908c0-f7f0-402e-ad20-2be97e401cd3', ...]
         :type: list
+        :param api: api instance
         :return: None
         """
 
         for vdisk_guid in base_vdisks:
             RollbackChecks.LOGGER.info("Starting to remove base vDisk `{0}`".format(vdisk_guid))
-            VDiskRemover.remove_vdisk(vdisk_guid)
+            VDiskRemover.remove_vdisk(vdisk_guid, api)
             RollbackChecks.LOGGER.info("Finished to remove base vDisk `{0}`".format(vdisk_guid))
 
     @staticmethod
     def _deploy_vdisks(vpool, storagedriver, api, size=SIZE_VDISK, amount_vdisks=AMOUNT_VDISKS, cloned=False):
         """
         Deploy X amount of vdisks, write some data to it & snapshot
-
         :param vpool: a valid vpool object
         :type vpool: ovs.model.hybrids.vpool
         :param storagedriver: a valid storagedriver object
@@ -290,7 +289,7 @@ class RollbackChecks(CIConstants):
 
             # commencing deleting volumes
             RollbackChecks.LOGGER.info("Starting to remove VDisk `{0}`".format(vdisk.name))
-            VDiskRemover.remove_vdisk(stored_vdisk['vdisk_guid'])
+            VDiskRemover.remove_vdisk(stored_vdisk['vdisk_guid'], api)
             RollbackChecks.LOGGER.info("Finished removing VDisk `{0}`".format(vdisk.name))
 
 
