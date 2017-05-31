@@ -118,7 +118,7 @@ class MigrateTester(CIConstants):
                         raise
         finally:
             for vdisk in created_vdisks:
-                VDiskRemover.remove_vdisk(vdisk.guid)
+                VDiskRemover.remove_vdisk(vdisk.guid, api)
         MigrateTester.LOGGER.info("Finished offline migrate test.")
 
     @staticmethod

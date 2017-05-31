@@ -193,7 +193,7 @@ class AddRemoveVPool(CIConstants):
                                     timeout=AddRemoveVPool.VDISK_CREATE_TIMEOUT)
             AddRemoveVPool.LOGGER.info("Finished creating vdisk `{0}`".format(vdisk_name))
             AddRemoveVPool.LOGGER.info("Starting to delete vdisk `{0}`".format(vdisk_name))
-            VDiskRemover.remove_vdisk_by_name(vdisk_name + '.raw', AddRemoveVPool.VPOOL_NAME)
+            VDiskRemover.remove_vdisk_by_name(vdisk_name, AddRemoveVPool.VPOOL_NAME, api)
             AddRemoveVPool.LOGGER.info("Finished deleting vdisk `{0}`".format(vdisk_name))
 
             # Delete vpool

@@ -103,7 +103,7 @@ class VDiskCloneChecks(CIConstants):
                                         snapshot_id=snapshot_id)['vdisk_guid'])
             vdisks.append(cloned_vdisk)
         finally:
-            VDiskRemover.remove_vdisks_with_structure(vdisks)
+            VDiskRemover.remove_vdisks_with_structure(vdisks, api)
         cls.LOGGER.info("Finished validating clone vdisks")
 
 

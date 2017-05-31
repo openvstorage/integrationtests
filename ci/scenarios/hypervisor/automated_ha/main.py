@@ -163,9 +163,7 @@ class HATester(CIConstants):
             cls.run_test(cluster_info=cluster_info, vm_info=vm_info)
         finally:
             for vm_name, vm_object in vm_info.iteritems():
-                for vdisk in vm_object['vdisks']:
-                    VDiskRemover.remove_vdisk(vdisk.guid)
-            for vm_name in vm_info.keys():
+                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
                 computenode_hypervisor.sdk.destroy(vm_name)
                 computenode_hypervisor.sdk.undefine(vm_name)
         # cls.test_ha_fio(fio_bin_path, cluster_info, is_ee, api)
@@ -384,7 +382,7 @@ class HATester(CIConstants):
             for thread_category, thread_collection in threads['evented'].iteritems():
                 ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
             for vdisk in vdisk_info.values():
-                VDiskRemover.remove_vdisk(vdisk.guid)
+                VDiskRemover.remove_vdisk(vdisk.guid, api)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @staticmethod

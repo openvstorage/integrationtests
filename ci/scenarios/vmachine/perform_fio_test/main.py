@@ -110,6 +110,7 @@ class FioOnVDiskChecks(CIConstants):
         :param logger: logging instance
         :return: 
         """
+        api = cls.get_api_instance()
         vpool = storagedriver.vpool
         client = SSHClient(storagedriver.storagerouter, username='root')
         vdisk_info = {}
@@ -130,7 +131,7 @@ class FioOnVDiskChecks(CIConstants):
             raise
         finally:
             for vdisk in vdisk_info.values():
-                VDiskRemover.remove_vdisk_by_name(vdisk.devicename, vdisk.vpool.name)
+                VDiskRemover.remove_vdisk_by_name(vdisk.devicename, vdisk.vpool.name, api)
 
     @staticmethod
     def _get_vdisk(vdisk_name, vpool_name, timeout=60, logger=LOGGER):
@@ -168,6 +169,7 @@ class FioOnVDiskChecks(CIConstants):
         :param logger: logging instance
         :return: None
         """
+        api = cls.get_api_instance()
         client = SSHClient(storagedriver.storagerouter, username='root')
         vpool = storagedriver.vpool
         edge_info = {'port': storagedriver.ports['edge'],
@@ -207,7 +209,7 @@ class FioOnVDiskChecks(CIConstants):
                     raise ValueError('Unable to destroy the blocktap connection because its output format has changed.')
                 client.run(["tap-ctl", "destroy", "-p", tap_conn_pid, "-m", tap_conn_minor])
             for vdisk_name in vdisk_info.keys():
-                VDiskRemover.remove_vdisk_by_name('{0}.raw'.format(vdisk_name), vpool.name)
+                VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool.name, api)
 
 
 def run(blocked=False):

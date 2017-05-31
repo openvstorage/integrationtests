@@ -105,7 +105,7 @@ class VDiskDeploymentChecks(CIConstants):
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(api_disk_name))
             VDiskDeploymentChecks._check_vdisk(vdisk_name=api_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(api_disk_name))
-            VDiskRemover.remove_vdisk_by_name(api_disk_name+'.raw', vpool.name)
+            VDiskRemover.remove_vdisk_by_name(api_disk_name, vpool.name, api)
             VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(api_disk_name))
 
         # ========
@@ -123,7 +123,7 @@ class VDiskDeploymentChecks(CIConstants):
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(qemu_disk_name))
             VDiskDeploymentChecks._check_vdisk(vdisk_name=qemu_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(qemu_disk_name))
-            VDiskRemover.remove_vdisk_by_name(qemu_disk_name+'.raw', vpool.name)
+            VDiskRemover.remove_vdisk_by_name(qemu_disk_name, vpool.name, api)
             VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(qemu_disk_name))
 
         # ============
@@ -137,7 +137,7 @@ class VDiskDeploymentChecks(CIConstants):
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(truncate_disk_name))
             VDiskDeploymentChecks._check_vdisk(vdisk_name=truncate_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(truncate_disk_name))
-            VDiskRemover.remove_vdisk_by_name(truncate_disk_name+'.raw', vpool.name)
+            VDiskRemover.remove_vdisk_by_name(truncate_disk_name, vpool.name, api)
             VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(truncate_disk_name))
         VDiskDeploymentChecks.LOGGER.info("Finished to validate the vdisk deployment")
 
