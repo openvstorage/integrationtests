@@ -136,14 +136,14 @@ class VDiskTemplateChecks(CIConstants):
                         "--output={0}.json".format(vdisk_name)])
             # delete vdisk
             time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_BEFORE_DELETE)
-            VDiskRemover.remove_vdisk_by_name(vdisk_name=clone_vdisk_name + '.raw', vpool_name=vpool.name)
+            VDiskRemover.remove_vdisk_by_name(vdisk_name=clone_vdisk_name, vpool_name=vpool.name, api=api)
 
         ###################
         # remove template #
         ###################
 
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_BEFORE_DELETE)
-        VDiskRemover.remove_vtemplate_by_name(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, api=api)
+        VDiskRemover.remove_vtemplate_by_name(vdisk_name=vdisk_name, vpool_name=vpool.name, api=api)
 
         ######################
         # log current memory #

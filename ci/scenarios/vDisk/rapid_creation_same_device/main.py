@@ -46,14 +46,15 @@ class VDiskControllerTester(CIConstants):
         _ = blocked
         return VDiskControllerTester._execute_test()
 
-    @staticmethod
-    def _execute_test():
+    @classmethod
+    def _execute_test(cls):
         """
         Mimics the healthcheck creating and deleting disks with the same name/devicename back to back
         :return: None
         """
         local_sr = SystemHelper.get_local_storagerouter()
         VDiskControllerTester.LOGGER.info("Starting creation/deletion test.")
+        api = cls.get_api_instance()
         # Elect vpool
         assert len(local_sr.storagedrivers) > 0, 'Node {0} has no storagedriver. Cannot test {1}'.format(local_sr.ip, VDiskControllerTester.TEST_NAME)
         random_storagedriver = local_sr.storagedrivers[random.randint(0, len(local_sr.storagedrivers) - 1)]
@@ -89,7 +90,7 @@ class VDiskControllerTester(CIConstants):
                 VDiskControllerTester.LOGGER.error('Unexpected exception occurred during the the loop. Got {0}.'.format(str(ex)))
             finally:
                 try:
-                    VDiskControllerTester._cleanup_vdisk(disk_name, vpool.name, not test_passed)
+                    VDiskControllerTester._cleanup_vdisk(disk_name, vpool.name, api, not test_passed)
                 except Exception as ex:
                     VDiskControllerTester.LOGGER.error("Auto cleanup failed with {0}.".format(str(ex)))
                     exceptions.append('Auto cleanup failed. Got {0}'.format(str(ex)))
@@ -99,7 +100,7 @@ class VDiskControllerTester(CIConstants):
         VDiskControllerTester.LOGGER.info("Finished create/delete test.")
 
     @staticmethod
-    def _cleanup_vdisk(vdisk_name, vpool_name, fail=True):
+    def _cleanup_vdisk(vdisk_name, vpool_name, api, fail=True):
         """
         Attempt to cleanup vdisk
         :param vdisk_name: name of the vdisk
@@ -109,7 +110,7 @@ class VDiskControllerTester(CIConstants):
         """
         # Cleanup vdisk using the controller
         try:
-            VDiskRemover.remove_vdisk_by_name('{0}.raw'.format(vdisk_name), vpool_name)
+            VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool_name, api)
         except Exception as ex:
             VDiskControllerTester.LOGGER.error(str(ex))
             if fail is True:

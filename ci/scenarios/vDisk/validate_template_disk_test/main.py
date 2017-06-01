@@ -104,7 +104,7 @@ class VDiskTemplateChecks(CIConstants):
         finally:
             while len(vdisks) > 0:
                 vdisk = vdisks.pop()
-                VDiskRemover.remove_vdisk(vdisk.guid)
+                VDiskRemover.remove_vdisk(vdisk.guid, api)
         try:
             # template vdisk from clone (should fail) #
             parent_vdisk = VDiskHelper.get_vdisk_by_guid(
@@ -134,9 +134,9 @@ class VDiskTemplateChecks(CIConstants):
                 if vdisk.parent_vdisk_guid is None:
                     parent_vdisks.append(vdisk)
                     continue
-                VDiskRemover.remove_vdisk(vdisk.guid)
+                VDiskRemover.remove_vdisk(vdisk.guid, api)
             for parent_vdisk in parent_vdisks:
-                VDiskRemover.remove_vdisk(parent_vdisk.guid)
+                VDiskRemover.remove_vdisk(parent_vdisk.guid, api)
         cls.LOGGER.info("Finished to validate template vdisks")
 
 

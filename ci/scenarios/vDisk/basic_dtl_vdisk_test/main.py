@@ -13,11 +13,9 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import json
 import time
 import random
-from ci.main import CONFIG_LOC
-from ci.api_lib.helpers.api import OVSClient, TimeOutError
+from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
@@ -45,7 +43,6 @@ class DTLChecks(CIConstants):
     def main(blocked):
         """
         Run all required methods for the test
-
         :param blocked: was the test blocked by other test?
         :type blocked: bool
         :return: results of test
@@ -54,36 +51,22 @@ class DTLChecks(CIConstants):
         _ = blocked
         return DTLChecks._execute_test()
 
-    @staticmethod
-    def _execute_test():
+    @classmethod
+    def _execute_test(cls):
         """
         Validate if DTL is configured as desired
-
         REQUIREMENTS:
         * 1 vPool should be available with 1 storagedriver
         * 1 vPool should be available with 2 or more storagedrivers in 2 separate domains
-
         OPTIONAL:
         * 1 vPool with 1 storagedriver with disabled DTL
-
         :return:
         """
-
         DTLChecks.LOGGER.info("Starting to validate the basic DTL")
-
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
-
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
-
+        api = cls.get_api_instance()
         ##########################
         # get deployment details #
         ##########################
-
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
 
@@ -255,7 +238,7 @@ class DTLChecks(CIConstants):
                         DTLChecks.LOGGER.info("Changing config to a same domain with only 1 storagedriver was successful!")
 
                     DTLChecks.LOGGER.info("Removing vDisk {0}".format(vdisk.name))
-                    VDiskRemover.remove_vdisk(vdisk_guid=vdisk.guid)
+                    VDiskRemover.remove_vdisk(vdisk_guid=vdisk.guid, api=api)
                     DTLChecks.LOGGER.info("Finished removing vDisk {0}".format(vdisk.name))
 
             end = time.time()

@@ -245,7 +245,7 @@ class EdgeTester(CIConstants):
                 for thread_category, thread_collection in threads['evented'].iteritems():
                     ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
             for vdisk in vdisk_info.values():
-                VDiskRemover.remove_vdisk(vdisk.guid)
+                VDiskRemover.remove_vdisk(vdisk.guid, api)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(failed_configurations)
 
     @staticmethod

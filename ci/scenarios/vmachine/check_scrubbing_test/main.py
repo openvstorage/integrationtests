@@ -90,7 +90,7 @@ class ScrubbingChecks(CIConstants):
                 cls._validate_scrubbing(stored_map)
             finally:
                 for vdisk_type, vdisk_list in created_vdisks.iteritems():
-                    VDiskRemover.remove_vdisks_with_structure(vdisk_list)
+                    VDiskRemover.remove_vdisks_with_structure(vdisk_list, api)
 
     @staticmethod
     def _validate_scrubbing(vdisk_stored_mapper, amount_checks=MAX_SCRUBBING_CHECKS, timeout=SCRUBBING_TIMEOUT):

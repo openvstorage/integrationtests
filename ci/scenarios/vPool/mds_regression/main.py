@@ -16,10 +16,12 @@
 import json
 import random
 import time
+from multiprocessing.pool import ThreadPool
 from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
@@ -37,7 +39,6 @@ from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.service import ServiceManager
-from ovs.lib.generic import GenericController
 from ovs.lib.mdsservice import MDSServiceController
 from ovs.log.log_handler import LogHandler
 
@@ -53,9 +54,6 @@ class RegressionTester(CIConstants):
     VM_CONNECTING_TIMEOUT = 5
 
     VM_NAME = 'mds-regression'
-
-    with open(CONFIG_LOC, 'r') as JSON_CONFIG:
-        SETUP_CFG = json.load(JSON_CONFIG)
 
     @classmethod
     @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
@@ -108,14 +106,11 @@ class RegressionTester(CIConstants):
         try:
             cls.run_test(cluster_info=cluster_info,
                          compute_client=compute_client,
-                         disk_amount=volume_amount,
                          vm_info=vm_info,
                          api=api)
         finally:
             for vm_name, vm_object in vm_info.iteritems():
-                for vdisk in vm_object['vdisks']:
-                    VDiskRemover.remove_vdisk(vdisk.guid)
-            for vm_name in vm_info.keys():
+                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
                 computenode_hypervisor.sdk.destroy(vm_name)
                 computenode_hypervisor.sdk.undefine(vm_name)
 
@@ -194,7 +189,7 @@ class RegressionTester(CIConstants):
         return api, cluster_info, compute_client, to_be_downed_client, is_ee, image_path, cloud_init_loc
 
     @classmethod
-    def run_test(cls, cluster_info, compute_client, vm_info, disk_amount, api, vm_username=CIConstants.VM_USERNAME, vm_password=CIConstants.VM_PASSWORD,
+    def run_test(cls, cluster_info, compute_client, vm_info, api, vm_username=CIConstants.VM_USERNAME, vm_password=CIConstants.VM_PASSWORD,
                  timeout=TEST_TIMEOUT, data_test_cases=CIConstants.DATA_TEST_CASES, logger=LOGGER):
         """
         Runs the test as described in https://github.com/openvstorage/dev_ops/issues/64
@@ -202,7 +197,6 @@ class RegressionTester(CIConstants):
         :param compute_client: SSHclient of the computenode
         :param vm_info: vm information
         :param api: api instance
-        :param disk_amount: amount of disks
         :param vm_username: username to login on all vms
         :param vm_password: password to login on all vms
         :param timeout: timeout in seconds
@@ -223,10 +217,12 @@ class RegressionTester(CIConstants):
         failed_configurations = []
         # Extract vdisk info from vm_info - only get the data ones
         vdisk_info = {}
+        disk_amount = 0
         for vm_name, vm_object in vm_info.iteritems():
             for vdisk in vm_object['vdisks']:
                 if 'vdisk_data' in vdisk.name:
                     vdisk_info.update({vdisk.name: vdisk})
+                    disk_amount += 1
         try:
             cls._adjust_automatic_scrubbing(disable=True)
             with remote(compute_str.ip, [SSHClient]) as rem:
@@ -235,7 +231,6 @@ class RegressionTester(CIConstants):
                                        'snapshots': {'pairs': [], 'r_semaphore': None}}}
                 output_files = []
                 safety_set = False
-                mds_triggered = False
                 try:
                     logger.info('Starting the following configuration: {0}'.format(configuration))
                     for vm_name, vm_data in vm_info.iteritems():
@@ -264,9 +259,9 @@ class RegressionTester(CIConstants):
                     ThreadHelper.stop_evented_threads(threads['evented']['snapshots']['pairs'],
                                                       threads['evented']['snapshots']['r_semaphore'])  # Stop snapshotting
                     cls._delete_snapshots(volume_bundle=vdisk_info, api=api)
-                    scrubbing_result = cls._start_scrubbing(volume_bundle=vdisk_info)  # Starting to scrub, offloaded to celery
+                    # Start scrubbing thread
+                    async_scrubbing = cls.start_scrubbing(volume_bundle=vdisk_info, api=api)  # Starting to scrub
                     cls._trigger_mds_issue(vdisk_info, destination_storagedriver.storagerouter.guid, api)  # Trigger mds failover while scrubber is busy
-                    mds_triggered = True
                     # Do some monitoring further for 60s
                     ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
                                                           threads=io_thread_pairs,
@@ -283,7 +278,8 @@ class RegressionTester(CIConstants):
                                              output_files=output_files,
                                              client=compute_client,
                                              disk_amount=disk_amount)
-                    api.wait_for_task(task_id=scrubbing_result.id)  # Wait for scrubbing to finish
+                    possible_scrub_errors = async_scrubbing.get()  # Wait until scrubbing calls have given a result
+                    assert len(possible_scrub_errors) == 0, 'Scrubbing has encountered some errors: {0}'.format(', '.join(possible_scrub_errors))
                     cls._validate(values_to_check, monitoring_data)
                 except Exception as ex:
                     logger.error('Running the test for configuration {0} has failed because {1}'.format(configuration, str(ex)))
@@ -299,11 +295,6 @@ class RegressionTester(CIConstants):
                         vm_data['screen_names'] = []
                     if safety_set is True:
                         cls._set_mds_safety(len(StorageRouterList.get_masters()), checkup=True)
-                    if mds_triggered is True:  # Vdisks got moved at this point
-                        for vdisk_name, vdisk_object in vdisk_info.iteritems():
-                            VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid,
-                                                  target_storagerouter_guid=source_storagedriver.storagerouter.guid,
-                                                  api=api)
         finally:
             cls._adjust_automatic_scrubbing(disable=False)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
@@ -409,22 +400,38 @@ class RegressionTester(CIConstants):
                 VDiskRemover.remove_snapshot(snapshot['guid'], vdisk_object.name, vdisk_object.vpool.name, api)
                 amount_to_delete -= 1
 
-    @staticmethod
-    def _run_pg_bench():
-        pass
+    @classmethod
+    def start_scrubbing(cls, volume_bundle, api, logger=LOGGER):
+        """
+        Start the scrubbing and wait in a seperate thread until done
+        :param volume_bundle: volume information
+        :param api: api instance
+        :param logger: logging instance
+        :return: 
+        """
+        pool = ThreadPool(processes=1)
+        return pool.apply_async(cls._start_scrubbing, args=(volume_bundle, api, logger))
 
     @staticmethod
-    def _start_scrubbing(volume_bundle):
+    def _start_scrubbing(volume_bundle, api, logger):
         """
-        Starts scrubbing and offloads it to celery
+        Starts scrubbing and will be offloaded into a seperate thread
         :param volume_bundle: volume information
         :return: Asynchronous result of a CeleryTask
         :rtype: celery.result.AsyncResult
         """
-        vdisk_guids = []
+        vdisk_task_mapping = {}
+        error_msgs = []
         for vdisk_name, vdisk_object in volume_bundle.iteritems():
-            vdisk_guids.append(vdisk_object.guid)
-        return GenericController.execute_scrub.delay(vdisk_guids=vdisk_guids)
+            vdisk_task_mapping[vdisk_object.guid] = VDiskHelper.scrub_vdisk(vdisk_object.guid, api, wait=False)  # Tasks are launched but not checked upon
+        for vdisk_name, vdisk_object in volume_bundle.iteritems():
+            logger.debug('Waiting for vdisk {0}s task to finish scrubbing.'.format(vdisk_name))
+            task_result = api.wait_for_task(vdisk_task_mapping[vdisk_object.guid])
+            if not task_result[0]:
+                error_msg = "Scrubbing vDisk `{0}` has failed with error {1}".format(vdisk_name, task_result[1])
+                logger.error(error_msg)
+                error_msgs.append(error_msg)
+        return error_msgs
 
     @staticmethod
     def _validate(dal_values, monitoring_data):
