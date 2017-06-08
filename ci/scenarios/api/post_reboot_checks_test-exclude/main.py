@@ -37,7 +37,7 @@ class PostRebootChecks(CIConstants):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[])  # Not collecting logs for this test
     def main(blocked):
         """
         Run all required methods for the test
@@ -81,7 +81,7 @@ class PostRebootChecks(CIConstants):
         ssh_tries = 0
         while ssh_tries < PostRebootChecks.SSH_WAIT_TRIES:
             try:
-                client = PostRebootChecks.create_client(host_to_reboot)
+                PostRebootChecks.create_client(host_to_reboot)
                 PostRebootChecks.LOGGER.info('host `{0}` is up again!'.format(host_to_reboot))
                 break
             except Exception:
