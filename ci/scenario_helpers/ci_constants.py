@@ -112,7 +112,7 @@ class CIConstants(object):
                 'password': cls.SETUP_CFG['ci']['user']['shell']['password']}
 
     @classmethod
-    def get_storagerouters_by_role(cls):
+    def get_storagerouters_for_ha(cls):
         """
         Gets storagerouters based on roles
         :return: 
@@ -120,13 +120,7 @@ class CIConstants(object):
         voldr_str_1 = None  # Will act as volumedriver node
         voldr_str_2 = None  # Will act as volumedriver node
         compute_str = None  # Will act as compute node
-        if isinstance(cls.PARENT_HYPERVISOR_INFO, dict):  # Hypervisor section is filled in -> VM environment
-            nodes_info = cls.PARENT_HYPERVISOR_INFO['vms']
-        elif cls.SETUP_CFG['ci'].get('nodes') is not None:  # Physical node section -> Physical environment
-            nodes_info = cls.SETUP_CFG['ci']['nodes']
-        else:
-            raise RuntimeError('Unable to fetch node information. Either hypervisor section or node section is missing!')
-        for node_ip, node_details in nodes_info.iteritems():
+        for node_ip, node_details in cls.PARENT_HYPERVISOR_INFO['vms'].iteritems():
             if node_details['role'] == "VOLDRV":
                 if voldr_str_1 is None:
                     voldr_str_1 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)

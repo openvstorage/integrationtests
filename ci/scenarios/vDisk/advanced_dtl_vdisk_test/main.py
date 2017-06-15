@@ -26,9 +26,9 @@ from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
-from ovs_extensions.generic.remote import remote
+from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.extensions.services.servicefactory import ServiceFactory
+from ovs.extensions.services.service import ServiceManager
 from ovs.log.log_handler import LogHandler
 
 
@@ -128,7 +128,7 @@ class AdvancedDTLTester(CIConstants):
         #################
         # PREREQUISITES #
         #################
-        destination_str, source_str, compute_str = cls.get_storagerouters_by_role()
+        destination_str, source_str, compute_str = cls.get_storagerouters_for_ha()
         destination_storagedriver = None
         source_storagedriver = None
         if len(source_str.regular_domains) == 0:
@@ -221,9 +221,8 @@ class AdvancedDTLTester(CIConstants):
                     vm_data['client'].run(['md5sum', cls.VM_RANDOM])
 
                 logger.error("Starting to stop proxy services")
-                service_manager = ServiceFactory.get_manager()
                 for proxy in source_std.alba_proxies:
-                    service_manager.restart_service(proxy.service.name, client=source_client)
+                    ServiceManager.restart_service(proxy.service.name, client=source_client)
 
                 logger.info('Starting to WRITE file while proxy is offline. All data should be stored in the DTL!')
                 for vm_name, vm_data in vm_info.iteritems():

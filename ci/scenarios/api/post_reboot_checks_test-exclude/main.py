@@ -78,21 +78,21 @@ class PostRebootChecks(CIConstants):
         client.run(" ( sleep {0} ; reboot ) &".format(PostRebootChecks.SSH_REBOOT_DELAY))
         time.sleep(10)
 
-        ssh_tries = 0
-        while ssh_tries < PostRebootChecks.SSH_WAIT_TRIES:
+        tries = 0
+        while tries < PostRebootChecks.SSH_WAIT_TRIES:
             try:
                 client = PostRebootChecks.create_client(host_to_reboot)
                 PostRebootChecks.LOGGER.info('host `{0}` is up again!'.format(host_to_reboot))
                 break
             except Exception:
-                ssh_tries += 1
+                tries += 1
                 PostRebootChecks.LOGGER.warning('Host `{0}` still not up at try {1}/{2} ...'
-                                                .format(host_to_reboot, ssh_tries, PostRebootChecks.SSH_WAIT_TRIES))
+                                                .format(host_to_reboot, tries, PostRebootChecks.SSH_WAIT_TRIES))
                 time.sleep(10)  # timeout or else its going too fast
-                if ssh_tries == PostRebootChecks.SSH_WAIT_TRIES:
+                if tries == PostRebootChecks.SSH_WAIT_TRIES:
                     # if we reach max tries, throw exception
                     raise RuntimeError("Max amounts of attempts reached ({0}) for host `{1}`, host still not up ..."
-                                       .format(ssh_tries, host_to_reboot))
+                                       .format(tries, host_to_reboot))
 
         # commence test
         PostRebootChecks.LOGGER.info('Starting post-reboot service check on node `{0}`'.format(host_to_reboot))

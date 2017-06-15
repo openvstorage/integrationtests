@@ -72,7 +72,6 @@ class AddRemoveVPool(CIConstants):
         :return: results of test
         :rtype: dict
         """
-        _ = blocked
         return AddRemoveVPool.validate_add_extend_remove_vpool()
 
     @staticmethod
@@ -153,6 +152,7 @@ class AddRemoveVPool(CIConstants):
         for cfg_name, cfg in vpool_configs.iteritems():
             # Create vpool
             block_cache_cfg = None
+            local_client = SSHClient(SystemHelper.get_local_storagerouter(), username='root')
             if SystemHelper.get_ovs_version().lower() == 'ee':
                 block_cache_cfg = cfg
             for storagerouter_ip in storagerouter_ips:

@@ -59,7 +59,7 @@ class EdgeTester(CIConstants):
 
     @classmethod
     def setup(cls, logger=LOGGER):
-        destination_str, source_str, compute_str = cls.get_storagerouters_by_role()
+        destination_str, source_str, compute_str = cls.get_storagerouters_for_ha()
         destination_storagedriver = None
         source_storagedriver = None
         if len(source_str.regular_domains) == 0:

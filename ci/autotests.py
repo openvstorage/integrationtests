@@ -395,11 +395,10 @@ class LogCollector(object):
                         raise ValueError('Could not match the following components: [0]. Consider the following prefixes: [1]'.format(requested_units, filters))
                     units.extend(matched)
         if auto_complete is True:
-            from ovs.extensions.services.servicefactory import ServiceFactory
+            from ovs.extensions.services.service import ServiceManager
             from ovs.extensions.generic.system import System
             from ovs.extensions.generic.sshclient import SSHClient
-            service_manager = ServiceFactory.get_manager()
-            found_services = [service for service in service_manager.list_services(SSHClient(System.get_my_storagerouter()))]
+            found_services = [service for service in ServiceManager.list_services(SSHClient(System.get_my_storagerouter()))]
             completed_units = []
             for item in units:
                 services = [service_name for service_name in found_services if service_name.startswith(item.split('*')[0])]

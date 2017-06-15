@@ -23,7 +23,7 @@ from ci.api_lib.helpers.exceptions import VDiskNotFoundError
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.setup.vdisk import VDiskSetup
-from ovs_extensions.generic.remote import remote
+from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.helpers.toolbox import Toolbox
 from ovs.log.log_handler import LogHandler
