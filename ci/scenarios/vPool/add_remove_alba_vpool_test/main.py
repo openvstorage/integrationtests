@@ -32,7 +32,6 @@ from ci.api_lib.validate.roles import RoleValidation
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.log.log_handler import LogHandler
-from ovs.extensions.generic.sshclient import SSHClient
 from ovs.dal.exceptions import ObjectNotFoundException
 
 
@@ -48,8 +47,7 @@ class AddRemoveVPool(CIConstants):
               "compression": "snappy",
               "encryption": "none",
               "policies": [[1, 1, 1, 1]],
-              "fragment_size": 2097152
-        }
+              "fragment_size": 2 * 1024 ** 2}
     PREFIX = "integration-tests-vpool-"
     VDISK_SIZE = 1 * 1024 ** 3
     VDISK_CREATE_TIMEOUT = 60
@@ -62,7 +60,7 @@ class AddRemoveVPool(CIConstants):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}])
     def main(blocked):
         """
         Run all required methods for the test

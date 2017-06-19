@@ -48,7 +48,7 @@ class RollbackChecks(CIConstants):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}, 'volumedriver'])
     def main(blocked):
         """
         Run all required methods for the test

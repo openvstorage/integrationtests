@@ -358,7 +358,7 @@ class LogCollector(object):
         """
         Get logs for specified components
         :param components: list of components. Can be strings or dicts to specify which logs
-        :type components: list[str]
+        :type components: list[str] / list[dict]
         :param since: start collecting logs from this timestamp
         :type since: str / DateTime
         :param until: stop collecting when this timestamp is found
@@ -411,7 +411,7 @@ class LogCollector(object):
         return LogFileTimeParser.execute_search_on_remote(since=since, until=until, search_locations=units)
 
 
-def gather_results(case_type, logger, test_name):
+def gather_results(case_type, logger, test_name, log_components=None):
     """
     Result gathering to be used as decorator for the autotests
     Gathers the logs when the test has failed and will push these to testrail
@@ -435,6 +435,8 @@ def gather_results(case_type, logger, test_name):
     :type logger: ovs.log.log_handler.LogHandler
     :param test_name: name of the test(most likely name of the logger)
     :type test_name: str
+    :param log_components: components to fetch logging from when the test would fail
+    :type log_components: list
     :return: 
     """
     import inspect
@@ -458,7 +460,7 @@ def gather_results(case_type, logger, test_name):
                 return {'status': 'PASSED', 'case_type': case_type, 'errors': result}
             except Exception as ex:
                 end = datetime.datetime.now()
-                result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(since=start, until=end)]
+                result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(components=log_components, since=start, until=end)]
                 logger.error('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
                 return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False}
         return wrapped

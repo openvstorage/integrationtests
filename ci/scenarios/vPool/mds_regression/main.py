@@ -56,7 +56,7 @@ class RegressionTester(CIConstants):
     VM_NAME = 'mds-regression'
 
     @classmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}, 'volumedriver'])
     def main(cls, blocked):
         """
         Run all required methods for the test
