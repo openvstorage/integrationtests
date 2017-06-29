@@ -242,8 +242,8 @@ class EdgeTester(CIConstants):
                 EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=False, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
             for screen_name in screen_names:
                 compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
-                for thread_category, thread_collection in threads['evented'].iteritems():
-                    ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
+            for thread_category, thread_collection in threads['evented'].iteritems():
+                ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
             for vdisk in vdisk_info.values():
                 VDiskRemover.remove_vdisk(vdisk.guid, api)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(failed_configurations)
