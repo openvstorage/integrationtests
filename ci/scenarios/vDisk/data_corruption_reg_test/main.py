@@ -112,8 +112,8 @@ class DataCorruptionTester(CIConstants):
             cls.run_test(storagedriver=storagedriver, vm_info=vm_info)
         finally:
             for vm_name, vm_object in vm_info.iteritems():
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
                 computenode_hypervisor.sdk.destroy(vm_name)
+                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
                 computenode_hypervisor.sdk.undefine(vm_name)
 
     @classmethod

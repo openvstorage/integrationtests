@@ -28,6 +28,7 @@ from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
+from ci.scenario_helpers.fwk_handler import FwkHandler
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.remote import remote
@@ -163,8 +164,8 @@ class HATester(CIConstants):
             cls.run_test(cluster_info=cluster_info, vm_info=vm_info)
         finally:
             for vm_name, vm_object in vm_info.iteritems():
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
                 computenode_hypervisor.sdk.destroy(vm_name)
+                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
                 computenode_hypervisor.sdk.undefine(vm_name)
         # cls.test_ha_fio(fio_bin_path, cluster_info, is_ee, api)
 
@@ -257,12 +258,14 @@ class HATester(CIConstants):
                 logger.error('Running the test for configuration {0} has failed because {1}'.format(configuration, str(ex)))
                 failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
             finally:
+                for thread_category, thread_collection in threads['evented'].iteritems():
+                    ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
                 if vm_downed is True:
                     VMHandler.start_vm(parent_hypervisor, vm_to_stop)
                     logger.debug('Started {0}'.format(vm_to_stop))
                     SystemHelper.idle_till_ovs_is_up(source_storagedriver.storage_ip, **cls.get_shell_user())
-                for thread_category, thread_collection in threads['evented'].iteritems():
-                    ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
+                    # @TODO: Remove when https://github.com/openvstorage/integrationtests/issues/540 is fixed
+                    FwkHandler.restart_all()
                 for vm_name, vm_data in vm_info.iteritems():
                     for screen_name in vm_data.get('screen_names', []):
                         logger.debug('Stopping screen {0} on {1}.'.format(screen_name, vm_data['client'].ip))
@@ -373,14 +376,16 @@ class HATester(CIConstants):
         except Exception as ex:
             failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
         finally:
+            for thread_category, thread_collection in threads['evented'].iteritems():
+                ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
             if vm_downed is True:
                 VMHandler.start_vm(parent_hypervisor, vm_to_stop)
                 SystemHelper.idle_till_ovs_is_up(source_storagedriver.storage_ip, **cls.get_shell_user())
+                # @TODO: Remove when https://github.com/openvstorage/integrationtests/issues/540 is fixed
+                FwkHandler.restart_all()
             if screen_names:
                 for screen_name in screen_names:
                     compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
-            for thread_category, thread_collection in threads['evented'].iteritems():
-                ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
             for vdisk in vdisk_info.values():
                 VDiskRemover.remove_vdisk(vdisk.guid, api)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
