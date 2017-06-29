@@ -13,8 +13,9 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import random
 import time
+import random
+from subprocess import CalledProcessError
 from ci.api_lib.helpers.api import NotFoundException
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
@@ -36,6 +37,8 @@ class BasicIscsi(CIConstants):
     TEST_NAME = "ci_scenario_iscsi_basic2"
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
 
+    ISCSI_SYNC_TIME = 4  # A small sync time for syncing with reality
+    
     @classmethod
     def main(cls, blocked):
         """
@@ -105,18 +108,23 @@ class BasicIscsi(CIConstants):
         amount_of_targets = 1
         iscsi_node = random.choice(cluster_info['iscsi_nodes'])
         # tests = [cls.test_expose_unexpose_remove, cls.test_expose_remove, cls.test_expose_twice, cls.test_data_acceptance, cls.test_exposed_move, cls.test_expose_two_nodes]
-        tests = [cls.test_move_of_subdir]
+        tests = [cls.test_extend]
+        run_errors = []
         for _function in tests:
             vdisk_info = cls.deployment(amount_of_targets, vpool, source_storagedriver.storage_ip, api)
             try:
                 _function(vdisk_info, iscsi_node, api)
+            except Exception as ex:
+                logger.exception(str(ex))
+                run_errors.append(ex)
             finally:
-                errors = []
+                cleanup_errors = []
                 try:
                     cls.tear_down(vdisk_info, api)
                 except Exception as ex:
-                    errors.append(ex)
-                assert len(errors) == 0, 'Got the following errors during cleanup: {0}.'.format(', '.join((str(ex) for ex in errors)))
+                    cleanup_errors.append(ex)
+                assert len(cleanup_errors) == 0, 'Got the following errors during cleanup: {0}.'.format(', '.join((str(ex) for ex in cleanup_errors)))
+        assert len(run_errors) == 0, 'Got the following errors during testing: {0}.'.format(', '.join((str(ex) for ex in run_errors)))
 
     @classmethod
     def deployment(cls, amount, vpool, storagerouter_ip, api, base_name=TEST_NAME):
@@ -249,6 +257,8 @@ class BasicIscsi(CIConstants):
             for vdisk_name, vdisk_object in vdisk_info.iteritems():
                 logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
                 iqns.append(IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
+            cls._validate_iscsi(iscsi_node)
+            time.sleep(cls.ISCSI_SYNC_TIME)  # Small sync
             cls._write_data_to_target(iqns, a_vdisk.size / 10)
             for vdisk_name, vdisk_object in vdisk_info.iteritems():
                 current_path = '/mnt/{0}/{1}'.format(vdisk_object.vpool.name, vdisk_object.devicename.split('/', 1)[-1].rsplit('/', 1)[0])
@@ -256,11 +266,13 @@ class BasicIscsi(CIConstants):
                 cmd = ['mv', current_path, destination_path]
                 client.run(cmd)
             cls._validate_iscsi(iscsi_node)
+            time.sleep(cls.ISCSI_SYNC_TIME)  # Small sync
             # Validate data acceptance
             cls._write_data_to_target(iqns, a_vdisk.size / 10)
-        except:
+        except Exception as ex:
+            logger.warning('Exception during move of subdir. {0}'.format(str(ex)))
+        finally:
             cls.tear_down(vdisk_info, api)
-            raise
 
     @classmethod
     def test_extend(cls, vdisk_info, iscsi_node, api):
@@ -272,11 +284,23 @@ class BasicIscsi(CIConstants):
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
             iqns.append(IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
-        for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            cmd = ['truncate', '--size', vdisk_object.size * 2, '/mnt/{0}/{1}'.format(vdisk_object.vpool.name, vdisk_object.devicename)]
-            client.run(cmd)
+        # Login to targets
         cls._validate_iscsi(iscsi_node)
-        cls._write_data_to_target(iqns, a_vdisk.size / 10)
+        try:
+            for iqn in iqns:
+                cls._login_target(iqn)
+            for vdisk_name, vdisk_object in vdisk_info.iteritems():
+                cmd = ['truncate', '--size', vdisk_object.size * 2, '/mnt/{0}/{1}'.format(vdisk_object.vpool.name, vdisk_object.devicename)]
+                client.run(cmd)
+            cls._validate_iscsi(iscsi_node)
+            # Check if size changed on the initiator side - shouldnt be the case without relogging
+
+        finally:
+            for iqn in iqns:
+                try:
+                    cls._disconnect_target(iqn)
+                except Exception as ex:
+                    logger.warning('Exception during disconnect: {0}.'.format(str(ex)))
 
     @classmethod
     def test_exposed_move(cls, vdisk_info, iscsi_node, api):
@@ -317,13 +341,14 @@ class BasicIscsi(CIConstants):
             local_client = SSHClient(System.get_my_storagerouter(), 'root')
             screen_names = []
             try:
-                fio_config = {'io_size': size, 'configuration': (50, 50), 'bs': '1k'}
+                fio_config = {'io_size': size, 'configuration': (50, 50), 'bs': '4k'}
                 screen_names, output_files = DataWriter.write_data_fio(local_client, fio_config, file_locations=associated_disks, screen=screen)
             finally:
                 for screen_name in screen_names:
                     local_client.run(['screen', '-S', screen_name, '-X', 'quit'])
         except Exception as ex:
             logger.exception('Exception during write data. {0}'.format(str(ex)))
+            raise
         finally:
             for iqn in iqns:
                 try:
@@ -411,15 +436,24 @@ class BasicIscsi(CIConstants):
         assert len(leftover_dal) == 0, 'The following DAL portals could not be matched to the real ones: {0}'.format(', '.join(leftover_dal))
 
     @classmethod
-    def _login_target(cls, target_iqn):
+    def _login_target(cls, target_iqn, retries=5, delay=ISCSI_SYNC_TIME):
         """
         Logs into a specific target
         :param target_iqn: iqn of the target
         :return: 
         """
+        logger = cls.LOGGER
         cmd = ['iscsiadm', '-m', 'node', '--login', '-T', target_iqn]
         local_client = SSHClient(System.get_my_storagerouter(), 'root')
-        local_client.run(cmd, timeout=10)
+        for retry in xrange(retries):
+            try:
+                local_client.run(cmd, timeout=10)
+                return
+            except CalledProcessError as ex:
+                logger.warning('Could not login to the node on try {0}. Got {1}'.format(retry, str(ex)))
+                if retry == retries - 1:
+                    raise
+                time.sleep(delay)
 
     @classmethod
     def _associate_target_to_disk(cls):
@@ -428,7 +462,7 @@ class BasicIscsi(CIConstants):
         :return: mapping object with iqn as key and disk as value (eg {'iqn.mydisk': '/dev/sdg'})
         :rtype: dict
         """
-        cmd = """lsscsi --transport | awk 'BEGin{FS=OFS=" "} $4!="-" && match($3, "^iqn.*") && split($3, arr, ",") {print arr[1]" "$4}'"""
+        cmd = """lsscsi --transport | awk 'BEGIN{FS=OFS=" "} $4!="-" && match($3, "^iqn.*") && split($3, arr, ",") {print arr[1]" "$4}'"""
         local_client = SSHClient(System.get_my_storagerouter(), 'root')
         output = local_client.run(cmd, allow_insecure=True)
         mapping = {}  # maps IQN to disk
