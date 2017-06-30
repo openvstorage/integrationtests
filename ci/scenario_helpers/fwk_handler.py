@@ -26,22 +26,39 @@ class FwkHandler(object):
     LOGGER = LogHandler.get(source='scenario_helpers', name='fwk_handler')
 
     @classmethod
-    def restart(cls, srs, logger=LOGGER):
-        for sr in srs:
-            logger.info("Restarting ovs-workers on {0}".format(sr.ip))
-            client = SSHClient(str(sr.ip), username='root', cached=False)
+    def restart(cls, storagerouters, logger=LOGGER):
+        """
+        Restarts a list of storagerouters
+        :param storagerouters: list of storagerouters
+        :param logger: logging instance
+        :return: None
+        """
+        for storagerouter in storagerouters:
+            logger.info("Restarting ovs-workers on {0}".format(storagerouter.ip))
+            client = SSHClient(str(storagerouter.ip), username='root', cached=False)
             client.run(['systemctl', 'restart', 'ovs-workers.service'])
 
     @classmethod
     def restart_masters(cls):
+        """
+        Will restart ovs-workers on all master nodes
+        :return: None
+        """
         cls.restart([sr for sr in StorageRouterList.get_masters()])
-
 
     @classmethod
     def restart_slaves(cls):
+        """
+        Will restart ovs-workers on all slave nodes
+        :return: None
+        """
         cls.restart([sr for sr in StorageRouterList.get_slaves()])
 
     @classmethod
     def restart_all(cls):
+        """
+        Will restart ovs-workers on all nodes
+        :return: None
+        """
         cls.restart_masters()
         cls.restart_slaves()
