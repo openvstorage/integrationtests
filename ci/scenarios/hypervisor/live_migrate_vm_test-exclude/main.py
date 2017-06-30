@@ -108,9 +108,8 @@ class MigrateTester(CIConstants):
             cls.live_migrate(vm_info, cluster_info, volume_amount, hypervisor_info)
         finally:
             for vm_name, vm_object in vm_info.iteritems():
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
-            for vm_name in vm_info.keys():
                 source_hypervisor.sdk.destroy(vm_name)
+                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
                 source_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
