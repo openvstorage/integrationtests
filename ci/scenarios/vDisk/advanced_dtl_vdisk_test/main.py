@@ -24,6 +24,7 @@ from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
+from ci.scenario_helpers.fwk_handler import FwkHandler
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
 from ovs_extensions.generic.remote import remote
@@ -34,7 +35,7 @@ from ovs.log.log_handler import LogHandler
 
 class AdvancedDTLTester(CIConstants):
     """
-    Exercice HA with a VM via edge & KVM
+    Trigger HA with a VM via edge & KVM
 
     Required packages: qemu-kvm libvirt0 python-libvirt virtinst genisoimage
     Required commands after ovs installation and required packages: usermod -a -G ovs libvirt-qemu
@@ -113,8 +114,8 @@ class AdvancedDTLTester(CIConstants):
             cls.run_test(vm_info=vm_info, cluster_info=cluster_info)
         finally:
             for vm_name, vm_object in vm_info.iteritems():
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
                 computenode_hypervisor.sdk.destroy(vm_name)
+                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
                 computenode_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
@@ -220,8 +221,9 @@ class AdvancedDTLTester(CIConstants):
                     vm_data['client'].run(['dd', 'if=/dev/urandom', 'of={0}'.format(cls.VM_RANDOM), 'bs=1M', 'count=2'])
                     vm_data['client'].run(['md5sum', cls.VM_RANDOM])
 
-                logger.error("Starting to stop proxy services")
+                logger.info("Stopping proxy services")
                 service_manager = ServiceFactory.get_manager()
+
                 for proxy in source_std.alba_proxies:
                     service_manager.restart_service(proxy.service.name, client=source_client)
 
@@ -277,12 +279,14 @@ class AdvancedDTLTester(CIConstants):
                 assert len(unmatching_checksum_vms) == 0, 'Not all data was read from the DTL. Checksums do not line up for {}'.format(', '.join(unmatching_checksum_vms))
                 logger.info('DTL is working correctly!')
             finally:
+                for thread_category, thread_collection in threads['evented'].iteritems():
+                    ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
                 if vm_downed is True:
                     VMHandler.start_vm(parent_hypervisor, vm_to_stop)
                     logger.debug('Started {0}'.format(vm_to_stop))
                     SystemHelper.idle_till_ovs_is_up(source_std.storage_ip, **cls.get_shell_user())
-                for thread_category, thread_collection in threads['evented'].iteritems():
-                    ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
+                    # @TODO: Remove when https://github.com/openvstorage/integrationtests/issues/540 is fixed
+                    FwkHandler.restart_all()
                 for vm_name, vm_data in vm_info.iteritems():
                     for screen_name in vm_data.get('screen_names', []):
                         logger.debug('Stopping screen {0} on {1}.'.format(screen_name, vm_data['client'].ip))
