@@ -20,7 +20,7 @@ from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
-from ovs_extensions.generic.configuration import Configuration
+from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.servicefactory import ServiceFactory
 
