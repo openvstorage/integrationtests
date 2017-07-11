@@ -14,7 +14,6 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.api_lib.helpers.system import SystemHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.sshclient import SSHClient
@@ -31,7 +30,7 @@ class HealthCheckCI(CIConstants):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}])
     def main(blocked):
         """
         Run all required methods for the test

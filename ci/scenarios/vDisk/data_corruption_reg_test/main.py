@@ -23,7 +23,7 @@ from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.vm_handler import VMHandler
-from ovs.extensions.generic.remote import remote
+from ovs_extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
@@ -58,7 +58,7 @@ class DataCorruptionTester(CIConstants):
     VM_VDBENCH_CFG_PATH = "/root/vdbench_run.cfg"
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}, 'volumedriver'])
     def main(blocked):
         """
         Run all required methods for the test

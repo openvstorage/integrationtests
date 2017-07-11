@@ -31,7 +31,7 @@ from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.fwk_handler import FwkHandler
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
-from ovs.extensions.generic.remote import remote
+from ovs_extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
@@ -52,7 +52,7 @@ class HATester(CIConstants):
     VM_NAME = 'HA-test'
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}, 'volumedriver'])
     def main(blocked):
         """
         Run all required methods for the test
@@ -73,7 +73,7 @@ class HATester(CIConstants):
         #################
         # PREREQUISITES #
         #################
-        destination_str, source_str, compute_str = cls.get_storagerouters_for_ha()
+        destination_str, source_str, compute_str = cls.get_storagerouters_by_role()
         destination_storagedriver = None
         source_storagedriver = None
         if len(source_str.regular_domains) == 0:

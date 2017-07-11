@@ -19,7 +19,6 @@ import subprocess
 from ci.main import CONFIG_LOC
 from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.exceptions import VDiskNotFoundError
-from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
@@ -49,7 +48,7 @@ class RollbackChecks(CIConstants):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}, 'volumedriver'])
     def main(blocked):
         """
         Run all required methods for the test

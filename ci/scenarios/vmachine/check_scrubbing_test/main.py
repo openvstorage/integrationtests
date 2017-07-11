@@ -41,7 +41,7 @@ class ScrubbingChecks(CIConstants):
     TYPE_TEST_RUN = ['originals', 'clones']
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}, 'volumedriver'])
     def main(blocked):
         """
         Run all required methods for the test

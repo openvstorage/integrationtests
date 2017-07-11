@@ -41,7 +41,7 @@ class EdgeTester(CIConstants):
     IO_TIME = 30
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}, 'volumedriver'])
     def main(blocked):
         """
         Run all required methods for the test
@@ -59,7 +59,7 @@ class EdgeTester(CIConstants):
 
     @classmethod
     def setup(cls, logger=LOGGER):
-        destination_str, source_str, compute_str = cls.get_storagerouters_for_ha()
+        destination_str, source_str, compute_str = cls.get_storagerouters_by_role()
         destination_storagedriver = None
         source_storagedriver = None
         if len(source_str.regular_domains) == 0:

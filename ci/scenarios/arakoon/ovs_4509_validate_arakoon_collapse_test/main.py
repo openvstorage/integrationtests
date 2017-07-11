@@ -16,10 +16,10 @@
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs_extensions.generic.remote import remote
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.lists.servicelist import ServiceList
 from ovs.extensions.generic.configuration import Configuration
-from ovs.extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.generic import GenericController
 from ovs.log.log_handler import LogHandler
@@ -35,7 +35,7 @@ class ArakoonCollapse(CIConstants):
         pass
 
     @staticmethod
-    @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
+    @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=['arakoon'])
     def main(blocked):
         """
         Run all required methods for the test
