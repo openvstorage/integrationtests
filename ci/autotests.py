@@ -370,7 +370,7 @@ class LogCollector(object):
         """
         logger = AutoTests.logger
         logger.debug('Grepping logs between {0} and {1}.'.format(since, until))
-        from ovs.log.log_reader import LogFileTimeParser
+        from ovs_extensions.log.log_reader import LogFileTimeParser
         if components is None:
             components = LogCollector.DEFAULT_COMPONENTS
         units = []
