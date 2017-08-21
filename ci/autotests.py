@@ -461,7 +461,7 @@ def gather_results(case_type, logger, test_name, log_components=None):
             except Exception as ex:
                 end = datetime.datetime.now()
                 result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(components=log_components, since=start, until=end)]
-                logger.error('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
+                logger.exception('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
                 return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False}
         return wrapped
     return wrapper
