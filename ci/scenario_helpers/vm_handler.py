@@ -23,17 +23,17 @@ from ci.api_lib.helpers.exceptions import VDiskNotFoundError
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.setup.vdisk import VDiskSetup
+from ovs.extensions.generic.logger import Logger
 from ovs_extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.helpers.toolbox import Toolbox
-from ovs.log.log_handler import LogHandler
 
 
 class VMHandler(object):
     """
     Class that can create virtual machines
     """
-    LOGGER = LogHandler.get(source='scenario_helpers', name='vm_handler')
+    LOGGER = Logger('scenario_helpers-vm_handler')
     CLOUD_INIT_DATA = {
         'script_loc': 'https://raw.githubusercontent.com/kinvaris/cloud-init/master/create-config-drive',
         'script_dest': '/tmp/cloud_init_script.sh',

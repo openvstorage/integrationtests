@@ -37,17 +37,17 @@ from ci.scenario_helpers.vm_handler import VMHandler
 from ovs_extensions.generic.remote import remote
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.configuration import Configuration
-from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.services.servicefactory import ServiceFactory
+from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.mdsservice import MDSServiceController
-from ovs.log.log_handler import LogHandler
 
 
 class RegressionTester(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_edge_test'
-    LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
 
     IO_TIME = 2 * 60  # Time to do IO for
     TEST_TIMEOUT = 300

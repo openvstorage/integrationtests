@@ -28,12 +28,12 @@ from ci.api_lib.helpers.exceptions import SectionNotFoundError
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
 from ci.main import CONFIG_LOC
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 
 
 class AutoTests(object):
 
-    logger = LogHandler.get(source='autotests', name="ci_autotests")
+    logger = Logger("autotests-ci_autotests")
     TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
     TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testrail.json"
     EXCLUDE_FLAG = "-exclude"

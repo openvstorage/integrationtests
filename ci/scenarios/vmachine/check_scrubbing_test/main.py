@@ -23,15 +23,15 @@ from ci.api_lib.helpers.system import SystemHelper
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 
 
 class ScrubbingChecks(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_scrubbing"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     AMOUNT_VDISKS_TO_SCRUB = 5
     SIZE_VDISK = 50 * 1024 ** 2
     PREFIX = "integration-tests-scrubbing"

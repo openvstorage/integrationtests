@@ -15,15 +15,15 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 from ovs.dal.lists.storagerouterlist import StorageRouterList
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 
 
 class FwkHandler(object):
     """
     Class handling fwk actions
     """
-    LOGGER = LogHandler.get(source='scenario_helpers', name='fwk_handler')
+    LOGGER = Logger('scenario_helpers-fwk_handler')
 
     @classmethod
     def restart(cls, storagerouters, logger=LOGGER):

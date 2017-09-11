@@ -15,11 +15,11 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 import time
-from ovs.log.log_handler import LogHandler
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 
 
@@ -27,7 +27,7 @@ class ServiceChecks(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_post_reboot_checks"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     SERVICE_TIMEOUT = 5
     SERVICE_TRIES = 5
 
