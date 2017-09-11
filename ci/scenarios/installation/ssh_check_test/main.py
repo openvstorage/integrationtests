@@ -16,8 +16,8 @@
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.logger import Logger
+from ovs.extensions.generic.sshclient import SSHClient
 
 
 class SshChecks(CIConstants):

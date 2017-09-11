@@ -31,8 +31,8 @@ from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.validate.roles import RoleValidation
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs.extensions.generic.logger import Logger
 from ovs.dal.exceptions import ObjectNotFoundException
+from ovs.extensions.generic.logger import Logger
 
 
 class AddRemoveVPool(CIConstants):
