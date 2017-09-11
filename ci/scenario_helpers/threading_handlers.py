@@ -20,7 +20,7 @@ import threading
 from datetime import datetime
 from ci.api_lib.helpers.thread import ThreadHelper, Waiter
 from ci.api_lib.setup.vdisk import VDiskSetup
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 
 
 class ThreadingHandler(object):
@@ -28,7 +28,7 @@ class ThreadingHandler(object):
     Contains methods using threads that are used across multiple tests
     """
     IO_REFRESH_RATE = 5  # in seconds
-    LOGGER = LogHandler.get(source='scenario_helpers', name='threading_handler')
+    LOGGER = Logger('scenario_helpers-threading_handler')
     VDISK_THREAD_LIMIT = 5  # Each monitor thread queries x amount of vdisks
 
     @staticmethod

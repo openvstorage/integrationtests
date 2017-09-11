@@ -27,7 +27,7 @@ from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 
 
 class EdgeTester(CIConstants):
@@ -36,7 +36,7 @@ class EdgeTester(CIConstants):
     """
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_edge_test'
-    LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     SLEEP_TIME = 60  # Time to idle before going to block the edge
     IO_TIME = 30
 

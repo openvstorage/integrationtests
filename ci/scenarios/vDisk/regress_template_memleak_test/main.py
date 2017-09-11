@@ -23,15 +23,15 @@ from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 
 
 class VDiskTemplateChecks(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_vdisk_template_memleak"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     PREFIX = "integration-tests-templ-memleak-"
     VDISK_SIZE = 1073741824  # 1 GB
     AMOUNT_VDISKS = 10

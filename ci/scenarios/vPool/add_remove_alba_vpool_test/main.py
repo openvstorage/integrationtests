@@ -31,7 +31,7 @@ from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.api_lib.validate.roles import RoleValidation
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 from ovs.dal.exceptions import ObjectNotFoundException
 
 
@@ -39,7 +39,7 @@ class AddRemoveVPool(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_add_extend_remove_vpool"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     ADD_EXTEND_REMOVE_VPOOL_TIMEOUT = 60
     ADD_EXTEND_REMOVE_VPOOL_TIMEOUT_FORGIVING = 300
     VPOOL_NAME = "integrationtests-vpool"

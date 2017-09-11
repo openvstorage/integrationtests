@@ -15,16 +15,16 @@
 # but WITHOUT ANY WARRANTY of any kind.
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
-from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.generic.logger import Logger
 
 
 class SshChecks(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_ssh_checks"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     CHECK_USERS = ['root', 'ovs']
 
     def __init__(self):

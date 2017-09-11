@@ -20,16 +20,16 @@ from ovs_extensions.generic.remote import remote
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.lists.servicelist import ServiceList
 from ovs.extensions.generic.configuration import Configuration
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.generic import GenericController
-from ovs.log.log_handler import LogHandler
 
 
 class ArakoonCollapse(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_arakoon_collapse"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger("scenario-{0}".format(TEST_NAME))
 
     def __init__(self):
         pass

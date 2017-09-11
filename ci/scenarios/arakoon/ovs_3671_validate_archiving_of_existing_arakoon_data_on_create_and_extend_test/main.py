@@ -19,15 +19,15 @@ from ci.api_lib.remove.arakoon import ArakoonRemover
 from ci.api_lib.setup.arakoon import ArakoonSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 
 
 class ArakoonArchiving(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_archiving"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger("scenario-{0}".format(TEST_NAME))
 
     def __init__(self):
         pass

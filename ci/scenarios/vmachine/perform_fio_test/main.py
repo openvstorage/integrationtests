@@ -24,15 +24,15 @@ from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.vm_handler import VMHandler
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 
 
 class FioOnVDiskChecks(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_fio_on_vdisk"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     VDISK_SIZE = 10 * 1024 ** 3
     AMOUNT_VDISKS = 5
     AMOUNT_TO_WRITE = 10 * 1024 ** 2

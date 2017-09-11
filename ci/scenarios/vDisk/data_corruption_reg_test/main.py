@@ -25,7 +25,7 @@ from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.vm_handler import VMHandler
 from ovs_extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 
 
 # @ todo fix this test. No validation, just launches the vdbench async
@@ -39,7 +39,7 @@ class DataCorruptionTester(CIConstants):
 
     CASE_TYPE = 'STABILITY'
     TEST_NAME = 'ci_scenario_data_corruption'
-    LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
 
     VM_NAME = 'Data-corruption-test'
     VDBENCH_ZIP = "http://fileserver.cloudfounders.com/Operations/IT/Software/vdbench/vdbench.zip"  # Fetch location

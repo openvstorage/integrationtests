@@ -16,15 +16,15 @@
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 
 
 class HealthCheckCI(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_healthcheck'
-    LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
 
     def __init__(self):
         pass
