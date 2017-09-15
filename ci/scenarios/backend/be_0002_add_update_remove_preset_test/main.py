@@ -30,7 +30,7 @@ class AddUpdateRemovePreset(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_add_remove_backend"
-    LOGGER = Logger("scenario-{0}".format(name=TEST_NAME))
+    LOGGER = Logger("scenario-{0}".format(TEST_NAME))
 
     def __init__(self):
         pass
