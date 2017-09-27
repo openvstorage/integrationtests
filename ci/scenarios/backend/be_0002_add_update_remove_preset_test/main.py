@@ -23,14 +23,14 @@ from ci.api_lib.setup.backend import BackendSetup
 from ci.api_lib.validate.backend import BackendValidation
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 
 
 class AddUpdateRemovePreset(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_add_remove_backend"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger("scenario-{0}".format(TEST_NAME))
 
     def __init__(self):
         pass

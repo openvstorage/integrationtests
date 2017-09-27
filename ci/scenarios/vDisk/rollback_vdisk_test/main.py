@@ -25,16 +25,16 @@ from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 
 
 class RollbackChecks(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_rollback"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
-    SIZE_VDISK = 52428800
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
+    SIZE_VDISK = 50 * 1024 ** 2
     VDISK_NAME = "integration-tests-rollback"
     MAX_ROLLBACK_CHECKS = 20
     ROLLBACK_TIMEOUT = 45

@@ -26,15 +26,15 @@ from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.vm_handler import VMHandler
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 
 
 class VDiskDeploymentChecks(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_vdisk_deployment"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     PREFIX = "integration-tests-deployment-"
     VDISK_SIZES = [200 * 1024 ** 3, 400 * 1024 ** 3, 800 * 1024 ** 3, 1600 * 1024 ** 3, 3200 * 1024 ** 3, 6400 * 1024 ** 3]
     VDISK_CREATE_TIMEOUT = 150

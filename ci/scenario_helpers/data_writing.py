@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import math
 import uuid
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 from ovs.lib.helpers.toolbox import Toolbox
 
 
@@ -24,7 +24,7 @@ class DataWriter(object):
     Class that handles writing data
     Used in many tests which require IO.
     """
-    LOGGER = LogHandler.get(source='scenario_helpers', name='data_writer')
+    LOGGER = Logger('scenario_helpers-data_writer')
     FIO_VDISK_LIMIT = 50
 
     @classmethod

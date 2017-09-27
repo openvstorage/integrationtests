@@ -28,12 +28,12 @@ from ci.api_lib.helpers.exceptions import SectionNotFoundError
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
 from ci.main import CONFIG_LOC
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 
 
 class AutoTests(object):
 
-    logger = LogHandler.get(source='autotests', name="ci_autotests")
+    logger = Logger("autotests-ci_autotests")
     TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
     TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testrail.json"
     EXCLUDE_FLAG = "-exclude"
@@ -370,7 +370,7 @@ class LogCollector(object):
         """
         logger = AutoTests.logger
         logger.debug('Grepping logs between {0} and {1}.'.format(since, until))
-        from ovs.log.log_reader import LogFileTimeParser
+        from ovs_extensions.log.log_reader import LogFileTimeParser
         if components is None:
             components = LogCollector.DEFAULT_COMPONENTS
         units = []
@@ -461,7 +461,7 @@ def gather_results(case_type, logger, test_name, log_components=None):
             except Exception as ex:
                 end = datetime.datetime.now()
                 result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(components=log_components, since=start, until=end)]
-                logger.error('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
+                logger.exception('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
                 return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False}
         return wrapped
     return wrapper
