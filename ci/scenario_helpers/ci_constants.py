@@ -72,6 +72,10 @@ class CIConstants(object):
 
     HA_TIMEOUT = 300
 
+    def __init__(self):
+        self.api = self.get_api_instance()
+        super(CIConstants, self).__init__()
+
     @classmethod
     def get_api_instance(cls):
         """
