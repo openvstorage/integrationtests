@@ -37,7 +37,6 @@ class VPoolTester(CIConstants):
         this method sets up or checks environmental prerequisits for testing: storage routers and backends
         """
         self.LOGGER.info("Initializing environment for concurrent vpool testing")
-
         valid_storagerouters = []
         for storagerouter in StoragerouterHelper.get_storagerouters():
             try:
@@ -63,7 +62,6 @@ class VPoolTester(CIConstants):
         tasks = {}
         for i in range(1, self.NUMBER_OF_VPOOLS + 1):
             sr = random.choice(self.storagerouters)
-
             vpool_name = 'vpool{0}'.format(i)
             data = json.dumps({'call_parameters': {'backend_info': {'preset': 'default',
                                                                     'alba_backend_guid': random.choice(self.alba_bes).guid},
@@ -76,8 +74,8 @@ class VPoolTester(CIConstants):
                                                    'storagerouter_ip': sr.ip,
                                                    'vpool_name': vpool_name,
                                                    'writecache_size': 10}})
-
             tasks[vpool_name] = self.api.post(api='storagerouters/{0}/add_vpool'.format(sr.guid), data=data)
+
         for vpool_name, task in tasks.iteritems():
             self.LOGGER.info('-> {0} running: {1}'.format(vpool_name, self.api.wait_for_task(task)[0]))
             try:
