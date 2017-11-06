@@ -72,12 +72,14 @@ class VPoolTester(CIConstants):
                                                    'writecache_size': 5}})
             tasks[vpool_name] = self.api.post(api='storagerouters/{0}/add_vpool'.format(sr.guid), data=data)
         for vpool_name, task_id in tasks.iteritems():
-            self.LOGGER.info('-> {0} running: {1}'.format(vpool_name, self.api.wait_for_task(task_id, timeout=600)[0]))
+            addition_completed = self.api.wait_for_task(task_id, timeout=600)[0]
+            if addition_completed is True:
+                self.LOGGER.info('Creation of {0} completed.'.format(vpool_name))
             try:
                 vpool = VPoolHelper.get_vpool_by_name(vpool_name)
                 self.vpools.append(vpool)
             except VPoolNotFoundError:
-                self.LOGGER.exception('Unable to find vpool with name {0}}.'.format(vpool_name))
+                self.LOGGER.exception('Unable to find vpool with name {0}.'.format(vpool_name))
         assert self.NUMBER_OF_VPOOLS == len(self.vpools), 'Failed to create {0} vpools: only {1} found!'.format(self.NUMBER_OF_VPOOLS, len(self.vpools))
 
     def remove_vpools(self):
@@ -88,11 +90,11 @@ class VPoolTester(CIConstants):
         dels = {}
         for vpool in self.vpools:
             for storagedriver in vpool.storagedrivers:
-                dels[vpool.guid] = self.api.post(api='vpools/{0}/shrink_vpool'.format(vpool.guid), data=json.dumps({'storagerouter_guid': storagedriver.storagerouter.guid}))
+                dels[vpool.guid] = self.api.post(api='vpools/{0}/shrink_vpool'.format(vpool.guid), data=json.dumps({'storagerouter_guid': storagedriver.storagerouter_guid}))
         for vpool_guid, task_id in dels.iteritems():
             deletion_completed = self.api.wait_for_task(task_id, timeout=600)[0]
-            if deletion_completed == True:
-                self.LOGGER.info('vpool nr {0} deletion is succesful'.format(vpool_guid))
+            if deletion_completed is True:
+                self.LOGGER.info('vpool with guid {0} is deleted successfully'.format(vpool_guid))
         self.LOGGER.info('Concurrent removal of vpools finished.')
         leftover_vpools = []
         for vpool in self.vpools:
@@ -102,7 +104,7 @@ class VPoolTester(CIConstants):
             except VPoolNotFoundError:
                 pass
         if len(leftover_vpools) > 0:
-            raise RuntimeError('Following vpools are not removed: {}'.format(', '.join([vpool.name for vpool in leftover_vpools])))
+            raise RuntimeError('Following vpools are not removed: {}.'.format(', '.join([vpool.name for vpool in leftover_vpools])))
 
     @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}])
     def main(self, blocked):
