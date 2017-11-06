@@ -46,7 +46,6 @@ class VPoolTester(CIConstants):
                 self.LOGGER.warning("Did not add {0} to list of eligible storagerouters: {1}.".format(storagerouter.ip, ex))
 
         assert len(self.valid_storagerouters) >= 1, 'At least one storagerouter with valid roles required: none found!'
-
         self.alba_backends = BackendHelper.get_alba_backends()
         assert len(self.alba_backends) >= 1, 'At least one backend required, none found!'
         self.vpools = []
@@ -59,7 +58,7 @@ class VPoolTester(CIConstants):
         self.LOGGER.info("Starting to validate addition of vpools concurrently.")
         tasks = {}
         for i in range(1, self.NUMBER_OF_VPOOLS + 1):
-            sr = self.valid_storagerouters[(i - 1) % len(self.valid_storagerouters) ]
+            sr = self.valid_storagerouters[(i - 1) % len(self.valid_storagerouters)]
             vpool_name = 'vpool{0}'.format(i)
             data = json.dumps({'call_parameters': {'backend_info': {'preset': 'default',
                                                                     'alba_backend_guid': random.choice(self.alba_backends).guid},
@@ -103,8 +102,6 @@ class VPoolTester(CIConstants):
         if len(leftover_vpools) > 0:
             raise RuntimeError('Following vpools are not removed: {}'.format(', '.join([vpool.name for vpool in leftover_vpools])))
 
-
-
     @gather_results(CASE_TYPE, LOGGER, TEST_NAME, log_components=[{'framework': ['ovs-workers']}])
     def main(self, blocked):
         """
@@ -117,7 +114,7 @@ class VPoolTester(CIConstants):
         try:
             self.add_vpools()
         except Exception:
-            self.LOGGER.exception('Error during add vpools, cleaning up.')
+            self.LOGGER.exception('Error during add_vpools, cleaning up.')
             raise
         finally:
             self.remove_vpools()
