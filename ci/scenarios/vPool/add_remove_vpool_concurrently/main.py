@@ -77,7 +77,8 @@ class VPoolTester(CIConstants):
                 self.LOGGER.info('Creation of {0} completed.'.format(vpool_name))
             try:
                 vpool = VPoolHelper.get_vpool_by_name(vpool_name)
-                self.vpools.append(vpool)
+                if vpool.STATUSES.RUNNING is 'RUNNING':
+                    self.vpools.append(vpool)
             except VPoolNotFoundError:
                 self.LOGGER.exception('Unable to find vpool with name {0}.'.format(vpool_name))
         assert self.NUMBER_OF_VPOOLS == len(self.vpools), 'Failed to create {0} vpools: only {1} found!'.format(self.NUMBER_OF_VPOOLS, len(self.vpools))
