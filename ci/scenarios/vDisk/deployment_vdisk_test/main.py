@@ -70,14 +70,6 @@ class VDiskDeploymentChecks(CIConstants):
         """
         VDiskDeploymentChecks.LOGGER.info("Starting to validate the vdisk deployment")
 
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
-
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
 
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
@@ -100,12 +92,12 @@ class VDiskDeploymentChecks(CIConstants):
                                               "on node `{3}`".format(api_disk_name, vpool.name, size,
                                                                      storagedriver.storagerouter.ip))
             VDiskSetup.create_vdisk(vdisk_name=api_disk_name+'.raw', vpool_name=vpool.name, size=size,
-                                    storagerouter_ip=storagedriver.storagerouter.ip, api=api,
+                                    storagerouter_ip=storagedriver.storagerouter.ip, api=cls.api,
                                     timeout=VDiskDeploymentChecks.VDISK_CREATE_TIMEOUT)
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(api_disk_name))
             VDiskDeploymentChecks._check_vdisk(vdisk_name=api_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(api_disk_name))
-            VDiskRemover.remove_vdisk_by_name(api_disk_name, vpool.name, api)
+            VDiskRemover.remove_vdisk_by_name(api_disk_name, vpool.name, cls.api)
             VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(api_disk_name))
 
         # ========
@@ -123,7 +115,7 @@ class VDiskDeploymentChecks(CIConstants):
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(qemu_disk_name))
             VDiskDeploymentChecks._check_vdisk(vdisk_name=qemu_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(qemu_disk_name))
-            VDiskRemover.remove_vdisk_by_name(qemu_disk_name, vpool.name, api)
+            VDiskRemover.remove_vdisk_by_name(qemu_disk_name, vpool.name, cls.api)
             VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(qemu_disk_name))
 
         # ============
@@ -137,7 +129,7 @@ class VDiskDeploymentChecks(CIConstants):
             VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(truncate_disk_name))
             VDiskDeploymentChecks._check_vdisk(vdisk_name=truncate_disk_name, vpool_name=vpool.name)
             VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(truncate_disk_name))
-            VDiskRemover.remove_vdisk_by_name(truncate_disk_name, vpool.name, api)
+            VDiskRemover.remove_vdisk_by_name(truncate_disk_name, vpool.name, cls.api)
             VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(truncate_disk_name))
         VDiskDeploymentChecks.LOGGER.info("Finished to validate the vdisk deployment")
 

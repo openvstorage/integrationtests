@@ -129,7 +129,7 @@ class HATester(CIConstants):
 
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
-        api = cls.get_api_instance()
+        api = cls.api
         cluster_info, is_ee, cloud_image_path, cloud_init_loc, fio_bin_path = cls.setup()
         compute_ip = cluster_info['storagerouters']['compute'].ip
         listening_port = NetworkHelper.get_free_port(compute_ip)
@@ -167,7 +167,6 @@ class HATester(CIConstants):
                 computenode_hypervisor.sdk.destroy(vm_name)
                 VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
                 computenode_hypervisor.sdk.undefine(vm_name)
-        # cls.test_ha_fio(fio_bin_path, cluster_info, is_ee, api)
 
     @classmethod
     def run_test(cls, vm_info, cluster_info, logger=LOGGER):
@@ -274,7 +273,7 @@ class HATester(CIConstants):
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @classmethod
-    def test_ha_fio(cls, fio_bin_path, cluster_info, is_ee,  api, disk_amount=1, timeout=CIConstants.HA_TIMEOUT, logger=LOGGER):
+    def test_ha_fio(cls, fio_bin_path, cluster_info, is_ee, disk_amount=1, timeout=CIConstants.HA_TIMEOUT, logger=LOGGER):
         """
         Uses a modified fio to work with the openvstorage protocol
         :param fio_bin_path: path of the fio binary
@@ -283,8 +282,6 @@ class HATester(CIConstants):
         :type cluster_info: dict
         :param is_ee: is it an ee version or not
         :type is_ee: bool
-        :param api: api object to call the ovs api
-        :type api: ci.api_lib.helpers.api.OVSClient
         :param disk_amount: amount of disks to test fail over with
         :type disk_amount: int
         :param timeout: timeout in seconds
@@ -387,7 +384,7 @@ class HATester(CIConstants):
                 for screen_name in screen_names:
                     compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
             for vdisk in vdisk_info.values():
-                VDiskRemover.remove_vdisk(vdisk.guid, api)
+                VDiskRemover.remove_vdisk(vdisk.guid, cls.api)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @staticmethod

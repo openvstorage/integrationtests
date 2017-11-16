@@ -110,7 +110,7 @@ class FioOnVDiskChecks(CIConstants):
         :param logger: logging instance
         :return: 
         """
-        api = cls.get_api_instance()
+        api = cls.api
         vpool = storagedriver.vpool
         client = SSHClient(storagedriver.storagerouter, username='root')
         vdisk_info = {}
@@ -169,7 +169,7 @@ class FioOnVDiskChecks(CIConstants):
         :param logger: logging instance
         :return: None
         """
-        api = cls.get_api_instance()
+        api = cls.api
         client = SSHClient(storagedriver.storagerouter, username='root')
         vpool = storagedriver.vpool
         edge_info = {'port': storagedriver.ports['edge'],

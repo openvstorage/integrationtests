@@ -77,7 +77,7 @@ class ScrubbingChecks(CIConstants):
     @classmethod
     def start_test(cls):
         storagedriver, fio_bin_loc, is_ee = cls.setup()
-        api = cls.get_api_instance()
+        api = cls.api
         for test_run_type in cls.TYPE_TEST_RUN:
             cloned = test_run_type == 'clones'
             created_vdisks = cls.create_vdisks(storagedriver, api, cloned=cloned)

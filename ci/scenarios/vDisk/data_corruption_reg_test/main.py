@@ -74,7 +74,7 @@ class DataCorruptionTester(CIConstants):
 
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
-        api = cls.get_api_instance()
+        api = cls.api
         storagedriver, cloud_image_path, cloud_init_loc, is_ee = cls.setup()
         compute_ip = storagedriver.storage_ip
         listening_port = NetworkHelper.get_free_port(compute_ip)

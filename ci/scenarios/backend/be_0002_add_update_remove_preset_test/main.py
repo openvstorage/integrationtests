@@ -48,8 +48,8 @@ class AddUpdateRemovePreset(CIConstants):
         _ = blocked
         return AddUpdateRemovePreset.validate_add_update_remove_preset()
 
-    @staticmethod
-    def validate_add_update_remove_preset(preset_name='integrationtests'):
+    @classmethod
+    def validate_add_update_remove_preset(cls, preset_name='integrationtests'):
         """
         Validate if a preset can be added/updated/removed on a existing backend
 
@@ -122,15 +122,6 @@ class AddUpdateRemovePreset(CIConstants):
             "fragment_size": 8388608
           }
 
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
-
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
-
         # fetch existing backends
         alba_backends = BackendHelper.get_alba_backends()
         assert len(alba_backends) >= 1, "Not enough alba backends to test"
@@ -141,19 +132,19 @@ class AddUpdateRemovePreset(CIConstants):
         # add and remove different presets
         AddUpdateRemovePreset.LOGGER.info("Started adding and removing different presets")
         for preset_def, preset_details in presets.iteritems():
-            AddUpdateRemovePreset._add_remove_preset(alba_backend.name, preset_details, preset_def, api)
+            AddUpdateRemovePreset._add_remove_preset(alba_backend.name, preset_details, preset_def, cls.api)
         AddUpdateRemovePreset.LOGGER.info("Finished adding and removing different presets")
 
         # add, update & remove a preset
         AddUpdateRemovePreset.LOGGER.info("Starting adding, updating & removing a preset")
-        assert BackendSetup.add_preset(albabackend_name=alba_backend.name, preset_details=preset_basic, api=api), \
+        assert BackendSetup.add_preset(albabackend_name=alba_backend.name, preset_details=preset_basic, api=cls.api), \
             "Adding the preset `{0}` has failed".format(preset_name)
         time.sleep(1)
         assert BackendValidation.check_preset_on_backend(preset_name, alba_backend.name), \
             "Preset `{0}` does not exists but it should on backend `{1}`"\
             .format(preset_name, alba_backend.name)
         assert BackendSetup.update_preset(albabackend_name=alba_backend.name, preset_name=preset_altered['name'],
-                                          policies=preset_altered['policies'], api=api), \
+                                          policies=preset_altered['policies'], api=cls.api), \
             "Updating the preset `{0}` has failed".format(preset_name)
         time.sleep(1)
         assert BackendValidation.check_policies_on_preset(preset_name=preset_altered['name'],
@@ -161,15 +152,15 @@ class AddUpdateRemovePreset(CIConstants):
                                                           policies=preset_altered['policies']), \
             "Updating the preset `{0}` has failed".format(preset_name)
         assert BackendRemover.remove_preset(preset_name=preset_name, albabackend_name=alba_backend.name,
-                                            api=api), "Removing the preset `{0}` has failed".format(preset_name)
+                                            api=cls.api), "Removing the preset `{0}` has failed".format(preset_name)
         time.sleep(1)
         assert not BackendValidation.check_preset_on_backend(preset_name, alba_backend.name), \
             "Preset `{0}` does exists but it should not be on backend `{1}`"\
             .format(preset_name, alba_backend.name)
         AddUpdateRemovePreset.LOGGER.info("Finished adding, updating & removing a preset")
 
-    @staticmethod
-    def _add_remove_preset(albabackend_name, preset_details, preset_definition, api):
+    @classmethod
+    def _add_remove_preset(cls, albabackend_name, preset_details, preset_definition):
         """
         Add & remove a preset
 
@@ -179,13 +170,10 @@ class AddUpdateRemovePreset(CIConstants):
         :type preset_details: dict
         :param preset_definition: definition of the preset (e.g. preset_compression_no_encryption)
         :type preset_definition: str
-        :param api: specify a valid api connection to the setup
-        :type api: ci.api_lib.helpers.api.OVSClient
-        :return:
         """
 
         AddUpdateRemovePreset.LOGGER.info("Starting adding `{0}`".format(preset_definition))
-        assert BackendSetup.add_preset(albabackend_name=albabackend_name, preset_details=preset_details, api=api), \
+        assert BackendSetup.add_preset(albabackend_name=albabackend_name, preset_details=preset_details, api=cls.api), \
             "Adding the preset `{0}` has failed".format(preset_definition)
         time.sleep(1)
         assert BackendValidation.check_preset_on_backend(preset_details['name'], albabackend_name), \
@@ -194,7 +182,7 @@ class AddUpdateRemovePreset(CIConstants):
         AddUpdateRemovePreset.LOGGER.info("Finished adding `{0}`".format(preset_definition))
         AddUpdateRemovePreset.LOGGER.info("Starting removing `{0}`".format(preset_definition))
         assert BackendRemover.remove_preset(preset_name=preset_details['name'], albabackend_name=albabackend_name,
-                                            api=api), "Removing the preset `{0}` has failed".format(preset_definition)
+                                            api=cls.api), "Removing the preset `{0}` has failed".format(preset_definition)
         time.sleep(1)
         assert not BackendValidation.check_preset_on_backend(preset_details['name'], albabackend_name), \
             "Preset `{0}` does exists but it should not be on backend `{1}`"\

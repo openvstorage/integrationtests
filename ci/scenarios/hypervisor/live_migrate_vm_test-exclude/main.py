@@ -69,7 +69,7 @@ class MigrateTester(CIConstants):
 
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
-        api = cls.get_api_instance()
+        api = cls.api
         cluster_info, cloud_init_loc, cloud_image_path, is_ee = cls.setup()
         source_storagedriver = cluster_info['storagedrivers']['source']
         listening_port = NetworkHelper.get_free_port(source_storagedriver.storage_ip)

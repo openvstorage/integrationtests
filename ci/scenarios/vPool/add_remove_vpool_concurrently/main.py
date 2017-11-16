@@ -35,32 +35,33 @@ class VPoolTester(CIConstants):
     LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
 
     def __init__(self):
-        self.LOGGER.info("Initializing concurrent vpool testing.")
-        self.valid_storagerouters = []
+        VPoolTester.LOGGER.info("Initializing concurrent vpool testing.")
+        VPoolTester.valid_storagerouters = []
         for storagerouter in StoragerouterHelper.get_storagerouters():
             try:
                 RoleValidation.check_required_roles(VPoolSetup.REQUIRED_VPOOL_ROLES, storagerouter.ip, "LOCAL")
-                self.valid_storagerouters.append(storagerouter)
-                self.LOGGER.info('Added storagerouter {0} to list of eligible storagerouters'.format(storagerouter.ip))
+                VPoolTester.valid_storagerouters.append(storagerouter)
+                VPoolTester.LOGGER.info('Added storagerouter {0} to list of eligible storagerouters'.format(storagerouter.ip))
             except RuntimeError:
                 pass
-        assert len(self.valid_storagerouters) >= 1, 'At least one storagerouter with valid roles required: none found!'
-        self.alba_backends = BackendHelper.get_alba_backends()
-        assert len(self.alba_backends) >= 1, 'At least one backend required, none found!'
-        self.vpools = []
+        assert len(VPoolTester.valid_storagerouters) >= 1, 'At least one storagerouter with valid roles required: none found!'
+        VPoolTester.alba_backends = BackendHelper.get_alba_backends()
+        assert len(VPoolTester.alba_backends) >= 1, 'At least one backend required, none found!'
+        VPoolTester.vpools = []
         super(VPoolTester, self).__init__()
 
-    def add_vpools(self):
+    @classmethod
+    def add_vpools(cls):
         """
         Add a predefined number of vpools concurrently.
         """
-        self.LOGGER.info("Starting to validate addition of vpools concurrently.")
+        VPoolTester.LOGGER.info("Starting to validate addition of vpools concurrently.")
         tasks = {}
-        for i in range(1, self.NUMBER_OF_VPOOLS + 1):
-            sr = self.valid_storagerouters[(i - 1) % len(self.valid_storagerouters)]
+        for i in range(1, VPoolTester.NUMBER_OF_VPOOLS + 1):
+            sr = VPoolTester.valid_storagerouters[(i - 1) % len(VPoolTester.valid_storagerouters)]
             vpool_name = 'vpool{0}'.format(i)
             data = json.dumps({'call_parameters': {'backend_info': {'preset': 'default',
-                                                                    'alba_backend_guid': random.choice(self.alba_backends).guid},
+                                                                    'alba_backend_guid': random.choice(VPoolTester.alba_backends).guid},
                                                    'config_params': {'cluster_size': 4, 'dtl_mode': 'a_sync', 'dtl_transport': 'tcp', 'sco_size': 4, 'write_buffer': 128},
                                                    'connection_info': {'host': ''},  # Empty host will force the framework to fill in local details
                                                    'fragment_cache_on_read': False,
@@ -70,35 +71,35 @@ class VPoolTester(CIConstants):
                                                    'storagerouter_ip': sr.ip,
                                                    'vpool_name': vpool_name,
                                                    'writecache_size': 5}})
-            tasks[vpool_name] = self.api.post(api='storagerouters/{0}/add_vpool'.format(sr.guid), data=data)
+            tasks[vpool_name] = cls.api.post(api='storagerouters/{0}/add_vpool'.format(sr.guid), data=data)
         for vpool_name, task_id in tasks.iteritems():
-            addition_completed = self.api.wait_for_task(task_id, timeout=600)[0]
+            addition_completed = cls.api.wait_for_task(task_id, timeout=600)[0]
             if addition_completed is True:
-                self.LOGGER.info('Creation of {0} completed.'.format(vpool_name))
+                VPoolTester.LOGGER.info('Creation of {0} completed.'.format(vpool_name))
             try:
                 vpool = VPoolHelper.get_vpool_by_name(vpool_name)
                 if vpool.STATUSES.RUNNING is 'RUNNING':
-                    self.vpools.append(vpool)
+                    VPoolTester.vpools.append(vpool)
             except VPoolNotFoundError:
-                self.LOGGER.exception('Unable to find vpool with name {0}.'.format(vpool_name))
-        assert self.NUMBER_OF_VPOOLS == len(self.vpools), 'Failed to create {0} vpools: only {1} found!'.format(self.NUMBER_OF_VPOOLS, len(self.vpools))
-
-    def remove_vpools(self):
+                VPoolTester.LOGGER.exception('Unable to find vpool with name {0}.'.format(vpool_name))
+        assert VPoolTester.NUMBER_OF_VPOOLS == len(VPoolTester.vpools), 'Failed to create {0} vpools: only {1} found!'.format(VPoolTester.NUMBER_OF_VPOOLS, len(VPoolTester.vpools))
+    @classmethod
+    def remove_vpools(cls):
         """
         Method to remove all vpools
         """
-        self.LOGGER.info("Starting to validate removal of vpools concurrently.")
+        VPoolTester.LOGGER.info("Starting to validate removal of vpools concurrently.")
         dels = {}
-        for vpool in self.vpools:
+        for vpool in VPoolTester.vpools:
             for storagedriver in vpool.storagedrivers:
-                dels[vpool.guid] = self.api.post(api='vpools/{0}/shrink_vpool'.format(vpool.guid), data=json.dumps({'storagerouter_guid': storagedriver.storagerouter_guid}))
+                dels[vpool.guid] = cls.api.post(api='vpools/{0}/shrink_vpool'.format(vpool.guid), data=json.dumps({'storagerouter_guid': storagedriver.storagerouter_guid}))
         for vpool_guid, task_id in dels.iteritems():
-            deletion_completed = self.api.wait_for_task(task_id, timeout=600)[0]
+            deletion_completed = cls.api.wait_for_task(task_id, timeout=600)[0]
             if deletion_completed is True:
-                self.LOGGER.info('vpool with guid {0} is deleted successfully'.format(vpool_guid))
-        self.LOGGER.info('Concurrent removal of vpools finished.')
+                VPoolTester.LOGGER.info('vpool with guid {0} is deleted successfully'.format(vpool_guid))
+        VPoolTester.LOGGER.info('Concurrent removal of vpools finished.')
         leftover_vpools = []
-        for vpool in self.vpools:
+        for vpool in VPoolTester.vpools:
             try:
                 VPoolHelper.get_vpool_by_name(vpool.name)
                 leftover_vpools.append(vpool)

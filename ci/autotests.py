@@ -24,6 +24,8 @@ import math
 import importlib
 import subprocess
 from datetime import datetime
+from ovs.extensions.generic.system import System
+
 from ci.api_lib.helpers.exceptions import SectionNotFoundError
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
@@ -274,8 +276,8 @@ class AutoTests(object):
         :returns: a structured environment based test name
         :rtype: str
         """
-        number_of_nodes = len(StoragerouterHelper.get_storagerouter_ips())
-        split_ip = StoragerouterHelper.get_local_storagerouter().ip.split('.')
+        number_of_nodes = len(StoragerouterHelper.get_storagerouters())
+        split_ip = System.get_my_storagerouter().ip.split('.')
         return str(number_of_nodes) + 'N-' + split_ip[2] + '.' + split_ip[3]
 
     @staticmethod

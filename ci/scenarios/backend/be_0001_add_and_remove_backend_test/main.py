@@ -45,8 +45,8 @@ class AddRemoveBackend(CIConstants):
         _ = blocked
         return AddRemoveBackend.validate_add_remove_backend()
 
-    @staticmethod
-    def validate_add_remove_backend(backend_name='integrationtests'):
+    @classmethod
+    def validate_add_remove_backend(cls, backend_name='integrationtests'):
         """
         Validate if a add & remove backend works
 
@@ -54,21 +54,12 @@ class AddRemoveBackend(CIConstants):
         :type backend_name: str
         :return:
         """
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
-
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
-
         AddRemoveBackend.LOGGER.info("Starting creation of backend `{0}`".format(backend_name))
-        assert BackendSetup.add_backend(backend_name=backend_name, api=api, scaling='LOCAL'), \
+        assert BackendSetup.add_backend(backend_name=backend_name, api=cls.api, scaling='LOCAL'), \
             "Backend `{0}` has failed to create".format(backend_name)
         AddRemoveBackend.LOGGER.info("Finished creation of backend `{0}`".format(backend_name))
         AddRemoveBackend.LOGGER.info("Starting removal of backend `{0}`".format(backend_name))
-        assert BackendRemover.remove_backend(albabackend_name=backend_name, api=api), \
+        assert BackendRemover.remove_backend(albabackend_name=backend_name, api=cls.api), \
             "Backend `{0}` has failed to be removed".format(backend_name)
         AddRemoveBackend.LOGGER.info("Finished removal of backend `{0}`".format(backend_name))
 

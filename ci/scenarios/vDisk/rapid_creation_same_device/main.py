@@ -54,7 +54,7 @@ class VDiskControllerTester(CIConstants):
         """
         local_sr = SystemHelper.get_local_storagerouter()
         VDiskControllerTester.LOGGER.info("Starting creation/deletion test.")
-        api = cls.get_api_instance()
+        api = cls.api
         # Elect vpool
         assert len(local_sr.storagedrivers) > 0, 'Node {0} has no storagedriver. Cannot test {1}'.format(local_sr.ip, VDiskControllerTester.TEST_NAME)
         random_storagedriver = local_sr.storagedrivers[random.randint(0, len(local_sr.storagedrivers) - 1)]
@@ -99,8 +99,8 @@ class VDiskControllerTester(CIConstants):
 
         VDiskControllerTester.LOGGER.info("Finished create/delete test.")
 
-    @staticmethod
-    def _cleanup_vdisk(vdisk_name, vpool_name, api, fail=True):
+    @classmethod
+    def _cleanup_vdisk(cls, vdisk_name, vpool_name, fail=True):
         """
         Attempt to cleanup vdisk
         :param vdisk_name: name of the vdisk
@@ -110,7 +110,7 @@ class VDiskControllerTester(CIConstants):
         """
         # Cleanup vdisk using the controller
         try:
-            VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool_name, api)
+            VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool_name, cls.api)
         except Exception as ex:
             VDiskControllerTester.LOGGER.error(str(ex))
             if fail is True:

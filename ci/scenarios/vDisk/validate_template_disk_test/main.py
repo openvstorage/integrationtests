@@ -64,7 +64,7 @@ class VDiskTemplateChecks(CIConstants):
         :return:
         """
         cls.LOGGER.info("Starting to validate template vdisks")
-        api = cls.get_api_instance()
+        api = cls.api
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
         try:

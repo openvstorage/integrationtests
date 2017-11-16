@@ -63,7 +63,7 @@ class DTLChecks(CIConstants):
         :return:
         """
         DTLChecks.LOGGER.info("Starting to validate the basic DTL")
-        api = cls.get_api_instance()
+        api = cls.api
         ##########################
         # get deployment details #
         ##########################

@@ -73,8 +73,8 @@ class AddRemoveVPool(CIConstants):
         _ = blocked
         return AddRemoveVPool.validate_add_extend_remove_vpool()
 
-    @staticmethod
-    def validate_add_extend_remove_vpool(timeout=ADD_EXTEND_REMOVE_VPOOL_TIMEOUT):
+    @classmethod
+    def validate_add_extend_remove_vpool(cls, timeout=ADD_EXTEND_REMOVE_VPOOL_TIMEOUT):
         """
         Validate if we can add, extend and/or remove a vPool, testing the following scenarios:
             * Normal with no accelerated backend
@@ -89,14 +89,7 @@ class AddRemoveVPool(CIConstants):
         :return:
         """
         AddRemoveVPool.LOGGER.info("Starting to validate add-extend-remove vpool")
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
 
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
 
         storagerouter_ips = []
         for storagerouter_ip in StoragerouterHelper.get_storagerouter_ips():
@@ -127,7 +120,7 @@ class AddRemoveVPool(CIConstants):
             AddRemoveVPool.LOGGER.info("Adding custom preset to backend {0}".format(alba_backend.name))
             preset_result = BackendSetup.add_preset(albabackend_name=alba_backend.name,
                                                     preset_details=AddRemoveVPool.PRESET,
-                                                    api=api,
+                                                    api=cls.api,
                                                     timeout=AddRemoveVPool.PRESET_CREATE_TIMEOUT)
             assert preset_result is True, 'Failed to add preset to backend {0}'.format(alba_backend.name)
             AddRemoveVPool.LOGGER.info("Finished adding custom preset to backend {0}".format(alba_backend.name))
@@ -157,7 +150,7 @@ class AddRemoveVPool(CIConstants):
                 AddRemoveVPool.LOGGER.info("Add/extend vPool `{0}` on storagerouter `{1}`".format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
                 start = time.time()
                 try:
-                    AddRemoveVPool._add_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME, fragment_cache_cfg=cfg, api=api,
+                    AddRemoveVPool._add_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME, fragment_cache_cfg=cfg, api=cls.api,
                                               block_cache_cfg=block_cache_cfg, albabackend_name=hdd_backend.name, timeout=timeout,
                                               preset_name=AddRemoveVPool.PRESET['name'], storagerouter_ip=storagerouter_ip)
                 except TimeOutError:
@@ -187,11 +180,11 @@ class AddRemoveVPool(CIConstants):
                                     vpool_name=AddRemoveVPool.VPOOL_NAME,
                                     size=AddRemoveVPool.VDISK_SIZE,
                                     storagerouter_ip=vdisk_deployment_ip,
-                                    api=api,
+                                    api=cls.api,
                                     timeout=AddRemoveVPool.VDISK_CREATE_TIMEOUT)
             AddRemoveVPool.LOGGER.info("Finished creating vdisk `{0}`".format(vdisk_name))
             AddRemoveVPool.LOGGER.info("Starting to delete vdisk `{0}`".format(vdisk_name))
-            VDiskRemover.remove_vdisk_by_name(vdisk_name, AddRemoveVPool.VPOOL_NAME, api)
+            VDiskRemover.remove_vdisk_by_name(vdisk_name, AddRemoveVPool.VPOOL_NAME, cls.api)
             AddRemoveVPool.LOGGER.info("Finished deleting vdisk `{0}`".format(vdisk_name))
 
             # Delete vpool
@@ -199,7 +192,7 @@ class AddRemoveVPool(CIConstants):
                 storagedrivers_to_delete = len(vpool.storagedrivers)
                 AddRemoveVPool.LOGGER.info("Deleting vpool `{0}` on storagerouter `{1}`".format(AddRemoveVPool.VPOOL_NAME, storagerouter_ip))
                 try:
-                    VPoolRemover.remove_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME, storagerouter_ip=storagerouter_ip, api=api, timeout=timeout)
+                    VPoolRemover.remove_vpool(vpool_name=AddRemoveVPool.VPOOL_NAME, storagerouter_ip=storagerouter_ip, api=cls.api, timeout=timeout)
                 except TimeOutError:
                     try:
                         vpool.discard()  # Discard is needed to update the vpool status as it was running before
@@ -223,15 +216,15 @@ class AddRemoveVPool(CIConstants):
             AddRemoveVPool.LOGGER.info("Removing custom preset from backend {0}".format(alba_backend.name))
             remove_preset_result = BackendRemover.remove_preset(albabackend_name=alba_backend.name,
                                                                 preset_name=AddRemoveVPool.PRESET['name'],
-                                                                api=api,
+                                                                api=cls.api,
                                                                 timeout=AddRemoveVPool.PRESET_REMOVE_TIMEOUT)
             assert remove_preset_result is True, 'Failed to remove preset from backend {0}'.format(alba_backend.name)
             AddRemoveVPool.LOGGER.info("Finshed removing custom preset from backend {0}".format(alba_backend.name))
 
         AddRemoveVPool.LOGGER.info("Finished to validate add-extend-remove vpool")
 
-    @staticmethod
-    def _add_vpool(vpool_name, fragment_cache_cfg, api, storagerouter_ip, albabackend_name, preset_name, timeout,
+    @classmethod
+    def _add_vpool(cls, vpool_name, fragment_cache_cfg, storagerouter_ip, albabackend_name, preset_name, timeout,
                    block_cache_cfg=None, dtl_mode="a_sync", deduplication_mode="non_dedupe", dtl_transport="tcp"):
         """
         Add a vpool
@@ -239,8 +232,6 @@ class AddRemoveVPool(CIConstants):
         :type vpool_name: str
         :param fragment_cache_cfg: details of a vpool its fragment cache
         :type fragment_cache_cfg: dict
-        :param api: fragment_cache_cfg a valid api connection to the setup
-        :type api: ci.api_lib.helpers.api.OVSClient
         :param storagerouter_ip: ip address of a existing storagerouter
         :type storagerouter_ip: str
         :param albabackend_name: name of a existing albabackend
@@ -277,7 +268,7 @@ class AddRemoveVPool(CIConstants):
             "fragment_cache": fragment_cache_cfg,
             "storagedriver": storagedriver_cfg
         })
-        return VPoolSetup.add_vpool(vpool_name=vpool_name, vpool_details=vpool_cfg, api=api, storagerouter_ip=storagerouter_ip, timeout=timeout)
+        return VPoolSetup.add_vpool(vpool_name=vpool_name, vpool_details=vpool_cfg, api=cls.api, storagerouter_ip=storagerouter_ip, timeout=timeout)
 
 
 def run(blocked=False):

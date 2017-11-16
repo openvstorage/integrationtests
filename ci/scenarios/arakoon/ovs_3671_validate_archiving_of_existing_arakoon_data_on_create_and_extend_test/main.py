@@ -54,11 +54,10 @@ class ArakoonArchiving(CIConstants):
         :type cluster_name: str
         :param cluster_basedir: absolute path for the new arakoon cluster
         :type cluster_basedir: str
-        :return:
         """
 
         ArakoonArchiving.LOGGER.info('Starting Arakoon archiving')
-        storagerouters = StoragerouterHelper.get_storagerouter_ips()
+        storagerouters = StoragerouterHelper.get_storagerouters()
         assert len(storagerouters) >= 2, 'Environment has only `{0}` node(s)'.format(len(storagerouters))
 
         archived_files = []

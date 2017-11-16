@@ -60,8 +60,8 @@ class VDiskTemplateChecks(CIConstants):
         _ = blocked
         return VDiskTemplateChecks.validate_vdisk_clone()
 
-    @staticmethod
-    def validate_vdisk_clone(amount_vdisks=AMOUNT_VDISKS, amount_to_write=AMOUNT_TO_WRITE):
+    @classmethod
+    def validate_vdisk_clone(cls, amount_vdisks=AMOUNT_VDISKS, amount_to_write=AMOUNT_TO_WRITE):
         """
         Validate if vdisk deployment works via various ways
         INFO: 1 vPool should be available on 2 storagerouters
@@ -70,15 +70,6 @@ class VDiskTemplateChecks(CIConstants):
         """
 
         VDiskTemplateChecks.LOGGER.info("Starting to regress template memleak vdisks")
-
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
-
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
 
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
@@ -95,7 +86,7 @@ class VDiskTemplateChecks(CIConstants):
         # create required vdisk for test
         vdisk_name = VDiskTemplateChecks.PREFIX + '1'
         assert VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
-                                       size=VDiskTemplateChecks.VDISK_SIZE, api=api,
+                                       size=VDiskTemplateChecks.VDISK_SIZE, api=cls.api,
                                        storagerouter_ip=storagedriver_source.storagerouter.ip) is not None
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_AFTER_CREATE)
 
@@ -103,7 +94,7 @@ class VDiskTemplateChecks(CIConstants):
         # template vdisk #
         ##################
 
-        VDiskSetup.set_vdisk_as_template(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, api=api)
+        VDiskSetup.set_vdisk_as_template(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, api=cls.api)
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_AFTER_CREATE)
 
         ######################
@@ -128,7 +119,7 @@ class VDiskTemplateChecks(CIConstants):
             clone_vdisk_name = vdisk_name + '-template-' + str(vdisk)
             VDiskSetup.create_from_template(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
                                             new_vdisk_name=clone_vdisk_name + '.raw',
-                                            storagerouter_ip=storagedriver_source.storagerouter.ip, api=api)
+                                            storagerouter_ip=storagedriver_source.storagerouter.ip, api=cls.api)
             # perform fio test
             client.run(["fio", "--name=test", "--filename=/mnt/{0}/{1}.raw".format(vpool.name, clone_vdisk_name),
                         "--ioengine=libaio", "--iodepth=4", "--rw=write", "--bs=4k", "--direct=1",
@@ -136,14 +127,14 @@ class VDiskTemplateChecks(CIConstants):
                         "--output={0}.json".format(vdisk_name)])
             # delete vdisk
             time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_BEFORE_DELETE)
-            VDiskRemover.remove_vdisk_by_name(vdisk_name=clone_vdisk_name, vpool_name=vpool.name, api=api)
+            VDiskRemover.remove_vdisk_by_name(vdisk_name=clone_vdisk_name, vpool_name=vpool.name, api=cls.api)
 
         ###################
         # remove template #
         ###################
 
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_BEFORE_DELETE)
-        VDiskRemover.remove_vtemplate_by_name(vdisk_name=vdisk_name, vpool_name=vpool.name, api=api)
+        VDiskRemover.remove_vtemplate_by_name(vdisk_name=vdisk_name, vpool_name=vpool.name, api=cls.api)
 
         ######################
         # log current memory #

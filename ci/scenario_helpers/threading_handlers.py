@@ -20,10 +20,12 @@ import threading
 from datetime import datetime
 from ci.api_lib.helpers.thread import ThreadHelper, Waiter
 from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.scenario_helpers.ci_constants import CIConstants
+
 from ovs.extensions.generic.logger import Logger
 
 
-class ThreadingHandler(object):
+class ThreadingHandler(CIConstants):
     """
     Contains methods using threads that are used across multiple tests
     """
@@ -283,8 +285,8 @@ class ThreadingHandler(object):
             raise
         return threads
 
-    @staticmethod
-    def _start_snapshots(vdisks, api, stop_event, interval=60):
+    @classmethod
+    def _start_snapshots(cls, vdisks, stop_event, interval=60):
         """
         Threading code that creates snapshots every x seconds
         :param stop_event: Threading event that will stop the while loop
@@ -303,7 +305,7 @@ class ThreadingHandler(object):
                     snapshot_name='{0}_{1}'.format(vdisk.name, datetime.today().strftime('%Y-%m-%d %H:%M:%S')),
                     vdisk_name=vdisk.devicename,
                     vpool_name=vdisk.vpool.name,
-                    api=api,
+                    api=cls.api,
                     consistent=False,
                     sticky=False)
             duration = time.time() - start

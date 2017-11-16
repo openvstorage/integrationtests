@@ -16,16 +16,20 @@
 import json
 from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.main import CONFIG_LOC
-from ci.main import SETTINGS_LOC
 from ovs.lib.helpers.toolbox import Toolbox
+
+
+CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
+TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
+SETTINGS_LOC = "/opt/OpenvStorage/ci/config/settings.json"
+TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testtrail.json"
 
 
 class CIConstants(object):
     """
     Collection of multiple constants and constant related instances
     """
+
     FIO_BIN = {'url': 'http://www.include.gr/fio.bin.latest', 'location': '/tmp/fio.bin.latest'}
     FIO_BIN_EE = {'url': 'http://www.include.gr/fio.bin.latest.ee', 'location': '/tmp/fio.bin.latest'}
 
@@ -72,17 +76,19 @@ class CIConstants(object):
 
     HA_TIMEOUT = 300
 
+    api = OVSClient(SETUP_CFG['ci']['grid_ip'], SETUP_CFG['ci']['user']['api']['username'], SETUP_CFG['ci']['user']['api']['password'])
+
     def __init__(self):
-        self.api = self.get_api_instance()
         super(CIConstants, self).__init__()
 
     @classmethod
-    def get_api_instance(cls):
+    def _get_api_instance(cls):
         """
         Fetches the api instance using the constants provided by the configuration files
         :return: ovsclient instance
         :rtype: ci.api_lib.helpers.api.OVSClient
         """
+
         return OVSClient(cls.SETUP_CFG['ci']['grid_ip'],
                          cls.SETUP_CFG['ci']['user']['api']['username'],
                          cls.SETUP_CFG['ci']['user']['api']['password'])
@@ -117,6 +123,8 @@ class CIConstants(object):
 
     @classmethod
     def get_storagerouters_by_role(cls):
+        from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+
         """
         Gets storagerouters based on roles
         :return: 

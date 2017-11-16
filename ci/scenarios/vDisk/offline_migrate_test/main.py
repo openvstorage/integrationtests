@@ -61,7 +61,7 @@ class MigrateTester(CIConstants):
         :return:
         """
         MigrateTester.LOGGER.info("Starting offline migrate test.")
-        api = cls.get_api_instance()
+        api = cls.api
         vpool = None  # Get a suitable vpool
         for vp in VPoolHelper.get_vpools():
             if len(vp.storagedrivers) >= 2:
