@@ -35,7 +35,7 @@ class VMHandler(object):
     """
     LOGGER = Logger('scenario_helpers-vm_handler')
     CLOUD_INIT_DATA = {
-        'script_loc': 'https://raw.githubusercontent.com/kinvaris/cloud-init/master/create-config-drive',
+        'script_loc': 'http://fileserver.cloudfounders.com/QA/cloud-init/create-config-drive',
         'script_dest': '/tmp/cloud_init_script.sh',
         'user-data_loc': '/tmp/user-data-migrate-test',
         'config_dest': '/tmp/cloud-init-config-migrate-test'
