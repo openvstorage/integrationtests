@@ -24,13 +24,12 @@ import math
 import importlib
 import subprocess
 from datetime import datetime
-from ovs.extensions.generic.system import System
-
 from ci.api_lib.helpers.exceptions import SectionNotFoundError
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.logger import Logger
+from ovs.extensions.generic.system import System
 
 
 class AutoTests(object):
@@ -310,8 +309,7 @@ class AutoTests(object):
             description_lines.append('* {0}'.format(ip))
         description_lines.append('')  # New line gap
         # hypervisor information
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-                ci_config = json.load(JSON_CONFIG)
+        ci_config = CIConstants.SETUP_CFG
         description_lines.append('# HYPERVISOR INFO')
         description_lines.append('{0}'.format(ci_config['ci']['local_hypervisor']['type']))
         description_lines.append('')  # New line gap
