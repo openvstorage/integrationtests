@@ -65,10 +65,9 @@ class ArakoonArchiving(CIConstants):
         archived_files = []
         files_to_create = []
         storagerouters.sort()
-        for index, storagerouter_ip in enumerate(storagerouters):
-
+        for index, storagerouter in enumerate(storagerouters):
             # create required directories in cluster_basedir
-            ovs_client = SSHClient(storagerouter_ip, username='ovs')
+            ovs_client = SSHClient(storagerouter, username='ovs')
             for directory in ['/'.join([cluster_basedir, 'arakoon']), '/var/log/arakoon']:
                 ovs_client.dir_create(os.path.dirname(directory))
 
@@ -81,42 +80,42 @@ class ArakoonArchiving(CIConstants):
             ovs_client.file_create(files_to_create)
             for filename in files_to_create:
                 assert ovs_client.file_exists(filename), 'File `{0}` is not present on storagerouter `{1}`'\
-                    .format(filename, storagerouter_ip)
+                    .format(filename, storagerouter.ip)
 
             archived_files = ['/'.join(['/var/log/arakoon', cluster_name, 'archive', 'one.log'])]
 
             if index == 0:
                 ArakoonArchiving.LOGGER.info('Starting setup of first arakoon instance of cluster `{0}` '
-                                             'on storagerouter `{1}`'.format(cluster_name, storagerouter_ip))
-                ArakoonSetup.add_arakoon(cluster_name=cluster_name, storagerouter_ip=storagerouter_ip,
+                                             'on storagerouter `{1}`'.format(cluster_name, storagerouter.ip))
+                ArakoonSetup.add_arakoon(cluster_name=cluster_name, storagerouter_ip=storagerouter.ip,
                                          cluster_basedir=cluster_basedir)
                 ArakoonArchiving.LOGGER.info('Finished setup of first arakoon instance of cluster `{0}`'
-                                             'on storagerouter `{1}`'.format(cluster_name, storagerouter_ip))
+                                             'on storagerouter `{1}`'.format(cluster_name, storagerouter.ip))
             else:
                 ArakoonArchiving.LOGGER.info('Starting extending arakoon instance of cluster `{0}` '
-                                             'on storagerouter `{1}`'.format(cluster_name, storagerouter_ip))
-                ArakoonSetup.extend_arakoon(cluster_name=cluster_name, master_storagerouter_ip=storagerouters[0],
-                                            storagerouter_ip=storagerouter_ip, cluster_basedir=cluster_basedir)
+                                             'on storagerouter `{1}`'.format(cluster_name, storagerouter.ip))
+                ArakoonSetup.extend_arakoon(cluster_name=cluster_name, master_storagerouter_ip=storagerouters[0].ip,
+                                            storagerouter_ip=storagerouter.ip, cluster_basedir=cluster_basedir)
                 ArakoonArchiving.LOGGER.info('Finished extending arakoon instance of cluster `{0}` '
-                                             'on storagerouter `{1}`'.format(cluster_name, storagerouter_ip))
+                                             'on storagerouter `{1}`'.format(cluster_name, storagerouter.ip))
             ArakoonArchiving.check_archived_directory(ovs_client, archived_files)
 
             # check required files if they are still present
             for filename in files_to_create:
                 assert ovs_client.file_exists(filename) is False, 'File `{0}` is missing on storagerouter `{1}`'\
-                    .format(filename, storagerouter_ip)
+                    .format(filename, storagerouter.ip)
 
         ArakoonArchiving.LOGGER.info('Finished test, removing arakoon cluster `{0}`'.format(cluster_name))
-        ArakoonRemover.remove_arakoon_cluster(cluster_name=cluster_name, master_storagerouter_ip=storagerouters[0])
+        ArakoonRemover.remove_arakoon_cluster(cluster_name=cluster_name, master_storagerouter_ip=storagerouters[0].ip)
         ArakoonArchiving.LOGGER.info('Finished removal of arakoon cluster `{0}`'.format(cluster_name))
 
         # check if required files are removed
-        for storagerouter_ip in storagerouters:
-            ovs_client = SSHClient(storagerouter_ip, username='ovs')
+        for storagerouter in storagerouters:
+            ovs_client = SSHClient(storagerouter, username='ovs')
             ArakoonArchiving.check_archived_directory(ovs_client, archived_files)
             for filename in files_to_create:
                 assert ovs_client.file_exists(filename) is False, 'File `{0}` is missing on storagerouter `{1}`'\
-                    .format(filename, storagerouter_ip)
+                    .format(filename, storagerouter.ip)
             # remove cluster_base_dir
             ovs_client.dir_delete("{0}/arakoon".format(cluster_basedir))
 

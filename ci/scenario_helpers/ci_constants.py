@@ -13,19 +13,9 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import json
-from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
-from ovs.lib.helpers.toolbox import Toolbox
+from ci.api_lib.helpers.ci_constants import CIConstants as _CIConstants
 
-
-CONFIG_LOC = "/opt/OpenvStorage/ci/config/setup.json"
-TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
-SETTINGS_LOC = "/opt/OpenvStorage/ci/config/settings.json"
-TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testtrail.json"
-
-
-class CIConstants(object):
+class CIConstants(_CIConstants):
     """
     Collection of multiple constants and constant related instances
     """
@@ -33,33 +23,15 @@ class CIConstants(object):
     FIO_BIN = {'url': 'http://www.include.gr/fio.bin.latest', 'location': '/tmp/fio.bin.latest'}
     FIO_BIN_EE = {'url': 'http://www.include.gr/fio.bin.latest.ee', 'location': '/tmp/fio.bin.latest'}
 
-    with open(CONFIG_LOC, 'r') as JSON_CONFIG:
-        SETUP_CFG = json.load(JSON_CONFIG)
-
-    with open(SETTINGS_LOC, 'r') as JSON_SETTINGS:
-        SETTINGS = json.load(JSON_SETTINGS)
-
     DATA_TEST_CASES = [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]  # read write patterns to test (read, write)
 
     CLOUD_INIT_DATA = {
         'script_loc': 'https://raw.githubusercontent.com/kinvaris/cloud-init/master/create-config-drive',
         'script_dest': '/tmp/cloud_init_script.sh',
         'user-data_loc': '/tmp/user-data-migrate-test',
-        'config_dest': '/tmp/cloud-init-config-migrate-test'
-    }
-
-    # collect details about parent hypervisor
-    PARENT_HYPERVISOR_INFO = SETUP_CFG['ci'].get('hypervisor')
+        'config_dest': '/tmp/cloud-init-config-migrate-test'}
 
     # hypervisor details
-    HYPERVISOR_TYPE = SETUP_CFG['ci']['local_hypervisor']['type']
-    HYPERVISOR_USER = SETUP_CFG['ci']['local_hypervisor']['user']
-    HYPERVISOR_PASSWORD = SETUP_CFG['ci']['local_hypervisor']['password']
-
-    HYPERVISOR_INFO = {'type': HYPERVISOR_TYPE,
-                       'user': HYPERVISOR_USER,
-                       'password': HYPERVISOR_PASSWORD}
-
     VM_USERNAME = 'root'  # vm credentials & details
     VM_PASSWORD = 'rooter'
     VM_VCPUS = 4
@@ -76,41 +48,6 @@ class CIConstants(object):
 
     HA_TIMEOUT = 300
 
-    api = OVSClient(SETUP_CFG['ci']['grid_ip'], SETUP_CFG['ci']['user']['api']['username'], SETUP_CFG['ci']['user']['api']['password'])
-
-    def __init__(self):
-        super(CIConstants, self).__init__()
-
-    @classmethod
-    def _get_api_instance(cls):
-        """
-        Fetches the api instance using the constants provided by the configuration files
-        :return: ovsclient instance
-        :rtype: ci.api_lib.helpers.api.OVSClient
-        """
-
-        return OVSClient(cls.SETUP_CFG['ci']['grid_ip'],
-                         cls.SETUP_CFG['ci']['user']['api']['username'],
-                         cls.SETUP_CFG['ci']['user']['api']['password'])
-
-    @classmethod
-    def get_parent_hypervisor_instance(cls):
-        """
-        Fetches the parent hypervisor instance
-        :return: Hypervisor instance
-        """
-        required_params = {'ip': (str, Toolbox.regex_ip),
-                           'user': (str, None),
-                           'password': (str, None),
-                           'type': (str, ['KVM', 'VMWARE'])}
-        if not isinstance(cls.PARENT_HYPERVISOR_INFO, dict):
-            raise TypeError('Expecting the parenthypervisor entry to be present in the configuration.')
-        Toolbox.verify_required_params(required_params, cls.PARENT_HYPERVISOR_INFO)
-        return HypervisorFactory.get(cls.PARENT_HYPERVISOR_INFO['ip'],
-                                     cls.PARENT_HYPERVISOR_INFO['user'],
-                                     cls.PARENT_HYPERVISOR_INFO['password'],
-                                     cls.PARENT_HYPERVISOR_INFO['type'])
-
     @classmethod
     def get_shell_user(cls):
         """
@@ -120,35 +57,6 @@ class CIConstants(object):
         """
         return {'username': cls.SETUP_CFG['ci']['user']['shell']['username'],
                 'password': cls.SETUP_CFG['ci']['user']['shell']['password']}
-
-    @classmethod
-    def get_storagerouters_by_role(cls):
-        from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-
-        """
-        Gets storagerouters based on roles
-        :return: 
-        """
-        voldr_str_1 = None  # Will act as volumedriver node
-        voldr_str_2 = None  # Will act as volumedriver node
-        compute_str = None  # Will act as compute node
-        if isinstance(cls.PARENT_HYPERVISOR_INFO, dict):  # Hypervisor section is filled in -> VM environment
-            nodes_info = cls.PARENT_HYPERVISOR_INFO['vms']
-        elif cls.SETUP_CFG['ci'].get('nodes') is not None:  # Physical node section -> Physical environment
-            nodes_info = cls.SETUP_CFG['ci']['nodes']
-        else:
-            raise RuntimeError('Unable to fetch node information. Either hypervisor section or node section is missing!')
-        for node_ip, node_details in nodes_info.iteritems():
-            if node_details['role'] == "VOLDRV":
-                if voldr_str_1 is None:
-                    voldr_str_1 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-                elif voldr_str_2 is None:
-                    voldr_str_2 = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-            elif node_details['role'] == "COMPUTE" and compute_str is None:
-                compute_str = StoragerouterHelper.get_storagerouter_by_ip(node_ip)
-        assert voldr_str_1 is not None and voldr_str_2 is not None and compute_str is not None,\
-            'Could not fetch 2 storagediver nodes and 1 compute node based on the setup.json config.'
-        return voldr_str_1, voldr_str_2, compute_str
 
     @classmethod
     def get_images(cls):

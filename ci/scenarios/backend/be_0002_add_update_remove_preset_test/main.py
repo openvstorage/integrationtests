@@ -13,10 +13,7 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import json
 import time
-from ci.main import CONFIG_LOC
-from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.backend import BackendHelper
 from ci.api_lib.remove.backend import BackendRemover
 from ci.api_lib.setup.backend import BackendSetup
@@ -130,21 +127,21 @@ class AddUpdateRemovePreset(CIConstants):
         alba_backend = alba_backends[0]
 
         # add and remove different presets
-        AddUpdateRemovePreset.LOGGER.info("Started adding and removing different presets")
+        cls.LOGGER.info("Started adding and removing different presets")
         for preset_def, preset_details in presets.iteritems():
-            AddUpdateRemovePreset._add_remove_preset(alba_backend.name, preset_details, preset_def, cls.api)
-        AddUpdateRemovePreset.LOGGER.info("Finished adding and removing different presets")
+            cls._add_remove_preset(alba_backend.name, preset_details, preset_def)
+        cls.LOGGER.info("Finished adding and removing different presets")
 
         # add, update & remove a preset
-        AddUpdateRemovePreset.LOGGER.info("Starting adding, updating & removing a preset")
-        assert BackendSetup.add_preset(albabackend_name=alba_backend.name, preset_details=preset_basic, api=cls.api), \
+        cls.LOGGER.info("Starting adding, updating & removing a preset")
+        assert BackendSetup.add_preset(albabackend_name=alba_backend.name, preset_details=preset_basic), \
             "Adding the preset `{0}` has failed".format(preset_name)
         time.sleep(1)
         assert BackendValidation.check_preset_on_backend(preset_name, alba_backend.name), \
             "Preset `{0}` does not exists but it should on backend `{1}`"\
             .format(preset_name, alba_backend.name)
         assert BackendSetup.update_preset(albabackend_name=alba_backend.name, preset_name=preset_altered['name'],
-                                          policies=preset_altered['policies'], api=cls.api), \
+                                          policies=preset_altered['policies']), \
             "Updating the preset `{0}` has failed".format(preset_name)
         time.sleep(1)
         assert BackendValidation.check_policies_on_preset(preset_name=preset_altered['name'],
@@ -152,12 +149,12 @@ class AddUpdateRemovePreset(CIConstants):
                                                           policies=preset_altered['policies']), \
             "Updating the preset `{0}` has failed".format(preset_name)
         assert BackendRemover.remove_preset(preset_name=preset_name, albabackend_name=alba_backend.name,
-                                            api=cls.api), "Removing the preset `{0}` has failed".format(preset_name)
+                                           ), "Removing the preset `{0}` has failed".format(preset_name)
         time.sleep(1)
         assert not BackendValidation.check_preset_on_backend(preset_name, alba_backend.name), \
             "Preset `{0}` does exists but it should not be on backend `{1}`"\
             .format(preset_name, alba_backend.name)
-        AddUpdateRemovePreset.LOGGER.info("Finished adding, updating & removing a preset")
+        cls.LOGGER.info("Finished adding, updating & removing a preset")
 
     @classmethod
     def _add_remove_preset(cls, albabackend_name, preset_details, preset_definition):
@@ -172,22 +169,22 @@ class AddUpdateRemovePreset(CIConstants):
         :type preset_definition: str
         """
 
-        AddUpdateRemovePreset.LOGGER.info("Starting adding `{0}`".format(preset_definition))
-        assert BackendSetup.add_preset(albabackend_name=albabackend_name, preset_details=preset_details, api=cls.api), \
+        cls.LOGGER.info("Starting adding `{0}`".format(preset_definition))
+        assert BackendSetup.add_preset(albabackend_name=albabackend_name, preset_details=preset_details), \
             "Adding the preset `{0}` has failed".format(preset_definition)
         time.sleep(1)
         assert BackendValidation.check_preset_on_backend(preset_details['name'], albabackend_name), \
             "Preset `{0}` does not exists but it should on backend `{1}`"\
             .format(preset_details['name'], albabackend_name)
-        AddUpdateRemovePreset.LOGGER.info("Finished adding `{0}`".format(preset_definition))
-        AddUpdateRemovePreset.LOGGER.info("Starting removing `{0}`".format(preset_definition))
-        assert BackendRemover.remove_preset(preset_name=preset_details['name'], albabackend_name=albabackend_name,
-                                            api=cls.api), "Removing the preset `{0}` has failed".format(preset_definition)
+        cls.LOGGER.info("Finished adding `{0}`".format(preset_definition))
+        cls.LOGGER.info("Starting removing `{0}`".format(preset_definition))
+        assert BackendRemover.remove_preset(preset_name=preset_details['name'], albabackend_name=albabackend_name),\
+            "Removing the preset `{0}` has failed".format(preset_definition)
         time.sleep(1)
         assert not BackendValidation.check_preset_on_backend(preset_details['name'], albabackend_name), \
             "Preset `{0}` does exists but it should not be on backend `{1}`"\
             .format(preset_details['name'], albabackend_name)
-        AddUpdateRemovePreset.LOGGER.info("Finished removing `{0}`".format(preset_definition))
+        cls.LOGGER.info("Finished removing `{0}`".format(preset_definition))
 
 
 def run(blocked=False):

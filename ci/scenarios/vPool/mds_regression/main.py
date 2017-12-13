@@ -17,7 +17,7 @@ import random
 import time
 from multiprocessing.pool import ThreadPool
 
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
 from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
@@ -42,7 +42,6 @@ from ovs.lib.mdsservice import MDSServiceController
 
 
 class RegressionTester(CIConstants):
-
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_edge_test'
     LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
@@ -76,10 +75,11 @@ class RegressionTester(CIConstants):
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
         edge_details = {'port': source_storagedriver.ports['edge'], 'hostname': source_storagedriver.storage_ip, 'protocol': protocol}
 
-        computenode_hypervisor = HypervisorFactory.get(compute_client.ip,
-                                                       hypervisor_info['user'],
-                                                       hypervisor_info['password'],
-                                                       hypervisor_info['type'])
+        hv_credentials = HypervisorCredentials(ip=compute_client.ip,
+                                               user=hypervisor_info['user'],
+                                               password=hypervisor_info['password'],
+                                               type=hypervisor_info['type'])
+        computenode_hypervisor = HypervisorFactory().get(hv_credentials=hv_credentials)
         edge_user_info = {}
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
@@ -324,6 +324,7 @@ class RegressionTester(CIConstants):
                 client = SSHClient(storagerouter, username='root')
                 service_manager.restart_service(service_name, client=client)
             return output
+
         if disable is True:
             return change_scheduled_task(job_key, 'present', disabled=True)
         return change_scheduled_task(job_key, 'absent')
@@ -400,7 +401,7 @@ class RegressionTester(CIConstants):
         :return: 
         """
         pool = ThreadPool(processes=1)
-        return pool.apply_async(cls._start_scrubbing, args=(volume_bundle, cls.api, logger))
+        return pool.apply_async(cls._start_scrubbing, args=(volume_bundle, logger))
 
     @classmethod
     def _start_scrubbing(cls, volume_bundle, logger):
@@ -436,6 +437,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return RegressionTester().main(blocked)
+
 
 if __name__ == '__main__':
     run()

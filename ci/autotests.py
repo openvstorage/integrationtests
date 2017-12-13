@@ -24,10 +24,10 @@ import math
 import importlib
 import subprocess
 from datetime import datetime
+from ci.api_lib.helpers.ci_constants import CIConstants
 from ci.api_lib.helpers.exceptions import SectionNotFoundError
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
-from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.system import System
 
@@ -35,10 +35,7 @@ from ovs.extensions.generic.system import System
 class AutoTests(object):
 
     logger = Logger("autotests-ci_autotests")
-    TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
-    TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testrail.json"
     EXCLUDE_FLAG = "-exclude"
-    CONFIG=CIConstants.SETUP_CFG
 
     @staticmethod
     def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True, exclude_scenarios=None):
@@ -61,7 +58,7 @@ class AutoTests(object):
         if scenarios is None:
             scenarios = ['ALL']
         if exclude_scenarios is None:
-            exclude_scenarios = AutoTests.CONFIG.get('exclude_scenarios', [])
+            exclude_scenarios = CIConstants.SETUP_CFG.get('exclude_scenarios', [])
         logger.info("Collecting tests.")  # Grab the tests to execute
         tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
         # print tests to be executed
@@ -71,7 +68,7 @@ class AutoTests(object):
         results = {}
         blocked = False
         for test in tests:
-            logger.info('\n{:=^100}\n'.format(test))
+            logger.info("\n{:=^100}\n".format(test))
             mod = importlib.import_module('{0}.main'.format(test))
             module_result = mod.run(blocked)
             if hasattr(TestrailResult, module_result['status']):  # check if a test has failed, if it has failed check if we should block all other tests
@@ -92,7 +89,7 @@ class AutoTests(object):
         return results, None
 
     @staticmethod
-    def list_tests(cases=None, exclude=None, start_dir=TEST_SCENARIO_LOC, categories=None, subcategories=None, depth=1):
+    def list_tests(cases=None, exclude=None, start_dir=CIConstants.TEST_SCENARIO_LOC, categories=None, subcategories=None, depth=1):
         """
         Lists the requested test scenarios
         :returns: all available test scenarios
@@ -143,7 +140,7 @@ class AutoTests(object):
         return scenarios
 
     @staticmethod
-    def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True, only_add_given_cases=False):
+    def push_to_testrail(results, config_path=CIConstants.TESTRAIL_LOC, skip_on_no_results=True, only_add_given_cases=False):
         """
         Push results to testtrail
         :param config_path: path to testrail config file
@@ -302,9 +299,8 @@ class AutoTests(object):
         :returns: a extensive description of the local machine
         :rtype: str
         """
-        description_lines = []
+        description_lines = ['# IP INFO']
         # fetch ip information
-        description_lines.append('# IP INFO')
         for ip in StoragerouterHelper.get_storagerouter_ips():
             description_lines.append('* {0}'.format(ip))
         description_lines.append('')  # New line gap

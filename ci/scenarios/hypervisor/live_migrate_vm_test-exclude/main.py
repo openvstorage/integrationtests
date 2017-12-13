@@ -15,7 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import time
 import random
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
 from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
@@ -69,7 +69,6 @@ class MigrateTester(CIConstants):
 
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
-        api = cls.api
         cluster_info, cloud_init_loc, cloud_image_path, is_ee = cls.setup()
         source_storagedriver = cluster_info['storagedrivers']['source']
         listening_port = NetworkHelper.get_free_port(source_storagedriver.storage_ip)
@@ -81,15 +80,16 @@ class MigrateTester(CIConstants):
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        source_hypervisor = HypervisorFactory.get(source_storagedriver.storage_ip,
-                                                  hypervisor_info['user'],
-                                                  hypervisor_info['password'],
-                                                  hypervisor_info['type'])
+
+        hv_credentials = HypervisorCredentials(ip=source_storagedriver.storage_ip,
+                                               user=hypervisor_info['user'],
+                                               password=hypervisor_info['password'],
+                                               type=hypervisor_info['type'])
+        source_hypervisor = HypervisorFactory().get(hv_credentials=hv_credentials)
         vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
             source_storagedriver=source_storagedriver,
             cloud_image_path=cloud_image_path,
             cloud_init_loc=cloud_init_loc,
-            api=api,
             vm_amount=vm_amount,
             port=listening_port,
             hypervisor_ip=source_storagedriver.storage_ip,
@@ -108,7 +108,7 @@ class MigrateTester(CIConstants):
         finally:
             for vm_name, vm_object in vm_info.iteritems():
                 source_hypervisor.sdk.destroy(vm_name)
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
+                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'])
                 source_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
@@ -162,10 +162,11 @@ class MigrateTester(CIConstants):
         destination_storagedriver = cluster_info['storagedrivers']['destination']
         source_storagedriver = cluster_info['storagedrivers']['source']
 
-        source_hypervisor = HypervisorFactory.get(source_storagedriver.storage_ip,
-                                                  hypervisor_info['user'],
-                                                  hypervisor_info['password'],
-                                                  hypervisor_info['type'])
+        hv_credentials = HypervisorCredentials(ip=source_storagedriver.storage_ip,
+                                               user=hypervisor_info['user'],
+                                               password=hypervisor_info['password'],
+                                               type=hypervisor_info['type'])
+        source_hypervisor = HypervisorFactory().get(hv_credentials=hv_credentials)
         client = SSHClient(source_storagedriver.storagerouter)
         # Cache to validate properties
         values_to_check = {
@@ -332,6 +333,7 @@ def run(blocked=False):
     """
 
     return MigrateTester().main(blocked)
+
 
 if __name__ == "__main__":
     run()

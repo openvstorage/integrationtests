@@ -249,7 +249,7 @@ class ThreadingHandler(CIConstants):
         return output
 
     @classmethod
-    def start_snapshotting_threads(cls, volume_bundle, api, args=(), kwargs=None, logger=LOGGER):
+    def start_snapshotting_threads(cls, volume_bundle, args=(), kwargs=None, logger=LOGGER):
         """
         Start the snapshotting threads
         :param volume_bundle: bundle of volumes
@@ -271,7 +271,7 @@ class ThreadingHandler(CIConstants):
                     threads.append(ThreadHelper.start_thread_with_event(target=cls._start_snapshots,
                                                                         name='iops_{0}'.format(
                                                                             current_thread_bundle['index']),
-                                                                        args=(vdisks, api,) + args,
+                                                                        args=(vdisks,) + args,
                                                                         kwargs=kwargs))
                     current_thread_bundle['index'] = index + 1
                     current_thread_bundle['vdisks'] = []
@@ -305,7 +305,6 @@ class ThreadingHandler(CIConstants):
                     snapshot_name='{0}_{1}'.format(vdisk.name, datetime.today().strftime('%Y-%m-%d %H:%M:%S')),
                     vdisk_name=vdisk.devicename,
                     vpool_name=vdisk.vpool.name,
-                    api=cls.api,
                     consistent=False,
                     sticky=False)
             duration = time.time() - start

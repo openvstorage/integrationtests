@@ -107,7 +107,7 @@ class VMHandler(CIConstants):
                 original_boot_disk_name = boot_vdisk_name
                 logger.info('Boot VDisk successfully created.')
                 try:
-                    data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, data_disk_size, source_storagedriver.storage_ip, cls.api))
+                    data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, data_disk_size, source_storagedriver.storage_ip))
                     logger.info('VDisk data_vdisk successfully created!')
                 except TimeOutError:
                     logger.error('The creation of the data vdisk has timed out.')
@@ -121,14 +121,12 @@ class VMHandler(CIConstants):
                 boot_vdisk_info = VDiskSetup.create_clone(vdisk_name=original_boot_disk_name,
                                                           vpool_name=vpool.name,
                                                           new_vdisk_name=boot_vdisk_name,
-                                                          storagerouter_ip=source_storagedriver.storage_ip,
-                                                          api=cls.api)
+                                                          storagerouter_ip=source_storagedriver.storage_ip)
                 boot_vdisk = VDiskHelper.get_vdisk_by_guid(boot_vdisk_info['vdisk_guid'])
                 data_vdisk_info = VDiskSetup.create_clone(vdisk_name=original_data_disk_name,
                                                           vpool_name=vpool.name,
                                                           new_vdisk_name=data_vdisk_name,
-                                                          storagerouter_ip=source_storagedriver.storage_ip,
-                                                          api=cls.api)
+                                                          storagerouter_ip=source_storagedriver.storage_ip)
                 data_vdisk = VDiskHelper.get_vdisk_by_guid(data_vdisk_info['vdisk_guid'])
             #######################
             # GENERATE CLOUD INIT #
@@ -151,7 +149,6 @@ class VMHandler(CIConstants):
             data_snapshot_guid = VDiskSetup.create_snapshot('{0}_data'.format(vm_name),
                                                             data_vdisk.devicename,
                                                             vpool.name,
-                                                            cls.api,
                                                             consistent=False)
             vm_info[vm_name] = {'data_snapshot_guid': data_snapshot_guid,
                                 'vdisks': [boot_vdisk, data_vdisk, cd_vdisk],

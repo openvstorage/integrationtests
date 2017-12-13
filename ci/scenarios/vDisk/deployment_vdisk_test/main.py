@@ -13,10 +13,7 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import json
 import time
-from ci.main import CONFIG_LOC
-from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.exceptions import VDiskNotFoundError
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
@@ -68,8 +65,7 @@ class VDiskDeploymentChecks(CIConstants):
         INFO: 1 vPool should be available on 1 storagerouter
         :return:
         """
-        VDiskDeploymentChecks.LOGGER.info("Starting to validate the vdisk deployment")
-
+        cls.LOGGER.info("Starting to validate the vdisk deployment")
 
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
@@ -86,25 +82,25 @@ class VDiskDeploymentChecks(CIConstants):
         # =======
         # VIA API
         # =======
-        for size in VDiskDeploymentChecks.VDISK_SIZES:
-            api_disk_name = VDiskDeploymentChecks.PREFIX+str(size)+'-api'
-            VDiskDeploymentChecks.LOGGER.info("Starting to create vdisk `{0}` on vPool `{1}` with size `{2}` "
+        for size in cls.VDISK_SIZES:
+            api_disk_name = cls.PREFIX+str(size)+'-api'
+            cls.LOGGER.info("Starting to create vdisk `{0}` on vPool `{1}` with size `{2}` "
                                               "on node `{3}`".format(api_disk_name, vpool.name, size,
                                                                      storagedriver.storagerouter.ip))
             VDiskSetup.create_vdisk(vdisk_name=api_disk_name+'.raw', vpool_name=vpool.name, size=size,
-                                    storagerouter_ip=storagedriver.storagerouter.ip, api=cls.api,
-                                    timeout=VDiskDeploymentChecks.VDISK_CREATE_TIMEOUT)
-            VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(api_disk_name))
-            VDiskDeploymentChecks._check_vdisk(vdisk_name=api_disk_name, vpool_name=vpool.name)
-            VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(api_disk_name))
-            VDiskRemover.remove_vdisk_by_name(api_disk_name, vpool.name, cls.api)
-            VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(api_disk_name))
+                                    storagerouter_ip=storagedriver.storagerouter.ip,
+                                    timeout=cls.VDISK_CREATE_TIMEOUT)
+            cls.LOGGER.info("Finished creating vdisk `{0}`".format(api_disk_name))
+            cls._check_vdisk(vdisk_name=api_disk_name, vpool_name=vpool.name)
+            cls.LOGGER.info("Starting to delete vdisk `{0}`".format(api_disk_name))
+            VDiskRemover.remove_vdisk_by_name(api_disk_name, vpool.name)
+            cls.LOGGER.info("Finished deleting vdisk `{0}`".format(api_disk_name))
 
         # ========
         # VIA QEMU
         # ========
-        for size in VDiskDeploymentChecks.VDISK_SIZES:
-            qemu_disk_name = VDiskDeploymentChecks.PREFIX+str(size)+'-qemu'
+        for size in cls.VDISK_SIZES:
+            qemu_disk_name = cls.PREFIX+str(size)+'-qemu'
             edge_info = {'port': edge_port,
                          'protocol': protocol,
                          'ip': storage_ip,
@@ -112,26 +108,26 @@ class VDiskDeploymentChecks(CIConstants):
             if SystemHelper.get_ovs_version(storagedriver.storagerouter) == 'ee':
                 edge_info.update(cls.get_shell_user())
             VMHandler.create_image(client, qemu_disk_name, size, edge_info)
-            VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(qemu_disk_name))
-            VDiskDeploymentChecks._check_vdisk(vdisk_name=qemu_disk_name, vpool_name=vpool.name)
-            VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(qemu_disk_name))
-            VDiskRemover.remove_vdisk_by_name(qemu_disk_name, vpool.name, cls.api)
-            VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(qemu_disk_name))
+            cls.LOGGER.info("Finished creating vdisk `{0}`".format(qemu_disk_name))
+            cls._check_vdisk(vdisk_name=qemu_disk_name, vpool_name=vpool.name)
+            cls.LOGGER.info("Starting to delete vdisk `{0}`".format(qemu_disk_name))
+            VDiskRemover.remove_vdisk_by_name(qemu_disk_name, vpool.name)
+            cls.LOGGER.info("Finished deleting vdisk `{0}`".format(qemu_disk_name))
 
         # ============
         # VIA TRUNCATE
         # ============
-        for size in VDiskDeploymentChecks.VDISK_SIZES:
-            truncate_disk_name = VDiskDeploymentChecks.PREFIX+str(size)+'-trunc'
-            VDiskDeploymentChecks.LOGGER.info("Starting to create vdisk `{0}` on vPool `{1}` on node `{2}` "
+        for size in cls.VDISK_SIZES:
+            truncate_disk_name = cls.PREFIX+str(size)+'-trunc'
+            cls.LOGGER.info("Starting to create vdisk `{0}` on vPool `{1}` on node `{2}` "
                                               "with size `{3}`".format(truncate_disk_name, vpool.name, storagedriver.storage_ip, size))
             client.run(["truncate", "-s", str(size), "/mnt/{0}/{1}.raw".format(vpool.name, truncate_disk_name)])
-            VDiskDeploymentChecks.LOGGER.info("Finished creating vdisk `{0}`".format(truncate_disk_name))
-            VDiskDeploymentChecks._check_vdisk(vdisk_name=truncate_disk_name, vpool_name=vpool.name)
-            VDiskDeploymentChecks.LOGGER.info("Starting to delete vdisk `{0}`".format(truncate_disk_name))
-            VDiskRemover.remove_vdisk_by_name(truncate_disk_name, vpool.name, cls.api)
-            VDiskDeploymentChecks.LOGGER.info("Finished deleting vdisk `{0}`".format(truncate_disk_name))
-        VDiskDeploymentChecks.LOGGER.info("Finished to validate the vdisk deployment")
+            cls.LOGGER.info("Finished creating vdisk `{0}`".format(truncate_disk_name))
+            cls._check_vdisk(vdisk_name=truncate_disk_name, vpool_name=vpool.name)
+            cls.LOGGER.info("Starting to delete vdisk `{0}`".format(truncate_disk_name))
+            VDiskRemover.remove_vdisk_by_name(truncate_disk_name, vpool.name)
+            cls.LOGGER.info("Finished deleting vdisk `{0}`".format(truncate_disk_name))
+        cls.LOGGER.info("Finished to validate the vdisk deployment")
 
     @staticmethod
     def _check_vdisk(vdisk_name, vpool_name, timeout=VDISK_CHECK_TIMEOUT, times=VDISK_CHECK_AMOUNT):
