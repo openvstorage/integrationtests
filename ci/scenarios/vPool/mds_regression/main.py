@@ -225,7 +225,7 @@ class RegressionTester(CIConstants):
                         vm_client = rem.SSHClient(vm_data['ip'], vm_username, vm_password)
                         vm_client.file_create('/mnt/data/{0}.raw'.format(vm_data['create_msg']))
                         vm_data['client'] = vm_client
-                    cls._set_mds_safety(1, checkup=True)  # Set the safety to trigger the mds
+                    cls._set_mds_safety(source_storagedriver.vpool, 1, checkup=True)  # Set the safety to trigger the mds
                     safety_set = True
                     io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
                     threads['evented']['io']['pairs'] = io_thread_pairs
@@ -282,7 +282,7 @@ class RegressionTester(CIConstants):
                             vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
                         vm_data['screen_names'] = []
                     if safety_set is True:
-                        cls._set_mds_safety(len(StorageRouterList.get_masters()), checkup=True)
+                        cls._set_mds_safety(source_storagedriver.vpool, len(StorageRouterList.get_masters()), checkup=True)
         finally:
             cls._adjust_automatic_scrubbing(disable=False)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
@@ -328,13 +328,13 @@ class RegressionTester(CIConstants):
         return change_scheduled_task(job_key, 'absent')
 
     @staticmethod
-    def _set_mds_safety(safety=None, checkup=False, logger=LOGGER):
+    def _set_mds_safety(vpool, safety=None, checkup=False, logger=LOGGER):
         if safety is None:
             safety = len(StoragerouterHelper.get_storagerouters())
         if safety <= 0:
             raise ValueError('Safety should be at least 1.')
         logger.debug('Setting the safety to {} and {} checkup'.format(safety, 'will' if checkup is True else 'false'))
-        storagedriver_config = Configuration.get('/ovs/framework/storagedriver')
+        storagedriver_config = Configuration.get('/ovs/vpools/{0}/mds_config'.format(vpool.guid))
         current_safety = storagedriver_config
         current_safety['mds_safety'] = safety
         Configuration.set('/ovs/framework/storagedriver', current_safety)
@@ -355,7 +355,7 @@ class RegressionTester(CIConstants):
         dan gaat 'm opeens B als master gebruiken maar die heeft geen scrub results applied
         """
         logger.debug('Starting the mds triggering.')
-        cls._set_mds_safety(2, checkup=True)  # Will trigger mds checkup which should create a slave again
+        cls._set_mds_safety(vpool, 2, checkup=True)  # Will trigger mds checkup which should create a slave again
         # Move the volume to set the slave as the master
         for vdisk_name, vdisk_object in volume_bundle.iteritems():
             VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid, target_storagerouter_guid=target_storagerouter_guid)

@@ -26,7 +26,7 @@ class CIConstants(_CIConstants):
     DATA_TEST_CASES = [(0, 100), (30, 70), (40, 60), (50, 50), (70, 30), (100, 0)]  # read write patterns to test (read, write)
 
     CLOUD_INIT_DATA = {
-        'script_loc': 'https://raw.githubusercontent.com/kinvaris/cloud-init/master/create-config-drive',
+        'script_loc': 'http://fileserver.cloudfounders.com/QA/cloud-init/create-config-drive',
         'script_dest': '/tmp/cloud_init_script.sh',
         'user-data_loc': '/tmp/user-data-migrate-test',
         'config_dest': '/tmp/cloud-init-config-migrate-test'}
