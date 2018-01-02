@@ -14,7 +14,6 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.logger import Logger

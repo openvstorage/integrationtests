@@ -21,7 +21,6 @@ from datetime import datetime
 from ci.api_lib.helpers.thread import ThreadHelper, Waiter
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.scenario_helpers.ci_constants import CIConstants
-
 from ovs.extensions.generic.logger import Logger
 
 

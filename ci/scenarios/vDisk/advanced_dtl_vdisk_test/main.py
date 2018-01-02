@@ -14,7 +14,6 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import time
-
 from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
 from ci.api_lib.helpers.network import NetworkHelper
@@ -23,8 +22,6 @@ from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
-from ovs_extensions.generic.remote import remote
-
 from ci.autotests import gather_results
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.fwk_handler import FwkHandler
@@ -34,6 +31,7 @@ from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.servicefactory import ServiceFactory
+from ovs_extensions.generic.remote import remote
 
 
 class AdvancedDTLTester(CIConstants):

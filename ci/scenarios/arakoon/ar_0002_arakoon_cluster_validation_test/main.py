@@ -15,9 +15,6 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import time
 import uuid
-
-from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
-
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.dal.lists.storagerouterlist import StorageRouterList
@@ -25,6 +22,7 @@ from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.servicefactory import ServiceFactory
+from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
 
 
 class ArakoonValidation(CIConstants):

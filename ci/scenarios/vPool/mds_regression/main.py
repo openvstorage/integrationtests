@@ -15,8 +15,6 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import random
 import time
-from multiprocessing.pool import ThreadPool
-
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
 from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
@@ -26,18 +24,18 @@ from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
-from ovs_extensions.generic.remote import remote
-
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
+from multiprocessing.pool import ThreadPool
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.servicefactory import ServiceFactory
+from ovs_extensions.generic.remote import remote
 from ovs.lib.mdsservice import MDSServiceController
 
 
