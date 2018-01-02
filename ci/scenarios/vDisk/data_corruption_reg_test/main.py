@@ -14,7 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import random
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
 from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.system import SystemHelper
@@ -74,7 +74,6 @@ class DataCorruptionTester(CIConstants):
 
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
-        api = cls.get_api_instance()
         storagedriver, cloud_image_path, cloud_init_loc, is_ee = cls.setup()
         compute_ip = storagedriver.storage_ip
         listening_port = NetworkHelper.get_free_port(compute_ip)
@@ -86,15 +85,15 @@ class DataCorruptionTester(CIConstants):
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        computenode_hypervisor = HypervisorFactory.get(compute_ip,
-                                                       hypervisor_info['user'],
-                                                       hypervisor_info['password'],
-                                                       hypervisor_info['type'])
+        hv_credentials = HypervisorCredentials(ip=compute_ip,
+                                               user=hypervisor_info['user'],
+                                               password=hypervisor_info['password'],
+                                               type=hypervisor_info['type'])
+        computenode_hypervisor = HypervisorFactory().get(hv_credentials=hv_credentials)
         vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
             source_storagedriver=storagedriver,
             cloud_image_path=cloud_image_path,
             cloud_init_loc=cloud_init_loc,
-            api=api,
             vm_amount=vm_amount,
             port=listening_port,
             hypervisor_ip=compute_ip,
@@ -113,7 +112,7 @@ class DataCorruptionTester(CIConstants):
         finally:
             for vm_name, vm_object in vm_info.iteritems():
                 computenode_hypervisor.sdk.destroy(vm_name)
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
+                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'])
                 computenode_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
@@ -204,6 +203,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return DataCorruptionTester().main(blocked)
+
 
 if __name__ == '__main__':
     # @todo remove print

@@ -18,8 +18,9 @@ import random
 from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.network import NetworkHelper
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
@@ -73,7 +74,7 @@ class HATester(CIConstants):
         #################
         # PREREQUISITES #
         #################
-        destination_str, source_str, compute_str = cls.get_storagerouters_by_role()
+        destination_str, source_str, compute_str = StoragerouterHelper().get_storagerouters_by_role()
         destination_storagedriver = None
         source_storagedriver = None
         if len(source_str.regular_domains) == 0:
@@ -129,7 +130,6 @@ class HATester(CIConstants):
 
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
-        api = cls.get_api_instance()
         cluster_info, is_ee, cloud_image_path, cloud_init_loc, fio_bin_path = cls.setup()
         compute_ip = cluster_info['storagerouters']['compute'].ip
         listening_port = NetworkHelper.get_free_port(compute_ip)
@@ -141,12 +141,15 @@ class HATester(CIConstants):
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        computenode_hypervisor = HypervisorFactory.get(compute_ip, hypervisor_info['user'], hypervisor_info['password'], hypervisor_info['type'])
+        hv_credentials = HypervisorCredentials(ip=compute_ip,
+                                               user=hypervisor_info['user'],
+                                               password=hypervisor_info['password'],
+                                               type=hypervisor_info['type'])
+        computenode_hypervisor = HypervisorFactory().get(hv_credentials=hv_credentials)
         vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
             source_storagedriver=source_storagedriver,
             cloud_image_path=cloud_image_path,
             cloud_init_loc=cloud_init_loc,
-            api=api,
             vm_amount=vm_amount,
             port=listening_port,
             hypervisor_ip=compute_ip,
@@ -165,9 +168,8 @@ class HATester(CIConstants):
         finally:
             for vm_name, vm_object in vm_info.iteritems():
                 computenode_hypervisor.sdk.destroy(vm_name)
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
+                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'])
                 computenode_hypervisor.sdk.undefine(vm_name)
-        # cls.test_ha_fio(fio_bin_path, cluster_info, is_ee, api)
 
     @classmethod
     def run_test(cls, vm_info, cluster_info, logger=LOGGER):
@@ -192,8 +194,8 @@ class HATester(CIConstants):
             'target_std': destination_storagedriver.serialize()
         }
 
-        vm_to_stop = HATester.PARENT_HYPERVISOR_INFO['vms'][source_storagedriver.storage_ip]['name']
-        parent_hypervisor = cls.get_parent_hypervisor_instance()
+        vm_to_stop = cls.HYPERVISOR_INFO['vms'][source_storagedriver.storage_ip]['name']
+        parent_hypervisor = HypervisorFactory().get()
         # Extract vdisk info from vm_info
         vdisk_info = {}
         disk_amount = 0
@@ -204,7 +206,7 @@ class HATester(CIConstants):
                     continue
                 disk_amount += 1
                 vdisk_info.update({vdisk.name: vdisk})
-                
+
         with remote(compute_client.ip, [SSHClient]) as rem:
             configuration = random.choice(cls.DATA_TEST_CASES)
             threads = {'evented': {'io': {'pairs': [], 'r_semaphore': None}}}
@@ -243,7 +245,7 @@ class HATester(CIConstants):
                     logger.error('Failed to stop. Got {0}'.format(str(ex)))
                     raise
                 downed_time = time.time()
-                time.sleep(HATester.IO_REFRESH_RATE * 2)
+                time.sleep(cls.IO_REFRESH_RATE * 2)
                 # Start IO polling to verify nothing went down
                 ThreadingHandler.poll_io(r_semaphore=io_r_semaphore,
                                          required_thread_amount=len(io_thread_pairs),
@@ -253,7 +255,7 @@ class HATester(CIConstants):
                                          output_files=output_files,
                                          client=compute_client,
                                          disk_amount=disk_amount)
-                HATester._validate(values_to_check, monitoring_data)
+                cls._validate(values_to_check, monitoring_data)
             except Exception as ex:
                 logger.error('Running the test for configuration {0} has failed because {1}'.format(configuration, str(ex)))
                 failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
@@ -274,7 +276,7 @@ class HATester(CIConstants):
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @classmethod
-    def test_ha_fio(cls, fio_bin_path, cluster_info, is_ee,  api, disk_amount=1, timeout=CIConstants.HA_TIMEOUT, logger=LOGGER):
+    def test_ha_fio(cls, fio_bin_path, cluster_info, is_ee, disk_amount=1, timeout=CIConstants.HA_TIMEOUT, logger=LOGGER):
         """
         Uses a modified fio to work with the openvstorage protocol
         :param fio_bin_path: path of the fio binary
@@ -283,8 +285,6 @@ class HATester(CIConstants):
         :type cluster_info: dict
         :param is_ee: is it an ee version or not
         :type is_ee: bool
-        :param api: api object to call the ovs api
-        :type api: ci.api_lib.helpers.api.OVSClient
         :param disk_amount: amount of disks to test fail over with
         :type disk_amount: int
         :param timeout: timeout in seconds
@@ -299,8 +299,8 @@ class HATester(CIConstants):
 
         compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
 
-        vm_to_stop = HATester.PARENT_HYPERVISOR_INFO['vms'][source_storagedriver.storage_ip]['name']
-        parent_hypervisor = cls.get_parent_hypervisor_instance()
+        vm_to_stop = cls.HYPERVISOR_INFO['vms'][source_storagedriver.storage_ip]['name']
+        parent_hypervisor = HypervisorFactory().get()
         values_to_check = {
             'source_std': source_storagedriver.serialize(),
             'target_std': destination_storagedriver.serialize(),
@@ -320,8 +320,8 @@ class HATester(CIConstants):
 
         for index in xrange(0, disk_amount):
             try:
-                vdisk_name = '{0}_vdisk{1}'.format(HATester.TEST_NAME, str(index).zfill(3))
-                data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, HATester.AMOUNT_TO_WRITE, source_storagedriver.storage_ip, api))
+                vdisk_name = '{0}_vdisk{1}'.format(cls.TEST_NAME, str(index).zfill(3))
+                data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, cls.AMOUNT_TO_WRITE, source_storagedriver.storage_ip))
                 vdisk_info[vdisk_name] = data_vdisk
                 edge_configuration['volumenames'].append(data_vdisk.devicename.rsplit('.', 1)[0].split('/', 1)[1])
                 values_to_check['vdisks'].append(data_vdisk.serialize())
@@ -345,7 +345,7 @@ class HATester(CIConstants):
                                                                    fio_configuration={'io_size': cls.AMOUNT_TO_WRITE,
                                                                                       'configuration': configuration},
                                                                    edge_configuration=edge_configuration)
-            logger.info('Doing IO for {0}s before bringing down the node.'.format(HATester.IO_TIME))
+            logger.info('Doing IO for {0}s before bringing down the node.'.format(cls.IO_TIME))
             ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
                                                   threads=io_thread_pairs,
                                                   shared_resource=monitoring_data,
@@ -362,7 +362,7 @@ class HATester(CIConstants):
             except Exception as ex:
                 logger.error('Failed to stop. Got {0}'.format(str(ex)))
                 raise
-            time.sleep(HATester.IO_REFRESH_RATE * 2)
+            time.sleep(cls.IO_REFRESH_RATE * 2)
             # Start IO polling to verify nothing went down
             ThreadingHandler.poll_io(r_semaphore=io_r_semaphore,
                                      required_thread_amount=len(io_thread_pairs),
@@ -372,7 +372,7 @@ class HATester(CIConstants):
                                      output_files=output_files,
                                      client=compute_client,
                                      disk_amount=disk_amount)
-            HATester._validate(values_to_check, monitoring_data)
+            cls._validate(values_to_check, monitoring_data)
         except Exception as ex:
             failed_configurations.append({'configuration': configuration, 'reason': str(ex)})
         finally:
@@ -387,7 +387,7 @@ class HATester(CIConstants):
                 for screen_name in screen_names:
                     compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
             for vdisk in vdisk_info.values():
-                VDiskRemover.remove_vdisk(vdisk.guid, api)
+                VDiskRemover.remove_vdisk(vdisk.guid)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
 
     @staticmethod
@@ -415,6 +415,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return HATester().main(blocked)
+
 
 if __name__ == '__main__':
     run()

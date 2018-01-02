@@ -23,13 +23,14 @@ from ci.api_lib.helpers.exceptions import VDiskNotFoundError
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.logger import Logger
 from ovs_extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.helpers.toolbox import Toolbox
 
 
-class VMHandler(object):
+class VMHandler(CIConstants):
     """
     Class that can create virtual machines
     """
@@ -46,14 +47,13 @@ class VMHandler(object):
     VM_OS_TYPE = 'ubuntu16.04'
 
     @classmethod
-    def prepare_vm_disks(cls, source_storagedriver, cloud_image_path, cloud_init_loc, api, port, vm_amount, hypervisor_ip,
+    def prepare_vm_disks(cls, source_storagedriver, cloud_image_path, cloud_init_loc, port, vm_amount, hypervisor_ip,
                          vm_name, data_disk_size, edge_user_info=None, logger=LOGGER):
         """
         Will create all necessary vdisks to create the bulk of vms
         :param source_storagedriver: storagedriver to create the disks on
         :param cloud_image_path: path to the cloud image
         :param cloud_init_loc: path to the cloud init script
-        :param api: ovsclient instance
         :param vm_amount: amount of vms to test with
         :param vm_name: name prefix for the vms
         :param data_disk_size: size of the data disk
@@ -107,7 +107,7 @@ class VMHandler(object):
                 original_boot_disk_name = boot_vdisk_name
                 logger.info('Boot VDisk successfully created.')
                 try:
-                    data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, data_disk_size, source_storagedriver.storage_ip, api))
+                    data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, data_disk_size, source_storagedriver.storage_ip))
                     logger.info('VDisk data_vdisk successfully created!')
                 except TimeOutError:
                     logger.error('The creation of the data vdisk has timed out.')
@@ -121,14 +121,12 @@ class VMHandler(object):
                 boot_vdisk_info = VDiskSetup.create_clone(vdisk_name=original_boot_disk_name,
                                                           vpool_name=vpool.name,
                                                           new_vdisk_name=boot_vdisk_name,
-                                                          storagerouter_ip=source_storagedriver.storage_ip,
-                                                          api=api)
+                                                          storagerouter_ip=source_storagedriver.storage_ip)
                 boot_vdisk = VDiskHelper.get_vdisk_by_guid(boot_vdisk_info['vdisk_guid'])
                 data_vdisk_info = VDiskSetup.create_clone(vdisk_name=original_data_disk_name,
                                                           vpool_name=vpool.name,
                                                           new_vdisk_name=data_vdisk_name,
-                                                          storagerouter_ip=source_storagedriver.storage_ip,
-                                                          api=api)
+                                                          storagerouter_ip=source_storagedriver.storage_ip)
                 data_vdisk = VDiskHelper.get_vdisk_by_guid(data_vdisk_info['vdisk_guid'])
             #######################
             # GENERATE CLOUD INIT #
@@ -151,7 +149,6 @@ class VMHandler(object):
             data_snapshot_guid = VDiskSetup.create_snapshot('{0}_data'.format(vm_name),
                                                             data_vdisk.devicename,
                                                             vpool.name,
-                                                            api,
                                                             consistent=False)
             vm_info[vm_name] = {'data_snapshot_guid': data_snapshot_guid,
                                 'vdisks': [boot_vdisk, data_vdisk, cd_vdisk],

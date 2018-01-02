@@ -16,12 +16,12 @@
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs_extensions.generic.remote import remote
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.lists.servicelist import ServiceList
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs_extensions.generic.remote import remote
 from ovs.lib.generic import GenericController
 
 

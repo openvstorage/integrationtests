@@ -13,38 +13,33 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import json
 import random
 import time
-from multiprocessing.pool import ThreadPool
-from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
 from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
+from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
-from ci.main import CONFIG_LOC
-from ci.main import SETTINGS_LOC
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
-from ovs_extensions.generic.remote import remote
+from multiprocessing.pool import ThreadPool
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.logger import Logger
-from ovs.extensions.services.servicefactory import ServiceFactory
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs.extensions.services.servicefactory import ServiceFactory
+from ovs_extensions.generic.remote import remote
 from ovs.lib.mdsservice import MDSServiceController
 
 
 class RegressionTester(CIConstants):
-
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = 'ci_scenario_edge_test'
     LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
@@ -71,17 +66,18 @@ class RegressionTester(CIConstants):
 
     @classmethod
     def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
-        api, cluster_info, compute_client, to_be_downed_client, is_ee, cloud_image_path, cloud_init_loc = cls.setup()
+        cluster_info, compute_client, to_be_downed_client, is_ee, cloud_image_path, cloud_init_loc = cls.setup()
         listening_port = NetworkHelper.get_free_port(compute_client.ip)
 
         source_storagedriver = cluster_info['storagedrivers']['source']
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
         edge_details = {'port': source_storagedriver.ports['edge'], 'hostname': source_storagedriver.storage_ip, 'protocol': protocol}
 
-        computenode_hypervisor = HypervisorFactory.get(compute_client.ip,
-                                                       hypervisor_info['user'],
-                                                       hypervisor_info['password'],
-                                                       hypervisor_info['type'])
+        hv_credentials = HypervisorCredentials(ip=compute_client.ip,
+                                               user=hypervisor_info['user'],
+                                               password=hypervisor_info['password'],
+                                               type=hypervisor_info['type'])
+        computenode_hypervisor = HypervisorFactory().get(hv_credentials=hv_credentials)
         edge_user_info = {}
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
@@ -90,7 +86,6 @@ class RegressionTester(CIConstants):
             source_storagedriver=source_storagedriver,
             cloud_image_path=cloud_image_path,
             cloud_init_loc=cloud_init_loc,
-            api=api,
             vm_amount=vm_amount,
             port=listening_port,
             hypervisor_ip=compute_client.ip,
@@ -108,11 +103,11 @@ class RegressionTester(CIConstants):
             cls.run_test(cluster_info=cluster_info,
                          compute_client=compute_client,
                          vm_info=vm_info,
-                         api=api)
+                         )
         finally:
             for vm_name, vm_object in vm_info.iteritems():
                 computenode_hypervisor.sdk.destroy(vm_name)
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
+                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'])
                 computenode_hypervisor.sdk.undefine(vm_name)
 
     @classmethod
@@ -139,13 +134,6 @@ class RegressionTester(CIConstants):
         compute_str = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters() if
                        storagerouter.guid not in [destination_str.guid, source_str.guid]][0]  # Will act as compute node
 
-        with open(CONFIG_LOC, 'r') as config_file:
-            config = json.load(config_file)
-        api = OVSClient(config['ci']['grid_ip'],
-                        config['ci']['user']['api']['username'],
-                        config['ci']['user']['api']['password'])
-        with open(SETTINGS_LOC, 'r') as JSON_SETTINGS:
-            settings = json.load(JSON_SETTINGS)
         # Get a suitable vpool with min. 2 storagedrivers
         vpool = None
         for vp in VPoolHelper.get_vpools():
@@ -162,8 +150,8 @@ class RegressionTester(CIConstants):
         to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
         compute_client = SSHClient(compute_str, username='root')
 
-        images = settings['images']  # Check if enough images available
-        assert len(images) >= 1, 'Not enough images in `{0}`'.format(SETTINGS_LOC)
+        images = cls.SETTINGS['images']  # Check if enough images available
+        assert len(images) >= 1, 'Not enough images in `{0}`'.format(cls.JSON_SETTINGS.name)
 
         image_path = images[0]  # Check if image exists
         assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
@@ -187,17 +175,16 @@ class RegressionTester(CIConstants):
         compute_client.run(['wget', fio_bin_url, '-O', fio_bin_loc])
         compute_client.file_chmod(fio_bin_loc, 755)
         assert compute_client.file_exists(fio_bin_loc), 'Could not get the latest fio binary.'
-        return api, cluster_info, compute_client, to_be_downed_client, is_ee, image_path, cloud_init_loc
+        return cluster_info, compute_client, to_be_downed_client, is_ee, image_path, cloud_init_loc
 
     @classmethod
-    def run_test(cls, cluster_info, compute_client, vm_info, api, vm_username=CIConstants.VM_USERNAME, vm_password=CIConstants.VM_PASSWORD,
+    def run_test(cls, cluster_info, compute_client, vm_info, vm_username=CIConstants.VM_USERNAME, vm_password=CIConstants.VM_PASSWORD,
                  timeout=TEST_TIMEOUT, data_test_cases=CIConstants.DATA_TEST_CASES, logger=LOGGER):
         """
         Runs the test as described in https://github.com/openvstorage/dev_ops/issues/64
         :param cluster_info: information about the cluster
         :param compute_client: SSHclient of the computenode
         :param vm_info: vm information
-        :param api: api instance
         :param vm_username: username to login on all vms
         :param vm_password: password to login on all vms
         :param timeout: timeout in seconds
@@ -244,7 +231,7 @@ class RegressionTester(CIConstants):
                     threads['evented']['io']['pairs'] = io_thread_pairs
                     threads['evented']['io']['r_semaphore'] = io_r_semaphore
                     # @todo snapshot every minute
-                    threads['evented']['snapshots']['pairs'] = ThreadingHandler.start_snapshotting_threads(volume_bundle=vdisk_info, api=api, kwargs={'interval': 15})
+                    threads['evented']['snapshots']['pairs'] = ThreadingHandler.start_snapshotting_threads(volume_bundle=vdisk_info, kwargs={'interval': 15})
                     for vm_name, vm_data in vm_info.iteritems():  # Write data
                         screen_names, output_files = DataWriter.write_data_fio(client=vm_data['client'],
                                                                                fio_configuration={
@@ -259,10 +246,10 @@ class RegressionTester(CIConstants):
                                                           duration=cls.IO_TIME / 2)
                     ThreadHelper.stop_evented_threads(threads['evented']['snapshots']['pairs'],
                                                       threads['evented']['snapshots']['r_semaphore'])  # Stop snapshotting
-                    cls._delete_snapshots(volume_bundle=vdisk_info, api=api)
+                    cls._delete_snapshots(volume_bundle=vdisk_info)
                     # Start scrubbing thread
-                    async_scrubbing = cls.start_scrubbing(volume_bundle=vdisk_info, api=api)  # Starting to scrub
-                    cls._trigger_mds_issue(source_storagedriver.vpool, vdisk_info, destination_storagedriver.storagerouter.guid, api)  # Trigger mds failover while scrubber is busy
+                    async_scrubbing = cls.start_scrubbing(volume_bundle=vdisk_info)  # Starting to scrub
+                    cls._trigger_mds_issue(vdisk_info, destination_storagedriver.storagerouter.guid)  # Trigger mds failover while scrubber is busy
                     # Do some monitoring further for 60s
                     ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
                                                           threads=io_thread_pairs,
@@ -335,6 +322,7 @@ class RegressionTester(CIConstants):
                 client = SSHClient(storagerouter, username='root')
                 service_manager.restart_service(service_name, client=client)
             return output
+
         if disable is True:
             return change_scheduled_task(job_key, 'present', disabled=True)
         return change_scheduled_task(job_key, 'absent')
@@ -354,7 +342,7 @@ class RegressionTester(CIConstants):
             MDSServiceController.mds_checkup()
 
     @classmethod
-    def _trigger_mds_issue(cls, vpool, volume_bundle, target_storagerouter_guid, api, logger=LOGGER):
+    def _trigger_mds_issue(cls, volume_bundle, target_storagerouter_guid, logger=LOGGER):
         """
         voldrv A, voldrv B, volume X op A
         ensure_safety lopen op X, die gaat master op A en slave op B hebben -> done on create
@@ -370,7 +358,7 @@ class RegressionTester(CIConstants):
         cls._set_mds_safety(vpool, 2, checkup=True)  # Will trigger mds checkup which should create a slave again
         # Move the volume to set the slave as the master
         for vdisk_name, vdisk_object in volume_bundle.iteritems():
-            VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid, target_storagerouter_guid=target_storagerouter_guid, api=api)
+            VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid, target_storagerouter_guid=target_storagerouter_guid)
 
         # Manually fool the voldriver into thinking it only has the master left
         # the other volumedriver remains slave en keeps catching up
@@ -381,8 +369,8 @@ class RegressionTester(CIConstants):
         # The case above is the potentially the same as settingthe safety to 1 after creation, mds checkup and then setting it to 2, mds checkup
         # Set the mds safety back to 2
 
-    @staticmethod
-    def _delete_snapshots(volume_bundle, api, amount_to_delete=3, logger=LOGGER):
+    @classmethod
+    def _delete_snapshots(cls, volume_bundle, amount_to_delete=3, logger=LOGGER):
         """
         Delete a random number of snapshots
         :return: None
@@ -399,23 +387,22 @@ class RegressionTester(CIConstants):
                     break
                 snapshot = snapshots_allowed_to_remove.pop(random.randrange(0, len(snapshots_allowed_to_remove)))
                 logger.debug('Removing snapshot with guid {0}'.format(snapshot['guid']))
-                VDiskRemover.remove_snapshot(snapshot['guid'], vdisk_object.name, vdisk_object.vpool.name, api)
+                VDiskRemover.remove_snapshot(snapshot['guid'], vdisk_object.name, vdisk_object.vpool.name)
                 amount_to_delete -= 1
 
     @classmethod
-    def start_scrubbing(cls, volume_bundle, api, logger=LOGGER):
+    def start_scrubbing(cls, volume_bundle, logger=LOGGER):
         """
         Start the scrubbing and wait in a seperate thread until done
         :param volume_bundle: volume information
-        :param api: api instance
         :param logger: logging instance
         :return: 
         """
         pool = ThreadPool(processes=1)
-        return pool.apply_async(cls._start_scrubbing, args=(volume_bundle, api, logger))
+        return pool.apply_async(cls._start_scrubbing, args=(volume_bundle, logger))
 
-    @staticmethod
-    def _start_scrubbing(volume_bundle, api, logger):
+    @classmethod
+    def _start_scrubbing(cls, volume_bundle, logger):
         """
         Starts scrubbing and will be offloaded into a seperate thread
         :param volume_bundle: volume information
@@ -425,10 +412,10 @@ class RegressionTester(CIConstants):
         vdisk_task_mapping = {}
         error_msgs = []
         for vdisk_name, vdisk_object in volume_bundle.iteritems():
-            vdisk_task_mapping[vdisk_object.guid] = VDiskHelper.scrub_vdisk(vdisk_object.guid, api, wait=False)  # Tasks are launched but not checked upon
+            vdisk_task_mapping[vdisk_object.guid] = VDiskHelper.scrub_vdisk(vdisk_object.guid, wait=False)  # Tasks are launched but not checked upon
         for vdisk_name, vdisk_object in volume_bundle.iteritems():
             logger.debug('Waiting for vdisk {0}s task to finish scrubbing.'.format(vdisk_name))
-            task_result = api.wait_for_task(vdisk_task_mapping[vdisk_object.guid])
+            task_result = cls.api.wait_for_task(vdisk_task_mapping[vdisk_object.guid])
             if not task_result[0]:
                 error_msg = "Scrubbing vDisk `{0}` has failed with error {1}".format(vdisk_name, task_result[1])
                 logger.error(error_msg)
@@ -448,6 +435,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return RegressionTester().main(blocked)
+
 
 if __name__ == '__main__':
     run()

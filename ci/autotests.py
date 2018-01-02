@@ -24,21 +24,18 @@ import math
 import importlib
 import subprocess
 from datetime import datetime
+from ci.api_lib.helpers.ci_constants import CIConstants
 from ci.api_lib.helpers.exceptions import SectionNotFoundError
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
-from ci.main import CONFIG_LOC
 from ovs.extensions.generic.logger import Logger
+from ovs.extensions.generic.system import System
 
 
 class AutoTests(object):
 
     logger = Logger("autotests-ci_autotests")
-    TEST_SCENARIO_LOC = "/opt/OpenvStorage/ci/scenarios/"
-    TESTTRAIL_LOC = "/opt/OpenvStorage/ci/config/testrail.json"
     EXCLUDE_FLAG = "-exclude"
-    with open(CONFIG_LOC, 'r') as config_file:
-        CONFIG = json.load(config_file)
 
     @staticmethod
     def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True, exclude_scenarios=None):
@@ -61,16 +58,17 @@ class AutoTests(object):
         if scenarios is None:
             scenarios = ['ALL']
         if exclude_scenarios is None:
-            exclude_scenarios = AutoTests.CONFIG.get('exclude_scenarios', [])
+            exclude_scenarios = CIConstants.SETUP_CFG.get('exclude_scenarios', [])
         logger.info("Collecting tests.")  # Grab the tests to execute
         tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
         # print tests to be executed
-        logger.info("Executing the following tests: {0}".format(tests))
+        logger.info('Executing the following tests: {0}'.format(tests))
         # execute the tests
-        logger.info("Starting tests.")
+        logger.info('Starting tests.')
         results = {}
         blocked = False
         for test in tests:
+            logger.info("\n{:=^100}\n".format(test))
             mod = importlib.import_module('{0}.main'.format(test))
             module_result = mod.run(blocked)
             if hasattr(TestrailResult, module_result['status']):  # check if a test has failed, if it has failed check if we should block all other tests
@@ -80,18 +78,18 @@ class AutoTests(object):
                     elif module_result['blocking'] is not False:
                         blocked = True  # if a test reports failed but blocked != False
             else:
-                raise AttributeError("Attribute `{0}` does not exists as status in TestrailResult".format(module_result['status']))
+                raise AttributeError('Attribute `{0}` does not exists as status in TestrailResult'.format(module_result['status']))
             # add test to results & also remove possible EXCLUDE_FLAGS on test name
             results[test.replace(AutoTests.EXCLUDE_FLAG, '')] = module_result
         logger.info("Finished tests.")
         if send_to_testrail:
-            logger.info("Start pushing tests to testrail.")
+            logger.info('Start pushing tests to testrail.')
             plan_url = AutoTests.push_to_testrail(results, only_add_given_cases=only_add_given_results)
             return results, plan_url
         return results, None
 
     @staticmethod
-    def list_tests(cases=None, exclude=None, start_dir=TEST_SCENARIO_LOC, categories=None, subcategories=None, depth=1):
+    def list_tests(cases=None, exclude=None, start_dir=CIConstants.TEST_SCENARIO_LOC, categories=None, subcategories=None, depth=1):
         """
         Lists the requested test scenarios
         :returns: all available test scenarios
@@ -142,7 +140,7 @@ class AutoTests(object):
         return scenarios
 
     @staticmethod
-    def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True, only_add_given_cases=False):
+    def push_to_testrail(results, config_path=CIConstants.TESTRAIL_LOC, skip_on_no_results=True, only_add_given_cases=False):
         """
         Push results to testtrail
         :param config_path: path to testrail config file
@@ -169,12 +167,12 @@ class AutoTests(object):
 
         # setup testrail api connection
         if not testtrail_config['url']:
-            raise RuntimeError("Invalid url for testrail")
+            raise RuntimeError('Invalid url for testrail')
 
         if not testtrail_config['key']:
             # no key provided so we will continue with username & password
             if not testtrail_config['username'] and testtrail_config['password']:
-                raise RuntimeError("Invalid username or password specified for testrail")
+                raise RuntimeError('Invalid username or password specified for testrail')
             else:
                 tapi = TestrailApi(server=testtrail_config['url'], user=testtrail_config['username'], password=testtrail_config['password'])
         else:
@@ -194,13 +192,13 @@ class AutoTests(object):
                 try:
                     section = tapi.get_section_by_name(project_id, suite_id, test_section)
                 except Exception:
-                    raise SectionNotFoundError("Section `{0}` is not available in testrail, please add or correct your mistake.".format(test_section))
+                    raise SectionNotFoundError('Section `{0}` is not available in testrail, please add or correct your mistake.'.format(test_section))
 
                 if hasattr(TestrailCaseType, test_result['case_type']):
                     case_type_id = tapi.get_case_type_by_name(getattr(TestrailCaseType, test_result['case_type']))['id']
                 else:
-                    raise AttributeError("Attribute `{0}` does not exists as case_type "
-                                         "in TestrailCaseType".format(test_result['case_type']))
+                    raise AttributeError('Attribute `{0}` does not exists as case_type '
+                                         'in TestrailCaseType'.format(test_result['case_type']))
                 # add case to existing section
                 tapi.add_case(section_id=section['id'], title=test_name, type_id=case_type_id)
 
@@ -232,7 +230,7 @@ class AutoTests(object):
             if hasattr(TestrailResult, test_result['status']):
                 test_status_id = getattr(TestrailResult, test_result['status'])
             else:
-                raise AttributeError("Attribute `{0}` does not exists as test_status in TestrailResult"
+                raise AttributeError('Attribute `{0}` does not exists as test_status in TestrailResult'
                                      .format(test_result['status']))
             # add results to test cases, if the've got something in the field `errors`
             if test_result['errors'] is not None:
@@ -246,14 +244,14 @@ class AutoTests(object):
                 if test['status_id'] == TestrailResult.UNTESTED:
                     tapi.add_result(test['id'], int(TestrailResult.SKIPPED))
 
-        logger.info("Finished pushing tests to testrail ...")
+        logger.info('Finished pushing tests to testrail ...')
         return plan['url']
 
     @staticmethod
     def _get_package_info():
         """
         Retrieve package information for installation
-    
+
         :returns: package information of openvstorage, volumedriver, alba, arakoon & python-celery
         :rtype: str
         """
@@ -270,19 +268,19 @@ class AutoTests(object):
     def _get_test_name():
         """
         Retrieve a structured environment test name
-    
+
         :returns: a structured environment based test name
         :rtype: str
         """
-        number_of_nodes = len(StoragerouterHelper.get_storagerouter_ips())
-        split_ip = StoragerouterHelper.get_local_storagerouter().ip.split('.')
+        number_of_nodes = len(StoragerouterHelper.get_storagerouters())
+        split_ip = System.get_my_storagerouter().ip.split('.')
         return str(number_of_nodes) + 'N-' + split_ip[2] + '.' + split_ip[3]
 
     @staticmethod
     def _get_ovs_version():
         """
         Retrieve version of ovs installation
-    
+
         :returns: openvstorage package version
         :rtype: str
         """
@@ -297,19 +295,17 @@ class AutoTests(object):
     def _get_description():
         """
         Retrieve extensive information about the machine
-    
+
         :returns: a extensive description of the local machine
         :rtype: str
         """
-        description_lines = []
+        description_lines = ['# IP INFO']
         # fetch ip information
-        description_lines.append('# IP INFO')
         for ip in StoragerouterHelper.get_storagerouter_ips():
             description_lines.append('* {0}'.format(ip))
         description_lines.append('')  # New line gap
         # hypervisor information
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-                ci_config = json.load(JSON_CONFIG)
+        ci_config = CIConstants.SETUP_CFG
         description_lines.append('# HYPERVISOR INFO')
         description_lines.append('{0}'.format(ci_config['ci']['local_hypervisor']['type']))
         description_lines.append('')  # New line gap
@@ -416,7 +412,7 @@ def gather_results(case_type, logger, test_name, log_components=None):
     Result gathering to be used as decorator for the autotests
     Gathers the logs when the test has failed and will push these to testrail
     Must be put on the main method of every class that is part of the suite
-    Replaces: 
+    Replaces:
         if not blocked:
             try:
                 HATester._execute_test()
@@ -437,7 +433,7 @@ def gather_results(case_type, logger, test_name, log_components=None):
     :type test_name: str
     :param log_components: components to fetch logging from when the test would fail
     :type log_components: list
-    :return: 
+    :return:
     """
     import inspect
     import datetime
