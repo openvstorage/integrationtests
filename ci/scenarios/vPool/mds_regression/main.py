@@ -27,6 +27,7 @@ from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
+from ci.scenario_helpers.setup import SetupHelper
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
 from multiprocessing.pool import ThreadPool
@@ -73,42 +74,28 @@ class RegressionTester(CIConstants):
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
         edge_details = {'port': source_storagedriver.ports['edge'], 'hostname': source_storagedriver.storage_ip, 'protocol': protocol}
 
-        hv_credentials = HypervisorCredentials(ip=compute_client.ip,
-                                               user=hypervisor_info['user'],
-                                               password=hypervisor_info['password'],
-                                               type=hypervisor_info['type'])
-        computenode_hypervisor = HypervisorFactory().get(hv_credentials=hv_credentials)
         edge_user_info = {}
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
+        vm_handler = VMHandler(hypervisor_ip=compute_client.ip)
+
+        vm_handler.prepare_vm_disks(
             source_storagedriver=source_storagedriver,
             cloud_image_path=cloud_image_path,
             cloud_init_loc=cloud_init_loc,
-            vm_amount=vm_amount,
-            port=listening_port,
-            hypervisor_ip=compute_client.ip,
             vm_name=cls.VM_NAME,
             data_disk_size=cls.AMOUNT_TO_WRITE * 2,
             edge_user_info=edge_user_info)
-        vm_info = VMHandler.create_vms(ip=compute_client.ip,
-                                       port=listening_port,
-                                       connection_messages=connection_messages,
-                                       vm_info=vm_info,
-                                       edge_configuration=edge_details,
-                                       hypervisor_client=computenode_hypervisor,
-                                       timeout=cls.TEST_TIMEOUT)
+        vm_info = vm_handler.create_vms(edge_configuration=edge_details,
+                                        timeout=cls.TEST_TIMEOUT)
         try:
             cls.run_test(cluster_info=cluster_info,
                          compute_client=compute_client,
                          vm_info=vm_info,
                          )
         finally:
-            for vm_name, vm_object in vm_info.iteritems():
-                computenode_hypervisor.sdk.destroy(vm_name)
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'])
-                computenode_hypervisor.sdk.undefine(vm_name)
+            vm_handler.destroy_vms(vm_info=vm_info)
 
     @classmethod
     def setup(cls, cloud_init_info=CIConstants.CLOUD_INIT_DATA, logger=LOGGER):
@@ -118,7 +105,7 @@ class RegressionTester(CIConstants):
         :type cloud_init_info: dict
         :param logger: logging instance
         :type logger: ovs.log.log_handler.LogHandler
-        :return: 
+        :return:
         """
         vpool = None
         for vp in VPoolHelper.get_vpools():
@@ -156,15 +143,13 @@ class RegressionTester(CIConstants):
         image_path = images[0]  # Check if image exists
         assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
 
-        cloud_init_loc = cloud_init_info['script_dest']  # Get the cloud init file
-        to_be_downed_client.run(['wget', cloud_init_info['script_loc'], '-O', cloud_init_loc])
-        to_be_downed_client.file_chmod(cloud_init_loc, 755)
-        assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
+
         cluster_info = {'storagerouters': {'destination': destination_str, 'source': source_str, 'compute': compute_str},
                         'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver},
                         'vpool': vpool}
 
-        is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client,source_storagedriver)
+
         if is_ee is True:
             fio_bin_loc = cls.FIO_BIN_EE['location']
             fio_bin_url = cls.FIO_BIN_EE['url']
@@ -360,14 +345,14 @@ class RegressionTester(CIConstants):
         for vdisk_name, vdisk_object in volume_bundle.iteritems():
             VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid, target_storagerouter_guid=target_storagerouter_guid)
 
-        # Manually fool the voldriver into thinking it only has the master left
-        # the other volumedriver remains slave en keeps catching up
-        # Scrubbing wont be applied to B
-        # Reconfigure B as slave
-        # move to vdisk to B so B is master but B does not have scrub results
+            # Manually fool the voldriver into thinking it only has the master left
+            # the other volumedriver remains slave en keeps catching up
+            # Scrubbing wont be applied to B
+            # Reconfigure B as slave
+            # move to vdisk to B so B is master but B does not have scrub results
 
-        # The case above is the potentially the same as settingthe safety to 1 after creation, mds checkup and then setting it to 2, mds checkup
-        # Set the mds safety back to 2
+            # The case above is the potentially the same as settingthe safety to 1 after creation, mds checkup and then setting it to 2, mds checkup
+            # Set the mds safety back to 2
 
     @classmethod
     def _delete_snapshots(cls, volume_bundle, amount_to_delete=3, logger=LOGGER):

@@ -14,6 +14,7 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import time
+import Queue
 import random
 from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.domain import DomainHelper
@@ -30,6 +31,7 @@ from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.fwk_handler import FwkHandler
+from ci.scenario_helpers.setup import SetupHelper
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.logger import Logger
@@ -105,17 +107,13 @@ class HATester(CIConstants):
         assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
 
         # Get the cloud init file
-        cloud_init_loc = cls.CLOUD_INIT_DATA.get('script_dest')
-        to_be_downed_client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
-        to_be_downed_client.file_chmod(cloud_init_loc, 755)
-        assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
         cluster_info = {'storagerouters': {'destination': destination_str,
                                            'source': source_str,
                                            'compute': compute_str},
                         'storagedrivers': {'destination': destination_storagedriver,
                                            'source': source_storagedriver}}
 
-        is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, source_storagedriver)
         if is_ee is True:
             fio_bin_loc = cls.FIO_BIN_EE['location']
             fio_bin_url = cls.FIO_BIN_EE['url']
@@ -129,10 +127,11 @@ class HATester(CIConstants):
         return cluster_info, is_ee, image_path, cloud_init_loc, fio_bin_loc
 
     @classmethod
-    def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
+    def start_test(cls, vm_amount=1):
         cluster_info, is_ee, cloud_image_path, cloud_init_loc, fio_bin_path = cls.setup()
         compute_ip = cluster_info['storagerouters']['compute'].ip
-        listening_port = NetworkHelper.get_free_port(compute_ip)
+
+        vm_handler = VMHandler(hypervisor_ip=compute_ip)
 
         source_storagedriver = cluster_info['storagedrivers']['source']
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
@@ -141,35 +140,19 @@ class HATester(CIConstants):
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        hv_credentials = HypervisorCredentials(ip=compute_ip,
-                                               user=hypervisor_info['user'],
-                                               password=hypervisor_info['password'],
-                                               type=hypervisor_info['type'])
-        computenode_hypervisor = HypervisorFactory().get(hv_credentials=hv_credentials)
-        vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
-            source_storagedriver=source_storagedriver,
-            cloud_image_path=cloud_image_path,
-            cloud_init_loc=cloud_init_loc,
-            vm_amount=vm_amount,
-            port=listening_port,
-            hypervisor_ip=compute_ip,
-            vm_name=cls.VM_NAME,
-            data_disk_size=cls.AMOUNT_TO_WRITE,
-            edge_user_info=edge_user_info)
-        vm_info = VMHandler.create_vms(ip=compute_ip,
-                                       port=listening_port,
-                                       connection_messages=connection_messages,
-                                       vm_info=vm_info,
-                                       edge_configuration=edge_details,
-                                       hypervisor_client=computenode_hypervisor,
+        vm_handler.prepare_vm_disks(source_storagedriver=source_storagedriver,
+                                    cloud_image_path=cloud_image_path,
+                                    cloud_init_loc=cloud_init_loc,
+                                    vm_name=cls.VM_NAME,
+                                    data_disk_size=cls.AMOUNT_TO_WRITE,
+                                    edge_user_info=edge_user_info)
+        vm_info = vm_handler.create_vms(edge_configuration=edge_details,
                                        timeout=cls.HA_TIMEOUT)
         try:
             cls.run_test(cluster_info=cluster_info, vm_info=vm_info)
         finally:
-            for vm_name, vm_object in vm_info.iteritems():
-                computenode_hypervisor.sdk.destroy(vm_name)
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'])
-                computenode_hypervisor.sdk.undefine(vm_name)
+            vm_handler.destroy_vms(vm_info=vm_info)
+
 
     @classmethod
     def run_test(cls, vm_info, cluster_info, logger=LOGGER):

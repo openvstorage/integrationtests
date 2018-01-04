@@ -15,6 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 from ci.api_lib.helpers.ci_constants import CIConstants as _CIConstants
 
+
 class CIConstants(_CIConstants):
     """
     Collection of multiple constants and constant related instances
