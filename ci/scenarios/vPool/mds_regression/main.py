@@ -80,13 +80,12 @@ class RegressionTester(CIConstants):
             edge_details.update(edge_user_info)
         vm_handler = VMHandler(hypervisor_ip=compute_client.ip)
 
-        vm_handler.prepare_vm_disks(
-            source_storagedriver=source_storagedriver,
-            cloud_image_path=cloud_image_path,
-            cloud_init_loc=cloud_init_loc,
-            vm_name=cls.VM_NAME,
-            data_disk_size=cls.AMOUNT_TO_WRITE * 2,
-            edge_user_info=edge_user_info)
+        vm_handler.prepare_vm_disks(source_storagedriver=source_storagedriver,
+                                    cloud_image_path=cloud_image_path,
+                                    cloud_init_loc=cloud_init_loc,
+                                    vm_name=cls.VM_NAME,
+                                    data_disk_size=cls.AMOUNT_TO_WRITE * 2,
+                                    edge_user_info=edge_user_info)
         vm_info = vm_handler.create_vms(edge_configuration=edge_details,
                                         timeout=cls.TEST_TIMEOUT)
         try:
@@ -148,7 +147,7 @@ class RegressionTester(CIConstants):
                         'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver},
                         'vpool': vpool}
 
-        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client,source_storagedriver)
+        cloud_init_loc, is_ee = SetupHelper().setup_cloud_info(to_be_downed_client,source_storagedriver)
 
         if is_ee is True:
             fio_bin_loc = cls.FIO_BIN_EE['location']

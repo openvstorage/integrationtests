@@ -120,7 +120,7 @@ class DataCorruptionTester(CIConstants):
         assert client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], client.ip)
 
         # Get the cloud init file
-        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(client, src_std=source_storagedriver)
+        cloud_init_loc, is_ee = SetupHelper().setup_cloud_info(client, src_std=source_storagedriver)
         return source_storagedriver, image_path, cloud_init_loc, is_ee
 
     @classmethod

@@ -142,7 +142,7 @@ class AdvancedDTLTester(CIConstants):
         assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
 
         # Get the cloud init file
-        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client,source_storagedriver)
+        cloud_init_loc, is_ee = SetupHelper().setup_cloud_info(to_be_downed_client,source_storagedriver)
         cluster_info = {'storagerouters': {'destination': destination_str,
                                            'source': source_str,
                                            'compute': compute_str},

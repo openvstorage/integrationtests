@@ -113,7 +113,7 @@ class HATester(CIConstants):
                         'storagedrivers': {'destination': destination_storagedriver,
                                            'source': source_storagedriver}}
 
-        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, source_storagedriver)
+        cloud_init_loc, is_ee = SetupHelper().setup_cloud_info(to_be_downed_client, source_storagedriver)
         if is_ee is True:
             fio_bin_loc = cls.FIO_BIN_EE['location']
             fio_bin_url = cls.FIO_BIN_EE['url']

@@ -1,10 +1,10 @@
 from ci.scenario_helpers.ci_constants import CIConstants
-from helpers.system import SystemHelper
+from ci.api_lib.helpers.system import SystemHelper
 
 
 class SetupHelper(CIConstants):
 
-    def setup_cloud_info(self, client,src_std):
+    def setup_cloud_info(self, client, src_std):
         cloud_init_loc = self.CLOUD_INIT_DATA.get('script_dest')
         client.run(['wget', self.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
         client.file_chmod(cloud_init_loc, 755)
