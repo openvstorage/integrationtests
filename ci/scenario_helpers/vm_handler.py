@@ -203,14 +203,10 @@ class VMHandler(CIConstants):
         """
         Create multiple VMs and wait for their creation to be completed
         :param edge_configuration: details of the edge
-        :param timeout: timeout listening
-        :return: 
+        :param logger: logging instance
+        :return:
         """
         logger.info('Creating vms')
-        # offload to a thread
-        # listening_thread, listening_stop_object = ThreadHelper.start_thread_with_event(
-        #     self._listen_to_address, 'vm_listener',
-        #     args=(self.hypervisor_ip, self.listing_port, listening_queue, self.connection_messages, timeout))
         try:
             # Give the listenener a heads up for the messages to come
             self.message_queue.put(self.connection_messages)
@@ -232,7 +228,7 @@ class VMHandler(CIConstants):
         except Exception:
             if self.listening_thread.isAlive():
                 self.listening_stop_object.set()
-            self.listening_thread.join(timeout=60)
+            self.listening_thread.join(timeout=timeout)
             raise
         logger.info('Finished creation of vms')
         return self.vm_info
@@ -303,8 +299,8 @@ class VMHandler(CIConstants):
         :param listening_host: ip of the listening host
         :param port_queue: Queue to broadcast the used port on
         :param message_queue: Queue to supply messages to lookout for
+        :param result_queue:
         :param timeout:
-        :param logger:
         """
         vm_ips_info = {}
         with remote(listening_host, [socket]) as rem:
@@ -316,16 +312,12 @@ class VMHandler(CIConstants):
                 port = listening_socket.getsockname()[1]
                 port_queue.put(port)
                 listening_socket.listen(5)
-                # Listen to messages to look out for
                 while message_queue.empty():
-                    self.LOGGER.debug('Queue is empty, not doing sjit')
                     if time.time() - start_time > self.SOCKET_BINDING_TIMEOUT:
                         raise RuntimeError('Trying to receive messages timed out after {0}s'.format(self.SOCKET_BINDING_TIMEOUT))
 
                     time.sleep(0.5)
                 while not message_queue.empty():
-                    self.LOGGER.debug('Queue got populate, work work!')
-                    # Messages popped up, retrieve them (this will be a list of strings)
                     connection_messages = message_queue.get()
                     self.LOGGER.debug('Zaboo, got my message! {}'.format(connection_messages))
                     try:
@@ -341,7 +333,6 @@ class VMHandler(CIConstants):
                                 vm_name = data.rsplit('_', 1)[-1]
                                 self.LOGGER.debug('Recognized sender as {0}'.format(vm_name))
                                 vm_ips_info[vm_name] = {'ip': addr[0]}
-                        # Can be tested with 'echo -n {0} | netcat -w 0 {1} {2}'.format(create_msg, hypervisor_ip, port)
                         pass
                     finally:
                         message_queue.task_done()
@@ -352,53 +343,6 @@ class VMHandler(CIConstants):
                 self.LOGGER.info('Closing connection ')
                 listening_socket.close()
         result_queue.put(vm_ips_info)
-
-    @staticmethod
-    def _listen_to_address(listening_host, listening_port, queue, connection_messages, timeout, stop_event, logger=LOGGER):
-        """
-        Listen for VMs that are ready
-        :param listening_host: host to listen on
-        :type listening_host: str
-        :param listening_port: port to listen on
-        :type listening_port: int
-        :param queue: queue object to report the answer to
-        :type queue: Queue.Queue
-        :param connection_messages: messages to listen to
-        :type connection_messages: list[str]
-        :param timeout: timeout in seconds
-        :type timeout: int
-        :param stop_event: stop event to abort this thread
-        :type stop_event: Threading.Event
-        :return: 
-        """
-        vm_ips_info = {}
-        with remote(listening_host, [socket]) as rem:
-            listening_socket = rem.socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                # Bind to first available port
-                listening_socket.bind((listening_host, listening_port))
-                listening_socket.listen(5)
-                logger.info(
-                    'Socket now listening on {0}:{1}, waiting to accept data.'.format(listening_host, listening_port))
-                start_time = time.time()
-                while len(connection_messages) > 0 and not stop_event.is_set():
-                    if time.time() - start_time > timeout:
-                        raise RuntimeError('Listening timed out after {0}s'.format(timeout))
-                    conn, addr = listening_socket.accept()
-                    logger.debug('Connected with {0}:{1}'.format(addr[0], addr[1]))
-                    data = conn.recv(1024)
-                    logger.debug('Connector said {0}'.format(data))
-                    if data in connection_messages:
-                        connection_messages.remove(data)
-                        vm_name = data.rsplit('_', 1)[-1]
-                        logger.debug('Recognized sender as {0}'.format(vm_name))
-                        vm_ips_info[vm_name] = {'ip': addr[0]}
-            except Exception as ex:
-                logger.error('Error while listening for VM messages.. Got {0}'.format(str(ex)))
-                raise
-            finally:
-                listening_socket.close()
-        queue.put(vm_ips_info)
 
     @staticmethod
     def create_vm(hypervisor_client, disks, networks, edge_configuration, cd_path, vm_name, vcpus=VM_VCPUS, ram=VM_VRAM,

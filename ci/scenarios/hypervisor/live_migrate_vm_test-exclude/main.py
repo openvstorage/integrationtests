@@ -16,14 +16,10 @@
 import time
 import random
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
-from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.helpers.vpool import VPoolHelper
-from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
@@ -70,6 +66,12 @@ class MigrateTester(CIConstants):
 
     @classmethod
     def start_test(cls, hypervisor_info=CIConstants.HYPERVISOR_INFO):
+        """
+        Run the entire test live_migrate_vm_test
+        :param hypervisor_info: Information needed regarding the hypervisor
+        :type hypervisor_info: dict
+        :return:
+        """
         cluster_info, cloud_init_loc, cloud_image_path, is_ee = cls.setup()
         source_storagedriver = cluster_info['storagedrivers']['source']
 
@@ -88,7 +90,7 @@ class MigrateTester(CIConstants):
                                     data_disk_size=cls.AMOUNT_TO_WRITE,
                                     edge_user_info=edge_user_info)
         vm_info = vm_handler.create_vms(edge_configuration=edge_details,
-                                       timeout=cls.VM_CREATE_TIMEOUT)
+                                        timeout=cls.VM_CREATion_TIMEOUT)
         try:
             cls.live_migrate(vm_info, cluster_info, vm_handler.volume_amount, hypervisor_info)
         finally:
@@ -96,37 +98,17 @@ class MigrateTester(CIConstants):
 
     @classmethod
     def setup(cls, logger=LOGGER):
-        vpool = None
-        for vp in VPoolHelper.get_vpools():
-            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
-                vpool = vp
-                break
-        assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
-        available_storagedrivers = [storagedriver for storagedriver in vpool.storagedrivers]
-        destination_storagedriver = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
-        source_storagedriver = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
-        destination_storagerouter = destination_storagedriver.storagerouter  # Will act as volumedriver node
-        source_storagerouter = source_storagedriver.storagerouter  # Will act as volumedriver node
-        compute_storagerouter = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters()
-                                 if
-                                 storagerouter.guid not in [destination_storagerouter.guid, source_storagerouter.guid]][
-            0]  # Will act as compute node
-        logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-        logger.info('Chosen original owning storagedriver is: {0}'.format(source_storagedriver.storage_ip))
+        """
+        Set up the environment needed for the test
+        :param logger: Logger instance
+        :type logger: ovs.log.log_handler.LogHandler
+        :return:
+        """
+        cluster_info = SetupHelper.setup_env()
+        to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
 
-        cluster_info = {'storagerouters': {'destination': destination_storagerouter, 'source': source_storagerouter,
-                                           'compute': compute_storagerouter},
-                        'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver}}
-
-        to_be_downed_client = SSHClient(source_storagerouter, username='root')  # Build ssh clients
-        # Check if enough images available
-        images = cls.get_images()
-        assert len(images) >= 1, 'We require an cloud init bootable image file.'
-        image_path = images[0]
-        assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
-
-        # Get the cloud init file
-        cloud_init_loc, is_ee = SetupHelper().setup_cloud_info(to_be_downed_client,source_storagedriver)
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedrivers']['source'])
+        image_path = SetupHelper.check_images(to_be_downed_client)
 
         return cluster_info, cloud_init_loc, image_path, is_ee
 

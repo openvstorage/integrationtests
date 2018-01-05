@@ -15,13 +15,9 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import random
 import time
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
-from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
@@ -66,9 +62,14 @@ class RegressionTester(CIConstants):
         return cls.start_test()
 
     @classmethod
-    def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
+    def start_test(cls, vm_amount=1):
+        """
+        Start the whole test mds_regression
+        :param vm_amount: Amount of vms to use in the test
+        :type vm_amount: int
+        :return:
+        """
         cluster_info, compute_client, to_be_downed_client, is_ee, cloud_image_path, cloud_init_loc = cls.setup()
-        listening_port = NetworkHelper.get_free_port(compute_client.ip)
 
         source_storagedriver = cluster_info['storagedrivers']['source']
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
@@ -78,7 +79,7 @@ class RegressionTester(CIConstants):
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        vm_handler = VMHandler(hypervisor_ip=compute_client.ip)
+        vm_handler = VMHandler(hypervisor_ip=compute_client.ip, amount_of_vms=vm_amount)
 
         vm_handler.prepare_vm_disks(source_storagedriver=source_storagedriver,
                                     cloud_image_path=cloud_image_path,
@@ -87,78 +88,31 @@ class RegressionTester(CIConstants):
                                     data_disk_size=cls.AMOUNT_TO_WRITE * 2,
                                     edge_user_info=edge_user_info)
         vm_info = vm_handler.create_vms(edge_configuration=edge_details,
-                                        timeout=cls.TEST_TIMEOUT)
+                                        timeout=cls.VM_CREATION_TIMEOUT)
         try:
             cls.run_test(cluster_info=cluster_info,
                          compute_client=compute_client,
-                         vm_info=vm_info,
-                         )
+                         vm_info=vm_info)
         finally:
             vm_handler.destroy_vms(vm_info=vm_info)
 
     @classmethod
-    def setup(cls, cloud_init_info=CIConstants.CLOUD_INIT_DATA, logger=LOGGER):
+    def setup(cls, logger=LOGGER):
         """
-        Performs all required actions to start the testrun
-        :param cloud_init_info: cloud init settings
-        :type cloud_init_info: dict
-        :param logger: logging instance
+        Set up the environment needed for the test
+        :param logger: Logger instance
         :type logger: ovs.log.log_handler.LogHandler
         :return:
         """
-        vpool = None
-        for vp in VPoolHelper.get_vpools():
-            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
-                vpool = vp
-                break
-        assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
-        available_storagedrivers = [storagedriver for storagedriver in vpool.storagedrivers]
-        destination_storagedriver = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
-        source_storagedriver = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
-        destination_str = destination_storagedriver.storagerouter  # Will act as volumedriver node
-        source_str = source_storagedriver.storagerouter  # Will act as volumedriver node
-        compute_str = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters() if
-                       storagerouter.guid not in [destination_str.guid, source_str.guid]][0]  # Will act as compute node
+        cluster_info = SetupHelper.setup_env()
 
-        # Get a suitable vpool with min. 2 storagedrivers
-        vpool = None
-        for vp in VPoolHelper.get_vpools():
-            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
-                vpool = vp
-                break
-        assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
-        # Choose source & destination storage driver
-        destination_storagedriver = [storagedriver for storagedriver in destination_str.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]
-        source_storagedriver = [storagedriver for storagedriver in source_str.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]
-        logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-        logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
+        to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
+        compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
 
-        to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
-        compute_client = SSHClient(compute_str, username='root')
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedrivers']['source'])
+        image_path = SetupHelper.check_images(to_be_downed_client)
+        SetupHelper.get_fio_bin_path(compute_client, is_ee)
 
-        images = cls.SETTINGS['images']  # Check if enough images available
-        assert len(images) >= 1, 'Not enough images in `{0}`'.format(cls.JSON_SETTINGS.name)
-
-        image_path = images[0]  # Check if image exists
-        assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
-
-
-        cluster_info = {'storagerouters': {'destination': destination_str, 'source': source_str, 'compute': compute_str},
-                        'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver},
-                        'vpool': vpool}
-
-        cloud_init_loc, is_ee = SetupHelper().setup_cloud_info(to_be_downed_client,source_storagedriver)
-
-        if is_ee is True:
-            fio_bin_loc = cls.FIO_BIN_EE['location']
-            fio_bin_url = cls.FIO_BIN_EE['url']
-        else:
-            fio_bin_loc = cls.FIO_BIN['location']
-            fio_bin_url = cls.FIO_BIN['url']
-        # Get the fio binary
-        compute_client.run(['wget', fio_bin_url, '-O', fio_bin_loc])
-        compute_client.file_chmod(fio_bin_loc, 755)
-        assert compute_client.file_exists(fio_bin_loc), 'Could not get the latest fio binary.'
         return cluster_info, compute_client, to_be_downed_client, is_ee, image_path, cloud_init_loc
 
     @classmethod
@@ -233,7 +187,7 @@ class RegressionTester(CIConstants):
                     cls._delete_snapshots(volume_bundle=vdisk_info)
                     # Start scrubbing thread
                     async_scrubbing = cls.start_scrubbing(volume_bundle=vdisk_info)  # Starting to scrub
-                    cls._trigger_mds_issue(vdisk_info, destination_storagedriver.storagerouter.guid)  # Trigger mds failover while scrubber is busy
+                    cls._trigger_mds_issue(cluster_info['vpool'], vdisk_info, destination_storagedriver.storagerouter.guid)  # Trigger mds failover while scrubber is busy
                     # Do some monitoring further for 60s
                     ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
                                                           threads=io_thread_pairs,
@@ -326,7 +280,7 @@ class RegressionTester(CIConstants):
             MDSServiceController.mds_checkup()
 
     @classmethod
-    def _trigger_mds_issue(cls, volume_bundle, target_storagerouter_guid, logger=LOGGER):
+    def _trigger_mds_issue(cls, vpool, volume_bundle, target_storagerouter_guid, logger=LOGGER):
         """
         voldrv A, voldrv B, volume X op A
         ensure_safety lopen op X, die gaat master op A en slave op B hebben -> done on create

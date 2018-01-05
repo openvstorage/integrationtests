@@ -38,6 +38,7 @@ class CIConstants(_CIConstants):
     VM_VCPUS = 4
     VM_VRAM = 1024  # In MB
     VM_OS_TYPE = 'ubuntu16.04'
+    VM_CREATION_TIMEOUT = 12 * 60
 
     VM_WAIT_TIME = 300  # wait time before timing out on the vm install in seconds
 

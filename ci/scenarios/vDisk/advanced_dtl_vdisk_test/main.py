@@ -14,14 +14,10 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import time
-from ci.api_lib.helpers.domain import DomainHelper
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
-from ci.api_lib.helpers.network import NetworkHelper
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
-from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.fwk_handler import FwkHandler
@@ -76,6 +72,12 @@ class AdvancedDTLTester(CIConstants):
 
     @classmethod
     def start_test(cls, vm_amount=1):
+        """
+        Run the entire test advanced_dtl_vdisk_test
+        :param vm_amount: number of vms to use in the test
+        :type vm_amount: int
+        :return:
+        """
         cluster_info, cloud_image_path, cloud_init_loc, is_ee = cls.setup()
         compute_ip = cluster_info['storagerouters']['compute'].ip
 
@@ -88,7 +90,7 @@ class AdvancedDTLTester(CIConstants):
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
 
-        vm_handler = VMHandler(hypervisor_ip=compute_ip)
+        vm_handler = VMHandler(hypervisor_ip=compute_ip, amount_of_vms=vm_amount)
 
         vm_handler.prepare_vm_disks(source_storagedriver=source_storagedriver,
                                     cloud_image_path=cloud_image_path,
@@ -97,7 +99,7 @@ class AdvancedDTLTester(CIConstants):
                                     data_disk_size=cls.AMOUNT_TO_WRITE * 2,
                                     edge_user_info=edge_user_info)
         vm_info = vm_handler.create_vms(edge_configuration=edge_details,
-                                        timeout=cls.VM_WAIT_TIME)
+                                        timeout=cls.VM_CREATION_TIMEOUT)
         try:
             cls.run_test(vm_info=vm_info, cluster_info=cluster_info)
         finally:
@@ -105,49 +107,19 @@ class AdvancedDTLTester(CIConstants):
 
     @classmethod
     def setup(cls, logger=LOGGER):
-        #################
-        # PREREQUISITES #
-        #################
         """
-        Setup the advanced dtl test
+        Set up the environment needed for the test
+        :param logger: Logger instance
+        :type logger: ovs.log.log_handler.LogHandler
+        :return:
         """
-        #################
-        # PREREQUISITES #
-        #################
-        destination_str, source_str, compute_str = StoragerouterHelper().get_storagerouters_by_role()
-        destination_storagedriver = None
-        source_storagedriver = None
-        if len(source_str.regular_domains) == 0:
-            storagedrivers = StoragedriverHelper.get_storagedrivers()
-        else:
-            storagedrivers = DomainHelper.get_storagedrivers_in_same_domain(domain_guid=source_str.regular_domains[0])
-        for storagedriver in storagedrivers:
-            if len(storagedriver.vpool.storagedrivers) < 2:
-                continue
-            if storagedriver.guid in destination_str.storagedrivers_guids:
-                if destination_storagedriver is None and (source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
-                    destination_storagedriver = storagedriver
-                    logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-            elif storagedriver.guid in source_str.storagedrivers_guids:
-                # Select if the source driver isn't select and destination is also unknown or the storagedriver has matches with the same vpool
-                if source_storagedriver is None and (destination_storagedriver is None or destination_storagedriver.vpool_guid == storagedriver.vpool_guid):
-                    source_storagedriver = storagedriver
-                    logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
-        assert source_storagedriver is not None and destination_storagedriver is not None, 'We require at least two storagedrivers within the same domain.'
-        to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
-        # Check if enough images available
-        images = cls.get_images()
-        assert len(images) >= 1, 'We require an cloud init bootable image file.'
-        image_path = images[0]
-        assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
+        cluster_info = SetupHelper.setup_env(domainbased=True)
+
+        to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
 
         # Get the cloud init file
-        cloud_init_loc, is_ee = SetupHelper().setup_cloud_info(to_be_downed_client,source_storagedriver)
-        cluster_info = {'storagerouters': {'destination': destination_str,
-                                           'source': source_str,
-                                           'compute': compute_str},
-                        'storagedrivers': {'destination': destination_storagedriver,
-                                           'source': source_storagedriver}}
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedriver']['source'])
+        image_path = SetupHelper.check_images(to_be_downed_client)
 
         return cluster_info, image_path, cloud_init_loc, is_ee
 

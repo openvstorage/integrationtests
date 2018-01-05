@@ -14,11 +14,6 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import random
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
-from ci.api_lib.helpers.network import NetworkHelper
-from ci.api_lib.helpers.vpool import VPoolHelper
-from ci.api_lib.helpers.system import SystemHelper
-from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
@@ -75,6 +70,10 @@ class DataCorruptionTester(CIConstants):
 
     @classmethod
     def start_test(cls):
+        """
+        Run the entire data_corruption_reg_test
+        :return:
+        """
         storagedriver, cloud_image_path, cloud_init_loc, is_ee = cls.setup()
         compute_ip = storagedriver.storage_ip
         protocol = storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
@@ -93,7 +92,7 @@ class DataCorruptionTester(CIConstants):
                                     data_disk_size=cls.AMOUNT_TO_WRITE,
                                     edge_user_info=edge_user_info)
         vm_info = vm_handler.create_vms(edge_configuration=edge_details,
-                                        timeout=cls.HA_TIMEOUT)
+                                        timeout=cls.VM_CREATION_TIMEOUT)
         try:
             cls.run_test(storagedriver=storagedriver, vm_info=vm_info)
         finally:
@@ -101,26 +100,20 @@ class DataCorruptionTester(CIConstants):
 
     @classmethod
     def setup(cls, logger=LOGGER):
-        vpool = None
-        for vp in VPoolHelper.get_vpools():  # Get a suitable vpool with min. 2 storagedrivers
-            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
-                vpool = vp
-                break
-        assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
+        """
+        Set up suitable environment for the test
+        :param logger: Logger instance
+        :return: ovs.log.log_handler.LogHandler
+        """
+        vpool = SetupHelper.get_vpool_with_2_storagedrivers()
 
         source_storagedriver = random.choice(vpool.storagedrivers)
         logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
 
         client = SSHClient(source_storagedriver.storagerouter, username='root')  # Build ssh clients
 
-        # Check if enough images available
-        images = cls.get_images()
-        assert len(images) >= 1, 'We require an cloud init bootable image file.'
-        image_path = images[0]
-        assert client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], client.ip)
-
-        # Get the cloud init file
-        cloud_init_loc, is_ee = SetupHelper().setup_cloud_info(client, src_std=source_storagedriver)
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(client, src_std=source_storagedriver)
+        image_path = SetupHelper.check_images(client)
         return source_storagedriver, image_path, cloud_init_loc, is_ee
 
     @classmethod
@@ -131,6 +124,7 @@ class DataCorruptionTester(CIConstants):
         :param storagedriver: storagedriver to use for the VM its vdisks
         :type storagedriver: ovs.dal.hybrids.storagedriver.StorageDriver
         :param logger: logging instance
+        :type logger: ovs.log.log_handler.LogHandler
         :param vm_info: information about all vms
         :type vm_info: dict
         :return: None

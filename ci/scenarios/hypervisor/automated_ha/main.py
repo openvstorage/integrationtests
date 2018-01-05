@@ -14,14 +14,9 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import time
-import Queue
 import random
 from ci.api_lib.helpers.api import TimeOutError
-from ci.api_lib.helpers.domain import DomainHelper
-from ci.api_lib.helpers.network import NetworkHelper
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
-from ci.api_lib.helpers.storagedriver import StoragedriverHelper
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
@@ -69,69 +64,17 @@ class HATester(CIConstants):
         return HATester.start_test()
 
     @classmethod
-    def setup(cls, logger=LOGGER):
-        """
-        Execute the live migration test
-        """
-        #################
-        # PREREQUISITES #
-        #################
-        destination_str, source_str, compute_str = StoragerouterHelper().get_storagerouters_by_role()
-        destination_storagedriver = None
-        source_storagedriver = None
-        if len(source_str.regular_domains) == 0:
-            storagedrivers = StoragedriverHelper.get_storagedrivers()
-        else:
-            storagedrivers = DomainHelper.get_storagedrivers_in_same_domain(domain_guid=source_str.regular_domains[0])
-        for storagedriver in storagedrivers:
-            if len(storagedriver.vpool.storagedrivers) < 2:
-                continue
-            if storagedriver.guid in destination_str.storagedrivers_guids:
-                if destination_storagedriver is None and (source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
-                    destination_storagedriver = storagedriver
-                    logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-            elif storagedriver.guid in source_str.storagedrivers_guids:
-                # Select if the source driver isn't select and destination is also unknown or the storagedriver has matches with the same vpool
-                if source_storagedriver is None and (destination_storagedriver is None or destination_storagedriver.vpool_guid == storagedriver.vpool_guid):
-                    source_storagedriver = storagedriver
-                    logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
-        assert source_storagedriver is not None and destination_storagedriver is not None, 'We require at least two storagedrivers within the same domain.'
-
-        to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
-        compute_client = SSHClient(compute_str, username='root')
-
-        # Check if enough images available
-        images = cls.get_images()
-        assert len(images) >= 1, 'We require an cloud init bootable image file.'
-        image_path = images[0]
-        assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
-
-        # Get the cloud init file
-        cluster_info = {'storagerouters': {'destination': destination_str,
-                                           'source': source_str,
-                                           'compute': compute_str},
-                        'storagedrivers': {'destination': destination_storagedriver,
-                                           'source': source_storagedriver}}
-
-        cloud_init_loc, is_ee = SetupHelper().setup_cloud_info(to_be_downed_client, source_storagedriver)
-        if is_ee is True:
-            fio_bin_loc = cls.FIO_BIN_EE['location']
-            fio_bin_url = cls.FIO_BIN_EE['url']
-        else:
-            fio_bin_loc = cls.FIO_BIN['location']
-            fio_bin_url = cls.FIO_BIN['url']
-        # Get the fio binary
-        compute_client.run(['wget', fio_bin_url, '-O', fio_bin_loc])
-        compute_client.file_chmod(fio_bin_loc, 755)
-        assert compute_client.file_exists(fio_bin_loc), 'Could not get the latest fio binary.'
-        return cluster_info, is_ee, image_path, cloud_init_loc, fio_bin_loc
-
-    @classmethod
     def start_test(cls, vm_amount=1):
+        """
+        Run the entire automated_ha test
+        :param vm_amount: Amount of vms to run the test with
+        :type vm_amount: int
+        :return:
+        """
         cluster_info, is_ee, cloud_image_path, cloud_init_loc, fio_bin_path = cls.setup()
         compute_ip = cluster_info['storagerouters']['compute'].ip
 
-        vm_handler = VMHandler(hypervisor_ip=compute_ip)
+        vm_handler = VMHandler(hypervisor_ip=compute_ip, amount_of_vms=vm_amount)
 
         source_storagedriver = cluster_info['storagedrivers']['source']
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
@@ -147,12 +90,29 @@ class HATester(CIConstants):
                                     data_disk_size=cls.AMOUNT_TO_WRITE,
                                     edge_user_info=edge_user_info)
         vm_info = vm_handler.create_vms(edge_configuration=edge_details,
-                                       timeout=cls.HA_TIMEOUT)
+                                        timeout=cls.VM_CREATION_TIMEOUT)
         try:
             cls.run_test(cluster_info=cluster_info, vm_info=vm_info)
         finally:
             vm_handler.destroy_vms(vm_info=vm_info)
 
+    @classmethod
+    def setup(cls, logger=LOGGER):
+        """
+        Set up the environment for the test
+        :param logger: Logger instance
+        :type logger: ovs.log.log_handler.LogHandler
+        """
+        cluster_info = SetupHelper.setup_env(domainbased=True)
+
+        to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
+        compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
+
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedrivers']['source'])
+        image_path = SetupHelper.check_images(to_be_downed_client)
+        fio_bin_loc = SetupHelper.get_fio_bin_path(compute_client, is_ee)
+
+        return cluster_info, is_ee, image_path, cloud_init_loc, fio_bin_loc
 
     @classmethod
     def run_test(cls, vm_info, cluster_info, logger=LOGGER):
