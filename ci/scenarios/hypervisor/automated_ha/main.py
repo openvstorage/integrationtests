@@ -103,6 +103,7 @@ class HATester(CIConstants):
         :param logger: Logger instance
         :type logger: ovs.log.log_handler.LogHandler
         """
+        logger.info('Setting up environment for testing')
         cluster_info = SetupHelper.setup_env(domainbased=True)
 
         to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
@@ -111,7 +112,7 @@ class HATester(CIConstants):
         cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedrivers']['source'])
         image_path = SetupHelper.check_images(to_be_downed_client)
         fio_bin_loc = SetupHelper.get_fio_bin_path(compute_client, is_ee)
-
+        logger.info('Finished setting up environment')
         return cluster_info, is_ee, image_path, cloud_init_loc, fio_bin_loc
 
     @classmethod

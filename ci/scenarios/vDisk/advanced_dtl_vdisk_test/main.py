@@ -113,6 +113,7 @@ class AdvancedDTLTester(CIConstants):
         :type logger: ovs.log.log_handler.LogHandler
         :return:
         """
+        logger.info('Setting up environment for testing')
         cluster_info = SetupHelper.setup_env(domainbased=True)
 
         to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
@@ -120,7 +121,7 @@ class AdvancedDTLTester(CIConstants):
         # Get the cloud init file
         cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedrivers']['source'])
         image_path = SetupHelper.check_images(to_be_downed_client)
-
+        logger.info('Finished setting up environment')
         return cluster_info, image_path, cloud_init_loc, is_ee
 
     @classmethod

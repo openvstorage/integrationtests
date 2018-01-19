@@ -104,6 +104,7 @@ class RegressionTester(CIConstants):
         :type logger: ovs.log.log_handler.LogHandler
         :return:
         """
+        logger.info('Setting up environment for testing')
         cluster_info = SetupHelper.setup_env()
         to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
         compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
@@ -111,7 +112,7 @@ class RegressionTester(CIConstants):
         cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedrivers']['source'])
         image_path = SetupHelper.check_images(to_be_downed_client)
         SetupHelper.get_fio_bin_path(compute_client, is_ee)
-
+        logger.info('Finished setting up environment')
         return cluster_info, compute_client, to_be_downed_client, is_ee, image_path, cloud_init_loc
 
     @classmethod

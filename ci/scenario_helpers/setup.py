@@ -10,7 +10,7 @@ from ovs.extensions.generic.logger import Logger
 
 
 class SetupHelper(CIConstants):
-    LOGGER = Logger('scenario_helpers-threading_handler')
+    LOGGER = Logger('scenario_helpers-setup_helper')
 
     @classmethod
     def setup_cloud_info(cls, client, src_std):
@@ -58,6 +58,12 @@ class SetupHelper(CIConstants):
 
     @classmethod
     def get_fio_bin_path(cls, client, is_ee):
+        """
+        Returns the location of the fio binary
+        :param client: sshclient to connect with
+        :param is_ee: boolean whether the install is ee edition or not
+        :return:
+        """
         if is_ee is True:
             fio_bin_loc = cls.FIO_BIN_EE['location']
             fio_bin_url = cls.FIO_BIN_EE['url']
@@ -123,6 +129,5 @@ class SetupHelper(CIConstants):
                         'storagedrivers': {'destination': destination_storagedriver,
                                            'source': source_storagedriver},
                         'vpool': vpool}
-
 
         return cluster_info

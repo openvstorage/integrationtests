@@ -104,12 +104,13 @@ class MigrateTester(CIConstants):
         :type logger: ovs.log.log_handler.LogHandler
         :return:
         """
+        logger.info('Setting up environment for testing')
         cluster_info = SetupHelper.setup_env()
         to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
 
         cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedrivers']['source'])
         image_path = SetupHelper.check_images(to_be_downed_client)
-
+        logger.info('Finished setting up environment')
         return cluster_info, cloud_init_loc, image_path, is_ee
 
     @classmethod
