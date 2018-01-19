@@ -203,6 +203,7 @@ class VMHandler(CIConstants):
         """
         Create multiple VMs and wait for their creation to be completed
         :param edge_configuration: details of the edge
+        :param timeout: timeout how long the function can wait for vm creation
         :param logger: logging instance
         :return:
         """
@@ -219,9 +220,9 @@ class VMHandler(CIConstants):
                                edge_configuration=edge_configuration,
                                cd_path=vm_data['cd_path'])
             self.listening_thread.join()  # Wait for all to finish
-            logger.info('joined')
+            logger.info('Joining threads to wait for all VMs to be created')
             vm_ip_info = self.result_queue.get()
-            logger.info('gotvm_info')
+            logger.info('Retrieving VM info, to verify correct creation of VMs ')
             for vm_name, vm_data in self.vm_info.iteritems():
                 vm_data.update(vm_ip_info[vm_name])
             assert len(vm_ip_info.keys()) == len(self.vm_info.keys()), 'Not all VMs started.'
@@ -319,7 +320,7 @@ class VMHandler(CIConstants):
                     time.sleep(0.5)
                 while not message_queue.empty():
                     connection_messages = message_queue.get()
-                    self.LOGGER.debug('Zaboo, got my message! {}'.format(connection_messages))
+                    self.LOGGER.debug('Connection message received: {0}'.format(connection_messages))
                     try:
                         while len(connection_messages) > 0:  # and not stop_event.is_set()
                             if time.time() - start_time > timeout:
