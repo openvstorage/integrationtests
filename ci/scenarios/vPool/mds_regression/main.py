@@ -105,7 +105,6 @@ class RegressionTester(CIConstants):
         :return:
         """
         cluster_info = SetupHelper.setup_env()
-
         to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
         compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
 

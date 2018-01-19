@@ -90,7 +90,7 @@ class MigrateTester(CIConstants):
                                     data_disk_size=cls.AMOUNT_TO_WRITE,
                                     edge_user_info=edge_user_info)
         vm_info = vm_handler.create_vms(edge_configuration=edge_details,
-                                        timeout=cls.VM_CREATion_TIMEOUT)
+                                        timeout=cls.VM_CREATION_TIMEOUT)
         try:
             cls.live_migrate(vm_info, cluster_info, vm_handler.volume_amount, hypervisor_info)
         finally:

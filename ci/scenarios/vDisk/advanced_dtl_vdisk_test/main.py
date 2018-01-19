@@ -118,7 +118,7 @@ class AdvancedDTLTester(CIConstants):
         to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
 
         # Get the cloud init file
-        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedriver']['source'])
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedrivers']['source'])
         image_path = SetupHelper.check_images(to_be_downed_client)
 
         return cluster_info, image_path, cloud_init_loc, is_ee
