@@ -20,10 +20,13 @@ import socket
 import subprocess
 from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.exceptions import VDiskNotFoundError
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorCredentials, HypervisorFactory
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.scenario_helpers.ci_constants import CIConstants
+from helpers.network import NetworkHelper
 from ovs.extensions.generic.logger import Logger
 from ovs_extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
@@ -46,23 +49,53 @@ class VMHandler(CIConstants):
     VM_VRAM = 1024  # In MB
     VM_OS_TYPE = 'ubuntu16.04'
 
-    @classmethod
-    def prepare_vm_disks(cls, source_storagedriver, cloud_image_path, cloud_init_loc, port, vm_amount, hypervisor_ip,
+    LISTEN_TIMEOUT = 60 * 60
+    SOCKET_BINDING_TIMEOUT = 5 * 60
+
+    def __init__(self, hypervisor_ip, amount_of_vms=1):
+        self.hypervisor_ip = hypervisor_ip
+        self.amount_of_vms = amount_of_vms
+        self.hv_credentials = HypervisorCredentials(ip=hypervisor_ip,
+                                                    user=self.HYPERVISOR_INFO['user'],
+                                                    password=self.HYPERVISOR_INFO['password'],
+                                                    type=self.HYPERVISOR_INFO['type'])
+        self.hypervisor_client = HypervisorFactory.get(self.hv_credentials)
+        self.listing_port = NetworkHelper.get_free_port(hypervisor_ip)
+
+        self.vm_info = None
+        self.connection_messages = None
+        self.volume_amount = None
+
+        self.message_queue = Queue.Queue()
+        self.result_queue = Queue.Queue()
+        port_queue = Queue.Queue()
+
+        self.listening_thread, self.listening_stop_object = ThreadHelper.start_thread_with_event(
+            self.listener, 'vm_listener',
+            args=(self.hypervisor_ip, port_queue, self.message_queue, self.result_queue))
+        start_bind_time = time.time()
+        while port_queue.empty():
+            if time.time() - start_bind_time > 5 * 60:
+                raise RuntimeError('Could not bind to any socket')
+            time.sleep(0.5)
+        self.listing_port = port_queue.get()
+        self.LOGGER.info('VMHandler now listening to port {0}:{1}'.format(self.hypervisor_ip, self.listing_port))
+
+    def prepare_vm_disks(self, source_storagedriver, cloud_image_path, cloud_init_loc,
                          vm_name, data_disk_size, edge_user_info=None, logger=LOGGER):
         """
         Will create all necessary vdisks to create the bulk of vms
         :param source_storagedriver: storagedriver to create the disks on
         :param cloud_image_path: path to the cloud image
         :param cloud_init_loc: path to the cloud init script
-        :param vm_amount: amount of vms to test with
         :param vm_name: name prefix for the vms
         :param data_disk_size: size of the data disk
-        :param hypervisor_ip: ip of the hypervisor
-        :param port: port to listen on
         :param edge_user_info: user information for the edge. Optional
         :param logger: logging instance
         :return: 
         """
+        logger.info('Starting with preparing vm disk(s)')
+        vm_amount = self.amount_of_vms
         if isinstance(edge_user_info, dict):
             required_edge_params = {'username': (str, None, False),
                                     'password': (str, None, False)}
@@ -99,7 +132,7 @@ class VMHandler(CIConstants):
             if vm_number == 0:
                 try:
                     # Create VDISKs
-                    cls.convert_image(client, cloud_image_path, boot_vdisk_name, edge_configuration)
+                    self.convert_image(client, cloud_image_path, boot_vdisk_name, edge_configuration)
                 except RuntimeError as ex:
                     logger.error('Could not covert the image. Got {0}'.format(str(ex)))
                     raise
@@ -131,9 +164,9 @@ class VMHandler(CIConstants):
             #######################
             # GENERATE CLOUD INIT #
             #######################
-            iso_loc = cls._generate_cloud_init(client=client, convert_script_loc=cloud_init_loc,
-                                               port=port, hypervisor_ip=hypervisor_ip, create_msg=create_msg)
-            cls.convert_image(client, iso_loc, cd_vdisk_name, edge_configuration)
+            iso_loc = self._generate_cloud_init(client=client, convert_script_loc=cloud_init_loc,
+                                                create_msg=create_msg)
+            self.convert_image(client, iso_loc, cd_vdisk_name, edge_configuration)
             cd_creation_time = time.time()
             cd_vdisk = None
             while cd_vdisk is None:
@@ -162,48 +195,46 @@ class VMHandler(CIConstants):
             volume_amount += len(vm_info[vm_name]['vdisks'])
             logger.info('Prepped everything for VM {0}.'.format(vm_name))
 
-        return vm_info, connection_messages, volume_amount
+        self.vm_info = vm_info
+        self.connection_messages = connection_messages
+        self.volume_amount = volume_amount
 
-    @classmethod
-    def create_vms(cls, ip, port, connection_messages, vm_info, edge_configuration, hypervisor_client, timeout):
+    def create_vms(self, edge_configuration, timeout, logger=LOGGER):
         """
         Create multiple VMs and wait for their creation to be completed
-        :param ip: ip to listen on
-        :param port: port to listen on
-        :param connection_messages: connection messages to lookout for
-        :param vm_info: information about the vms
         :param edge_configuration: details of the edge
-        :param hypervisor_client: hypervisor instance
-        :param timeout: timeout listening
-        :return: 
+        :param timeout: timeout how long the function can wait for vm creation
+        :param logger: logging instance
+        :return:
         """
-        listening_queue = Queue.Queue()
-        # offload to a thread
-        listening_thread, listening_stop_object = ThreadHelper.start_thread_with_event(
-            cls._listen_to_address, 'vm_listener',
-            args=(ip, port, listening_queue, connection_messages, timeout))
+        logger.info('Creating vms')
         try:
-            for vm_name, vm_data in vm_info.iteritems():
-                cls.create_vm(vm_name=vm_name,
-                              hypervisor_client=hypervisor_client,
-                              disks=vm_data['disks'],
-                              networks=vm_data['networks'],
-                              edge_configuration=edge_configuration,
-                              cd_path=vm_data['cd_path'])
-            listening_thread.join()  # Wait for all to finish
-            vm_ip_info = listening_queue.get()
-            for vm_name, vm_data in vm_info.iteritems():
+            # Give the listenener a heads up for the messages to come
+            self.message_queue.put(self.connection_messages)
+            for vm_name, vm_data in self.vm_info.iteritems():
+                logger.info('Initializing creation of vm {0}'.format(vm_name))
+                self.create_vm(vm_name=vm_name,
+                               hypervisor_client=self.hypervisor_client,
+                               disks=vm_data['disks'],
+                               networks=vm_data['networks'],
+                               edge_configuration=edge_configuration,
+                               cd_path=vm_data['cd_path'])
+            self.listening_thread.join()  # Wait for all to finish
+            logger.info('Joining threads to wait for all VMs to be created')
+            vm_ip_info = self.result_queue.get()
+            logger.info('Retrieving VM info, to verify correct creation of VMs ')
+            for vm_name, vm_data in self.vm_info.iteritems():
                 vm_data.update(vm_ip_info[vm_name])
-            assert len(vm_ip_info.keys()) == len(vm_info.keys()), 'Not all VMs started.'
-        except:
-            if listening_thread.isAlive():
-                listening_stop_object.set()
-            listening_thread.join(timeout=60)
+            assert len(vm_ip_info.keys()) == len(self.vm_info.keys()), 'Not all VMs started.'
+        except Exception:
+            if self.listening_thread.isAlive():
+                self.listening_stop_object.set()
+            self.listening_thread.join(timeout=timeout)
             raise
-        return vm_info
+        logger.info('Finished creation of vms')
+        return self.vm_info
 
-    @staticmethod
-    def _generate_cloud_init(client, convert_script_loc, port, hypervisor_ip, create_msg, path=CLOUD_INIT_DATA['user-data_loc'],
+    def _generate_cloud_init(self, client, convert_script_loc, create_msg, path=CLOUD_INIT_DATA['user-data_loc'],
                              config_destination=CLOUD_INIT_DATA['config_dest'], username='test', password='test', root_password='rooter', logger=LOGGER):
         """
         Generates a cloud init file with some userdata in (for a virtual machine)
@@ -246,7 +277,7 @@ class VMHandler(CIConstants):
             'sudo mkfs.ext4 /dev/vdb1',
             'sudo mkdir /mnt/data',
             'sudo mount /dev/vdb1 /mnt/data',
-            'echo -n {0} | netcat -w 0 {1} {2}'.format(create_msg, hypervisor_ip, port)
+            'echo -n {0} | netcat -w 0 {1} {2}'.format(create_msg, self.hypervisor_ip, self.listing_port)
 
         ]
         with open(path, 'w') as user_data_file:
@@ -263,52 +294,56 @@ class VMHandler(CIConstants):
                 'Could not generate the cloud init file on {0}. Got {1} during iso conversion.'.format(client.ip, str(ex.output)))
             raise
 
-    @staticmethod
-    def _listen_to_address(listening_host, listening_port, queue, connection_messages, timeout, stop_event, logger=LOGGER):
+    def listener(self, listening_host, port_queue, message_queue, result_queue, timeout=LISTEN_TIMEOUT):
         """
-        Listen for VMs that are ready
-        :param listening_host: host to listen on
-        :type listening_host: str
-        :param listening_port: port to listen on
-        :type listening_port: int
-        :param queue: queue object to report the answer to
-        :type queue: Queue.Queue
-        :param connection_messages: messages to listen to
-        :type connection_messages: list[str]
-        :param timeout: timeout in seconds
-        :type timeout: int
-        :param stop_event: stop event to abort this thread
-        :type stop_event: Threading.Event
-        :return: 
+        Listen to a free port on the system
+        :param listening_host: ip of the listening host
+        :param port_queue: Queue to broadcast the used port on
+        :param message_queue: Queue to supply messages to lookout for
+        :param result_queue:
+        :param timeout:
         """
         vm_ips_info = {}
         with remote(listening_host, [socket]) as rem:
+            start_time = time.time()
             listening_socket = rem.socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
                 # Bind to first available port
-                listening_socket.bind((listening_host, listening_port))
+                listening_socket.bind((listening_host, 0))
+                port = listening_socket.getsockname()[1]
+                port_queue.put(port)
                 listening_socket.listen(5)
-                logger.info(
-                    'Socket now listening on {0}:{1}, waiting to accept data.'.format(listening_host, listening_port))
-                start_time = time.time()
-                while len(connection_messages) > 0 and not stop_event.is_set():
-                    if time.time() - start_time > timeout:
-                        raise RuntimeError('Listening timed out after {0}s'.format(timeout))
-                    conn, addr = listening_socket.accept()
-                    logger.debug('Connected with {0}:{1}'.format(addr[0], addr[1]))
-                    data = conn.recv(1024)
-                    logger.debug('Connector said {0}'.format(data))
-                    if data in connection_messages:
-                        connection_messages.remove(data)
-                        vm_name = data.rsplit('_', 1)[-1]
-                        logger.debug('Recognized sender as {0}'.format(vm_name))
-                        vm_ips_info[vm_name] = {'ip': addr[0]}
-            except Exception as ex:
-                logger.error('Error while listening for VM messages.. Got {0}'.format(str(ex)))
+                while message_queue.empty():
+                    if time.time() - start_time > self.SOCKET_BINDING_TIMEOUT:
+                        raise RuntimeError('Trying to receive messages timed out after {0}s'.format(self.SOCKET_BINDING_TIMEOUT))
+
+                    time.sleep(0.5)
+                while not message_queue.empty():
+                    connection_messages = message_queue.get()
+                    self.LOGGER.debug('Connection message received: {0}'.format(connection_messages))
+                    try:
+                        while len(connection_messages) > 0:  # and not stop_event.is_set()
+                            if time.time() - start_time > timeout:
+                                raise RuntimeError('Listening timed out after {0}s'.format(timeout))
+                            conn, addr = listening_socket.accept()
+                            self.LOGGER.debug('Connected with {0}:{1}'.format(addr[0], addr[1]))
+                            data = conn.recv(1024)
+                            self.LOGGER.debug('Connector said {0}'.format(data))
+                            if data in connection_messages:
+                                connection_messages.remove(data)
+                                vm_name = data.rsplit('_', 1)[-1]
+                                self.LOGGER.debug('Recognized sender as {0}'.format(vm_name))
+                                vm_ips_info[vm_name] = {'ip': addr[0]}
+                        pass
+                    finally:
+                        message_queue.task_done()
+            except socket.error as ex:
+                self.LOGGER.error('Could not bind the socket. Got {0}'.format(str(ex)))
                 raise
             finally:
+                self.LOGGER.info('Closing connection ')
                 listening_socket.close()
-        queue.put(vm_ips_info)
+        result_queue.put(vm_ips_info)
 
     @staticmethod
     def create_vm(hypervisor_client, disks, networks, edge_configuration, cd_path, vm_name, vcpus=VM_VCPUS, ram=VM_VRAM,
@@ -470,3 +505,9 @@ class VMHandler(CIConstants):
         cmd = ["qemu-img", "convert", image_location, ovs_edge_connection]
         logger.debug('Converting an image with qemu using: {}'.format(' '.join(cmd)))
         client.run(cmd)
+
+    def destroy_vms(self, vm_info):
+        for vm_name, vm_object in vm_info.iteritems():
+            self.hypervisor_client.sdk.destroy(vm_name)
+            VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'])
+            self.hypervisor_client.sdk.undefine(vm_name)

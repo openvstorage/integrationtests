@@ -14,14 +14,10 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import random
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory, HypervisorCredentials
-from ci.api_lib.helpers.network import NetworkHelper
-from ci.api_lib.helpers.vpool import VPoolHelper
-from ci.api_lib.helpers.system import SystemHelper
-from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
+from ci.scenario_helpers.setup import SetupHelper
 from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.logger import Logger
 from ovs_extensions.generic.remote import remote
@@ -73,10 +69,13 @@ class DataCorruptionTester(CIConstants):
         DataCorruptionTester.start_test()
 
     @classmethod
-    def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
+    def start_test(cls):
+        """
+        Run the entire data_corruption_reg_test
+        :return:
+        """
         storagedriver, cloud_image_path, cloud_init_loc, is_ee = cls.setup()
         compute_ip = storagedriver.storage_ip
-        listening_port = NetworkHelper.get_free_port(compute_ip)
         protocol = storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
         edge_details = {'port': storagedriver.ports['edge'],
                         'hostname': storagedriver.storage_ip,
@@ -85,62 +84,36 @@ class DataCorruptionTester(CIConstants):
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        hv_credentials = HypervisorCredentials(ip=compute_ip,
-                                               user=hypervisor_info['user'],
-                                               password=hypervisor_info['password'],
-                                               type=hypervisor_info['type'])
-        computenode_hypervisor = HypervisorFactory().get(hv_credentials=hv_credentials)
-        vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
-            source_storagedriver=storagedriver,
-            cloud_image_path=cloud_image_path,
-            cloud_init_loc=cloud_init_loc,
-            vm_amount=vm_amount,
-            port=listening_port,
-            hypervisor_ip=compute_ip,
-            vm_name=cls.VM_NAME,
-            data_disk_size=cls.AMOUNT_TO_WRITE,
-            edge_user_info=edge_user_info)
-        vm_info = VMHandler.create_vms(ip=compute_ip,
-                                       port=listening_port,
-                                       connection_messages=connection_messages,
-                                       vm_info=vm_info,
-                                       edge_configuration=edge_details,
-                                       hypervisor_client=computenode_hypervisor,
-                                       timeout=cls.HA_TIMEOUT)
+        vm_handler = VMHandler(hypervisor_ip=compute_ip)
+        vm_handler.prepare_vm_disks(source_storagedriver=storagedriver,
+                                    cloud_image_path=cloud_image_path,
+                                    cloud_init_loc=cloud_init_loc,
+                                    vm_name=cls.VM_NAME,
+                                    data_disk_size=cls.AMOUNT_TO_WRITE,
+                                    edge_user_info=edge_user_info)
+        vm_info = vm_handler.create_vms(edge_configuration=edge_details,
+                                        timeout=cls.VM_CREATION_TIMEOUT)
         try:
             cls.run_test(storagedriver=storagedriver, vm_info=vm_info)
         finally:
-            for vm_name, vm_object in vm_info.iteritems():
-                computenode_hypervisor.sdk.destroy(vm_name)
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'])
-                computenode_hypervisor.sdk.undefine(vm_name)
+            vm_handler.destroy_vms(vm_info=vm_info)
 
     @classmethod
     def setup(cls, logger=LOGGER):
-        vpool = None
-        for vp in VPoolHelper.get_vpools():  # Get a suitable vpool with min. 2 storagedrivers
-            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
-                vpool = vp
-                break
-        assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
+        """
+        Set up suitable environment for the test
+        :param logger: Logger instance
+        :return: ovs.log.log_handler.LogHandler
+        """
+        vpool = SetupHelper.get_vpool_with_2_storagedrivers()
 
         source_storagedriver = random.choice(vpool.storagedrivers)
         logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
 
         client = SSHClient(source_storagedriver.storagerouter, username='root')  # Build ssh clients
 
-        # Check if enough images available
-        images = cls.get_images()
-        assert len(images) >= 1, 'We require an cloud init bootable image file.'
-        image_path = images[0]
-        assert client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], client.ip)
-
-        # Get the cloud init file
-        cloud_init_loc = cls.CLOUD_INIT_DATA.get('script_dest')
-        client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
-        client.file_chmod(cloud_init_loc, 755)
-        assert client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-        is_ee = SystemHelper.get_ovs_version(source_storagedriver.storagerouter) == 'ee'
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(client, src_std=source_storagedriver)
+        image_path = SetupHelper.check_images(client)
         return source_storagedriver, image_path, cloud_init_loc, is_ee
 
     @classmethod
@@ -151,6 +124,7 @@ class DataCorruptionTester(CIConstants):
         :param storagedriver: storagedriver to use for the VM its vdisks
         :type storagedriver: ovs.dal.hybrids.storagedriver.StorageDriver
         :param logger: logging instance
+        :type logger: ovs.log.log_handler.LogHandler
         :param vm_info: information about all vms
         :type vm_info: dict
         :return: None
