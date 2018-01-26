@@ -20,13 +20,13 @@ import socket
 import subprocess
 from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.exceptions import VDiskNotFoundError
-from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorCredentials, HypervisorFactory
+from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorCredentials, HypervisorFactory
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.scenario_helpers.ci_constants import CIConstants
-from helpers.network import NetworkHelper
 from ovs.extensions.generic.logger import Logger
 from ovs_extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient

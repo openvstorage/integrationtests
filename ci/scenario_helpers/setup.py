@@ -1,11 +1,11 @@
 import random
 from ci.scenario_helpers.ci_constants import CIConstants
+from ci.api_lib.helpers.domain import DomainHelper
+from ci.api_lib.helpers.storagedriver import StoragedriverHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 
-from helpers.domain import DomainHelper
-from helpers.storagedriver import StoragedriverHelper
-from helpers.storagerouter import StoragerouterHelper
 from ovs.extensions.generic.logger import Logger
 
 
