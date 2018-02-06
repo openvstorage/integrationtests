@@ -13,6 +13,7 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
+import json
 from ci.api_lib.helpers.ci_constants import CIConstants as _CIConstants
 
 
@@ -20,6 +21,7 @@ class CIConstants(_CIConstants):
     """
     Collection of multiple constants and constant related instances
     """
+    SETTINGS_LOC = "/opt/OpenvStorage/ci/config/settings.json"
 
     FIO_BIN = {'url': 'http://www.include.gr/fio.bin.latest', 'location': '/tmp/fio.bin.latest'}
     FIO_BIN_EE = {'url': 'http://www.include.gr/fio.bin.latest.ee', 'location': '/tmp/fio.bin.latest'}
@@ -67,3 +69,6 @@ class CIConstants(_CIConstants):
         :return: 
         """
         return cls.SETTINGS['images']
+
+    with open(SETTINGS_LOC, 'r') as JSON_SETTINGS:
+        SETTINGS = json.load(JSON_SETTINGS)
