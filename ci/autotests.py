@@ -22,6 +22,7 @@ import re
 import json
 import math
 import importlib
+import traceback
 import subprocess
 from datetime import datetime
 from ci.api_lib.helpers.ci_constants import CIConstants
@@ -456,8 +457,16 @@ def gather_results(case_type, logger, test_name, log_components=None):
                 return {'status': 'PASSED', 'case_type': case_type, 'errors': result}
             except Exception as ex:
                 end = datetime.datetime.now()
-                result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(components=log_components, since=start, until=end)]
+                stack_trace = traceback.format_exc()
+                result_message = ['Exception occurred during {0}'.format(test_name),
+                                  'Stack trace:\n{0}\n'.format(stack_trace)]
+                try:
+                    result_message.extend(['Logs collected between {0} and {1}\n'.format(start, end),
+                                           LogCollector.get_logs(components=log_components, since=start, until=end)])
+                except Exception:
+                    result_message.extend(['Logs could not be collected between {0} and {1}\n'.format(start, end),
+                                           'Stack trace:\n {0}'.format(traceback.format_exc())])
                 logger.exception('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
-                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False}
+                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result_message), 'blocking': False}
         return wrapped
     return wrapper
