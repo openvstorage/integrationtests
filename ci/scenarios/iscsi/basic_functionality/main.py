@@ -22,23 +22,24 @@ from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.api_lib.helpers.iscsi import ISCSIHelper
 from ci.scenario_helpers.ci_constants import CIConstants
-# @todo replace with api
+from ci.scenario_helpers.data_writing import DataWriter
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.generic.system import System
-from ovs.dal.lists.iscsinodelist import IscsiNodeList
-from ovs.lib.iscsinode import IscsiNodeController
-from ovs.log.log_handler import LogHandler
-from ci.scenario_helpers.data_writing import DataWriter
 
 
 class BasicIscsi(CIConstants):
+    """
+    Basic iSCSI testing class
+    """
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_iscsi_basic2"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
 
     ISCSI_SYNC_TIME = 4  # A small sync time for syncing with reality
-    
+
     @classmethod
     def main(cls, blocked):
         """
@@ -56,20 +57,19 @@ class BasicIscsi(CIConstants):
     def start_test(cls):
         """
         Runs the multiple steps within the test
-        :return: 
+        :return:
         """
-        api = cls.get_api_instance()
         cluster_info = cls.setup()
-        return cls.execute_test(cluster_info, api)
+        return cls.execute_test(cluster_info)
 
     @classmethod
     def setup(cls):
         """
-        Fetches all necessary starting info 
+        Fetches all necessary starting info
         :raises AssertionError: * when no iscsi nodes are registered
                                 * when no vpool with two storagedrivers can be found
         """
-        iscsi_nodes = IscsiNodeList.get_iscsi_nodes()
+        iscsi_nodes = ISCSIHelper.get_iscsi_nodes()
         assert len(iscsi_nodes) > 0, 'No iscsi nodes have been registered.'
         vpool = None
         for vp in VPoolHelper.get_vpools():
@@ -77,10 +77,6 @@ class BasicIscsi(CIConstants):
                 vpool = vp
                 break
         assert vpool is not None, 'Found no vpool'
-        if len(vpool.storagedrivers) == 1:
-            chosen_storagedrivers = random.sample(vpool.storagedrivers, 1)
-        else:
-            chosen_storagedrivers = random.sample(vpool.storagedrivers, 2)
         chosen_storagedrivers = random.sample(vpool.storagedrivers, 1)
         cluster_info = {'storagedrivers': {'destination': chosen_storagedrivers[1] if len(chosen_storagedrivers) > 1 else None,
                                            'source': chosen_storagedrivers[0]},
@@ -89,7 +85,7 @@ class BasicIscsi(CIConstants):
         return cluster_info
 
     @classmethod
-    def execute_test(cls, cluster_info, api):
+    def execute_test(cls, cluster_info):
         """
         Execute the test.
         - Create vdisks
@@ -97,9 +93,8 @@ class BasicIscsi(CIConstants):
         - Validate written data
         - Validate poweroff
         :param cluster_info: information about to cluster to use
-        :param api: api instance
         :raises AssertionError: * When errors occurred during the tests
-        :return: 
+        :return:
         """
         logger = cls.LOGGER
         logger.info('Executing')
@@ -107,91 +102,103 @@ class BasicIscsi(CIConstants):
         vpool = source_storagedriver.vpool
         amount_of_targets = 1
         iscsi_node = random.choice(cluster_info['iscsi_nodes'])
-        # tests = [cls.test_expose_unexpose_remove, cls.test_expose_remove, cls.test_expose_twice, cls.test_data_acceptance, cls.test_exposed_move, cls.test_expose_two_nodes]
-        tests = [cls.test_extend]
+        tests = [cls.test_expose_unexpose_remove, cls.test_expose_remove, cls.test_expose_twice, cls.test_data_acceptance, cls.test_exposed_move, cls.test_expose_two_nodes]
         run_errors = []
         for _function in tests:
-            vdisk_info = cls.deployment(amount_of_targets, vpool, source_storagedriver.storage_ip, api)
+            vdisk_info = cls.deployment(amount_of_targets, vpool, source_storagedriver.storage_ip)
+            cls.LOGGER.info("Environment set up for test: {0}".format(_function.__name__))
             try:
-                _function(vdisk_info, iscsi_node, api)
+                _function(vdisk_info, iscsi_node)
+                cls.LOGGER.info("Succesfully passed test: {0}".format(_function.__name__))
             except Exception as ex:
                 logger.exception(str(ex))
                 run_errors.append(ex)
             finally:
                 cleanup_errors = []
                 try:
-                    cls.tear_down(vdisk_info, api)
+                    cls.tear_down(vdisk_info)
                 except Exception as ex:
                     cleanup_errors.append(ex)
                 assert len(cleanup_errors) == 0, 'Got the following errors during cleanup: {0}.'.format(', '.join((str(ex) for ex in cleanup_errors)))
         assert len(run_errors) == 0, 'Got the following errors during testing: {0}.'.format(', '.join((str(ex) for ex in run_errors)))
 
     @classmethod
-    def deployment(cls, amount, vpool, storagerouter_ip, api, base_name=TEST_NAME):
+    def deployment(cls, amount, vpool, storagerouter_ip, base_name=TEST_NAME):
         """
         Sets up vdisks
-        :param amount: amount of vdisks to make 
+        :param amount: amount of vdisks to make
         :param storagerouter_ip: ip of the storagerouter to make them on
-        :param api: api instance
+        :param vpool: vpool on which to deploy vdisks on
         :param base_name: name to use as a base for all vdisks that will be made
         :return: vdisk_info
+            {'vDisk_name': <ovs.dal.hybrids.vdisk>}
         """
         vdisk_info = {}
         for target_number in xrange(0, amount):
             vdisk_name = '{0}_{1}'.format(base_name, target_number)
             vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name, vpool_name=vpool.name, size=1 * 1024 ** 3,
-                                                 storagerouter_ip=storagerouter_ip, api=api)
+                                                 storagerouter_ip=storagerouter_ip)
             vdisk_info[vdisk_name] = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
         return vdisk_info
 
     @classmethod
-    def tear_down(cls, vdisk_info, api):
-        logger = cls.LOGGER
+    def tear_down(cls, vdisk_info):
+        """
+        Will tear down given vDisks
+        :param vdisk_info: {'vDisk_name': <ovs.dal.hybrids.vdisk>}
+        :return:
+        """
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.info('Removing vdisk {0}.'.format(vdisk_name))
             try:
-                VDiskRemover.remove_vdisk(vdisk_object.guid, api)
+                VDiskRemover.remove_vdisk(vdisk_object.guid)
             except NotFoundException:
                 pass
+            except Exception:
+                cls.LOGGER.exception('Failed to remove vDisk {0}'.format(vdisk_name))
 
     @classmethod
-    def test_expose_unexpose_remove(cls, vdisk_info, iscsi_node, api):
-        logger = cls.LOGGER
+    def test_expose_unexpose_remove(cls, vdisk_info, iscsi_node):
+        """
+        Will test behavior of iSCSI nodes upon exposure and unexposure
+        :param vdisk_info: {'vDisk_name': <ovs.dal.hybrids.vdisk>}
+        :param iscsi_node: { ovs.dal.hybrids.iscsinode
+        :return:
+        """
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-            IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter')
+            ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter')
         cls._validate_iscsi(iscsi_node)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.info('Unexposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-            IscsiNodeController.unexpose_vdisk(vdisk_object.guid)
-        # cls._validate_iscsi(iscsi_node)
+            ISCSIHelper.unexpose_vdisk(vdisk_object.guid)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.info('Removing unexposed vdisk {0}.'.format(vdisk_name))
-            VDiskRemover.remove_vdisk(vdisk_object.guid, api)
+            VDiskRemover.remove_vdisk(vdisk_object.guid)
 
     @classmethod
-    def test_expose_remove(cls, vdisk_info, iscsi_node, api):
-        logger = cls.LOGGER
+    def test_expose_remove(cls, vdisk_info, iscsi_node):
+        """
+        Will test behavior of iSCSI nodes upon exposure and removal of the vDisks
+        :param vdisk_info: {'vDisk_name': <ovs.dal.hybrids.vdisk>}
+        :param iscsi_node: { ovs.dal.hybrids.iscsinode
+        :return:
+        """
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-            IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter')
+            ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter')
         cls._validate_iscsi(iscsi_node)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.info('Removing exposed vdisk {0}.'.format(vdisk_name))
-            VDiskRemover.remove_vdisk(vdisk_object.guid, api)
-        # cls._validate_iscsi(iscsi_node)
+            VDiskRemover.remove_vdisk(vdisk_object.guid)
 
     @classmethod
-    def test_expose_twice(cls, vdisk_info, iscsi_node, api):
+    def test_expose_twice(cls, vdisk_info, iscsi_node):
         """
-        Vdisk should'nt be able to be exposed twice
+        Will test behavior of iSCSI nodes upon double exposure: vDisks shouldn't be able to be exposed twice
+        :param vdisk_info: {'vDisk_name': <ovs.dal.hybrids.vdisk>}
+        :param iscsi_node: { ovs.dal.hybrids.iscsinode
+        :return:
         """
         logger = cls.LOGGER
-        _ = api
         for iteration in xrange(2):
             for vdisk_name, vdisk_object in vdisk_info.iteritems():
                 try:
-                    IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter')
+                    ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter')
                 except Exception as ex:
                     if iteration == 0:
                         raise
@@ -201,62 +208,76 @@ class BasicIscsi(CIConstants):
                         raise
 
     @classmethod
-    def test_expose_two_nodes(cls, vdisk_info, iscsi_node, api):
+    def test_expose_two_nodes(cls, vdisk_info, iscsi_node):
+        """
+        Will test behavior of 2 iSCSI nodes upon exposure
+        :param vdisk_info: {'vDisk_name': <ovs.dal.hybrids.vdisk>}
+        :param iscsi_node: { ovs.dal.hybrids.iscsinode
+        :return:
+        """
         logger = cls.LOGGER
-        _ = api
         _ = iscsi_node
         iqns = []
-        iscsi_nodes = IscsiNodeList.get_iscsi_nodes()
+        iscsi_nodes = ISCSIHelper.get_iscsi_nodes()
         if len(iscsi_nodes) <= 1:
             raise ValueError('Not enough iscsi_nodes to test this.')
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             for iscsi_node in iscsi_nodes:
                 try:
                     logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-                    iqns.append(IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
+                    iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
                 except Exception as ex:
                     logger.warning('Issue when xposing {0} on {1}. {2}'.format(vdisk_name, iscsi_node.api_ip, str(ex)))
                     raise
 
     @classmethod
-    def test_data_acceptance(cls, vdisk_info, iscsi_node, api):
+    def test_data_acceptance(cls, vdisk_info, iscsi_node):
         """
         Verify that the target can accept data
+        :param vdisk_info: {'vDisk_name': <ovs.dal.hybrids.vdisk>}
+        :param iscsi_node: { ovs.dal.hybrids.iscsinode
+        :return:
         """
-        _ = api
-        logger = cls.LOGGER
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-            iqns.append(IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
+            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
         cls._validate_iscsi(iscsi_node)
         cls._write_data_to_target(iqns)
 
     @classmethod
-    def test_restart_target(cls, vdisk_info, iscsi_node, api):
+    def test_restart_target(cls, vdisk_info, iscsi_node):
         """
+        Test that will restart iSCSI nodes
+        :param vdisk_info: {'vDisk_name': <ovs.dal.hybrids.vdisk>}
+        :param iscsi_node: { ovs.dal.hybrids.iscsinode
+        :return:
         """
-        logger = cls.LOGGER
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            iqns.append(IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
+            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            IscsiNodeController.restart_targets_for_vdisk(vdisk_object.guid)
+            ISCSIHelper.restart_targets_for_vdisk(vdisk_object.guid)
 
     @classmethod
-    def test_move_of_subdir(cls, vdisk_info, iscsi_node, api):
+    def test_move_of_subdir(cls, vdisk_info, iscsi_node):
+        """
+        Test that will move subdirectories and test for data acceptance
+        :param vdisk_info: {'vDisk_name': <ovs.dal.hybrids.vdisk>}
+        :param iscsi_node: { ovs.dal.hybrids.iscsinode
+        :return:
+        """
         logger = cls.LOGGER
         iqns = []
         a_vdisk = vdisk_info.values()[0]
         a_vdisk_storagerouter = StoragerouterHelper.get_storagerouter_by_guid(a_vdisk.storagerouter_guid)
         base_dir = 'a_testing_subdir'
         base_name = '{0}/{1}'.format(base_dir, cls.TEST_NAME)
-        vdisk_info = cls.deployment(amount=1, vpool=a_vdisk.vpool, storagerouter_ip=a_vdisk_storagerouter.ip, api=api, base_name=base_name)
+        vdisk_info = cls.deployment(amount=1, vpool=a_vdisk.vpool, storagerouter_ip=a_vdisk_storagerouter.ip, base_name=base_name)
         client = SSHClient(a_vdisk_storagerouter, username='root')
         try:  # Isolate own creation
             for vdisk_name, vdisk_object in vdisk_info.iteritems():
                 logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-                iqns.append(IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
+                iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
             cls._validate_iscsi(iscsi_node)
             time.sleep(cls.ISCSI_SYNC_TIME)  # Small sync
             cls._write_data_to_target(iqns, a_vdisk.size / 10)
@@ -272,10 +293,16 @@ class BasicIscsi(CIConstants):
         except Exception as ex:
             logger.warning('Exception during move of subdir. {0}'.format(str(ex)))
         finally:
-            cls.tear_down(vdisk_info, api)
+            cls.tear_down(vdisk_info)
 
     @classmethod
-    def test_extend(cls, vdisk_info, iscsi_node, api):
+    def test_extend(cls, vdisk_info, iscsi_node):
+        """
+        Test that will extend and validate nodes
+        :param vdisk_info: {'vDisk_name': <ovs.dal.hybrids.vdisk>}
+        :param iscsi_node: { ovs.dal.hybrids.iscsinode
+        :return:
+        """
         iqns = []
         logger = cls.LOGGER
         a_vdisk = vdisk_info.values()[0]
@@ -283,7 +310,7 @@ class BasicIscsi(CIConstants):
         client = SSHClient(a_vdisk_storagerouter, username='root')
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-            iqns.append(IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
+            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
         # Login to targets
         cls._validate_iscsi(iscsi_node)
         try:
@@ -294,7 +321,6 @@ class BasicIscsi(CIConstants):
                 client.run(cmd)
             cls._validate_iscsi(iscsi_node)
             # Check if size changed on the initiator side - shouldnt be the case without relogging
-
         finally:
             for iqn in iqns:
                 try:
@@ -303,24 +329,26 @@ class BasicIscsi(CIConstants):
                     logger.warning('Exception during disconnect: {0}.'.format(str(ex)))
 
     @classmethod
-    def test_exposed_move(cls, vdisk_info, iscsi_node, api):
+    def test_exposed_move(cls, vdisk_info, iscsi_node):
         """
         Move a vdisk while it is exposed and ensure that the data channel isn't interrupted
+        :param vdisk_info: {'vDisk_name': <ovs.dal.hybrids.vdisk>}
+        :param iscsi_node: { ovs.dal.hybrids.iscsinode
+        :return:
         """
         logger = cls.LOGGER
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-            iqns.append(IscsiNodeController.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
+            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
         cls._validate_iscsi(iscsi_node)
-        # @todo offload to screen to make this test valid
-        cls._write_data_to_target(iqns, screen=False)
+        cls._write_data_to_target(iqns, screen=True)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             logger.debug('Moving Vdisk {0}'.format(vdisk_name))
             # Ensured we had 2 std at the start
             target_storagerouter_guid = [std.storagerouter_guid for std in vdisk_object.vpool.storagedrivers
                                          if std.storagerouter_guid != vdisk_object.storagerouter_guid][0]
-            VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid, target_storagerouter_guid=target_storagerouter_guid, api=api)
+            VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid, target_storagerouter_guid=target_storagerouter_guid)
 
     @classmethod
     def _write_data_to_target(cls, iqns, size=1 * 1024 ** 3, screen=False):
@@ -402,10 +430,10 @@ class BasicIscsi(CIConstants):
     def _validate_iscsi_portal(cls, iscsi_node, found_portals):
         """
         Match found portals to DAL
-        :param iscsi_node: iscsi node object 
+        :param iscsi_node: iscsi node object
         :param found_portals: list of ip:port portals
         :raises AssertionError: when no portals are matched
-        :return: 
+        :return:
         """
         logger = cls.LOGGER
         wildcard_range = '0.0.0.0'
@@ -440,7 +468,7 @@ class BasicIscsi(CIConstants):
         """
         Logs into a specific target
         :param target_iqn: iqn of the target
-        :return: 
+        :return:
         """
         logger = cls.LOGGER
         cmd = ['iscsiadm', '-m', 'node', '--login', '-T', target_iqn]
@@ -476,13 +504,13 @@ class BasicIscsi(CIConstants):
         """
         Logout of a specific target
         :param target_iqn: iqn of the target
-        :return: 
+        :return:
         """
         cmd = ['iscsiadm', '-m', 'node', '--logout', '-T', target_iqn]
         local_client = SSHClient(System.get_my_storagerouter(), 'root')
         local_client.run(cmd)
 
-        
+
 def run(blocked=False):
     """
     Run a test
