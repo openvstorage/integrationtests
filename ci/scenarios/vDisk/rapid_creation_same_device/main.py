@@ -19,15 +19,15 @@ from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.extensions.generic.logger import Logger
 from ovs.lib.vdisk import VDiskController
-from ovs.log.log_handler import LogHandler
 
 
 class VDiskControllerTester(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_rapid_create_delete_same_device"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
 
     def __init__(self):
         pass
@@ -53,8 +53,7 @@ class VDiskControllerTester(CIConstants):
         :return: None
         """
         local_sr = SystemHelper.get_local_storagerouter()
-        VDiskControllerTester.LOGGER.info("Starting creation/deletion test.")
-        api = cls.get_api_instance()
+        cls.LOGGER.info("Starting creation/deletion test.")
         # Elect vpool
         assert len(local_sr.storagedrivers) > 0, 'Node {0} has no storagedriver. Cannot test {1}'.format(local_sr.ip, VDiskControllerTester.TEST_NAME)
         random_storagedriver = local_sr.storagedrivers[random.randint(0, len(local_sr.storagedrivers) - 1)]
@@ -65,42 +64,42 @@ class VDiskControllerTester(CIConstants):
         for loop in xrange(0, 100):
             test_passed = False
             try:
-                VDiskControllerTester.LOGGER.info("Creating new disk.")
+                cls.LOGGER.info("Creating new disk.")
                 try:
                     VDiskController.create_new(disk_name, disk_size, random_storagedriver.guid)
                 except Exception as ex:
-                    VDiskControllerTester.LOGGER.error('Creation failed. Got {0}'.format(str(ex)))
-                    exceptions.append('Creation failed. Got {0}'.format(str(ex)))
+                    cls.LOGGER.error('Creation failed. Got {0} in iteration {1}'.format(str(ex), loop))
+                    exceptions.append('Creation failed. Got {0} in iteration {1}'.format(str(ex), loop))
                     continue
-                VDiskControllerTester.LOGGER.info("Fetching new disk.")
+                cls.LOGGER.info("Fetching new disk.")
                 try:
                     vdisk = VDiskHelper.get_vdisk_by_name('{0}.raw'.format(disk_name), vpool.name)
                 except Exception as ex:
-                    VDiskControllerTester.LOGGER.error('Fetch failed. Got {0}'.format(str(ex)))
-                    exceptions.append('Fetch failed. Got {0}'.format(str(ex)))
+                    cls.LOGGER.error('Fetch failed. Got {0} in iteration {1}'.format(str(ex), loop))
+                    exceptions.append('Fetch failed. Got {0} in iteration {1}'.format(str(ex), loop))
                     continue
-                VDiskControllerTester.LOGGER.info("Deleting new disk.")
+                cls.LOGGER.info("Deleting new disk.")
                 try:
                     VDiskController.delete(vdisk_guid=vdisk.guid)
                 except Exception as ex:
-                    VDiskControllerTester.LOGGER.error('Delete failed. Got {0}'.format(str(ex)))
-                    exceptions.append('Delete failed. Got {0}'.format(str(ex)))
+                    cls.LOGGER.error('Delete failed. Got {0} in iteration {1}'.format(str(ex), loop))
+                    exceptions.append('Delete failed. Got {0} in iteration {1}'.format(str(ex), loop))
                 test_passed = True
             except Exception as ex:
-                VDiskControllerTester.LOGGER.error('Unexpected exception occurred during the the loop. Got {0}.'.format(str(ex)))
+                cls.LOGGER.error('Unexpected exception occurred during loop {0}. Got {1}.'.format(loop, str(ex)))
             finally:
                 try:
-                    VDiskControllerTester._cleanup_vdisk(disk_name, vpool.name, api, not test_passed)
+                    cls._cleanup_vdisk(disk_name, vpool.name, not test_passed)
                 except Exception as ex:
-                    VDiskControllerTester.LOGGER.error("Auto cleanup failed with {0}.".format(str(ex)))
-                    exceptions.append('Auto cleanup failed. Got {0}'.format(str(ex)))
+                    cls.LOGGER.error("Auto cleanup failed with {0} in iteration {1}.".format(str(ex), loop))
+                    exceptions.append('Auto cleanup failed, got {0} in iteration {1}'.format(str(ex), loop))
 
         assert len(exceptions) == 0, 'Exception occurred during the creation of vdisks with the same devicename. Got {0}'.format(', '.join(exceptions))
 
-        VDiskControllerTester.LOGGER.info("Finished create/delete test.")
+        cls.LOGGER.info("Finished create/delete test.")
 
-    @staticmethod
-    def _cleanup_vdisk(vdisk_name, vpool_name, api, fail=True):
+    @classmethod
+    def _cleanup_vdisk(cls, vdisk_name, vpool_name, fail=True):
         """
         Attempt to cleanup vdisk
         :param vdisk_name: name of the vdisk
@@ -110,9 +109,9 @@ class VDiskControllerTester(CIConstants):
         """
         # Cleanup vdisk using the controller
         try:
-            VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool_name, api)
+            VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool_name)
         except Exception as ex:
-            VDiskControllerTester.LOGGER.error(str(ex))
+            cls.LOGGER.error(str(ex))
             if fail is True:
                 raise
             else:

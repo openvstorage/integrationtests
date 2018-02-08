@@ -22,14 +22,14 @@ from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 
 
 class VDiskTemplateChecks(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_vdisk_template"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     PREFIX = "integration-tests-template"
     VDISK_SIZE = 10 * 1024 ** 3  # 10GB
     TEMPLATE_CREATE_TIMEOUT = 180
@@ -64,7 +64,6 @@ class VDiskTemplateChecks(CIConstants):
         :return:
         """
         cls.LOGGER.info("Starting to validate template vdisks")
-        api = cls.get_api_instance()
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
         try:
@@ -78,24 +77,26 @@ class VDiskTemplateChecks(CIConstants):
             # create required vdisk for test
             parent_vdisk_name = '{0}_{1}'.format(cls.PREFIX, str(1).zfill(3))
             parent_vdisk = VDiskHelper.get_vdisk_by_guid(
-                VDiskSetup.create_vdisk(vdisk_name=parent_vdisk_name, vpool_name=vpool.name,
-                                        size=cls.VDISK_SIZE, api=api,
+                VDiskSetup.create_vdisk(vdisk_name=parent_vdisk_name,
+                                        vpool_name=vpool.name,
+                                        size=cls.VDISK_SIZE,
                                         storagerouter_ip=storagedriver_source.storagerouter.ip))
             vdisks.append(parent_vdisk)
             time.sleep(cls.TEMPLATE_SLEEP_AFTER_CREATE)
             # Create vdisk template  #
-            VDiskSetup.set_vdisk_as_template(vdisk_name=parent_vdisk_name, vpool_name=vpool.name, api=api)
+            VDiskSetup.set_vdisk_as_template(vdisk_name=parent_vdisk_name, vpool_name=vpool.name)
             time.sleep(cls.TEMPLATE_SLEEP_AFTER_CREATE)
             clone_vdisk_name = '{0}_from-template'.format(parent_vdisk_name)
             clone_vdisk = VDiskHelper.get_vdisk_by_guid(
-                VDiskSetup.create_from_template(vdisk_name=parent_vdisk_name, vpool_name=vpool.name,
+                VDiskSetup.create_from_template(vdisk_name=parent_vdisk_name,
+                                                vpool_name=vpool.name,
                                                 new_vdisk_name=clone_vdisk_name,
-                                                storagerouter_ip=storagedriver_source.storagerouter.ip, api=api)['vdisk_guid'])
+                                                storagerouter_ip=storagedriver_source.storagerouter.ip)['vdisk_guid'])
             vdisks.append(clone_vdisk)
             time.sleep(cls.TEMPLATE_SLEEP_BEFORE_DELETE)
             try:
                 # try to delete template with clones (should fail) #
-                VDiskRemover.remove_vtemplate_by_name(vdisk_name=parent_vdisk_name, vpool_name=vpool.name, api=api)
+                VDiskRemover.remove_vtemplate_by_name(vdisk_name=parent_vdisk_name, vpool_name=vpool.name)
                 error_msg = "Removing vtemplate `{0}` should have failed!"
                 cls.LOGGER.error(error_msg)
                 raise RuntimeError(error_msg)
@@ -104,24 +105,26 @@ class VDiskTemplateChecks(CIConstants):
         finally:
             while len(vdisks) > 0:
                 vdisk = vdisks.pop()
-                VDiskRemover.remove_vdisk(vdisk.guid, api)
+                VDiskRemover.remove_vdisk(vdisk.guid)
         try:
             # template vdisk from clone (should fail) #
             parent_vdisk = VDiskHelper.get_vdisk_by_guid(
-                VDiskSetup.create_vdisk(vdisk_name=parent_vdisk_name, vpool_name=vpool.name, api=api,
+                VDiskSetup.create_vdisk(vdisk_name=parent_vdisk_name,
+                                        vpool_name=vpool.name,
                                         size=cls.VDISK_SIZE,
                                         storagerouter_ip=storagedriver_source.storagerouter.ip))
             vdisks.append(parent_vdisk)
             # create a clone from the vdisk
             clone_vdisk_name = '{0}_clone'.format(parent_vdisk_name)
             cloned_vdisk = VDiskHelper.get_vdisk_by_guid(
-                VDiskSetup.create_clone(vdisk_name=parent_vdisk_name, vpool_name=vpool.name,
+                VDiskSetup.create_clone(vdisk_name=parent_vdisk_name,
+                                        vpool_name=vpool.name,
                                         new_vdisk_name=clone_vdisk_name,
-                                        api=api, storagerouter_ip=storagedriver_source.storagerouter.ip)['vdisk_guid'])
+                                        storagerouter_ip=storagedriver_source.storagerouter.ip)['vdisk_guid'])
             vdisks.append(cloned_vdisk)
             # try to create a vTemplate from a clone
             try:
-                VDiskSetup.set_vdisk_as_template(vdisk_name=clone_vdisk_name, vpool_name=vpool.name, api=api)
+                VDiskSetup.set_vdisk_as_template(vdisk_name=clone_vdisk_name, vpool_name=vpool.name)
                 error_msg = "Setting vdisk `{0}` as template should have failed!".format(clone_vdisk_name)
                 cls.LOGGER.error(error_msg)
                 raise RuntimeError(error_msg)
@@ -134,9 +137,9 @@ class VDiskTemplateChecks(CIConstants):
                 if vdisk.parent_vdisk_guid is None:
                     parent_vdisks.append(vdisk)
                     continue
-                VDiskRemover.remove_vdisk(vdisk.guid, api)
+                VDiskRemover.remove_vdisk(vdisk.guid)
             for parent_vdisk in parent_vdisks:
-                VDiskRemover.remove_vdisk(parent_vdisk.guid, api)
+                VDiskRemover.remove_vdisk(parent_vdisk.guid)
         cls.LOGGER.info("Finished to validate template vdisks")
 
 

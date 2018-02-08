@@ -15,21 +15,21 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import time
 import uuid
-from ovs.log.log_handler import LogHandler
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
-from ovs_extensions.generic.configuration import Configuration
+from ovs.dal.lists.storagerouterlist import StorageRouterList
+from ovs.extensions.generic.configuration import Configuration
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.servicefactory import ServiceFactory
+from ovs_extensions.storage.persistent.pyrakoonstore import PyrakoonStore, KeyNotFoundException
 
 
 class ArakoonValidation(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_arakoon_validation"
-    LOGGER = LogHandler.get(source="scenario", name="ci_scenario_arakoon_validation")
+    LOGGER = Logger("scenario-{0}".format(TEST_NAME))
 
     def __init__(self):
         pass
@@ -59,7 +59,7 @@ class ArakoonValidation(CIConstants):
         :return:
         """
         ArakoonValidation.LOGGER.info("Starting validating arakoon cluster")
-        master_storagerouters = StoragerouterHelper.get_master_storagerouter_ips()
+        master_storagerouters = [storagerouter.ip for storagerouter in StorageRouterList.get_masters()]
         assert len(master_storagerouters) >= 2, 'Environment has only `{0}` node(s)'.format(len(master_storagerouters))
 
         master_storagerouters.sort()

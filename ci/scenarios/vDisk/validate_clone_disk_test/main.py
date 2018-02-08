@@ -20,14 +20,14 @@ from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 
 
 class VDiskCloneChecks(CIConstants):
 
     CASE_TYPE = 'FUNCTIONAL'
     TEST_NAME = "ci_scenario_vdisk_clone"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     PREFIX = "integration-tests-clone-"
     VDISK_SIZE = 10737418240  # 10GB
     CLONE_CREATE_TIMEOUT = 180
@@ -59,7 +59,6 @@ class VDiskCloneChecks(CIConstants):
         :return:
         """
         cls.LOGGER.info("Starting to validate clone vdisks")
-        api = cls.get_api_instance()
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
         try:
@@ -76,7 +75,9 @@ class VDiskCloneChecks(CIConstants):
             original_vdisk_name = '{0}_{1}'.format(cls.PREFIX, str(1).zfill(3))
             cls.LOGGER.info("Creating the vdisk: {0} to clone".format(original_vdisk_name))
             original_vdisk = VDiskHelper.get_vdisk_by_guid(
-                VDiskSetup.create_vdisk(vdisk_name=original_vdisk_name, vpool_name=vpool.name, size=cls.VDISK_SIZE, api=api,
+                VDiskSetup.create_vdisk(vdisk_name=original_vdisk_name,
+                                        vpool_name=vpool.name,
+                                        size=cls.VDISK_SIZE,
                                         storagerouter_ip=storagedriver_source.storagerouter.ip))
             vdisks.append(original_vdisk)
             time.sleep(cls.CLONE_SLEEP_AFTER_CREATE)
@@ -87,23 +88,22 @@ class VDiskCloneChecks(CIConstants):
             cloned_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_clone(vdisk_name=original_vdisk_name,
                                                                                  vpool_name=vpool.name,
                                                                                  new_vdisk_name=cloned_vdisk_name,
-                                                                                 storagerouter_ip=storagedriver_destination.storagerouter.ip,
-                                                                                 api=api)['vdisk_guid'])
+                                                                                 storagerouter_ip=storagedriver_destination.storagerouter.ip)['vdisk_guid'])
             vdisks.append(cloned_vdisk)
             time.sleep(cls.CLONE_SLEEP_BEFORE_CHECK)
             ######################################
             # clone vdisk from existing snapshot #
             ######################################
             cloned_vdisk_name = original_vdisk_name + '-clone-snapshot'
-            snapshot_id = VDiskSetup.create_snapshot(vdisk_name=original_vdisk_name, vpool_name=vpool.name, snapshot_name=cls.PREFIX+'snapshot', api=api)
+            snapshot_id = VDiskSetup.create_snapshot(vdisk_name=original_vdisk_name, vpool_name=vpool.name, snapshot_name=cls.PREFIX+'snapshot')
             cloned_vdisk = VDiskHelper.get_vdisk_by_guid(
                 VDiskSetup.create_clone(vdisk_name=original_vdisk_name, vpool_name=vpool.name,
                                         new_vdisk_name=cloned_vdisk_name,
-                                        storagerouter_ip=storagedriver_destination.storagerouter.ip, api=api,
+                                        storagerouter_ip=storagedriver_destination.storagerouter.ip,
                                         snapshot_id=snapshot_id)['vdisk_guid'])
             vdisks.append(cloned_vdisk)
         finally:
-            VDiskRemover.remove_vdisks_with_structure(vdisks, api)
+            VDiskRemover.remove_vdisks_with_structure(vdisks)
         cls.LOGGER.info("Finished validating clone vdisks")
 
 

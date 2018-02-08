@@ -24,15 +24,15 @@ from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.vm_handler import VMHandler
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 
 
 class FioOnVDiskChecks(CIConstants):
 
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_fio_on_vdisk"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     VDISK_SIZE = 10 * 1024 ** 3
     AMOUNT_VDISKS = 5
     AMOUNT_TO_WRITE = 10 * 1024 ** 2
@@ -110,7 +110,6 @@ class FioOnVDiskChecks(CIConstants):
         :param logger: logging instance
         :return: 
         """
-        api = cls.get_api_instance()
         vpool = storagedriver.vpool
         client = SSHClient(storagedriver.storagerouter, username='root')
         vdisk_info = {}
@@ -131,7 +130,7 @@ class FioOnVDiskChecks(CIConstants):
             raise
         finally:
             for vdisk in vdisk_info.values():
-                VDiskRemover.remove_vdisk_by_name(vdisk.devicename, vdisk.vpool.name, api)
+                VDiskRemover.remove_vdisk_by_name(vdisk.devicename, vdisk.vpool.name)
 
     @staticmethod
     def _get_vdisk(vdisk_name, vpool_name, timeout=60, logger=LOGGER):
@@ -169,7 +168,6 @@ class FioOnVDiskChecks(CIConstants):
         :param logger: logging instance
         :return: None
         """
-        api = cls.get_api_instance()
         client = SSHClient(storagedriver.storagerouter, username='root')
         vpool = storagedriver.vpool
         edge_info = {'port': storagedriver.ports['edge'],
@@ -209,7 +207,7 @@ class FioOnVDiskChecks(CIConstants):
                     raise ValueError('Unable to destroy the blocktap connection because its output format has changed.')
                 client.run(["tap-ctl", "destroy", "-p", tap_conn_pid, "-m", tap_conn_minor])
             for vdisk_name in vdisk_info.keys():
-                VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool.name, api)
+                VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool.name)
 
 
 def run(blocked=False):
