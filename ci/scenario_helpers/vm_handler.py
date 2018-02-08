@@ -30,6 +30,7 @@ from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.logger import Logger
 from ovs_extensions.generic.remote import remote
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from ovs.lib.helpers.toolbox import Toolbox
 
 
@@ -99,7 +100,7 @@ class VMHandler(CIConstants):
         if isinstance(edge_user_info, dict):
             required_edge_params = {'username': (str, None, False),
                                     'password': (str, None, False)}
-            Toolbox.verify_required_params(required_edge_params, edge_user_info)
+            ExtensionsToolbox.verify_required_params(required_edge_params, edge_user_info)
         if edge_user_info is None:
             edge_user_info = {}
 
@@ -445,7 +446,7 @@ class VMHandler(CIConstants):
                                 'ip': (str, Toolbox.regex_ip),
                                 'username': (str, None, False),
                                 'password': (str, None, False)}
-        Toolbox.verify_required_params(required_edge_params, edge_info)
+        ExtensionsToolbox.verify_required_params(required_edge_params, edge_info)
         if edge_info.get('username') and edge_info.get('password'):
             ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'], edge_info['ip'],
                                                                                                   edge_info['port'], diskname,
@@ -468,7 +469,7 @@ class VMHandler(CIConstants):
                                 'ip': (str, Toolbox.regex_ip),
                                 'username': (str, None, False),
                                 'password': (str, None, False)}
-        Toolbox.verify_required_params(required_edge_params, edge_info)
+        ExtensionsToolbox.verify_required_params(required_edge_params, edge_info)
         if edge_info.get('username') and edge_info.get('password'):
             ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'], edge_info['ip'],
                                                                                                   edge_info['port'], diskname,
@@ -491,7 +492,7 @@ class VMHandler(CIConstants):
                                 'ip': (str, Toolbox.regex_ip),
                                 'username': (str, None, False),
                                 'password': (str, None, False)}
-        Toolbox.verify_required_params(required_edge_params, edge_info)
+        ExtensionsToolbox.verify_required_params(required_edge_params, edge_info)
         if edge_info.get('username') and edge_info.get('password'):
             ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'],
                                                                                                   edge_info['ip'],
