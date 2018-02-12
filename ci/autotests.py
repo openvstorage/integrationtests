@@ -74,9 +74,9 @@ class AutoTests(object):
             try:
                 mod = importlib.import_module('{0}.main'.format(test))
             except Exception:
-                message = 'Unable to import test {0}: \n {1}'.format(test, traceback.format_exc())
+                message = 'Unable to import test {0}'.format(test)
                 logger.exception(message)
-                error_messages.append(message)
+                error_messages.append('{0}: \n {1}'.format(message, traceback.format_exc()))
                 continue
             module_result = mod.run(blocked)
             if hasattr(TestrailResult, module_result['status']):  # check if a test has failed, if it has failed check if we should block all other tests
