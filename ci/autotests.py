@@ -56,6 +56,7 @@ class AutoTests(object):
         :rtype: tuple
         """
         logger = AutoTests.logger
+        error_messages = []
         if scenarios is None:
             scenarios = ['ALL']
         if exclude_scenarios is None:
@@ -69,8 +70,14 @@ class AutoTests(object):
         results = {}
         blocked = False
         for test in tests:
-            logger.info("\n{:=^100}\n".format(test))
-            mod = importlib.import_module('{0}.main'.format(test))
+            logger.info('\n{:=^100}\n'.format(test))
+            try:
+                mod = importlib.import_module('{0}.main'.format(test))
+            except Exception:
+                message = 'Unable to import test {0}'.format(test)
+                logger.exception(message)
+                error_messages.append('{0}: \n {1}'.format(message, traceback.format_exc()))
+                continue
             module_result = mod.run(blocked)
             if hasattr(TestrailResult, module_result['status']):  # check if a test has failed, if it has failed check if we should block all other tests
                 if getattr(TestrailResult, module_result['status']) == TestrailResult.FAILED and fail_on_failed_scenario:
@@ -79,15 +86,17 @@ class AutoTests(object):
                     elif module_result['blocking'] is not False:
                         blocked = True  # if a test reports failed but blocked != False
             else:
-                raise AttributeError('Attribute `{0}` does not exists as status in TestrailResult'.format(module_result['status']))
+                error_messages.append('Test {0} returned attribute `{1}` which does not exists as status in TestrailResult'.format(test, module_result['status']))
             # add test to results & also remove possible EXCLUDE_FLAGS on test name
             results[test.replace(AutoTests.EXCLUDE_FLAG, '')] = module_result
         logger.info("Finished tests.")
+        plan_url = None
         if send_to_testrail:
             logger.info('Start pushing tests to testrail.')
-            plan_url = AutoTests.push_to_testrail(results, only_add_given_cases=only_add_given_results)
-            return results, plan_url
-        return results, None
+            plan_url, error_messages = AutoTests.push_to_testrail(results, only_add_given_cases=only_add_given_results, error_messages=error_messages)
+        if len(error_messages) > 0:
+            raise RuntimeError('Unhandled errors occurred during the Autotests: \n - {0}'.format('\n - '.join(error_messages)))
+        return results, plan_url
 
     @staticmethod
     def list_tests(cases=None, exclude=None, start_dir=CIConstants.TEST_SCENARIO_LOC, categories=None, subcategories=None, depth=1):
@@ -141,7 +150,7 @@ class AutoTests(object):
         return scenarios
 
     @staticmethod
-    def push_to_testrail(results, config_path=CIConstants.TESTRAIL_LOC, skip_on_no_results=True, only_add_given_cases=False):
+    def push_to_testrail(results, config_path=CIConstants.TESTRAIL_LOC, skip_on_no_results=True, only_add_given_cases=False, error_messages=None):
         """
         Push results to testtrail
         :param config_path: path to testrail config file
@@ -152,101 +161,110 @@ class AutoTests(object):
         :type skip_on_no_results: bool
         :param only_add_given_cases: ONLY ADD the given cases in results
         :type only_add_given_cases: bool
-        :return: Testrail URL to test plan
-        :rtype: str
+        :param error_messages: List of error message to use (Message will be added to this list)
+        :type error_messages: list
+        :return: Testrail URL to test plan, messages of errors that occurred
+        :rtype: str, list[str]
         """
+        if error_messages is None:
+            error_messages = []
         logger = AutoTests.logger
         logger.info("Pushing tests to testrail ...")
-        with open(config_path, "r") as JSON_CONFIG:
-                testtrail_config = json.load(JSON_CONFIG)
-
-        # fetch test-name based on environment, environment version & datetime
+        try:
+            with open(config_path, "r") as JSON_CONFIG:
+                testrail_config = json.load(JSON_CONFIG)
+        except Exception:
+            error_messages.append('Unable to load the Testrail config: \n{0}'.format(traceback.format_exc()))
+            return None, error_messages
+        # Fetch test-name based on environment, environment version & datetime
         test_title = "{0}_{1}_{2}".format(AutoTests._get_test_name(), AutoTests._get_ovs_version(), datetime.now())
 
-        # create description based on system settings (hardware & linux distro)
+        # Create description based on system settings (hardware & linux distro)
         description = AutoTests._get_description()
 
-        # setup testrail api connection
-        if not testtrail_config['url']:
-            raise RuntimeError('Invalid url for testrail')
-
-        if not testtrail_config['key']:
-            # no key provided so we will continue with username & password
-            if not testtrail_config['username'] and testtrail_config['password']:
-                raise RuntimeError('Invalid username or password specified for testrail')
-            else:
-                tapi = TestrailApi(server=testtrail_config['url'], user=testtrail_config['username'], password=testtrail_config['password'])
+        # Setup testrail api connection
+        client = None
+        if not testrail_config.get('url'):
+            error_messages.append('No URL provided for Testrail')
+            return None, error_messages
+        if testrail_config.get('key'):
+            logger.info('Testrail key provided. Creating client')
+            client = TestrailApi(testrail_config['url'], key=testrail_config['key'])
         else:
-            tapi = TestrailApi(testtrail_config['url'], key=testtrail_config['key'])
+            logger.info('No Testrail key provided. Switching over to username - password')
+            # No key provided so we will continue with username & password
+            if not testrail_config.get('username') and testrail_config.get('password'):
+                error_messages.append('No valid credentials passed for Testrail')
+            else:
+                client = TestrailApi(server=testrail_config['url'], user=testrail_config['username'], password=testrail_config['password'])
+        if client is None:
+            return None, error_messages
+        project_id = client.get_project_by_name(testrail_config['project'])['id']
+        suite_id = client.get_suite_by_name(project_id, testrail_config['suite'])['id']
 
-        project_id = tapi.get_project_by_name(testtrail_config['project'])['id']
-        suite_id = tapi.get_suite_by_name(project_id, testtrail_config['suite'])['id']
-
-        # check if test_case & test_section exists in test_suite
+        # Check if test_case & test_section exists in test_suite
         for test_case, test_result in results.iteritems():
             test_name = test_case.split('.')[3]
             test_section = test_case.split('.')[2].capitalize()
             try:
-                tapi.get_case_by_name(project_id, suite_id, test_name)
+                client.get_case_by_name(project_id, suite_id, test_name)
             except Exception:
-                # check if section exists
+                # Check if section exists
                 try:
-                    section = tapi.get_section_by_name(project_id, suite_id, test_section)
+                    section = client.get_section_by_name(project_id, suite_id, test_section)
                 except Exception:
-                    raise SectionNotFoundError('Section `{0}` is not available in testrail, please add or correct your mistake.'.format(test_section))
-
+                    error_messages.append('Test {0}: section `{1}` is not available in testrail, please add or correct your mistake.'.format(test_name, test_section))
+                    continue
                 if hasattr(TestrailCaseType, test_result['case_type']):
-                    case_type_id = tapi.get_case_type_by_name(getattr(TestrailCaseType, test_result['case_type']))['id']
+                    case_type_id = client.get_case_type_by_name(getattr(TestrailCaseType, test_result['case_type']))['id']
                 else:
-                    raise AttributeError('Attribute `{0}` does not exists as case_type '
-                                         'in TestrailCaseType'.format(test_result['case_type']))
-                # add case to existing section
-                tapi.add_case(section_id=section['id'], title=test_name, type_id=case_type_id)
+                    error_messages.append('Test {0}: attribute `{1}` does not exists as case_type in TestrailCaseType'.format(test_name, test_result['case_type']))
+                    continue
+                # Add case to existing section
+                client.add_case(section_id=section['id'], title=test_name, type_id=case_type_id)
 
-        # add plan
-        plan = tapi.add_plan(project_id, test_title, description)
-        # link suite to plan
+        # Add plan
+        plan = client.add_plan(project_id, test_title, description)
+        # Link suite to plan
 
         if not only_add_given_cases:
-            # add all tests to the test_suite, regardless of execution
-            entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'])
+            # Add all tests to the test_suite, regardless of execution
+            entry = client.add_plan_entry(plan['id'], suite_id, testrail_config['suite'])
         else:
-            # collect case_ids of executed tests
+            # Collect case_ids of executed tests
             executed_case_ids = []
             for test_case in results.iterkeys():
-                section_id = tapi.get_section_by_name(project_id, suite_id, test_case.split('.')[2].capitalize().strip())['id']
-                executed_case_ids.append(tapi.get_case_by_name(project_id=project_id, suite_id=suite_id,
-                                                               name=test_case.split('.')[3], section_id=section_id)['id'])
-            # only add tests to test_suite that have been executed
-            entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'], case_ids=executed_case_ids,
-                                        include_all=False)
+                section_id = client.get_section_by_name(project_id, suite_id, test_case.split('.')[2].capitalize().strip())['id']
+                executed_case_ids.append(client.get_case_by_name(project_id=project_id, suite_id=suite_id, name=test_case.split('.')[3], section_id=section_id)['id'])
+            # Only add tests to test_suite that have been executed
+            entry = client.add_plan_entry(plan['id'], suite_id, testrail_config['suite'], case_ids=executed_case_ids, include_all=False)
 
-        # add results to test cases
+        # Add results to test cases
         run_id = entry['runs'][0]['id']
         for test_case, test_result in results.iteritems():
-            # check if test exists
+            # Check if test exists
             test_name = test_case.split('.')[3]
-            test_id = tapi.get_test_by_name(run_id, test_name)['id']
+            test_id = client.get_test_by_name(run_id, test_name)['id']
 
             if hasattr(TestrailResult, test_result['status']):
                 test_status_id = getattr(TestrailResult, test_result['status'])
             else:
-                raise AttributeError('Attribute `{0}` does not exists as test_status in TestrailResult'
-                                     .format(test_result['status']))
-            # add results to test cases, if the've got something in the field `errors`
+                error_messages.append('Test {0}: attribute `{1}` does not exists as test_status in TestrailResult'.format(test_name, test_result['status']))
+                continue
+            # Add results to test cases, if the've got something in the field `errors`
             if test_result['errors'] is not None:
-                tapi.add_result(test_id, test_status_id, comment=str(test_result['errors']))
+                client.add_result(test_id, test_status_id, comment=str(test_result['errors']))
             else:
-                tapi.add_result(test_id, test_status_id)
+                client.add_result(test_id, test_status_id)
 
-        # end of adding results to testplan, setting other cases in SKIPPED
+        # End of adding results to testplan, setting other cases in SKIPPED
         if skip_on_no_results:
-            for test in tapi.get_tests(run_id):
+            for test in client.get_tests(run_id):
                 if test['status_id'] == TestrailResult.UNTESTED:
-                    tapi.add_result(test['id'], int(TestrailResult.SKIPPED))
+                    client.add_result(test['id'], int(TestrailResult.SKIPPED))
 
         logger.info('Finished pushing tests to testrail ...')
-        return plan['url']
+        return plan['url'], error_messages
 
     @staticmethod
     def _get_package_info():
@@ -457,9 +475,8 @@ def gather_results(case_type, logger, test_name, log_components=None):
                 return {'status': 'PASSED', 'case_type': case_type, 'errors': result}
             except Exception as ex:
                 end = datetime.datetime.now()
-                stack_trace = traceback.format_exc()
                 result_message = ['Exception occurred during {0}'.format(test_name),
-                                  'Stack trace:\n{0}\n'.format(stack_trace)]
+                                  'Stack trace:\n{0}\n'.format(traceback.format_exc())]
                 try:
                     result_message.extend(['Logs collected between {0} and {1}\n'.format(start, end),
                                            LogCollector.get_logs(components=log_components, since=start, until=end)])
