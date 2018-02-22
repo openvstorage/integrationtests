@@ -210,7 +210,6 @@ class VMHandler(CIConstants):
         try:
             # Give the listenener a heads up for the messages to come
             self.message_queue.put(self.connection_messages)
-            logger.info(self.vm_info)
             for vm_name, vm_data in self.vm_info.iteritems():
                 logger.info('Initializing creation of vm {0}'.format(vm_name))
                 self.create_vm(vm_name=vm_name,
