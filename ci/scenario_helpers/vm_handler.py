@@ -21,7 +21,6 @@ import subprocess
 from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.exceptions import VDiskNotFoundError
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorCredentials, HypervisorFactory
-from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
@@ -61,7 +60,6 @@ class VMHandler(CIConstants):
                                                     password=self.HYPERVISOR_INFO['password'],
                                                     type=self.HYPERVISOR_INFO['type'])
         self.hypervisor_client = HypervisorFactory.get(self.hv_credentials)
-        self.listing_port = NetworkHelper.get_free_port(hypervisor_ip)
 
         self.vm_info = None
         self.connection_messages = None
@@ -212,6 +210,7 @@ class VMHandler(CIConstants):
         try:
             # Give the listenener a heads up for the messages to come
             self.message_queue.put(self.connection_messages)
+            logger.info(self.vm_info)
             for vm_name, vm_data in self.vm_info.iteritems():
                 logger.info('Initializing creation of vm {0}'.format(vm_name))
                 self.create_vm(vm_name=vm_name,
@@ -295,14 +294,15 @@ class VMHandler(CIConstants):
                 'Could not generate the cloud init file on {0}. Got {1} during iso conversion.'.format(client.ip, str(ex.output)))
             raise
 
-    def listener(self, listening_host, port_queue, message_queue, result_queue, timeout=LISTEN_TIMEOUT):
+    def listener(self, listening_host, port_queue, message_queue, result_queue, event, timeout=LISTEN_TIMEOUT):
         """
         Listen to a free port on the system
         :param listening_host: ip of the listening host
         :param port_queue: Queue to broadcast the used port on
         :param message_queue: Queue to supply messages to lookout for
-        :param result_queue:
-        :param timeout:
+        :param result_queue: Queue to post results too
+        :param timeout: Timeout indicating how long to wait (in seconds)
+        :param event: Event to watch out for (when set, all polling will stop)
         """
         vm_ips_info = {}
         with remote(listening_host, [socket]) as rem:
@@ -314,35 +314,43 @@ class VMHandler(CIConstants):
                 port = listening_socket.getsockname()[1]
                 port_queue.put(port)
                 listening_socket.listen(5)
-                while message_queue.empty():
-                    if time.time() - start_time > self.SOCKET_BINDING_TIMEOUT:
-                        raise RuntimeError('Trying to receive messages timed out after {0}s'.format(self.SOCKET_BINDING_TIMEOUT))
+                try:
+                    conn, addr = listening_socket.accept()
+                    self.LOGGER.debug('Connected with {0}:{1}'.format(addr[0], addr[1]))
 
-                    time.sleep(0.5)
-                while not message_queue.empty():
-                    connection_messages = message_queue.get()
-                    self.LOGGER.debug('Connection message received: {0}'.format(connection_messages))
-                    try:
-                        while len(connection_messages) > 0:  # and not stop_event.is_set()
-                            if time.time() - start_time > timeout:
-                                raise RuntimeError('Listening timed out after {0}s'.format(timeout))
-                            conn, addr = listening_socket.accept()
-                            self.LOGGER.debug('Connected with {0}:{1}'.format(addr[0], addr[1]))
-                            data = conn.recv(1024)
-                            self.LOGGER.debug('Connector said {0}'.format(data))
-                            if data in connection_messages:
-                                connection_messages.remove(data)
-                                vm_name = data.rsplit('_', 1)[-1]
-                                self.LOGGER.debug('Recognized sender as {0}'.format(vm_name))
-                                vm_ips_info[vm_name] = {'ip': addr[0]}
-                        pass
-                    finally:
-                        message_queue.task_done()
-            except socket.error as ex:
-                self.LOGGER.error('Could not bind the socket. Got {0}'.format(str(ex)))
-                raise
+                    while message_queue.empty():
+                        if time.time() - start_time > self.SOCKET_BINDING_TIMEOUT:
+                            raise RuntimeError('Trying to receive messages timed out after {0}s'.format(self.SOCKET_BINDING_TIMEOUT))
+                        time.sleep(0.5)
+                    while not message_queue.empty():
+                        connection_messages = message_queue.get()
+                        self.LOGGER.debug('Connection message received: {0}'.format(connection_messages))
+
+                        try:
+                            while len(connection_messages) > 0 and not event.is_set():  # and not stop_event.is_set()
+                                if time.time() - start_time > timeout:
+                                    raise RuntimeError('Listening timed out after {0}s'.format(timeout))
+                                try:
+                                    data = conn.recv(1024)
+                                    self.LOGGER.debug('Connector said {0}'.format(data))
+                                    if data in connection_messages:
+                                        connection_messages.remove(data)
+                                        vm_name = data.rsplit('_', 1)[-1]
+                                        self.LOGGER.debug('Recognized sender as {0}'.format(vm_name))
+                                        vm_ips_info[vm_name] = {'ip': addr[0]}
+                                    else:
+                                        raise socket.error('Client disconnected')
+                                except Exception as ex:
+                                    self.LOGGER.error('Unhandled exception: {0}'.format(ex))
+                                    conn.close()
+                        finally:
+                            message_queue.task_done()
+                except socket.timeout:
+                    pass
+            except socket.error:
+                self.LOGGER.error('Could not bind the socket on {0}'.format(str(listening_socket.getsockname())))
             finally:
-                self.LOGGER.info('Closing connection ')
+                self.LOGGER.info('Closing connection with {0}'.format(str(listening_socket.getsockname())))
                 listening_socket.close()
         result_queue.put(vm_ips_info)
 
