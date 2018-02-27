@@ -50,7 +50,7 @@ class CIConstants(_CIConstants):
     IO_REFRESH_RATE = 5  # Refresh rate used for polling IO
     AMOUNT_TO_WRITE = 1 * 1024 ** 3  # Amount of data to RW to produce IO
 
-    HA_TIMEOUT = 300
+    HA_TIMEOUT = 400
 
     @classmethod
     def get_shell_user(cls):

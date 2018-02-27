@@ -104,7 +104,7 @@ class HATester(CIConstants):
         :type logger: ovs.log.log_handler.LogHandler
         """
         logger.info('Setting up environment for testing')
-        cluster_info = SetupHelper.setup_env(domainbased=True)
+        cluster_info = SetupHelper.setup_env(domain_based=True)
 
         to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
         compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
