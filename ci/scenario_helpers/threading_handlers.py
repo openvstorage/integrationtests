@@ -33,7 +33,7 @@ class ThreadingHandler(CIConstants):
     VDISK_THREAD_LIMIT = 5  # Each monitor thread queries x amount of vdisks
 
     @staticmethod
-    def monitor_changes(results, vdisks, r_semaphore, stop_event, refresh_rate=IO_REFRESH_RATE, logger=LOGGER):
+    def monitor_changes(results, vdisks, r_semaphore, event, refresh_rate=IO_REFRESH_RATE, logger=LOGGER):
         """
         Threading method that will check for IOPS downtimes
         :param results: variable reserved for this thread
@@ -44,13 +44,13 @@ class ThreadingHandler(CIConstants):
         :type r_semaphore: ovs.extensions.generic.threadhelpers.Waiter
         :param refresh_rate: interval between checking the io
         :param logger: logging instance
-        :param stop_event: Threading event to watch for
-        :type stop_event: threading._Event
+        :param event: Threading event to watch for
+        :type event: threading._Event
         :return: None
         :rtype: NoneType
         """
         last_recorded_iops = {}
-        while not stop_event.is_set():
+        while not event.is_set():
             general_info = results['general']
             general_info['in_progress'] = True
             has_io = []
@@ -285,11 +285,11 @@ class ThreadingHandler(CIConstants):
         return threads
 
     @classmethod
-    def _start_snapshots(cls, vdisks, stop_event, interval=60):
+    def _start_snapshots(cls, vdisks, event, interval=60):
         """
         Threading code that creates snapshots every x seconds
-        :param stop_event: Threading event that will stop the while loop
-        :type stop_event: threading._Event
+        :param event: Threading event that will stop the while loop
+        :type event: threading._Event
         :param interval: time between taking the snapshots
         :type interval: int
         :param vdisks: vdisk object
@@ -297,7 +297,7 @@ class ThreadingHandler(CIConstants):
         :return: None
         :rtype: NoneType
         """
-        while not stop_event.is_set():
+        while not event.is_set():
             start = time.time()
             for vdisk in vdisks:
                 VDiskSetup.create_snapshot(

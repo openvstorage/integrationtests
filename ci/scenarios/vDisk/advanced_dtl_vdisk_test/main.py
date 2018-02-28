@@ -114,7 +114,7 @@ class AdvancedDTLTester(CIConstants):
         :return:
         """
         logger.info('Setting up environment for testing')
-        cluster_info = SetupHelper.setup_env(domainbased=True)
+        cluster_info = SetupHelper.setup_env(domain_based=True)
 
         to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
 
@@ -222,8 +222,7 @@ class AdvancedDTLTester(CIConstants):
                                          disk_amount=disk_amount)
                 logger.info('Starting to validate move...')
                 cls._validate_move(values_to_check)
-                logger.info('Finished to validate move!')
-
+                logger.info('Finished validating move!')
                 logger.info('Validate if DTL is working correctly!')
                 unmatching_checksum_vms = []
                 for vm_name, vm_data in vm_info.iteritems():

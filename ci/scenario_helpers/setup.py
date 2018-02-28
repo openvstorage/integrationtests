@@ -1,3 +1,19 @@
+# Copyright (C) 2018 iNuron NV
+#
+# This file is part of Open vStorage Open Source Edition (OSE),
+# as available from
+#
+#      http://www.openvstorage.org and
+#      http://www.openvstorage.com.
+#
+# This file is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License v3 (GNU AGPLv3)
+# as published by the Free Software Foundation, in version 3 as it comes
+# in the LICENSE.txt file of the Open vStorage OSE distribution.
+#
+# Open vStorage is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY of any kind.
+
 import random
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.api_lib.helpers.domain import DomainHelper
@@ -10,6 +26,9 @@ from ovs.extensions.generic.logger import Logger
 
 
 class SetupHelper(CIConstants):
+    """
+    Setup helper that aids in building test environments required in vm-dependent integration tests
+    """
     LOGGER = Logger('scenario_helpers-setup_helper')
 
     @classmethod
@@ -37,7 +56,7 @@ class SetupHelper(CIConstants):
         """
         vpool = None
         for vp in VPoolHelper.get_vpools():
-            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
+            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync' and vp.name in cls.get_vpool_names():
                 vpool = vp
                 return vpool
         assert vpool is not None, 'We need at least one vpool with two storagedrivers'
@@ -77,14 +96,14 @@ class SetupHelper(CIConstants):
         return fio_bin_loc
 
     @classmethod
-    def setup_env(cls, domainbased=False):
+    def setup_env(cls, domain_based=False):
         """
         Return a dict containing instances of storagedrivers and storagerouters
-        :param domainbased:
+        :param domain_based:
         :return: dict
         """
         vpool = None
-        if domainbased:
+        if domain_based:
             destination_str, source_str, compute_str = StoragerouterHelper().get_storagerouters_by_role()
             destination_storagedriver = None
             source_storagedriver = None
@@ -94,6 +113,8 @@ class SetupHelper(CIConstants):
                 storagedrivers = DomainHelper.get_storagedrivers_in_same_domain(domain_guid=source_str.regular_domains[0])
             for storagedriver in storagedrivers:
                 if len(storagedriver.vpool.storagedrivers) < 2:
+                    continue
+                if storagedriver.vpool not in cls.get_vpool_names():
                     continue
                 if storagedriver.guid in destination_str.storagedrivers_guids:
                     if destination_storagedriver is None and (source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
