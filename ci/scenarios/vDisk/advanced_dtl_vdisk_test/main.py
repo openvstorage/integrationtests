@@ -103,8 +103,7 @@ class AdvancedDTLTester(CIConstants):
         try:
             cls.run_test(vm_info=vm_info, cluster_info=cluster_info)
         finally:
-            pass
-            # vm_handler.destroy_vms(vm_info=vm_info)
+            vm_handler.destroy_vms(vm_info=vm_info)
 
     @classmethod
     def setup(cls, logger=LOGGER):
@@ -241,11 +240,11 @@ class AdvancedDTLTester(CIConstants):
                     SystemHelper.idle_till_ovs_is_up(source_std.storage_ip, **cls.get_shell_user())
                     # @TODO: Remove when https://github.com/openvstorage/integrationtests/issues/540 is fixed
                     FwkHandler.restart_all()
-                # for vm_name, vm_data in vm_info.iteritems():
-                #     for screen_name in vm_data.get('screen_names', []):
-                #         logger.debug('Stopping screen {0} on {1}.'.format(screen_name, vm_data['client'].ip))
-                #         vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
-                #     vm_data['screen_names'] = []
+                for vm_name, vm_data in vm_info.iteritems():
+                    for screen_name in vm_data.get('screen_names', []):
+                        logger.debug('Stopping screen {0} on {1}.'.format(screen_name, vm_data['client'].ip))
+                        vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
+                    vm_data['screen_names'] = []
 
     @staticmethod
     def _validate_move(values_to_check):
