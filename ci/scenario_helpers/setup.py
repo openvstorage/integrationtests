@@ -114,7 +114,7 @@ class SetupHelper(CIConstants):
             for storagedriver in storagedrivers:
                 if len(storagedriver.vpool.storagedrivers) < 2:
                     continue
-                if storagedriver.vpool not in cls.get_vpool_names():
+                if storagedriver.vpool.name not in cls.get_vpool_names():
                     continue
                 if storagedriver.guid in destination_str.storagedrivers_guids:
                     if destination_storagedriver is None and (source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
