@@ -17,7 +17,6 @@
 NBD integtration test
 """
 
-import os
 import random
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
@@ -47,7 +46,7 @@ class NBDIntegration(CIConstants):
     VDISK_SIZE = 100 * 1024
     DEFAULT_PORT = 26203
 
-    ip = '10.100.196.1'
+    ip = '10.100.196.1'  # todo change ip to node with nbd installed on local env
 
     def __init__(self):
         cluster_info = self.setup()
@@ -55,15 +54,15 @@ class NBDIntegration(CIConstants):
         self.vd = VDiskHelper.get_vdisk_by_guid(cluster_info.get('target_vdisk'))
         credentials = 'tcp://root:rooter@{0}:{1}/{2}'.format(self.ip, self.DEFAULT_PORT, self.VDISK_NAME)
 
-        # Initialize NBD devices
+        # Initialize NBD device
         self.mgr = NBDManager()
         self.nbd_path = self.mgr.create_service(credentials)  # Create the service
         self.nbd = self.nbd_path.lstrip('/dev/')  # NBD number
         self.mgr.start_device(nbd_path=self.nbd_path)  # Start the service
-        # Parameters for testing
-        self.client = SSHClient('127.0.0.1', username='root')
 
-        # For testing fio, a job file is req. This file is stored temp. on this location
+        self.local_client = SSHClient('127.0.0.1', username='root')
+
+        # Fio output file path
         self.fio_target_file_path = '/tmp/ovs_integration_test_{0}_output'.format(self.nbd)
 
     def main(self, blocked):
@@ -94,7 +93,7 @@ class NBDIntegration(CIConstants):
 
     @classmethod
     def setup(cls):
-        # type: () -> Dict[str, VDisk]
+        # type: () -> Dict[str, str]
         """
         Setup environment for testing
         :return: Dict
@@ -123,19 +122,19 @@ class NBDIntegration(CIConstants):
         Start the test
         :return: None
         """
-        if not ServiceFactory.get_manager().get_service_status('ovs-{0}-{1}'.format(self.nbd, self.VDISK_NAME), client=self.client) == 'active':
+        if not ServiceFactory.get_manager().get_service_status('ovs-{0}-{1}'.format(self.nbd, self.VDISK_NAME), client=self.local_client) == 'active':
             raise RuntimeError('Service state is not marked as "active"')
 
         screen_names = []
         fio_config = {'io_size': self.AMOUNT_TO_WRITE, 'configuration': random.choice(self.DATA_TEST_CASES), 'bs': '4k'}
 
         try:
-            screen_names, output_files = DataWriter.write_data_fio(client=self.client,
+            screen_names, output_files = DataWriter.write_data_fio(client=self.local_client,
                                                                    fio_configuration=fio_config,
                                                                    file_locations=[self.fio_target_file_path])
         finally:
             for screen_name in screen_names:
-                self.client.run(['screen', '-S', screen_name, '-X', 'quit'])
+                self.local_client.run(['screen', '-S', screen_name, '-X', 'quit'])
 
     def cleanup(self):
         # type: () -> None
