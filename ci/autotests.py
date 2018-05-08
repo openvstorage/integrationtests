@@ -30,6 +30,22 @@ from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, Testra
 from ci.main import CONFIG_LOC
 from ovs.log.log_handler import LogHandler
 
+from ci.testrail.client import APIClient
+from ci.testrail.containers.case import Case
+from ci.testrail.containers.milestone import Milestone
+from ci.testrail.containers.project import Project
+from ci.testrail.containers.run import Run
+from ci.testrail.containers.section import Section
+from ci.testrail.containers.suite import Suite
+from ci.testrail.lists.caselist import CaseList
+from ci.testrail.lists.milestonelist import MilestoneList
+from ci.testrail.lists.projectlist import ProjectList
+from ci.testrail.lists.runlist import RunList
+from ci.testrail.lists.sectionlist import SectionList
+from ci.testrail.lists.suitelist import SuiteList
+from ci.testrail.lists.testlist import TestList
+
+
 
 class AutoTests(object):
 
@@ -39,6 +55,9 @@ class AutoTests(object):
     EXCLUDE_FLAG = "-exclude"
     with open(CONFIG_LOC, 'r') as config_file:
         CONFIG = json.load(config_file)
+
+    with open(TESTTRAIL_LOC, "r") as JSON_CONFIG:
+        TESTRAIL_CONFIG = json.load(JSON_CONFIG)
 
     @staticmethod
     def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True, exclude_scenarios=None):
@@ -62,10 +81,17 @@ class AutoTests(object):
             scenarios = ['ALL']
         if exclude_scenarios is None:
             exclude_scenarios = AutoTests.CONFIG.get('exclude_scenarios', [])
+
+        logger.info("Creating Testrail")
+        run_id = AutoTests.build_testrail()
+        logger.info("Get Testrail tests")
+        testrail_tests = AutoTests.get_tests(run_id)
         logger.info("Collecting tests.")  # Grab the tests to execute
-        tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
+        local_tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
+
+        # TODO Link local tests to testrail tests
         # print tests to be executed
-        logger.info("Executing the following tests: {0}".format(tests))
+        logger.info("Executing the following tests: {0}".format(local_tests))
         # execute the tests
         logger.info("Starting tests.")
         results = {}
@@ -89,6 +115,101 @@ class AutoTests(object):
             plan_url = AutoTests.push_to_testrail(results, only_add_given_cases=only_add_given_results)
             return results, plan_url
         return results, None
+
+    @staticmethod
+    def get_tests(run_id):
+        """
+        Get tests from a specific run
+        :param run_id: ID of the test run
+        :return: list(Test)
+        """
+        tests = {}
+        for test in TestList(run_id, AutoTests.get_testrail_client()).load():
+            tests[test.id] = test.title
+        return tests
+
+    @staticmethod
+    def build_testrail():
+        """
+        Build Testrail Project, Milestone, Test runs,...
+        :return: current run id
+        """
+        logger = AutoTests.logger
+        client = AutoTests.get_testrail_client()
+        project_name = AutoTests.TESTRAIL_CONFIG['project']
+        milestone_name = AutoTests._get_ovs_dist_version().strip()
+        suite_name = milestone_name
+        run_name = AutoTests._get_run_name()
+
+        # Check if project exists if not create one
+        try:
+            project = ProjectList(client).get_project_by_name(project_name)
+        except LookupError:
+            logger.info('Creating project `{0}`'.format(project_name))
+            project = Project(name=project_name, suite_mode=3, client=client)
+            project.save()
+
+        try:
+            milestone = MilestoneList(project.id, client).get_milestone_by_name(milestone_name)
+        except LookupError:
+            logger.info('Creating milestone `{0}`'.format(milestone_name))
+            milestone_description = AutoTests._get_milestone_description()
+            milestone = Milestone(name=milestone_name, description=str(milestone_description), project_id=project.id, client=client)
+            milestone.save()
+
+        try:
+            suite = SuiteList(project.id, client).get_suite_by_name(suite_name)
+        except LookupError:
+            logger.info('Creating suite `{0}`'.format(suite_name))
+            suite = Suite(name=suite_name, project_id=project.id, client=client)
+            suite.save()
+
+        sections_names = [name for name in os.listdir(AutoTests.TEST_SCENARIO_LOC) if os.path.isdir(AutoTests.TEST_SCENARIO_LOC + name)]
+        sections = []
+
+        for section_name in sections_names:
+            try:
+                section = SectionList(project.id, suite.id, client).get_section_by_name(section_name)
+            except LookupError:
+                logger.info('Creating section `{0}`'.format(section_name))
+                section = Section(name=section_name, project_id=project.id, suite_id=suite.id, client=client)
+                section.save()
+            section_path = AutoTests.TEST_SCENARIO_LOC + section_name + '/'
+            cases_names = [name for name in os.listdir(section_path) if os.path.isdir(section_path + name)]
+
+            for case_name in cases_names:
+                try:
+                    case = CaseList(project.id, suite.id, section.id, client).get_case_by_name(case_name)
+                except LookupError:
+                    logger.info('Creating case `{0}`'.format(case_name))
+                    case = Case(title=case_name, project_id=project.id, suite_id=suite.id, section_id=section.id, milestone_id=milestone.id, client=client)
+                    case.save()
+            sections.append(section)
+
+        try:
+            run = RunList(project.id, client).get_run_by_name(run_name)
+        except LookupError:
+            run = Run(name=run_name, project_id=project.id, suite_id=suite.id, milestone_id=milestone.id, client=client)
+            run.save()
+
+        return run.id
+
+    @staticmethod
+    def get_testrail_client():
+        """
+        Get testrail client via the default configuration
+        :return: APIClient
+        """
+        if not AutoTests.TESTRAIL_CONFIG['key']:
+            # no key provided so we will continue with username & password
+            if not AutoTests.TESTRAIL_CONFIG['username'] and AutoTests.TESTRAIL_CONFIG['password']:
+                raise RuntimeError("Invalid username or password specified for testrail")
+            else:
+                return APIClient(base_url=AutoTests.TESTRAIL_CONFIG['url'],
+                                 username=AutoTests.TESTRAIL_CONFIG['username'],
+                                 password=AutoTests.TESTRAIL_CONFIG['password'])
+        else:
+            return APIClient(AutoTests.TESTRAIL_CONFIG['url'], key=AutoTests.TESTRAIL_CONFIG['key'])
 
     @staticmethod
     def list_tests(cases=None, exclude=None, start_dir=TEST_SCENARIO_LOC, categories=None, subcategories=None, depth=1):
@@ -250,6 +371,37 @@ class AutoTests(object):
         return plan['url']
 
     @staticmethod
+    def _get_ovs_dist_version():
+        """
+        Retrieve the ovs version
+        :return: str
+        """
+        command = "cat /etc/apt/sources.list.d/ovsaptrepo.list | awk '{print $(NF-1)}'"
+
+        child_process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
+
+        (output, _error) = child_process.communicate()
+        return output
+
+    @staticmethod
+    def _get_run_name():
+        """
+        Retrieve the run name
+        :return: str
+        """
+        command = 'hostname'
+        child_process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
+        (output, _error) = child_process.communicate()
+        run_name = output + '_'
+        packages = AutoTests._get_package_info()
+        alba_voldrv_version = [pck.split('\t')[0].replace(' ', '_') for pck in packages.splitlines() if 'alba' in pck or ('volumedriver' in pck and 'base' in pck)]
+        alba_voldrv_version.sort()
+        run_name += '_'.join(alba_voldrv_version)
+        return run_name
+
+    @staticmethod
     def _get_package_info():
         """
         Retrieve package information for installation
@@ -292,6 +444,16 @@ class AutoTests(object):
             return ""
 
         return re.split("\s*", main_pkg[0])[1]
+
+    @staticmethod
+    def _get_milestone_description():
+        """
+        Retrieve extensive information about the milestone
+        :return: str
+        """
+        description_lines = ["# PACKAGE INFO", "{0}".format(AutoTests._get_package_info())]
+        # package info
+        return '\n'.join(description_lines)
 
     @staticmethod
     def _get_description():
