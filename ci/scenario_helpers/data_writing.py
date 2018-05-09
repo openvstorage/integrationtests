@@ -16,8 +16,7 @@
 import math
 import uuid
 from ovs.extensions.generic.logger import Logger
-from ovs.lib.helpers.toolbox import Toolbox
-
+from ovs_extensions.generic.toolbox import ExtensionsToolbox
 
 class DataWriter(object):
     """
@@ -56,7 +55,7 @@ class DataWriter(object):
                                'output_format': (str, ['normal', 'terse', 'json'], False),  # Output format of fio
                                'io_size': (int, None),  # Nr of bytes to write/read
                                'configuration': (tuple, None)}  # configuration params for fio.First value represents read, second one write percentage eg (10, 90)
-        Toolbox.verify_required_params(required_fio_params, fio_configuration)
+        ExtensionsToolbox.verify_required_params(required_fio_params, fio_configuration)
         if isinstance(edge_configuration, dict):
             required_edge_params = {'volumenames': (list, str),
                                     'port': (int, {'min': 1, 'max': 65535}),
@@ -65,7 +64,7 @@ class DataWriter(object):
                                     'fio_bin_location': (str, None),
                                     'username': (str, None, False),
                                     'password': (str, None, False)}
-            Toolbox.verify_required_params(required_edge_params, edge_configuration)
+            ExtensionsToolbox.verify_required_params(required_edge_params, edge_configuration)
         bs = fio_configuration.get('bs', '4k')
         iodepth = fio_configuration.get('iodepth', 32)
         fio_output_format = fio_configuration.get('output_format', 'json')

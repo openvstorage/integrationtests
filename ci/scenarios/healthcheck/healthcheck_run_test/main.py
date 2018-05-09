@@ -13,9 +13,9 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 
@@ -53,9 +53,9 @@ class HealthCheckCI(CIConstants):
         :return:
         """
         HealthCheckCI.LOGGER.info('Starting to validate the healthcheck')
-        storagerouter_master_ips = StoragerouterHelper.get_master_storagerouter_ips()
+        storagerouter_master_ips = [storagerouter.ip for storagerouter in StorageRouterList.get_masters()]
         assert len(storagerouter_master_ips) >= 1, 'Not enough MASTER storagerouters'
-        storagerouter_slave_ips = StoragerouterHelper.get_slave_storagerouter_ips()
+        storagerouter_slave_ips = [storagerouter.ip for storagerouter in StorageRouterList.get_slaves()]
 
         # setup base information
         node_ips = [storagerouter_master_ips[0], '127.0.0.1']

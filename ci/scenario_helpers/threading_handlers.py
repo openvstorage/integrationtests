@@ -20,10 +20,11 @@ import threading
 from datetime import datetime
 from ci.api_lib.helpers.thread import ThreadHelper, Waiter
 from ci.api_lib.setup.vdisk import VDiskSetup
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.logger import Logger
 
 
-class ThreadingHandler(object):
+class ThreadingHandler(CIConstants):
     """
     Contains methods using threads that are used across multiple tests
     """
@@ -32,7 +33,7 @@ class ThreadingHandler(object):
     VDISK_THREAD_LIMIT = 5  # Each monitor thread queries x amount of vdisks
 
     @staticmethod
-    def monitor_changes(results, vdisks, r_semaphore, stop_event, refresh_rate=IO_REFRESH_RATE, logger=LOGGER):
+    def monitor_changes(results, vdisks, r_semaphore, event, refresh_rate=IO_REFRESH_RATE, logger=LOGGER):
         """
         Threading method that will check for IOPS downtimes
         :param results: variable reserved for this thread
@@ -43,13 +44,13 @@ class ThreadingHandler(object):
         :type r_semaphore: ovs.extensions.generic.threadhelpers.Waiter
         :param refresh_rate: interval between checking the io
         :param logger: logging instance
-        :param stop_event: Threading event to watch for
-        :type stop_event: threading._Event
+        :param event: Threading event to watch for
+        :type event: threading._Event
         :return: None
         :rtype: NoneType
         """
         last_recorded_iops = {}
-        while not stop_event.is_set():
+        while not event.is_set():
             general_info = results['general']
             general_info['in_progress'] = True
             has_io = []
@@ -247,7 +248,7 @@ class ThreadingHandler(object):
         return output
 
     @classmethod
-    def start_snapshotting_threads(cls, volume_bundle, api, args=(), kwargs=None, logger=LOGGER):
+    def start_snapshotting_threads(cls, volume_bundle, args=(), kwargs=None, logger=LOGGER):
         """
         Start the snapshotting threads
         :param volume_bundle: bundle of volumes
@@ -269,7 +270,7 @@ class ThreadingHandler(object):
                     threads.append(ThreadHelper.start_thread_with_event(target=cls._start_snapshots,
                                                                         name='iops_{0}'.format(
                                                                             current_thread_bundle['index']),
-                                                                        args=(vdisks, api,) + args,
+                                                                        args=(vdisks,) + args,
                                                                         kwargs=kwargs))
                     current_thread_bundle['index'] = index + 1
                     current_thread_bundle['vdisks'] = []
@@ -283,12 +284,12 @@ class ThreadingHandler(object):
             raise
         return threads
 
-    @staticmethod
-    def _start_snapshots(vdisks, api, stop_event, interval=60):
+    @classmethod
+    def _start_snapshots(cls, vdisks, event, interval=60):
         """
         Threading code that creates snapshots every x seconds
-        :param stop_event: Threading event that will stop the while loop
-        :type stop_event: threading._Event
+        :param event: Threading event that will stop the while loop
+        :type event: threading._Event
         :param interval: time between taking the snapshots
         :type interval: int
         :param vdisks: vdisk object
@@ -296,14 +297,13 @@ class ThreadingHandler(object):
         :return: None
         :rtype: NoneType
         """
-        while not stop_event.is_set():
+        while not event.is_set():
             start = time.time()
             for vdisk in vdisks:
                 VDiskSetup.create_snapshot(
                     snapshot_name='{0}_{1}'.format(vdisk.name, datetime.today().strftime('%Y-%m-%d %H:%M:%S')),
                     vdisk_name=vdisk.devicename,
                     vpool_name=vdisk.vpool.name,
-                    api=api,
                     consistent=False,
                     sticky=False)
             duration = time.time() - start
