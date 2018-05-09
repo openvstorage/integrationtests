@@ -34,6 +34,7 @@ from ci.testrail.client import APIClient
 from ci.testrail.containers.case import Case
 from ci.testrail.containers.milestone import Milestone
 from ci.testrail.containers.project import Project
+from ci.testrail.containers.result import Result
 from ci.testrail.containers.run import Run
 from ci.testrail.containers.section import Section
 from ci.testrail.containers.suite import Suite
@@ -42,9 +43,9 @@ from ci.testrail.lists.milestonelist import MilestoneList
 from ci.testrail.lists.projectlist import ProjectList
 from ci.testrail.lists.runlist import RunList
 from ci.testrail.lists.sectionlist import SectionList
+from ci.testrail.lists.statuslist import StatusList
 from ci.testrail.lists.suitelist import SuiteList
 from ci.testrail.lists.testlist import TestList
-
 
 
 class AutoTests(object):
@@ -88,33 +89,73 @@ class AutoTests(object):
         testrail_tests = AutoTests.get_tests(run_id)
         logger.info("Collecting tests.")  # Grab the tests to execute
         local_tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
+        local_exclude_tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest in exclude_scenarios]
+        tests = AutoTests.link_testrail_tests(local_tests, testrail_tests)
+        if send_to_testrail:
+            logger.info("Mark the tests as retest.")
+            for test, testrail_test in tests.iteritems():
+                result = Result(test_id=testrail_test.id, status_id=StatusList.get_status_by_name('retest'),
+                                client=AutoTests.get_testrail_client())
+                result.save()
+        if len(exclude_scenarios) != 0 and send_to_testrail:
+            logger.info("Excluding the following tests: {0}".format(local_exclude_tests))
+            exclude_tests = AutoTests.link_testrail_tests(local_exclude_tests, testrail_tests)
+            for test, testrail_test in exclude_tests.iteritems():
+                logger.info("Marking test {0} as skipped.".format(test))
+                result = Result(test_id=testrail_test.id, status_id=StatusList.get_status_by_name('skipped'), client=AutoTests.get_testrail_client())
+                result.save()
 
-        # TODO Link local tests to testrail tests
-        # print tests to be executed
-        logger.info("Executing the following tests: {0}".format(local_tests))
+        logger.info("Executing the following tests: {0}".format(tests.keys()))
         # execute the tests
         logger.info("Starting tests.")
         results = {}
         blocked = False
-        for test in tests:
+        for test, testrail_test in tests.iteritems():
+            if send_to_testrail:
+                result = Result(test_id=testrail_test.id, status_id=StatusList.get_status_by_name('ongoing'),
+                                client=AutoTests.get_testrail_client())
+                result.save()
             mod = importlib.import_module('{0}.main'.format(test))
             module_result = mod.run(blocked)
-            if hasattr(TestrailResult, module_result['status']):  # check if a test has failed, if it has failed check if we should block all other tests
-                if getattr(TestrailResult, module_result['status']) == TestrailResult.FAILED and fail_on_failed_scenario:
+            if 'status' in module_result:  # check if a test has failed, if it has failed check if we should block all other tests
+                if module_result['status'] == 'failed' and fail_on_failed_scenario:
                     if 'blocking' not in module_result:
                         blocked = True  # if a test reports failed but blocked is not present = by default blocked == True
                     elif module_result['blocking'] is not False:
                         blocked = True  # if a test reports failed but blocked != False
             else:
                 raise AttributeError("Attribute `{0}` does not exists as status in TestrailResult".format(module_result['status']))
+
             # add test to results & also remove possible EXCLUDE_FLAGS on test name
+            if send_to_testrail:
+                result = Result(test_id=testrail_test.id, status_id=StatusList.get_status_by_name(module_result['status'].lower()),
+                                comment=module_result['errors'], client=AutoTests.get_testrail_client())
+                result.save()
             results[test.replace(AutoTests.EXCLUDE_FLAG, '')] = module_result
         logger.info("Finished tests.")
-        if send_to_testrail:
-            logger.info("Start pushing tests to testrail.")
-            plan_url = AutoTests.push_to_testrail(results, only_add_given_cases=only_add_given_results)
-            return results, plan_url
         return results, None
+
+    @staticmethod
+    def link_testrail_tests(tests, testrail_tests):
+        """
+        Link local tests to Testrail tests
+        :param tests: List of local tests
+        :type tests: list(str)
+        :param testrail_tests: List of Testrail tests objects
+        :type testrail_tests: list(test)
+        :return: dict
+        """
+        linked_tests = {}
+        for test in tests:
+            matching_test = [t for t in testrail_tests if t.title == test.split('.')[-1]]
+            if len(matching_test) == 1:
+                linked_tests[test] = matching_test[0]
+            elif len(matching_test) >= 1:
+                raise Exception('Only one test can be matched for {0}.'.format(test))
+            else:
+                raise Exception('No tests found for {0}.'.format(test))
+
+        return linked_tests
 
     @staticmethod
     def get_tests(run_id):
@@ -123,9 +164,9 @@ class AutoTests(object):
         :param run_id: ID of the test run
         :return: list(Test)
         """
-        tests = {}
+        tests = []
         for test in TestList(run_id, AutoTests.get_testrail_client()).load():
-            tests[test.id] = test.title
+            tests.append(test)
         return tests
 
     @staticmethod
@@ -138,8 +179,10 @@ class AutoTests(object):
         client = AutoTests.get_testrail_client()
         project_name = AutoTests.TESTRAIL_CONFIG['project']
         milestone_name = AutoTests._get_ovs_dist_version().strip()
+        milestone_description = AutoTests._get_milestone_description()
         suite_name = milestone_name
-        run_name = AutoTests._get_run_name()
+        run_name = AutoTests._get_environment_name()
+        run_description = AutoTests._get_environment_description()
 
         # Check if project exists if not create one
         try:
@@ -151,9 +194,10 @@ class AutoTests(object):
 
         try:
             milestone = MilestoneList(project.id, client).get_milestone_by_name(milestone_name)
+            milestone.description = milestone_description
+            milestone.save()
         except LookupError:
             logger.info('Creating milestone `{0}`'.format(milestone_name))
-            milestone_description = AutoTests._get_milestone_description()
             milestone = Milestone(name=milestone_name, description=str(milestone_description), project_id=project.id, client=client)
             milestone.save()
 
@@ -175,7 +219,7 @@ class AutoTests(object):
                 section = Section(name=section_name, project_id=project.id, suite_id=suite.id, client=client)
                 section.save()
             section_path = AutoTests.TEST_SCENARIO_LOC + section_name + '/'
-            cases_names = [name for name in os.listdir(section_path) if os.path.isdir(section_path + name)]
+            cases_names = [name for name in os.listdir(section_path) if os.path.isdir(section_path + name) and not name.endswith('exclude')]
 
             for case_name in cases_names:
                 try:
@@ -189,7 +233,7 @@ class AutoTests(object):
         try:
             run = RunList(project.id, client).get_run_by_name(run_name)
         except LookupError:
-            run = Run(name=run_name, project_id=project.id, suite_id=suite.id, milestone_id=milestone.id, client=client)
+            run = Run(name=run_name, project_id=project.id, description=run_description, suite_id=suite.id, milestone_id=milestone.id, client=client)
             run.save()
 
         return run.id
@@ -385,21 +429,19 @@ class AutoTests(object):
         return output
 
     @staticmethod
-    def _get_run_name():
+    def _get_environment_name():
         """
         Retrieve the run name
         :return: str
         """
-        command = 'hostname'
-        child_process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                         stderr=subprocess.PIPE)
-        (output, _error) = child_process.communicate()
-        run_name = output + '_'
-        packages = AutoTests._get_package_info()
-        alba_voldrv_version = [pck.split('\t')[0].replace(' ', '_') for pck in packages.splitlines() if 'alba' in pck or ('volumedriver' in pck and 'base' in pck)]
-        alba_voldrv_version.sort()
-        run_name += '_'.join(alba_voldrv_version)
-        return run_name
+        if 'environment_name' in AutoTests.TESTRAIL_CONFIG:
+            return AutoTests.TESTRAIL_CONFIG['environment_name']
+        else:
+            command = 'hostname'
+            child_process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                             stderr=subprocess.PIPE)
+            (output, _error) = child_process.communicate()
+            return output.strip()
 
     @staticmethod
     def _get_package_info():
@@ -452,6 +494,52 @@ class AutoTests(object):
         :return: str
         """
         description_lines = ["# PACKAGE INFO", "{0}".format(AutoTests._get_package_info())]
+        # package info
+        return '\n'.join(description_lines)
+
+    @staticmethod
+    def _get_environment_description():
+        """
+        Retrieve extensive information about the environment
+        :return: str
+        """
+        description_lines = []
+        for ip in StoragerouterHelper.get_storagerouter_ips():
+            description_lines.append('* {0}'.format(ip))
+        description_lines.append('')  # New line gap
+
+        description_lines.append('# HYPERVISOR INFO')
+        description_lines.append('{0}'.format(AutoTests.CONFIG['ci']['local_hypervisor']['type']))
+        description_lines.append('')  # New line gap
+        # fetch hardware information
+        description_lines.append("# HARDWARE INFO")
+        # board information
+        description_lines.append("### Base Board Information")
+        description_lines.append(
+            "{0}".format(subprocess.check_output("dmidecode -t 2", shell=True).replace("#", "").strip()))
+        description_lines.append('')  # New line gap
+        # fetch cpu information
+        description_lines.append("### Processor Information")
+        output = subprocess.Popen("grep 'model name'",
+                                  stdin=subprocess.Popen("cat /proc/cpuinfo", stdout=subprocess.PIPE,
+                                                         shell=True).stdout, stdout=subprocess.PIPE, shell=True)
+        cpus = subprocess.check_output("cut -d ':' -f 2", stdin=output.stdout, shell=True).strip().split('\n')
+        description_lines.append("* Type: {0}".format(cpus[0]))
+        description_lines.append("* Amount: {0}".format(len(cpus)))
+        description_lines.append('')  # New line gap
+        # fetch memory information
+        description_lines.append("### Memory Information")
+        output = math.ceil(float(subprocess.check_output("grep MemTotal", stdin=subprocess.Popen("cat /proc/meminfo",
+                                                                                                 stdout=subprocess.PIPE,
+                                                                                                 shell=True).stdout,
+                                                         shell=True).strip().split()[1]) / 1024 / 1024)
+        description_lines.append("* {0}GiB System Memory".format(int(output)))
+        description_lines.append('')  # New line gap
+        # fetch disk information
+        description_lines.append("### Disk Information")
+        output = subprocess.check_output("lsblk", shell=True)
+        description_lines.append(output.strip())
+        description_lines.append('')  # New line gap
         # package info
         return '\n'.join(description_lines)
 
@@ -573,6 +661,29 @@ class LogCollector(object):
         return LogFileTimeParser.execute_search_on_remote(since=since, until=until, search_locations=units)
 
 
+def get_package_version(package_names):
+    """
+    Retrieve the package version
+    :param package_names: list of packages
+    :type package_names: list(str)
+    :return: list(str)
+    """
+    package_versions = []
+
+    packages = [pck.split('\t')[0] for pck in AutoTests._get_package_info().splitlines()]
+
+    if 'framework' in package_names:
+        package_versions.extend([pck for pck in packages if 'openvstorage' in pck])
+    if 'alba' in package_names:
+        package_versions.extend([pck for pck in packages if 'alba' in pck])
+    if 'arakoon' in package_names:
+        package_versions.extend([pck for pck in packages if 'arakoon' in pck])
+    if 'volumedriver' in package_names:
+        package_versions.extend([pck for pck in packages if 'volumedriver' in pck])
+
+    return package_versions
+
+
 def gather_results(case_type, logger, test_name, log_components=None):
     """
     Result gathering to be used as decorator for the autotests
@@ -609,6 +720,10 @@ def gather_results(case_type, logger, test_name, log_components=None):
             start = datetime.datetime.now()
             try:
                 func_args = inspect.getargspec(func)[0]
+                if len(log_components) == 0:
+                    package_versions = []
+                else:
+                    package_versions = get_package_version([component.keys() for component in log_components])
                 try:
                     blocked_index = func_args.index('blocked')  # Expect blocked
                 except ValueError:
@@ -617,13 +732,13 @@ def gather_results(case_type, logger, test_name, log_components=None):
                 if kwargs.get('blocked') is None:  # in args
                     blocked = args[blocked_index]
                 if blocked is True:
-                    return {'status': 'BLOCKED', 'case_type': case_type, 'errors': None}
+                    return {'status': 'BLOCKED', 'case_type': case_type, 'errors': None, 'version': '\n'.join(package_versions)}
                 result = func(*args, **kwargs)  # Execute the method
-                return {'status': 'PASSED', 'case_type': case_type, 'errors': result}
+                return {'status': 'PASSED', 'case_type': case_type, 'errors': result, 'version': '\n'.join(package_versions)}
             except Exception as ex:
                 end = datetime.datetime.now()
                 result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(components=log_components, since=start, until=end)]
                 logger.error('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
-                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False}
+                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False, 'version': '\n'.join(package_versions)}
         return wrapped
     return wrapper
