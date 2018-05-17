@@ -21,6 +21,7 @@ import os
 import re
 import json
 import math
+import traceback
 import importlib
 import subprocess
 from datetime import datetime
@@ -30,22 +31,22 @@ from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, Testra
 from ci.main import CONFIG_LOC
 from ovs.log.log_handler import LogHandler
 
-from ci.testrail.client import APIClient
-from ci.testrail.containers.case import Case
-from ci.testrail.containers.milestone import Milestone
-from ci.testrail.containers.project import Project
-from ci.testrail.containers.result import Result
-from ci.testrail.containers.run import Run
-from ci.testrail.containers.section import Section
-from ci.testrail.containers.suite import Suite
-from ci.testrail.lists.caselist import CaseList
-from ci.testrail.lists.milestonelist import MilestoneList
-from ci.testrail.lists.projectlist import ProjectList
-from ci.testrail.lists.runlist import RunList
-from ci.testrail.lists.sectionlist import SectionList
-from ci.testrail.lists.statuslist import StatusList
-from ci.testrail.lists.suitelist import SuiteList
-from ci.testrail.lists.testlist import TestList
+from ci.api_lib.testrail.client import APIClient
+from ci.api_lib.testrail.containers.case import Case
+from ci.api_lib.testrail.containers.milestone import Milestone
+from ci.api_lib.testrail.containers.project import Project
+from ci.api_lib.testrail.containers.result import Result
+from ci.api_lib.testrail.containers.run import Run
+from ci.api_lib.testrail.containers.section import Section
+from ci.api_lib.testrail.containers.suite import Suite
+from ci.api_lib.testrail.lists.caselist import CaseList
+from ci.api_lib.testrail.lists.milestonelist import MilestoneList
+from ci.api_lib.testrail.lists.projectlist import ProjectList
+from ci.api_lib.testrail.lists.runlist import RunList
+from ci.api_lib.testrail.lists.sectionlist import SectionList
+from ci.api_lib.testrail.lists.statuslist import StatusList
+from ci.api_lib.testrail.lists.suitelist import SuiteList
+from ci.api_lib.testrail.lists.testlist import TestList
 
 
 class AutoTests(object):
@@ -78,6 +79,7 @@ class AutoTests(object):
         :rtype: tuple
         """
         logger = AutoTests.logger
+        error_messages = []
         if scenarios is None:
             scenarios = ['ALL']
         if exclude_scenarios is None:
@@ -91,18 +93,18 @@ class AutoTests(object):
         local_tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
         local_exclude_tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest in exclude_scenarios]
         tests = AutoTests.link_testrail_tests(local_tests, testrail_tests)
-        if send_to_testrail:
-            logger.info("Mark the tests as retest.")
-            for test, testrail_test in tests.iteritems():
-                result = Result(test_id=testrail_test.id, status_id=StatusList.get_status_by_name('retest'),
-                                client=AutoTests.get_testrail_client())
-                result.save()
+        # if send_to_testrail:
+        #     logger.info("Mark the tests as retest.")
+        #     for test, testrail_test in tests.iteritems():
+        #         result = Result(test_id=testrail_test.id, status_id=StatusList(AutoTests.get_testrail_client()).get_status_by_name('retest').id,
+        #                         client=AutoTests.get_testrail_client())
+        #         result.save()
         if len(exclude_scenarios) != 0 and send_to_testrail:
             logger.info("Excluding the following tests: {0}".format(local_exclude_tests))
             exclude_tests = AutoTests.link_testrail_tests(local_exclude_tests, testrail_tests)
             for test, testrail_test in exclude_tests.iteritems():
                 logger.info("Marking test {0} as skipped.".format(test))
-                result = Result(test_id=testrail_test.id, status_id=StatusList.get_status_by_name('skipped'), client=AutoTests.get_testrail_client())
+                result = Result(test_id=testrail_test.id, status_id=StatusList(AutoTests.get_testrail_client()).get_status_by_name('skipped').id, client=AutoTests.get_testrail_client())
                 result.save()
 
         logger.info("Executing the following tests: {0}".format(tests.keys()))
@@ -111,11 +113,23 @@ class AutoTests(object):
         results = {}
         blocked = False
         for test, testrail_test in tests.iteritems():
+            logger.info('\n{:=^100}\n'.format(test))
             if send_to_testrail:
-                result = Result(test_id=testrail_test.id, status_id=StatusList.get_status_by_name('ongoing'),
+                result = Result(test_id=testrail_test.id, status_id=StatusList(AutoTests.get_testrail_client()).get_status_by_name('ongoing').id,
                                 client=AutoTests.get_testrail_client())
                 result.save()
-            mod = importlib.import_module('{0}.main'.format(test))
+            try:
+                mod = importlib.import_module('{0}.main'.format(test))
+            except Exception:
+                message = 'Unable to import test {0}'.format(test)
+                logger.exception(message)
+                error_messages.append('{0}: \n {1}'.format(message, traceback.format_exc()))
+                if send_to_testrail:
+                    result = Result(test_id=testrail_test.id,
+                                    status_id=StatusList(AutoTests.get_testrail_client()).get_status_by_name('failed').id,
+                                    comment=str(error_messages), client=AutoTests.get_testrail_client())
+                    result.save()
+                continue
             module_result = mod.run(blocked)
             if 'status' in module_result:  # check if a test has failed, if it has failed check if we should block all other tests
                 if module_result['status'] == 'failed' and fail_on_failed_scenario:
@@ -124,15 +138,17 @@ class AutoTests(object):
                     elif module_result['blocking'] is not False:
                         blocked = True  # if a test reports failed but blocked != False
             else:
-                raise AttributeError("Attribute `{0}` does not exists as status in TestrailResult".format(module_result['status']))
+                error_messages.append('Test {0} returned attribute `{1}` which does not exists as status in TestrailResult'.format(test, module_result['status']))
 
             # add test to results & also remove possible EXCLUDE_FLAGS on test name
             if send_to_testrail:
-                result = Result(test_id=testrail_test.id, status_id=StatusList.get_status_by_name(module_result['status'].lower()),
-                                comment=module_result['errors'], client=AutoTests.get_testrail_client())
+                result = Result(test_id=testrail_test.id, status_id=StatusList(AutoTests.get_testrail_client()).get_status_by_name(module_result['status'].lower()).id,
+                                comment=str(module_result['errors']), client=AutoTests.get_testrail_client())
                 result.save()
             results[test.replace(AutoTests.EXCLUDE_FLAG, '')] = module_result
         logger.info("Finished tests.")
+        if len(error_messages) > 0:
+            raise RuntimeError('Unhandled errors occurred during the Autotests: \n - {0}'.format('\n - '.join(error_messages)))
         return results, None
 
     @staticmethod
@@ -181,7 +197,7 @@ class AutoTests(object):
         milestone_name = AutoTests._get_ovs_dist_version().strip()
         milestone_description = AutoTests._get_milestone_description()
         suite_name = milestone_name
-        run_name = AutoTests._get_environment_name()
+        run_name = "{0}-{1}".format(AutoTests._get_environment_name(), datetime.now().strftime('%Y-%m-%d'))
         run_description = AutoTests._get_environment_description()
 
         # Check if project exists if not create one
@@ -503,7 +519,7 @@ class AutoTests(object):
         Retrieve extensive information about the environment
         :return: str
         """
-        description_lines = []
+        description_lines = ['# IP INFO']
         for ip in StoragerouterHelper.get_storagerouter_ips():
             description_lines.append('* {0}'.format(ip))
         description_lines.append('')  # New line gap
@@ -720,10 +736,6 @@ def gather_results(case_type, logger, test_name, log_components=None):
             start = datetime.datetime.now()
             try:
                 func_args = inspect.getargspec(func)[0]
-                if len(log_components) == 0:
-                    package_versions = []
-                else:
-                    package_versions = get_package_version([component.keys() for component in log_components])
                 try:
                     blocked_index = func_args.index('blocked')  # Expect blocked
                 except ValueError:
@@ -732,13 +744,20 @@ def gather_results(case_type, logger, test_name, log_components=None):
                 if kwargs.get('blocked') is None:  # in args
                     blocked = args[blocked_index]
                 if blocked is True:
-                    return {'status': 'BLOCKED', 'case_type': case_type, 'errors': None, 'version': '\n'.join(package_versions)}
+                    return {'status': 'BLOCKED', 'case_type': case_type, 'errors': None}
                 result = func(*args, **kwargs)  # Execute the method
-                return {'status': 'PASSED', 'case_type': case_type, 'errors': result, 'version': '\n'.join(package_versions)}
+                return {'status': 'PASSED', 'case_type': case_type, 'errors': result}
             except Exception as ex:
                 end = datetime.datetime.now()
-                result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(components=log_components, since=start, until=end)]
+                stack_trace = traceback.format_exc()
+                result_message = ['Exception occurred during {0}'.format(test_name), 'Stack trace:\n{0}\n'.format(stack_trace)]
+                try:
+                    result_message.extend(['Logs collected between {0} and {1}\n'.format(start, end),
+                                           LogCollector.get_logs(components=log_components, since=start, until=end)])
+                except Exception:
+                    result_message.extend(['Logs could not be collected between {0} and {1}\n'.format(start, end),
+                                           'Stack trace:\n {0}'.format(traceback.format_exc())])
                 logger.error('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
-                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False, 'version': '\n'.join(package_versions)}
+                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result_message), 'blocking': False}
         return wrapped
     return wrapper

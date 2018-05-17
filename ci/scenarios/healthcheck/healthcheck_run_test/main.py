@@ -50,7 +50,6 @@ class HealthCheckCI(CIConstants):
         Validate if the healthcheck works
         Will always check: localhost & master
         Will check if available: slave
-        :return:
         """
         HealthCheckCI.LOGGER.info('Starting to validate the healthcheck')
         storagerouter_master_ips = StoragerouterHelper.get_master_storagerouter_ips()
@@ -112,7 +111,6 @@ class HealthCheckCI(CIConstants):
             assert recap['EXCEPTION'] == 0, '{0} exception(s) found during the healthcheck run: {1}'.format(recap['EXCEPTION'], dict(mapped_result['EXCEPTION'], **mapped_result['FAILED']))
             assert recap['FAILED'] == 0, '{0} failure(s) found during the healthcheck run: {1}'.format(recap['FAILED'], mapped_result['FAILED'])
             HealthCheckCI.LOGGER.info('Finished validating the healthcheck')
-            return hc_output
 
 
 def run(blocked=False):
