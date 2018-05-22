@@ -13,16 +13,16 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
+from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
 
 
 class HealthCheckCI(CIConstants):
 
-    CASE_TYPE = 'FUNCTIONAL'
+    CASE_TYPE = 'FUNCTIONALITY'
     TEST_NAME = 'ci_scenario_healthcheck'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
 
@@ -50,11 +50,12 @@ class HealthCheckCI(CIConstants):
         Validate if the healthcheck works
         Will always check: localhost & master
         Will check if available: slave
+        :return:
         """
         HealthCheckCI.LOGGER.info('Starting to validate the healthcheck')
-        storagerouter_master_ips = StoragerouterHelper.get_master_storagerouter_ips()
+        storagerouter_master_ips = [storagerouter.ip for storagerouter in StorageRouterList.get_masters()]
         assert len(storagerouter_master_ips) >= 1, 'Not enough MASTER storagerouters'
-        storagerouter_slave_ips = StoragerouterHelper.get_slave_storagerouter_ips()
+        storagerouter_slave_ips = [storagerouter.ip for storagerouter in StorageRouterList.get_slaves()]
 
         # setup base information
         node_ips = [storagerouter_master_ips[0], '127.0.0.1']
@@ -111,6 +112,7 @@ class HealthCheckCI(CIConstants):
             assert recap['EXCEPTION'] == 0, '{0} exception(s) found during the healthcheck run: {1}'.format(recap['EXCEPTION'], dict(mapped_result['EXCEPTION'], **mapped_result['FAILED']))
             assert recap['FAILED'] == 0, '{0} failure(s) found during the healthcheck run: {1}'.format(recap['FAILED'], mapped_result['FAILED'])
             HealthCheckCI.LOGGER.info('Finished validating the healthcheck')
+            return hc_output
 
 
 def run(blocked=False):
@@ -122,5 +124,7 @@ def run(blocked=False):
     """
     return HealthCheckCI().main(blocked)
 
+
 if __name__ == '__main__':
     run()
+

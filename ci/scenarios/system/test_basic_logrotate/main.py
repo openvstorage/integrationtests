@@ -66,5 +66,6 @@ def run(blocked=False):
     """
     return LogrotateChecks().main(blocked)
 
+
 if __name__ == "__main__":
     run()

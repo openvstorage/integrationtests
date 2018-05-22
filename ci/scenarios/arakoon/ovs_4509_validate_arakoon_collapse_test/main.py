@@ -16,18 +16,18 @@
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs_extensions.generic.remote import remote
 from ovs.dal.hybrids.servicetype import ServiceType
 from ovs.dal.lists.servicelist import ServiceList
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs_extensions.generic.remote import remote
 from ovs.lib.generic import GenericController
 from ovs.log.log_handler import LogHandler
 
 
 class ArakoonCollapse(CIConstants):
 
-    CASE_TYPE = 'FUNCTIONAL'
+    CASE_TYPE = 'FUNCTIONALITY'
     TEST_NAME = "ci_scenario_arakoon_collapse"
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
 
@@ -133,6 +133,7 @@ def run(blocked=False):
     """
 
     return ArakoonCollapse().main(blocked)
+
 
 if __name__ == "__main__":
     run()

@@ -29,7 +29,6 @@ from ovs.log.log_handler import LogHandler
 
 
 class FioOnVDiskChecks(CIConstants):
-
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_fio_on_vdisk"
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
@@ -75,12 +74,14 @@ class FioOnVDiskChecks(CIConstants):
         storagedriver = vpool.storagedrivers[0]
         client = SSHClient(storagedriver.storagerouter, username='root')
         # Check if image exists
-        assert client.file_exists(images[0]), "Image `{0}` does not exists on `{1}`!".format(images[0], storagedriver.storage_ip)
+        assert client.file_exists(images[0]), "Image `{0}` does not exists on `{1}`!".format(images[0],
+                                                                                             storagedriver.storage_ip)
         image_path = images[0]
         return storagedriver, image_path
-    
+
     @classmethod
-    def run_test(cls, storagedriver, image_path, amount_vdisks=AMOUNT_VDISKS, amount_to_write=AMOUNT_TO_WRITE, logger=LOGGER):
+    def run_test(cls, storagedriver, image_path, amount_vdisks=AMOUNT_VDISKS, amount_to_write=AMOUNT_TO_WRITE,
+                 logger=LOGGER):
         """
         Validate if fio works on a vdisk via edge
         INFO:
@@ -108,9 +109,8 @@ class FioOnVDiskChecks(CIConstants):
         :param disk_amount: amount of disks to deploy and write/read to
         :param write_amount: amount of data to parse for writing/reading
         :param logger: logging instance
-        :return: 
+        :return:
         """
-        api = cls.get_api_instance()
         vpool = storagedriver.vpool
         client = SSHClient(storagedriver.storagerouter, username='root')
         vdisk_info = {}
@@ -123,15 +123,17 @@ class FioOnVDiskChecks(CIConstants):
                 vdisk = cls._get_vdisk('{0}.raw'.format(vdisk_name), vpool.name)
                 vdisk_info[disk_location] = vdisk
             fio_configuration = {'io_size': write_amount, 'configuration': (0, 100)}
-            DataWriter.write_data_fio(client, fio_configuration, file_locations=vdisk_info.keys(), screen=False, loop_screen=False)
+            DataWriter.write_data_fio(client, fio_configuration, file_locations=vdisk_info.keys(), screen=False,
+                                      loop_screen=False)
             fio_configuration = {'io_size': write_amount, 'configuration': (100, 0)}
-            DataWriter.write_data_fio(client, fio_configuration, file_locations=vdisk_info.keys(), screen=False, loop_screen=False)
+            DataWriter.write_data_fio(client, fio_configuration, file_locations=vdisk_info.keys(), screen=False,
+                                      loop_screen=False)
         except Exception as ex:
             logger.error('An exception occur while testing edge+blktap: {0}'.format(str(ex)))
             raise
         finally:
             for vdisk in vdisk_info.values():
-                VDiskRemover.remove_vdisk_by_name(vdisk.devicename, vdisk.vpool.name, api)
+                VDiskRemover.remove_vdisk_by_name(vdisk.devicename, vdisk.vpool.name)
 
     @staticmethod
     def _get_vdisk(vdisk_name, vpool_name, timeout=60, logger=LOGGER):
@@ -142,7 +144,7 @@ class FioOnVDiskChecks(CIConstants):
         :param vpool_name: name of the vpool
         :param timeout: time to poll before raising
         :param logger: logging instance
-        :return: 
+        :return:
         """
         vdisk = None
         start = time.time()
@@ -169,7 +171,6 @@ class FioOnVDiskChecks(CIConstants):
         :param logger: logging instance
         :return: None
         """
-        api = cls.get_api_instance()
         client = SSHClient(storagedriver.storagerouter, username='root')
         vpool = storagedriver.vpool
         edge_info = {'port': storagedriver.ports['edge'],
@@ -183,13 +184,16 @@ class FioOnVDiskChecks(CIConstants):
                 vdisk_name = '{0}_{1}_-blktap'.format(cls.PREFIX, vdisk_number)
                 logger.info("Converting image {0} to {1}:{2}".format(image_path, edge_info['ip'], vdisk_name))
                 VMHandler.convert_image(client, image_path, vdisk_name, edge_info)
-                logger.info("Creating a tap blk device for image.{0}:{1}".format(image_path, edge_info['ip'], vdisk_name))
+                logger.info(
+                    "Creating a tap blk device for image.{0}:{1}".format(image_path, edge_info['ip'], vdisk_name))
                 tap_dir = VMHandler.create_blktap_device(client, vdisk_name, edge_info)
                 vdisk_info[vdisk_name] = tap_dir
             fio_configuration = {'io_size': write_amount, 'configuration': (0, 100)}
-            DataWriter.write_data_fio(client, fio_configuration, file_locations=vdisk_info.values(), screen=False, loop_screen=False)
+            DataWriter.write_data_fio(client, fio_configuration, file_locations=vdisk_info.values(), screen=False,
+                                      loop_screen=False)
             fio_configuration = {'io_size': write_amount, 'configuration': (100, 0)}
-            DataWriter.write_data_fio(client, fio_configuration, file_locations=vdisk_info.values(), screen=False, loop_screen=False)
+            DataWriter.write_data_fio(client, fio_configuration, file_locations=vdisk_info.values(), screen=False,
+                                      loop_screen=False)
         except Exception as ex:
             logger.error('An exception occur while testing edge+blktap: {0}'.format(str(ex)))
             raise
@@ -209,7 +213,7 @@ class FioOnVDiskChecks(CIConstants):
                     raise ValueError('Unable to destroy the blocktap connection because its output format has changed.')
                 client.run(["tap-ctl", "destroy", "-p", tap_conn_pid, "-m", tap_conn_minor])
             for vdisk_name in vdisk_info.keys():
-                VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool.name, api)
+                VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool.name)
 
 
 def run(blocked=False):
@@ -221,6 +225,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return FioOnVDiskChecks().main(blocked)
+
 
 if __name__ == "__main__":
     run()

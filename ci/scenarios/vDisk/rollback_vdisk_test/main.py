@@ -16,8 +16,6 @@
 import json
 import time
 import subprocess
-from ci.main import CONFIG_LOC
-from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.exceptions import VDiskNotFoundError
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.helpers.vdisk import VDiskHelper
@@ -34,7 +32,7 @@ class RollbackChecks(CIConstants):
     CASE_TYPE = 'AT_QUICK'
     TEST_NAME = "ci_scenario_rollback"
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
-    SIZE_VDISK = 52428800
+    SIZE_VDISK = 50 * 1024 ** 2
     VDISK_NAME = "integration-tests-rollback"
     MAX_ROLLBACK_CHECKS = 20
     ROLLBACK_TIMEOUT = 45
@@ -61,8 +59,8 @@ class RollbackChecks(CIConstants):
         _ = blocked
         return RollbackChecks.validate_rollback()
 
-    @staticmethod
-    def validate_rollback():
+    @classmethod
+    def validate_rollback(cls):
         """
         Validate if scrubbing works on a vpool
 
@@ -71,15 +69,8 @@ class RollbackChecks(CIConstants):
         :return:
         """
 
-        RollbackChecks.LOGGER.info("Starting to validate the rollback")
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
+        cls.LOGGER.info("Starting to validate the rollback")
 
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
         vpool = vpools[0]  # just pick the first vpool you find
@@ -88,45 +79,44 @@ class RollbackChecks(CIConstants):
         # create vdisks and write some stuff on it
         storagedriver = vpool.storagedrivers[0]  # just pick the first storagedriver you find
         # start actual test
-        for cloned in list(RollbackChecks.TYPE_TEST_RUN):
+        for cloned in list(cls.TYPE_TEST_RUN):
             start = time.time()
-            RollbackChecks.LOGGER.info("Starting deployment of required vdisks")
-            deployed_vdisks = RollbackChecks._deploy_vdisks(vpool=vpool, storagedriver=storagedriver, api=api,
+            cls.LOGGER.info("Starting deployment of required vdisks")
+            deployed_vdisks = cls._deploy_vdisks(vpool=vpool, storagedriver=storagedriver,
                                                             cloned=cloned)
-            RollbackChecks.LOGGER.info("Received vdisks to be rolledback: `{0}`".format(deployed_vdisks[0]))
-            RollbackChecks._rollback_vdisks(stored_vdisks=deployed_vdisks[0], api=api, vpool=vpool)
-            RollbackChecks.LOGGER.info("Finished rolling back vdisks, start deleting possible base vdisks: {0}"
+            cls.LOGGER.info("Received vdisks to be rolledback: `{0}`".format(deployed_vdisks[0]))
+            cls._rollback_vdisks(stored_vdisks=deployed_vdisks[0], vpool=vpool)
+            cls.LOGGER.info("Finished rolling back vdisks, start deleting possible base vdisks: {0}"
                                        .format(deployed_vdisks[1]))
             end = time.time()
             # clean base disks from clones
             if cloned:
-                RollbackChecks._delete_remaining_vdisks(base_vdisks=deployed_vdisks[1], api=api)
-                RollbackChecks.LOGGER.info("Finished deleting base vdisks")
+                cls._delete_remaining_vdisks(base_vdisks=deployed_vdisks[1])
+                cls.LOGGER.info("Finished deleting base vdisks")
             else:
-                RollbackChecks.LOGGER.info("Skipped deleting base vdisks")
+                cls.LOGGER.info("Skipped deleting base vdisks")
 
             # display run time
-            RollbackChecks.LOGGER.info("Run with clone status `{0}` took {1} seconds".format(cloned, int(end - start)))
+                cls.LOGGER.info("Run with clone status `{0}` took {1} seconds".format(cloned, int(end - start)))
 
-        RollbackChecks.LOGGER.info("Finished to validate the rollback")
+                cls.LOGGER.info("Finished to validate the rollback")
 
-    @staticmethod
-    def _delete_remaining_vdisks(base_vdisks, api):
+    @classmethod
+    def _delete_remaining_vdisks(cls, base_vdisks):
         """
         Delete remaining base vdisks (when performing cloned=True)
         :param base_vdisks: vdisk_guids of a base_vdisks ['a15908c0-f7f0-402e-ad20-2be97e401cd3', ...]
         :type: list
-        :param api: api instance
         :return: None
         """
 
         for vdisk_guid in base_vdisks:
-            RollbackChecks.LOGGER.info("Starting to remove base vDisk `{0}`".format(vdisk_guid))
-            VDiskRemover.remove_vdisk(vdisk_guid, api)
-            RollbackChecks.LOGGER.info("Finished to remove base vDisk `{0}`".format(vdisk_guid))
+            cls.LOGGER.info("Starting to remove base vDisk `{0}`".format(vdisk_guid))
+            VDiskRemover.remove_vdisk(vdisk_guid)
+            cls.LOGGER.info("Finished to remove base vDisk `{0}`".format(vdisk_guid))
 
-    @staticmethod
-    def _deploy_vdisks(vpool, storagedriver, api, size=SIZE_VDISK, amount_vdisks=AMOUNT_VDISKS, cloned=False):
+    @classmethod
+    def _deploy_vdisks(cls, vpool, storagedriver, size=SIZE_VDISK, amount_vdisks=AMOUNT_VDISKS, cloned=False):
         """
         Deploy X amount of vdisks, write some data to it & snapshot
         :param vpool: a valid vpool object
@@ -135,8 +125,6 @@ class RollbackChecks(CIConstants):
         :type storagedriver: ovs.mode.hybrids.storagedriver
         :param size: size of a single vdisk in bytes
         :type size: int
-        :param api: specify a valid api connection to the setup
-        :type api: ci.api_lib.helpers.api.OVSClient
         :return: tuple[0]: stored vdisks, snapshot, location; tuple[1]: base_vdisks_guids that are used for clones
         [{
             'vdisk_guid': u 'b789b23e-1077-4d96-9ec2-a7cc3785686c',
@@ -170,36 +158,35 @@ class RollbackChecks(CIConstants):
         :rtype: tuple
         """
 
-        RollbackChecks.LOGGER.info("Starting deploying {0} vdisks with clone status: {1}".format(amount_vdisks, cloned))
+        cls.LOGGER.info("Starting deploying {0} vdisks with clone status: {1}".format(amount_vdisks, cloned))
 
         client = SSHClient(storagedriver.storagerouter.ip, username='root')
         vdisks = []
         base_vdisks = []
         for vdisk_nr in xrange(amount_vdisks):
             # create a vdisk & collect results
-            vdisk_name = RollbackChecks.VDISK_NAME + str(vdisk_nr)
+            vdisk_name = cls.VDISK_NAME + str(vdisk_nr)
 
             vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name+'.raw', vpool_name=vpool.name,
-                                                 size=size, api=api, storagerouter_ip=storagedriver.storagerouter.ip)
+                                                 size=size, storagerouter_ip=storagedriver.storagerouter.ip)
             # clone
             if cloned:
                 clone_vdisk_name = vdisk_name + '_clone'
-                RollbackChecks.LOGGER.info("Creating clone from vdisk `{0}` with new name `{1}`"
+                cls.LOGGER.info("Creating clone from vdisk `{0}` with new name `{1}`"
                                            .format(vdisk_name, clone_vdisk_name))
                 base_vdisks.append(str(vdisk_guid))
-                RollbackChecks.LOGGER.info("Stored old base vdisk guid in list: {0}".format(vdisk_guid))
+                cls.LOGGER.info("Stored old base vdisk guid in list: {0}".format(vdisk_guid))
                 vdisk_guid = VDiskSetup.create_clone(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
                                                      new_vdisk_name=clone_vdisk_name,
-                                                     storagerouter_ip=storagedriver.storagerouter.ip,
-                                                     api=api)['vdisk_guid']
+                                                     storagerouter_ip=storagedriver.storagerouter.ip)['vdisk_guid']
                 vdisk_name = clone_vdisk_name
 
             vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
             results = {'vdisk_guid': vdisk_guid, 'snapshots': {}}
-            RollbackChecks.LOGGER.info("Finished deploying vdisk `{0}`".format(vdisk_name))
+            cls.LOGGER.info("Finished deploying vdisk `{0}`".format(vdisk_name))
 
-            RollbackChecks.LOGGER.info("Starting writing & snapshotting vdisk `{0}`".format(vdisk_name))
-            for i in xrange(RollbackChecks.WRITE_AMOUNT_OF_TIMES):
+            cls.LOGGER.info("Starting writing & snapshotting vdisk `{0}`".format(vdisk_name))
+            for i in xrange(cls.WRITE_AMOUNT_OF_TIMES):
                 # write some data
                 try:
                     RollbackChecks.LOGGER.info("Starting FIO on vdisk `{0}`".format(vdisk_name))
@@ -213,27 +200,27 @@ class RollbackChecks(CIConstants):
                                              "or has problems on storagerouter `{2}`: {3}"
                                              .format(vpool.name, vdisk_name, storagedriver.storagerouter.ip, str(ex)))
                 # create snapshot
-                RollbackChecks.LOGGER.info("Starting snapshot creation on vdisk `{0}`"
+                cls.LOGGER.info("Starting snapshot creation on vdisk `{0}`"
                                            .format(vdisk_name))
                 snapshot_guid = VDiskSetup.create_snapshot(snapshot_name=vdisk_name + '-snapshot{0}'.format(i),
                                                            vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
-                                                           api=api, consistent=False, sticky=False)
+                                                           consistent=False, sticky=False)
                 # save the current stored_data for comparison
                 stored_data = vdisk.storagedriver_client.info_volume(str(vdisk.volume_id)).stored
-                RollbackChecks.LOGGER.info("Logged `{0}` stored data for VDisk `{1}` in mapper"
+                cls.LOGGER.info("Logged `{0}` stored data for VDisk `{1}` in mapper"
                                            .format(stored_data, vdisk_name))
                 # add details to snapshot mapper
                 results['snapshots'][i] = {'snapshot_guid': snapshot_guid,
                                            'snapshot_name': vdisk_name + '-snapshot{0}'.format(i),
                                            'stored_data': stored_data}
-                RollbackChecks.LOGGER.info("Snapshot creation finished on vdisk `{0}`".format(vdisk_name))
+                cls.LOGGER.info("Snapshot creation finished on vdisk `{0}`".format(vdisk_name))
             vdisks.append(results)
-            RollbackChecks.LOGGER.info("Finished writing & snapshotting vdisk `{0}`. Results: {1}"
+            cls.LOGGER.info("Finished writing & snapshotting vdisk `{0}`. Results: {1}"
                                        .format(vdisk_name, results))
         return vdisks, base_vdisks
 
-    @staticmethod
-    def _rollback_vdisks(stored_vdisks, vpool, api, amount_checks=MAX_ROLLBACK_CHECKS, timeout=ROLLBACK_TIMEOUT):
+    @classmethod
+    def _rollback_vdisks(cls, stored_vdisks, vpool, amount_checks=MAX_ROLLBACK_CHECKS, timeout=ROLLBACK_TIMEOUT):
         """
         Rollback the given mapped vdisks
 
@@ -253,24 +240,24 @@ class RollbackChecks(CIConstants):
             vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid=stored_vdisk['vdisk_guid'])
 
             # Commencing rollback
-            RollbackChecks.LOGGER.info("Starting rollback on vdisk `{0}` to first snapshot `{1}`"
+            cls.LOGGER.info("Starting rollback on vdisk `{0}` to first snapshot `{1}`"
                                        .format(vdisk.name, stored_vdisk['snapshots'][0]))
 
             VDiskSetup.rollback_to_snapshot(vdisk_name=vdisk.name + '.raw', vpool_name=vpool.name,
-                                            snapshot_id=stored_vdisk['snapshots'][0]['snapshot_guid'], api=api)
+                                            snapshot_id=stored_vdisk['snapshots'][0]['snapshot_guid'])
 
             # Start checking when disk is rollback'ed
             tries = 0
             while tries < amount_checks:
                 current_statistics = vdisk.storagedriver_client.info_volume(str(vdisk.volume_id)).stored
                 if current_statistics < stored_vdisk['snapshots'][1]['stored_data']:
-                    RollbackChecks.LOGGER.info("VDisk `{0}` matched the requirements for rollback with {1} < {2}"
+                    cls.LOGGER.info("VDisk `{0}` matched the requirements for rollback with {1} < {2}"
                                                .format(stored_vdisk['vdisk_guid'], current_statistics,
                                                        stored_vdisk['snapshots'][1]['stored_data']))
                     break
                 else:
                     tries += 1
-                    RollbackChecks.LOGGER.warning("Try `{0}` when checking stored data on volumedriver for VDisk "
+                    cls.LOGGER.warning("Try `{0}` when checking stored data on volumedriver for VDisk "
                                                   "`{1}`, with currently `{2}` but it should be less than `{3}`. "
                                                   "Now sleeping for `{4}` seconds ..."
                                                   .format(tries, stored_vdisk['vdisk_guid'], current_statistics,
@@ -281,15 +268,15 @@ class RollbackChecks(CIConstants):
             if tries == amount_checks:
                 error_msg = "VDisk `{0}` should have been rollback'ed but max. amount of checks have exceeded!"\
                             .format(vdisk.name)
-                RollbackChecks.LOGGER.error(error_msg)
+                cls.LOGGER.error(error_msg)
                 raise RuntimeError(error_msg)
             else:
-                RollbackChecks.LOGGER.info("Successfully finished rollback'ing on vdisk `{0}`".format(vdisk.name))
+                cls.LOGGER.info("Successfully finished rollback'ing on vdisk `{0}`".format(vdisk.name))
 
             # commencing deleting volumes
-            RollbackChecks.LOGGER.info("Starting to remove VDisk `{0}`".format(vdisk.name))
-            VDiskRemover.remove_vdisk(stored_vdisk['vdisk_guid'], api)
-            RollbackChecks.LOGGER.info("Finished removing VDisk `{0}`".format(vdisk.name))
+                cls.LOGGER.info("Starting to remove VDisk `{0}`".format(vdisk.name))
+            VDiskRemover.remove_vdisk(stored_vdisk['vdisk_guid'])
+            cls.LOGGER.info("Finished removing VDisk `{0}`".format(vdisk.name))
 
 
 def run(blocked=False):
@@ -301,6 +288,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return RollbackChecks().main(blocked)
+
 
 if __name__ == "__main__":
     run()

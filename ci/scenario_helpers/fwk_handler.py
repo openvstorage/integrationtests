@@ -15,8 +15,8 @@
 # but WITHOUT ANY WARRANTY of any kind.
 
 from ovs.dal.lists.storagerouterlist import StorageRouterList
-from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.sshclient import SSHClient
 
 
 class FwkHandler(object):
