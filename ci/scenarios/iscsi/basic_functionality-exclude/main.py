@@ -165,7 +165,7 @@ class BasicIscsi(CIConstants):
         :return:
         """
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter')
+            ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter')
         cls._validate_iscsi(iscsi_node)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             ISCSIHelper.unexpose_vdisk(vdisk_object.guid)
@@ -181,7 +181,7 @@ class BasicIscsi(CIConstants):
         :return:
         """
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter')
+            ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter')
         cls._validate_iscsi(iscsi_node)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             VDiskRemover.remove_vdisk(vdisk_object.guid)
@@ -198,7 +198,7 @@ class BasicIscsi(CIConstants):
         for iteration in xrange(2):
             for vdisk_name, vdisk_object in vdisk_info.iteritems():
                 try:
-                    ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter')
+                    ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter')
                 except Exception as ex:
                     if iteration == 0:
                         raise
@@ -225,7 +225,7 @@ class BasicIscsi(CIConstants):
             for iscsi_node in iscsi_nodes:
                 try:
                     logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-                    iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+                    iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
                 except Exception as ex:
                     logger.warning('Issue when xposing {0} on {1}. {2}'.format(vdisk_name, iscsi_node.api_ip, str(ex)))
                     raise
@@ -240,7 +240,7 @@ class BasicIscsi(CIConstants):
         """
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
         cls._validate_iscsi(iscsi_node)
         cls._write_data_to_target(iqns)
 
@@ -254,7 +254,7 @@ class BasicIscsi(CIConstants):
         """
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             ISCSIHelper.restart_targets_for_vdisk(vdisk_object.guid)
 
@@ -277,7 +277,7 @@ class BasicIscsi(CIConstants):
         try:  # Isolate own creation
             for vdisk_name, vdisk_object in vdisk_info.iteritems():
                 logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-                iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+                iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
             cls._validate_iscsi(iscsi_node)
             time.sleep(cls.ISCSI_SYNC_TIME)  # Small sync
             cls._write_data_to_target(iqns, a_vdisk.size / 10)
@@ -310,7 +310,7 @@ class BasicIscsi(CIConstants):
         client = SSHClient(a_vdisk_storagerouter, username='root')
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
         # Login to targets
         cls._validate_iscsi(iscsi_node)
         try:
@@ -340,7 +340,7 @@ class BasicIscsi(CIConstants):
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, 'root', 'rooter'))
         cls._validate_iscsi(iscsi_node)
         cls._write_data_to_target(iqns, screen=True)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
