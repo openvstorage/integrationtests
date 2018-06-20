@@ -103,7 +103,8 @@ class BasicIscsi(CIConstants):
         vpool = source_storagedriver.vpool
         amount_of_targets = 3
         iscsi_node = random.choice(cluster_info['iscsi_nodes'])
-        tests = [cls.test_expose_unexpose_remove, cls.test_expose_remove, cls.test_expose_twice, cls.test_data_acceptance, cls.test_exposed_move, cls.test_expose_two_nodes]
+        tests = [cls.test_expose_unexpose_remove, cls.test_expose_remove, cls.test_expose_twice, cls.test_data_acceptance,
+                 cls.test_exposed_move, cls.test_expose_two_nodes, cls.test_expose_ha, cls.test_expose_concurrently]
         run_errors = []
         for _function in tests:
             vdisk_info = cls.deployment(amount_of_targets, vpool, source_storagedriver.storage_ip)
@@ -201,9 +202,13 @@ class BasicIscsi(CIConstants):
 
         if len(vdisk_info.items()) < 2:
             raise ValueError('Not enough vDisks to test this scenario')
+        errorlist = []
 
         def _worker(vdisk_guid):
-            ISCSIHelper.expose_vdisk(iscsi_node_guid=iscsi_node.guid, vdisk_guid=vdisk_guid, username='root', password='rooter')
+            try:
+                ISCSIHelper.expose_vdisk(iscsi_node_guid=iscsi_node.guid, vdisk_guid=vdisk_guid, username='root', password='rooter')
+            except Exception as ex:
+                errorlist.append(ex)
 
         threads = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
@@ -211,6 +216,10 @@ class BasicIscsi(CIConstants):
             t = threading.Thread(target=_worker(vdisk_object.guid,))
             threads.append(t)
             t.start()
+        for thread in threads:
+            thread.join()
+        if len(errorlist) > 0:
+            raise RuntimeError('Concurrent exposing failed : \n - {0}'.format('\n - '.join(errorlist)))
 
     @classmethod
     def test_expose_ha(cls, vdisk_info, iscsi_node):
