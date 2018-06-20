@@ -97,8 +97,7 @@ class BasicIscsi(CIConstants):
         :raises AssertionError: * When errors occurred during the tests
         :return:
         """
-        logger = cls.LOGGER
-        logger.info('Executing')
+        cls.LOGGER.info('Executing')
         source_storagedriver = cluster_info['storagedrivers']['source']
         vpool = source_storagedriver.vpool
         amount_of_targets = 3
@@ -113,7 +112,7 @@ class BasicIscsi(CIConstants):
                 _function(vdisk_info, iscsi_node)
                 cls.LOGGER.info("Succesfully passed test: {0}".format(_function.__name__))
             except Exception as ex:
-                logger.exception(str(ex))
+                cls.LOGGER.exception(str(ex))
                 run_errors.append(ex)
             finally:
                 cleanup_errors = []
@@ -198,8 +197,6 @@ class BasicIscsi(CIConstants):
         :type iscsi_node: IscsiNode
         :return:
         """
-        logger = cls.LOGGER
-
         if len(vdisk_info.items()) < 2:
             raise ValueError('Not enough vDisks to test this scenario')
         errorlist = []
@@ -212,7 +209,7 @@ class BasicIscsi(CIConstants):
 
         threads = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
+            cls.LOGGER.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
             t = threading.Thread(target=_worker(vdisk_object.guid,))
             threads.append(t)
             t.start()
@@ -231,7 +228,6 @@ class BasicIscsi(CIConstants):
         :type iscsi_node: IscsiNode
         :return:
         """
-        logger = cls.LOGGER
         _ = iscsi_node
         iscsi_nodes = ISCSIHelper.get_iscsi_nodes()
         if len(iscsi_nodes) <= 1:
@@ -241,7 +237,7 @@ class BasicIscsi(CIConstants):
         iscsi_nodes.remove(primary_node)
         failover_node_guids = [iscsi_node.guid for iscsi_node in iscsi_nodes]
 
-        logger.info('Exposing {0} on {1} and failover nodes: {2}.'.format(vdisk.name, primary_node.api_ip, failover_node_guids))
+        cls.LOGGER.info('Exposing {0} on {1} and failover nodes: {2}.'.format(vdisk.name, primary_node.api_ip, failover_node_guids))
         ISCSIHelper.expose_vdisk(primary_node.guid, vdisk.guid, failover_node_guids=failover_node_guids, username='rooter', password='rooter')
 
     @classmethod
@@ -252,7 +248,6 @@ class BasicIscsi(CIConstants):
         :param iscsi_node: { ovs.dal.hybrids.iscsinode
         :return:
         """
-        logger = cls.LOGGER
         for iteration in xrange(2):
             for vdisk_name, vdisk_object in vdisk_info.iteritems():
                 try:
@@ -261,7 +256,7 @@ class BasicIscsi(CIConstants):
                     if iteration == 0:
                         raise
                     if '{0} has already been exposed on iSCSI Node'.format(vdisk_name).lower() in str(ex).lower():
-                        logger.info('Failed as expected. Message: {}.'.format(str(ex)))
+                        cls.LOGGER.info('Failed as expected. Message: {}.'.format(str(ex)))
                     else:
                         raise
 
@@ -273,7 +268,6 @@ class BasicIscsi(CIConstants):
         :param iscsi_node: { ovs.dal.hybrids.iscsinode
         :return:
         """
-        logger = cls.LOGGER
         _ = iscsi_node
         iqns = []
         iscsi_nodes = ISCSIHelper.get_iscsi_nodes()
@@ -282,10 +276,10 @@ class BasicIscsi(CIConstants):
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             for iscsi_node in iscsi_nodes:
                 try:
-                    logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
+                    cls.LOGGER.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
                     iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
                 except Exception as ex:
-                    logger.warning('Issue when xposing {0} on {1}. {2}'.format(vdisk_name, iscsi_node.api_ip, str(ex)))
+                    cls.LOGGER.warning('Issue when xposing {0} on {1}. {2}'.format(vdisk_name, iscsi_node.api_ip, str(ex)))
                     raise
 
     @classmethod
@@ -324,7 +318,6 @@ class BasicIscsi(CIConstants):
         :param iscsi_node: { ovs.dal.hybrids.iscsinode
         :return:
         """
-        logger = cls.LOGGER
         iqns = []
         a_vdisk = vdisk_info.values()[0]
         a_vdisk_storagerouter = StoragerouterHelper.get_storagerouter_by_guid(a_vdisk.storagerouter_guid)
@@ -334,7 +327,7 @@ class BasicIscsi(CIConstants):
         client = SSHClient(a_vdisk_storagerouter, username='root')
         try:  # Isolate own creation
             for vdisk_name, vdisk_object in vdisk_info.iteritems():
-                logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
+                cls.LOGGER.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
                 iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
             cls._validate_iscsi(iscsi_node)
             time.sleep(cls.ISCSI_SYNC_TIME)  # Small sync
@@ -349,7 +342,7 @@ class BasicIscsi(CIConstants):
             # Validate data acceptance
             cls._write_data_to_target(iqns, a_vdisk.size / 10)
         except Exception as ex:
-            logger.warning('Exception during move of subdir. {0}'.format(str(ex)))
+            cls.LOGGER.warning('Exception during move of subdir. {0}'.format(str(ex)))
         finally:
             cls.tear_down(vdisk_info)
 
@@ -362,12 +355,11 @@ class BasicIscsi(CIConstants):
         :return:
         """
         iqns = []
-        logger = cls.LOGGER
         a_vdisk = vdisk_info.values()[0]
         a_vdisk_storagerouter = StoragerouterHelper.get_storagerouter_by_guid(a_vdisk.storagerouter_guid)
         client = SSHClient(a_vdisk_storagerouter, username='root')
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
+            cls.cls.LOGGER.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
             iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
         # Login to targets
         cls._validate_iscsi(iscsi_node)
@@ -384,7 +376,7 @@ class BasicIscsi(CIConstants):
                 try:
                     cls._disconnect_target(iqn)
                 except Exception as ex:
-                    logger.warning('Exception during disconnect: {0}.'.format(str(ex)))
+                    cls.LOGGER.warning('Exception during disconnect: {0}.'.format(str(ex)))
 
     @classmethod
     def test_exposed_move(cls, vdisk_info, iscsi_node):
@@ -394,15 +386,14 @@ class BasicIscsi(CIConstants):
         :param iscsi_node: { ovs.dal.hybrids.iscsinode
         :return:
         """
-        logger = cls.LOGGER
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
+            cls.LOGGER.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
             iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
         cls._validate_iscsi(iscsi_node)
         cls._write_data_to_target(iqns, screen=True)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            logger.debug('Moving Vdisk {0}'.format(vdisk_name))
+            cls.LOGGER.debug('Moving Vdisk {0}'.format(vdisk_name))
             # Ensured we had 2 std at the start
             target_storagerouter_guid = [std.storagerouter_guid for std in vdisk_object.vpool.storagedrivers
                                          if std.storagerouter_guid != vdisk_object.storagerouter_guid][0]
@@ -417,13 +408,12 @@ class BasicIscsi(CIConstants):
         :param screen: offload to screen
         :return:
         """
-        logger = cls.LOGGER
         try:
             for iqn in iqns:
                 cls._login_target(iqn)
             mapping = cls._associate_target_to_disk()
             associated_disks = [disk for iqn, disk in mapping.iteritems() if iqn in iqns]
-            logger.debug('Working with the following mapping: {0}'.format(mapping))
+            cls.LOGGER.debug('Working with the following mapping: {0}'.format(mapping))
             local_client = SSHClient(System.get_my_storagerouter(), 'root')
             screen_names = []
             try:
@@ -433,14 +423,14 @@ class BasicIscsi(CIConstants):
                 for screen_name in screen_names:
                     local_client.run(['screen', '-S', screen_name, '-X', 'quit'])
         except Exception as ex:
-            logger.exception('Exception during write data. {0}'.format(str(ex)))
+            cls.LOGGER.exception('Exception during write data. {0}'.format(str(ex)))
             raise
         finally:
             for iqn in iqns:
                 try:
                     cls._disconnect_target(iqn)
                 except Exception as ex:
-                    logger.warning('Exception during disconnect: {0}.'.format(str(ex)))
+                    cls.LOGGER.warning('Exception during disconnect: {0}.'.format(str(ex)))
 
     @classmethod
     def _validate_iscsi(cls, iscsi_node):
@@ -493,7 +483,6 @@ class BasicIscsi(CIConstants):
         :raises AssertionError: when no portals are matched
         :return:
         """
-        logger = cls.LOGGER
         wildcard_range = '0.0.0.0'
         iscsi_node.invalidate_dynamics('portals')
         defined_portal_dict = {}
@@ -515,7 +504,7 @@ class BasicIscsi(CIConstants):
                         matched_values.append('{0}:{1}'.format(conn_info['ip'], conn_info['port']))
             if len(matched_values) > 0 and connection_info['in_use'] is False:
                 connection_info['in_use'] = True
-        logger.info('Was able to match: {0}'.format(matching))
+        cls.LOGGER.info('Was able to match: {0}'.format(matching))
         leftover_found = ['{0}:{1}'.format(found['ip'], found['port']) for found in found_portals_dict.values() if found['in_use'] is False]
         leftover_dal = ['{0}:{1}'.format(found['ip'], found['port']) for found in defined_portal_dict.values() if found['in_use'] is False]
         assert len(leftover_found) == 0, 'The following portals could not be matched to the DAL ones: {0}'.format(', '.join(leftover_found))
@@ -528,7 +517,6 @@ class BasicIscsi(CIConstants):
         :param target_iqn: iqn of the target
         :return:
         """
-        logger = cls.LOGGER
         cmd = ['iscsiadm', '-m', 'node', '--login', '-T', target_iqn]
         local_client = SSHClient(System.get_my_storagerouter(), 'root')
         for retry in xrange(retries):
@@ -536,7 +524,7 @@ class BasicIscsi(CIConstants):
                 local_client.run(cmd, timeout=10)
                 return
             except CalledProcessError as ex:
-                logger.warning('Could not login to the node on try {0}. Got {1}'.format(retry, str(ex)))
+                cls.LOGGER.warning('Could not login to the node on try {0}. Got {1}'.format(retry, str(ex)))
                 if retry == retries - 1:
                     raise
                 time.sleep(delay)
