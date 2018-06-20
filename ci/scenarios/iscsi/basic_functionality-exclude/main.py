@@ -15,6 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import time
 import random
+import threading
 from subprocess import CalledProcessError
 from ci.api_lib.helpers.api import NotFoundException
 from ci.api_lib.helpers.vdisk import VDiskHelper
@@ -100,7 +101,7 @@ class BasicIscsi(CIConstants):
         logger.info('Executing')
         source_storagedriver = cluster_info['storagedrivers']['source']
         vpool = source_storagedriver.vpool
-        amount_of_targets = 1
+        amount_of_targets = 3
         iscsi_node = random.choice(cluster_info['iscsi_nodes'])
         tests = [cls.test_expose_unexpose_remove, cls.test_expose_remove, cls.test_expose_twice, cls.test_data_acceptance, cls.test_exposed_move, cls.test_expose_two_nodes]
         run_errors = []
@@ -185,6 +186,54 @@ class BasicIscsi(CIConstants):
         cls._validate_iscsi(iscsi_node)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             VDiskRemover.remove_vdisk(vdisk_object.guid)
+
+    @classmethod
+    def test_expose_concurrently(cls, vdisk_info, iscsi_node):
+        """
+        Test concurrent expose of all vdisks present in the iscsi environment
+        :param vdisk_info: include the vdisk_name and their corresponding vdisk object
+        :type vdisk_info: dict
+        :param iscsi_node: iscsiNode to test the logic on
+        :type iscsi_node: IscsiNode
+        :return:
+        """
+        logger = cls.LOGGER
+
+        if len(vdisk_info.items()) < 2:
+            raise ValueError('Not enough vDisks to test this scenario')
+
+        def _worker(vdisk_guid):
+            ISCSIHelper.expose_vdisk(iscsi_node_guid=iscsi_node.guid, vdisk_guid=vdisk_guid, username='root', password='rooter')
+
+        threads = []
+        for vdisk_name, vdisk_object in vdisk_info.iteritems():
+            logger.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
+            t = threading.Thread(target=_worker(vdisk_object.guid,))
+            threads.append(t)
+            t.start()
+
+    @classmethod
+    def test_expose_ha(cls, vdisk_info, iscsi_node):
+        """
+        Test concurrent expose of all vdisks present in the iscsi environment
+        :param vdisk_info: include the vdisk_name and their corresponding vdisk object
+        :type vdisk_info: dict
+        :param iscsi_node: iscsiNode to test the logic on
+        :type iscsi_node: IscsiNode
+        :return:
+        """
+        logger = cls.LOGGER
+        _ = iscsi_node
+        iscsi_nodes = ISCSIHelper.get_iscsi_nodes()
+        if len(iscsi_nodes) <= 1:
+            raise ValueError('Not enough iscsi_nodes to test this.')
+        vdisk = vdisk_info.pop(random.choice(vdisk_info.keys()))
+        primary_node = random.choice(iscsi_nodes)
+        iscsi_nodes.remove(primary_node)
+        failover_node_guids = [iscsi_node.guid for iscsi_node in iscsi_nodes]
+
+        logger.info('Exposing {0} on {1} and failover nodes: {2}.'.format(vdisk.name, primary_node.api_ip, failover_node_guids))
+        ISCSIHelper.expose_vdisk(primary_node.guid, vdisk.guid, failover_node_guids=failover_node_guids, username='rooter', password='rooter')
 
     @classmethod
     def test_expose_twice(cls, vdisk_info, iscsi_node):
