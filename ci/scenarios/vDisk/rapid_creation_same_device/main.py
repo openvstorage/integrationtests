@@ -17,6 +17,7 @@ import random
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
+from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.lib.vdisk import VDiskController
@@ -64,23 +65,23 @@ class VDiskControllerTester(CIConstants):
         for loop in xrange(0, 100):
             test_passed = False
             try:
-                cls.LOGGER.info("Creating new disk.")
+                cls.LOGGER.info("Creating new disk ({0}).".format(loop))
                 try:
-                    VDiskController.create_new(disk_name, disk_size, random_storagedriver.guid)
+                    vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=disk_name, vpool_name=vpool.name, size=disk_size, storagerouter_ip=random_storagedriver.storage_ip)
                 except Exception as ex:
                     cls.LOGGER.error('Creation failed. Got {0} in iteration {1}'.format(str(ex), loop))
                     exceptions.append('Creation failed. Got {0} in iteration {1}'.format(str(ex), loop))
                     continue
-                cls.LOGGER.info("Fetching new disk.")
+                cls.LOGGER.info("Fetching new disk ({0}).".format(loop))
                 try:
-                    vdisk = VDiskHelper.get_vdisk_by_name('{0}.raw'.format(disk_name), vpool.name)
+                    vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
                 except Exception as ex:
                     cls.LOGGER.error('Fetch failed. Got {0} in iteration {1}'.format(str(ex), loop))
                     exceptions.append('Fetch failed. Got {0} in iteration {1}'.format(str(ex), loop))
                     continue
-                cls.LOGGER.info("Deleting new disk.")
+                cls.LOGGER.info("Deleting new disk ({0}).".format(loop))
                 try:
-                    VDiskController.delete(vdisk_guid=vdisk.guid)
+                    VDiskHelper.delete_vdisk(vdisk_guid=vdisk.guid)
                 except Exception as ex:
                     cls.LOGGER.error('Delete failed. Got {0} in iteration {1}'.format(str(ex), loop))
                     exceptions.append('Delete failed. Got {0} in iteration {1}'.format(str(ex), loop))
@@ -111,8 +112,8 @@ class VDiskControllerTester(CIConstants):
         try:
             VDiskRemover.remove_vdisk_by_name(vdisk_name, vpool_name)
         except Exception as ex:
-            cls.LOGGER.error(str(ex))
             if fail is True:
+                cls.LOGGER.error(str(ex))
                 raise
             else:
                 pass

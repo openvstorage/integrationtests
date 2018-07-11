@@ -15,6 +15,7 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import uuid
 import time
+import json
 import Queue
 import subprocess
 from ci.api_lib.helpers.api import TimeOutError
@@ -365,27 +366,60 @@ class VMHandler(CIConstants):
                 pass
 
     @staticmethod
-    def create_blktap_device(client, diskname, edge_info, logger=LOGGER):
+    def create_nbd_device(client, diskname, edge_info, logger=LOGGER):
         """
-        Creates a blk tap device from a vdisk
-        :return: blktap device location
+        Creates a nbd device from a vdisk
+        :param client: Client to the storagerouter
+        :type client: SSHClient
+        :param diskname: Name of the vdisk
+        :type diskname: str
+        :param edge_info: edge information
+        :type edge_info: dict
+        :return: None
         """
-        required_edge_params = {'port': (int, {'min': 1, 'max': 65535}),
-                                'protocol': (str, ['tcp', 'udp', 'rdma']),
-                                'ip': (str, Toolbox.regex_ip),
-                                'username': (str, None, False),
-                                'password': (str, None, False)}
-        ExtensionsToolbox.verify_required_params(required_edge_params, edge_info)
-        if edge_info.get('username') and edge_info.get('password'):
-            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'], edge_info['ip'],
-                                                                                                  edge_info['port'], diskname,
-                                                                                                  edge_info['username'], edge_info['password'])
+        nbd_devices = VMHandler.get_running_nbd_devices(client)
+        if not nbd_devices:
+            nbd_device_numbers = [0]
         else:
-            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}".format(edge_info['protocol'], edge_info['ip'], edge_info['port'], diskname)
+            nbd_device_numbers = [int(config['path'].split('nbd')[1]) for nbd_d, config in nbd_devices.iteritems()]
 
-        cmd = ["tap-ctl", "create", "-a", ovs_edge_connection]
-        logger.debug('Creating blktap device: {}'.format(' '.join(cmd)))
-        return client.run(cmd)
+        nbd_device = "/dev/nbd{0}".format(max(nbd_device_numbers) + 1)
+        nbd_config_file = "/tmp/{0}".format(diskname)
+        lines = [
+            'volume_uri: tcp://{0}:{1}@{2}:{3}/{4}'.format(edge_info['username'], edge_info['password'], edge_info['ip'], edge_info['port'], diskname),
+            'nbd_path: {0}'.format(nbd_device),
+            ''
+        ]
+        with open(nbd_config_file, 'w') as user_data_file:
+            user_data_file.write('\n'.join(lines))
+        client.file_upload(nbd_config_file, nbd_config_file)
+        cmd = ["volumedriver_nbd", "attach", "file://{0}".format(nbd_config_file)]
+        client.run(cmd)
+        return nbd_device
+
+    @staticmethod
+    def get_running_nbd_devices(client):
+        """
+        Returns current nbd_devices on the client
+        :param client: Client to the storagerouter
+        :type client: SSHClient
+        :return: list
+        """
+        return json.loads(client.run(['volumedriver_nbd', 'list', '-o', 'json']))
+
+    @staticmethod
+    def detach_nbd_device(client, nbd_device, logger=LOGGER):
+        """
+        Detach the nbd device on the client
+        :param client: Client to the storagerouter
+        :param nbd_device: path of the ndb device (/dev/ndbX)
+        :return: None
+        """
+        nbd_devices = VMHandler.get_running_nbd_devices(client)
+        for nbd_d, config in nbd_devices.iteritems():
+            if nbd_device == config['path']:
+                client.run(['volumedriver_nbd', 'detach', nbd_device])
+        logger.error('Nbd device `{0}` not found on storagerouter `{1}`'.format(nbd_device, client.ip))
 
     @staticmethod
     def create_image(client, diskname, disk_size, edge_info, logger=LOGGER):

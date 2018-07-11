@@ -114,19 +114,6 @@ class VDiskDeploymentChecks(CIConstants):
             VDiskRemover.remove_vdisk_by_name(qemu_disk_name, vpool.name)
             cls.LOGGER.info("Finished deleting vdisk `{0}`".format(qemu_disk_name))
 
-        # ============
-        # VIA TRUNCATE
-        # ============
-        for size in cls.VDISK_SIZES:
-            truncate_disk_name = cls.PREFIX+str(size)+'-trunc'
-            cls.LOGGER.info("Starting to create vdisk `{0}` on vPool `{1}` on node `{2}` "
-                                              "with size `{3}`".format(truncate_disk_name, vpool.name, storagedriver.storage_ip, size))
-            client.run(["truncate", "-s", str(size), "/mnt/{0}/{1}.raw".format(vpool.name, truncate_disk_name)])
-            cls.LOGGER.info("Finished creating vdisk `{0}`".format(truncate_disk_name))
-            cls._check_vdisk(vdisk_name=truncate_disk_name, vpool_name=vpool.name)
-            cls.LOGGER.info("Starting to delete vdisk `{0}`".format(truncate_disk_name))
-            VDiskRemover.remove_vdisk_by_name(truncate_disk_name, vpool.name)
-            cls.LOGGER.info("Finished deleting vdisk `{0}`".format(truncate_disk_name))
         cls.LOGGER.info("Finished to validate the vdisk deployment")
 
     @staticmethod
