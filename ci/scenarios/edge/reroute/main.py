@@ -18,23 +18,24 @@ import random
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
+from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
+from ovs.extensions.generic.sshclient import SSHClient
+from ovs.log.log_handler import LogHandler
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs.extensions.generic.sshclient import SSHClient
-from ovs.log.log_handler import LogHandler
 
 
 class EdgeTester(CIConstants):
     """
     Test the edge magic
     """
-    CASE_TYPE = 'FUNCTIONAL'
+    CASE_TYPE = 'FUNCTIONALITY'
     TEST_NAME = 'ci_scenario_edge_test'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
     SLEEP_TIME = 60  # Time to idle before going to block the edge
@@ -59,7 +60,7 @@ class EdgeTester(CIConstants):
 
     @classmethod
     def setup(cls, logger=LOGGER):
-        destination_str, source_str, compute_str = cls.get_storagerouters_by_role()
+        destination_str, source_str, compute_str = StoragerouterHelper().get_storagerouters_by_role()
         destination_storagedriver = None
         source_storagedriver = None
         if len(source_str.regular_domains) == 0:
@@ -86,11 +87,11 @@ class EdgeTester(CIConstants):
 
         is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
         if is_ee is True:
-            fio_bin_loc = EdgeTester.FIO_BIN_EE['location']
-            fio_bin_url = EdgeTester.FIO_BIN_EE['url']
+            fio_bin_loc = cls.FIO_BIN_EE['location']
+            fio_bin_url = cls.FIO_BIN_EE['url']
         else:
-            fio_bin_loc = EdgeTester.FIO_BIN['location']
-            fio_bin_url = EdgeTester.FIO_BIN['url']
+            fio_bin_loc = cls.FIO_BIN['location']
+            fio_bin_url = cls.FIO_BIN['url']
 
         compute_client.run(['wget', fio_bin_url, '-O', fio_bin_loc])
         compute_client.file_chmod(fio_bin_loc, 755)
@@ -112,7 +113,6 @@ class EdgeTester(CIConstants):
         :type ip_to_block: str
         :param additional_ports: additional ports to block outside of the range
         :type additional_ports: list[int] / list[str]
-        :return: 
         """
         if (start_port is None or end_port is None) and ip_to_block is None and additional_ports is None:
             raise ValueError('Something to block is required. Be it a range, extra ports or an IP')
@@ -168,7 +168,6 @@ class EdgeTester(CIConstants):
         :return: None
         :rtype: NoneType
         """
-        api = cls.get_api_instance()
         compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
 
         destination_std = cluster_info['storagedrivers']['destination']
@@ -195,7 +194,7 @@ class EdgeTester(CIConstants):
         for index in xrange(0, disk_amount):
             try:
                 vdisk_name = '{0}_vdisk{1}'.format(EdgeTester.TEST_NAME, str(index).zfill(4))
-                data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, EdgeTester.AMOUNT_TO_WRITE * 2, source_std.storage_ip, api))
+                data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(vdisk_name, vpool.name, EdgeTester.AMOUNT_TO_WRITE * 2, source_std.storage_ip))
                 vdisk_info[vdisk_name] = data_vdisk
                 edge_configuration['volumenames'].append(data_vdisk.devicename.rsplit('.', 1)[0].split('/', 1)[1])
                 values_to_check['vdisks'].append(data_vdisk.serialize())
@@ -242,10 +241,10 @@ class EdgeTester(CIConstants):
                 EdgeTester.adjust_for_reroute(source_std.storagerouter, trigger_rerout=False, ip_to_block=compute_client.ip, additional_ports=[edge_configuration['port']])
             for screen_name in screen_names:
                 compute_client.run(['screen', '-S', screen_name, '-X', 'quit'])
-                for thread_category, thread_collection in threads['evented'].iteritems():
-                    ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
+            for thread_category, thread_collection in threads['evented'].iteritems():
+                ThreadHelper.stop_evented_threads(thread_collection['pairs'], thread_collection['r_semaphore'])
             for vdisk in vdisk_info.values():
-                VDiskRemover.remove_vdisk(vdisk.guid, api)
+                VDiskRemover.remove_vdisk(vdisk.guid)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(failed_configurations)
 
     @staticmethod
@@ -284,6 +283,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return EdgeTester().main(blocked)
+
 
 if __name__ == '__main__':
     run()

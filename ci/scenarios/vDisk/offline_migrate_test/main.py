@@ -28,7 +28,7 @@ from ovs.log.log_handler import LogHandler
 
 class MigrateTester(CIConstants):
 
-    CASE_TYPE = 'FUNCTIONAL'
+    CASE_TYPE = 'FUNCTIONALITY'
     TEST_NAME = "ci_scenario_vdisk_migrate_offline"
     AMOUNT_TO_WRITE = 1 * 1024 ** 3  # in MegaByte
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
@@ -60,8 +60,7 @@ class MigrateTester(CIConstants):
         :type amount_vdisks: int
         :return:
         """
-        MigrateTester.LOGGER.info("Starting offline migrate test.")
-        api = cls.get_api_instance()
+        cls.LOGGER.info("Starting offline migrate test.")
         vpool = None  # Get a suitable vpool
         for vp in VPoolHelper.get_vpools():
             if len(vp.storagedrivers) >= 2:
@@ -89,37 +88,36 @@ class MigrateTester(CIConstants):
                 ################
                 # create vdisk #
                 ################
-                vdisk_name = "{0}_{1}".format(MigrateTester.TEST_NAME, i)
+                vdisk_name = "{0}_{1}".format(cls.TEST_NAME, i)
                 try:
                     vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw',
                                                          vpool_name=vpool.name,
                                                          size=cls.AMOUNT_TO_WRITE * 5,
-                                                         storagerouter_ip=std_1.storagerouter.ip,
-                                                         api=api)
+                                                         storagerouter_ip=std_1.storagerouter.ip)
                     vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)  # Fetch to validate if it was properly created
                     created_vdisks.append(vdisk)
                     values_to_check['vdisk'] = vdisk.serialize()
                 except TimeOutError:
-                    MigrateTester.LOGGER.error("Creation of the vdisk has timed out.")
+                    cls.LOGGER.error("Creation of the vdisk has timed out.")
                     raise
                 except (RuntimeError, TimeOutError) as ex:
-                    MigrateTester.LOGGER.info("Creation of vdisk failed: {0}".format(ex))
+                    cls.LOGGER.info("Creation of vdisk failed: {0}".format(ex))
                     raise
                 else:
-                    time.sleep(MigrateTester.SLEEP_TIME)
+                    time.sleep(cls.SLEEP_TIME)
                     try:
-                        MigrateTester.LOGGER.info("Moving vdisk {0} from {1} to {2}".format(vdisk_guid, std_1.storage_ip, std_2.storage_ip))
-                        VDiskSetup.move_vdisk(vdisk_guid=vdisk_guid, target_storagerouter_guid=std_2.storagerouter_guid, api=api)
-                        time.sleep(MigrateTester.SLEEP_TIME)
-                        MigrateTester.LOGGER.info("Validating move...")
-                        MigrateTester._validate_move(values_to_check)
+                        cls.LOGGER.info("Moving vdisk {0} from {1} to {2}".format(vdisk_guid, std_1.storage_ip, std_2.storage_ip))
+                        VDiskSetup.move_vdisk(vdisk_guid=vdisk_guid, target_storagerouter_guid=std_2.storagerouter_guid)
+                        time.sleep(cls.SLEEP_TIME)
+                        cls.LOGGER.info("Validating move...")
+                        cls._validate_move(values_to_check)
                     except Exception as ex:
-                        MigrateTester.LOGGER.exception('Failed during migation: {0}'.format(ex))
+                        cls.LOGGER.exception('Failed during migation: {0}'.format(ex))
                         raise
         finally:
             for vdisk in created_vdisks:
-                VDiskRemover.remove_vdisk(vdisk.guid, api)
-        MigrateTester.LOGGER.info("Finished offline migrate test.")
+                VDiskHelper.delete_vdisk(vdisk_guid=vdisk.guid)
+        cls.LOGGER.info("Finished offline migrate test.")
 
     @staticmethod
     def _validate_move(values_to_check):
@@ -194,6 +192,7 @@ def run(blocked=False):
     """
 
     return MigrateTester().main(blocked)
+
 
 if __name__ == "__main__":
     print run()

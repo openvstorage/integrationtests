@@ -15,9 +15,9 @@
 # but WITHOUT ANY WARRANTY of any kind.
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.autotests import gather_results
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.log.log_handler import LogHandler
-from ci.scenario_helpers.ci_constants import CIConstants
 
 
 class SshChecks(CIConstants):
@@ -91,6 +91,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return SshChecks().main(blocked)
+
 
 if __name__ == "__main__":
     run()

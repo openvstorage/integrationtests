@@ -13,39 +13,31 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import json
 import random
 import time
-from multiprocessing.pool import ThreadPool
-from ci.api_lib.helpers.api import OVSClient
-from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
-from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.api_lib.helpers.vdisk import VDiskHelper
-from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
-from ci.api_lib.helpers.vpool import VPoolHelper
+from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
-from ci.main import CONFIG_LOC
-from ci.main import SETTINGS_LOC
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
+from ci.scenario_helpers.setup import SetupHelper
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
-from ovs_extensions.generic.remote import remote
+from multiprocessing.pool import ThreadPool
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.servicefactory import ServiceFactory
+from ovs_extensions.generic.remote import remote
 from ovs.lib.mdsservice import MDSServiceController
 from ovs.log.log_handler import LogHandler
 
 
 class RegressionTester(CIConstants):
-
-    CASE_TYPE = 'FUNCTIONAL'
+    CASE_TYPE = 'FUNCTIONALITY'
     TEST_NAME = 'ci_scenario_edge_test'
     LOGGER = LogHandler.get(source='scenario', name=TEST_NAME)
 
@@ -70,140 +62,73 @@ class RegressionTester(CIConstants):
         return cls.start_test()
 
     @classmethod
-    def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
-        api, cluster_info, compute_client, to_be_downed_client, is_ee, cloud_image_path, cloud_init_loc = cls.setup()
-        listening_port = NetworkHelper.get_free_port(compute_client.ip)
+    def start_test(cls, vm_amount=1):
+        """
+        Start the whole test mds_regression
+        :param vm_amount: Amount of vms to use in the test
+        :type vm_amount: int
+        :return:
+        """
+        cluster_info, compute_client, to_be_downed_client, is_ee, cloud_image_path, cloud_init_loc = cls.setup()
 
         source_storagedriver = cluster_info['storagedrivers']['source']
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
         edge_details = {'port': source_storagedriver.ports['edge'], 'hostname': source_storagedriver.storage_ip, 'protocol': protocol}
 
-        computenode_hypervisor = HypervisorFactory.get(compute_client.ip,
-                                                       hypervisor_info['user'],
-                                                       hypervisor_info['password'],
-                                                       hypervisor_info['type'])
         edge_user_info = {}
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
-            source_storagedriver=source_storagedriver,
-            cloud_image_path=cloud_image_path,
-            cloud_init_loc=cloud_init_loc,
-            api=api,
-            vm_amount=vm_amount,
-            port=listening_port,
-            hypervisor_ip=compute_client.ip,
-            vm_name=cls.VM_NAME,
-            data_disk_size=cls.AMOUNT_TO_WRITE * 2,
-            edge_user_info=edge_user_info)
-        vm_info = VMHandler.create_vms(ip=compute_client.ip,
-                                       port=listening_port,
-                                       connection_messages=connection_messages,
-                                       vm_info=vm_info,
-                                       edge_configuration=edge_details,
-                                       hypervisor_client=computenode_hypervisor,
-                                       timeout=cls.TEST_TIMEOUT)
+        vm_handler = VMHandler(hypervisor_ip=compute_client.ip, amount_of_vms=vm_amount)
+
+        vm_handler.prepare_vm_disks(source_storagedriver=source_storagedriver,
+                                    cloud_image_path=cloud_image_path,
+                                    cloud_init_loc=cloud_init_loc,
+                                    vm_name=cls.VM_NAME,
+                                    data_disk_size=cls.AMOUNT_TO_WRITE * 2,
+                                    edge_user_info=edge_user_info)
+        vm_info = vm_handler.create_vms(edge_configuration=edge_details,
+                                        timeout=cls.VM_CREATION_TIMEOUT)
         try:
             cls.run_test(cluster_info=cluster_info,
                          compute_client=compute_client,
-                         vm_info=vm_info,
-                         api=api)
+                         vm_info=vm_info)
         finally:
-            for vm_name, vm_object in vm_info.iteritems():
-                computenode_hypervisor.sdk.destroy(vm_name)
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
-                computenode_hypervisor.sdk.undefine(vm_name)
+            vm_handler.destroy_vms(vm_info=vm_info)
 
     @classmethod
-    def setup(cls, cloud_init_info=CIConstants.CLOUD_INIT_DATA, logger=LOGGER):
+    def setup(cls, logger=LOGGER):
         """
-        Performs all required actions to start the testrun
-        :param cloud_init_info: cloud init settings
-        :type cloud_init_info: dict
-        :param logger: logging instance
+        Set up the environment needed for the test
+        :param logger: LOGGER instance
         :type logger: ovs.log.log_handler.LogHandler
-        :return: 
+        :return:
         """
-        vpool = None
-        for vp in VPoolHelper.get_vpools():
-            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
-                vpool = vp
-                break
-        assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
-        available_storagedrivers = [storagedriver for storagedriver in vpool.storagedrivers]
-        destination_storagedriver = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
-        source_storagedriver = available_storagedrivers.pop(random.randrange(len(available_storagedrivers)))
-        destination_str = destination_storagedriver.storagerouter  # Will act as volumedriver node
-        source_str = source_storagedriver.storagerouter  # Will act as volumedriver node
-        compute_str = [storagerouter for storagerouter in StoragerouterHelper.get_storagerouters() if
-                       storagerouter.guid not in [destination_str.guid, source_str.guid]][0]  # Will act as compute node
+        logger.info('Setting up environment for testing')
+        cluster_info = SetupHelper.setup_env()
+        to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
+        compute_client = SSHClient(cluster_info['storagerouters']['compute'], username='root')
 
-        with open(CONFIG_LOC, 'r') as config_file:
-            config = json.load(config_file)
-        api = OVSClient(config['ci']['grid_ip'],
-                        config['ci']['user']['api']['username'],
-                        config['ci']['user']['api']['password'])
-        with open(SETTINGS_LOC, 'r') as JSON_SETTINGS:
-            settings = json.load(JSON_SETTINGS)
-        # Get a suitable vpool with min. 2 storagedrivers
-        vpool = None
-        for vp in VPoolHelper.get_vpools():
-            if len(vp.storagedrivers) >= 2 and vp.configuration['dtl_mode'] == 'sync':
-                vpool = vp
-                break
-        assert vpool is not None, 'Not enough vPools to test. We need at least a vPool with 2 storagedrivers'
-        # Choose source & destination storage driver
-        destination_storagedriver = [storagedriver for storagedriver in destination_str.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]
-        source_storagedriver = [storagedriver for storagedriver in source_str.storagedrivers if storagedriver.vpool_guid == vpool.guid][0]
-        logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-        logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
-
-        to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
-        compute_client = SSHClient(compute_str, username='root')
-
-        images = settings['images']  # Check if enough images available
-        assert len(images) >= 1, 'Not enough images in `{0}`'.format(SETTINGS_LOC)
-
-        image_path = images[0]  # Check if image exists
-        assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
-
-        cloud_init_loc = cloud_init_info['script_dest']  # Get the cloud init file
-        to_be_downed_client.run(['wget', cloud_init_info['script_loc'], '-O', cloud_init_loc])
-        to_be_downed_client.file_chmod(cloud_init_loc, 755)
-        assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-        cluster_info = {'storagerouters': {'destination': destination_str, 'source': source_str, 'compute': compute_str},
-                        'storagedrivers': {'destination': destination_storagedriver, 'source': source_storagedriver},
-                        'vpool': vpool}
-
-        is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
-        if is_ee is True:
-            fio_bin_loc = cls.FIO_BIN_EE['location']
-            fio_bin_url = cls.FIO_BIN_EE['url']
-        else:
-            fio_bin_loc = cls.FIO_BIN['location']
-            fio_bin_url = cls.FIO_BIN['url']
-        # Get the fio binary
-        compute_client.run(['wget', fio_bin_url, '-O', fio_bin_loc])
-        compute_client.file_chmod(fio_bin_loc, 755)
-        assert compute_client.file_exists(fio_bin_loc), 'Could not get the latest fio binary.'
-        return api, cluster_info, compute_client, to_be_downed_client, is_ee, image_path, cloud_init_loc
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedrivers']['source'])
+        image_path = SetupHelper.check_images(to_be_downed_client)
+        SetupHelper.get_fio_bin_path(compute_client, is_ee)
+        logger.info('Finished setting up environment')
+        return cluster_info, compute_client, to_be_downed_client, is_ee, image_path, cloud_init_loc
 
     @classmethod
-    def run_test(cls, cluster_info, compute_client, vm_info, api, vm_username=CIConstants.VM_USERNAME, vm_password=CIConstants.VM_PASSWORD,
+    def run_test(cls, cluster_info, compute_client, vm_info, vm_username=CIConstants.VM_USERNAME, vm_password=CIConstants.VM_PASSWORD,
                  timeout=TEST_TIMEOUT, data_test_cases=CIConstants.DATA_TEST_CASES, logger=LOGGER):
         """
         Runs the test as described in https://github.com/openvstorage/dev_ops/issues/64
         :param cluster_info: information about the cluster
         :param compute_client: SSHclient of the computenode
         :param vm_info: vm information
-        :param api: api instance
         :param vm_username: username to login on all vms
         :param vm_password: password to login on all vms
         :param timeout: timeout in seconds
         :param data_test_cases: data rw ratios to test
         :param logger: logging instance
-        :return: 
+        :return:
         """
         compute_str = cluster_info['storagerouters']['compute']
         destination_storagedriver = cluster_info['storagedrivers']['destination']
@@ -238,13 +163,13 @@ class RegressionTester(CIConstants):
                         vm_client = rem.SSHClient(vm_data['ip'], vm_username, vm_password)
                         vm_client.file_create('/mnt/data/{0}.raw'.format(vm_data['create_msg']))
                         vm_data['client'] = vm_client
-                    cls._set_mds_safety(1, checkup=True)  # Set the safety to trigger the mds
+                    cls._set_mds_safety(source_storagedriver.vpool, 1, checkup=True)  # Set the safety to trigger the mds
                     safety_set = True
                     io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
                     threads['evented']['io']['pairs'] = io_thread_pairs
                     threads['evented']['io']['r_semaphore'] = io_r_semaphore
                     # @todo snapshot every minute
-                    threads['evented']['snapshots']['pairs'] = ThreadingHandler.start_snapshotting_threads(volume_bundle=vdisk_info, api=api, kwargs={'interval': 15})
+                    threads['evented']['snapshots']['pairs'] = ThreadingHandler.start_snapshotting_threads(volume_bundle=vdisk_info, kwargs={'interval': 15})
                     for vm_name, vm_data in vm_info.iteritems():  # Write data
                         screen_names, output_files = DataWriter.write_data_fio(client=vm_data['client'],
                                                                                fio_configuration={
@@ -259,10 +184,10 @@ class RegressionTester(CIConstants):
                                                           duration=cls.IO_TIME / 2)
                     ThreadHelper.stop_evented_threads(threads['evented']['snapshots']['pairs'],
                                                       threads['evented']['snapshots']['r_semaphore'])  # Stop snapshotting
-                    cls._delete_snapshots(volume_bundle=vdisk_info, api=api)
+                    cls._delete_snapshots(volume_bundle=vdisk_info)
                     # Start scrubbing thread
-                    async_scrubbing = cls.start_scrubbing(volume_bundle=vdisk_info, api=api)  # Starting to scrub
-                    cls._trigger_mds_issue(vdisk_info, destination_storagedriver.storagerouter.guid, api)  # Trigger mds failover while scrubber is busy
+                    async_scrubbing = cls.start_scrubbing(volume_bundle=vdisk_info)  # Starting to scrub
+                    cls._trigger_mds_issue(cluster_info['vpool'], vdisk_info, destination_storagedriver.storagerouter.guid)  # Trigger mds failover while scrubber is busy
                     # Do some monitoring further for 60s
                     ThreadingHandler.keep_threads_running(r_semaphore=io_r_semaphore,
                                                           threads=io_thread_pairs,
@@ -295,7 +220,7 @@ class RegressionTester(CIConstants):
                             vm_data['client'].run(['screen', '-S', screen_name, '-X', 'quit'])
                         vm_data['screen_names'] = []
                     if safety_set is True:
-                        cls._set_mds_safety(len(StorageRouterList.get_masters()), checkup=True)
+                        cls._set_mds_safety(source_storagedriver.vpool, len(StorageRouterList.get_masters()), checkup=True)
         finally:
             cls._adjust_automatic_scrubbing(disable=False)
         assert len(failed_configurations) == 0, 'Certain configuration failed: {0}'.format(' '.join(failed_configurations))
@@ -335,18 +260,19 @@ class RegressionTester(CIConstants):
                 client = SSHClient(storagerouter, username='root')
                 service_manager.restart_service(service_name, client=client)
             return output
+
         if disable is True:
             return change_scheduled_task(job_key, 'present', disabled=True)
         return change_scheduled_task(job_key, 'absent')
 
     @staticmethod
-    def _set_mds_safety(safety=None, checkup=False, logger=LOGGER):
+    def _set_mds_safety(vpool, safety=None, checkup=False, logger=LOGGER):
         if safety is None:
             safety = len(StoragerouterHelper.get_storagerouters())
         if safety <= 0:
             raise ValueError('Safety should be at least 1.')
         logger.debug('Setting the safety to {} and {} checkup'.format(safety, 'will' if checkup is True else 'false'))
-        storagedriver_config = Configuration.get('/ovs/framework/storagedriver')
+        storagedriver_config = Configuration.get('/ovs/vpools/{0}/mds_config'.format(vpool.guid))
         current_safety = storagedriver_config
         current_safety['mds_safety'] = safety
         Configuration.set('/ovs/framework/storagedriver', current_safety)
@@ -354,7 +280,7 @@ class RegressionTester(CIConstants):
             MDSServiceController.mds_checkup()
 
     @classmethod
-    def _trigger_mds_issue(cls, volume_bundle, target_storagerouter_guid, api, logger=LOGGER):
+    def _trigger_mds_issue(cls, vpool, volume_bundle, target_storagerouter_guid, logger=LOGGER):
         """
         voldrv A, voldrv B, volume X op A
         ensure_safety lopen op X, die gaat master op A en slave op B hebben -> done on create
@@ -367,22 +293,22 @@ class RegressionTester(CIConstants):
         dan gaat 'm opeens B als master gebruiken maar die heeft geen scrub results applied
         """
         logger.debug('Starting the mds triggering.')
-        cls._set_mds_safety(2, checkup=True)  # Will trigger mds checkup which should create a slave again
+        cls._set_mds_safety(vpool, 2, checkup=True)  # Will trigger mds checkup which should create a slave again
         # Move the volume to set the slave as the master
         for vdisk_name, vdisk_object in volume_bundle.iteritems():
-            VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid, target_storagerouter_guid=target_storagerouter_guid, api=api)
+            VDiskSetup.move_vdisk(vdisk_guid=vdisk_object.guid, target_storagerouter_guid=target_storagerouter_guid)
 
-        # Manually fool the voldriver into thinking it only has the master left
-        # the other volumedriver remains slave en keeps catching up
-        # Scrubbing wont be applied to B
-        # Reconfigure B as slave
-        # move to vdisk to B so B is master but B does not have scrub results
+            # Manually fool the voldriver into thinking it only has the master left
+            # the other volumedriver remains slave en keeps catching up
+            # Scrubbing wont be applied to B
+            # Reconfigure B as slave
+            # move to vdisk to B so B is master but B does not have scrub results
 
-        # The case above is the potentially the same as settingthe safety to 1 after creation, mds checkup and then setting it to 2, mds checkup
-        # Set the mds safety back to 2
+            # The case above is the potentially the same as settingthe safety to 1 after creation, mds checkup and then setting it to 2, mds checkup
+            # Set the mds safety back to 2
 
-    @staticmethod
-    def _delete_snapshots(volume_bundle, api, amount_to_delete=3, logger=LOGGER):
+    @classmethod
+    def _delete_snapshots(cls, volume_bundle, amount_to_delete=3, logger=LOGGER):
         """
         Delete a random number of snapshots
         :return: None
@@ -399,23 +325,22 @@ class RegressionTester(CIConstants):
                     break
                 snapshot = snapshots_allowed_to_remove.pop(random.randrange(0, len(snapshots_allowed_to_remove)))
                 logger.debug('Removing snapshot with guid {0}'.format(snapshot['guid']))
-                VDiskRemover.remove_snapshot(snapshot['guid'], vdisk_object.name, vdisk_object.vpool.name, api)
+                VDiskRemover.remove_snapshot(snapshot['guid'], vdisk_object.name, vdisk_object.vpool.name)
                 amount_to_delete -= 1
 
     @classmethod
-    def start_scrubbing(cls, volume_bundle, api, logger=LOGGER):
+    def start_scrubbing(cls, volume_bundle, logger=LOGGER):
         """
         Start the scrubbing and wait in a seperate thread until done
         :param volume_bundle: volume information
-        :param api: api instance
         :param logger: logging instance
-        :return: 
+        :return:
         """
         pool = ThreadPool(processes=1)
-        return pool.apply_async(cls._start_scrubbing, args=(volume_bundle, api, logger))
+        return pool.apply_async(cls._start_scrubbing, args=(volume_bundle, logger))
 
-    @staticmethod
-    def _start_scrubbing(volume_bundle, api, logger):
+    @classmethod
+    def _start_scrubbing(cls, volume_bundle, logger):
         """
         Starts scrubbing and will be offloaded into a seperate thread
         :param volume_bundle: volume information
@@ -425,10 +350,10 @@ class RegressionTester(CIConstants):
         vdisk_task_mapping = {}
         error_msgs = []
         for vdisk_name, vdisk_object in volume_bundle.iteritems():
-            vdisk_task_mapping[vdisk_object.guid] = VDiskHelper.scrub_vdisk(vdisk_object.guid, api, wait=False)  # Tasks are launched but not checked upon
+            vdisk_task_mapping[vdisk_object.guid] = VDiskHelper.scrub_vdisk(vdisk_object.guid, wait=False)  # Tasks are launched but not checked upon
         for vdisk_name, vdisk_object in volume_bundle.iteritems():
             logger.debug('Waiting for vdisk {0}s task to finish scrubbing.'.format(vdisk_name))
-            task_result = api.wait_for_task(vdisk_task_mapping[vdisk_object.guid])
+            task_result = cls.api.wait_for_task(vdisk_task_mapping[vdisk_object.guid])
             if not task_result[0]:
                 error_msg = "Scrubbing vDisk `{0}` has failed with error {1}".format(vdisk_name, task_result[1])
                 logger.error(error_msg)
@@ -448,6 +373,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return RegressionTester().main(blocked)
+
 
 if __name__ == '__main__':
     run()

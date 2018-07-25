@@ -62,8 +62,7 @@ class DTLChecks(CIConstants):
         * 1 vPool with 1 storagedriver with disabled DTL
         :return:
         """
-        DTLChecks.LOGGER.info("Starting to validate the basic DTL")
-        api = cls.get_api_instance()
+        cls.LOGGER.info("Starting to validate the basic DTL")
         ##########################
         # get deployment details #
         ##########################
@@ -78,14 +77,14 @@ class DTLChecks(CIConstants):
             if vp.configuration['dtl_mode'] != VPoolHelper.DtlStatus.DISABLED:
                 if len(vp.storagedrivers) == 1 and vpool_single_sd is None:
                     vpool_single_sd = vp
-                    DTLChecks.LOGGER.info("vPool `{0}` has been chosen for SINGLE vPool DTL tests".format(vp.name))
+                    cls.LOGGER.info("vPool `{0}` has been chosen for SINGLE vPool DTL tests".format(vp.name))
                 elif len(vp.storagedrivers) >= 2 and vpool_multi_sd is None:
                     vpool_multi_sd = vp
-                    DTLChecks.LOGGER.info("vPool `{0}` has been chosen for MULTI vPool DTL tests".format(vp.name))
+                    cls.LOGGER.info("vPool `{0}` has been chosen for MULTI vPool DTL tests".format(vp.name))
                 else:
-                    DTLChecks.LOGGER.info("vPool `{0}` is not suited for tests".format(vp.name))
+                    cls.LOGGER.info("vPool `{0}` is not suited for tests".format(vp.name))
             else:
-                DTLChecks.LOGGER.info("vPool `{0}` with DISABLED DTL is available and will be tested!".format(vp.name))
+                cls.LOGGER.info("vPool `{0}` with DISABLED DTL is available and will be tested!".format(vp.name))
                 vpool_dtl_disabled = vp
 
         assert vpool_single_sd is not None, "A vPool should be available with 1 storagedriver"
@@ -126,20 +125,19 @@ class DTLChecks(CIConstants):
             start = time.time()
             for vpool in vpools:
 
-                DTLChecks.LOGGER.info("Starting DTL test with vPool {0} and {1} storagedrivers".format(vpool['vpool'].name, len(vpool['vpool'].storagedrivers)))
-                vdisk_name = "{0}-{1}-{2}".format(DTLChecks.VDISK_NAME, vpool['vpool'].name, str(len(vpool['vpool'].storagedrivers)))
+                cls.LOGGER.info("Starting DTL test with vPool {0} and {1} storagedrivers".format(vpool['vpool'].name, len(vpool['vpool'].storagedrivers)))
+                vdisk_name = "{0}-{1}-{2}".format(cls.VDISK_NAME, vpool['vpool'].name, str(len(vpool['vpool'].storagedrivers)))
                 try:
                     vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool['vpool'].name,
-                                                         size=DTLChecks.SIZE_VDISK,
-                                                         storagerouter_ip=vpool['storagedriver'].storagerouter.ip,
-                                                         api=api)
+                                                         size=cls.SIZE_VDISK,
+                                                         storagerouter_ip=vpool['storagedriver'].storagerouter.ip)
                     # Fetch to validate if it was properly created
                     vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid=vdisk_guid)
                 except TimeOutError:
-                    DTLChecks.LOGGER.error("Creation of the vDisk has timed out.")
+                    cls.LOGGER.error("Creation of the vDisk has timed out.")
                     raise
                 except RuntimeError as ex:
-                    DTLChecks.LOGGER.info("Creation of vDisk failed: {0}".format(ex))
+                    cls.LOGGER.info("Creation of vDisk failed: {0}".format(ex))
                     raise
                 else:
                     #####################################
@@ -148,14 +146,14 @@ class DTLChecks(CIConstants):
 
                     correct_msg = "vDisk {0} with {1} storagedriver(s) has correct DTL status: ".format(vdisk_name, a_s)
                     if a_s == 1 and vdisk.dtl_status == VDiskHelper.DtlStatus.STANDALONE:
-                        DTLChecks.LOGGER.info(correct_msg + vdisk.dtl_status)
+                        cls.LOGGER.info(correct_msg + vdisk.dtl_status)
                     elif a_s >= 2 and vdisk.dtl_status == VDiskHelper.DtlStatus.SYNC:
-                        DTLChecks.LOGGER.info(correct_msg + vdisk.dtl_status)
+                        cls.LOGGER.info(correct_msg + vdisk.dtl_status)
                     elif vdisk.dtl_status == VDiskHelper.DtlStatus.DISABLED and vpool['vpool'].configuration['dtl_mode'] == VPoolHelper.DtlStatus.DISABLED:
-                        DTLChecks.LOGGER.info(correct_msg + " Note: vdisk DTL is disabled but vPool DTL is also disabled!")
+                        cls.LOGGER.info(correct_msg + " Note: vdisk DTL is disabled but vPool DTL is also disabled!")
                     else:
                         error_msg = "vDisk {0} with {1} storagedriver(s) has WRONG DTL status: {2}".format(vdisk_name, a_s, vdisk.dtl_status)
-                        DTLChecks.LOGGER.error(error_msg)
+                        cls.LOGGER.error(error_msg)
                         raise RuntimeError(error_msg)
 
                     ################################
@@ -171,82 +169,82 @@ class DTLChecks(CIConstants):
                         ########################################################################################
                         # change config to domain with non existing storagedrivers of this vpool (should fail) #
                         ########################################################################################
-                        DTLChecks.LOGGER.info("Starting test: change config to domain with non existing storagedrivers "
+                        cls.LOGGER.info("Starting test: change config to domain with non existing storagedrivers "
                                               "of this vpool (should fail)")
                         base_config['dtl_target'] = [random.choice([domain_guid for domain_guid in
                                                                    DomainHelper.get_domain_guids()
                                                                    if domain_guid not in vpool['storagedriver'].
                                                                    storagerouter.regular_domains])]
-                        DTLChecks.LOGGER.info("Changing dtl_target to: {0}"
+                        cls.LOGGER.info("Changing dtl_target to: {0}"
                                               .format(DomainHelper.get_domain_by_guid(domain_guid=base_config['dtl_target'][0]).name))
                         try:
-                            DTLChecks.LOGGER.info(base_config)
-                            VDiskSetup.set_config_params(vdisk_name=vdisk_name + '.raw', vpool_name=vpool['vpool'].name, config=base_config, api=api)
+                            cls.LOGGER.info(base_config)
+                            VDiskSetup.set_config_params(vdisk_name=vdisk_name + '.raw', vpool_name=vpool['vpool'].name, config=base_config)
                             error_msg = "Changing config to a domain with non existing storagedrivers should have failed with vdisk: {0}!".format(vdisk_name)
-                            DTLChecks.LOGGER.error(error_msg)
+                            cls.LOGGER.error(error_msg)
                             raise Exception(error_msg)
                         except TimeOutError:
-                            DTLChecks.LOGGER.error("Changing config to a same domain with only 1 storagedriver has timed out.")
+                            cls.LOGGER.error("Changing config to a same domain with only 1 storagedriver has timed out.")
                             raise
                         except RuntimeError:
-                            DTLChecks.LOGGER.info("Changing config to a domain with non existing storagedrivers has failed as expected!")
+                            cls.LOGGER.info("Changing config to a domain with non existing storagedrivers has failed as expected!")
 
                         ##############################################################################################
                         # change config to domain where there are other storagedrivers but not of ours (should fail) #
                         ##############################################################################################
-                        DTLChecks.LOGGER.info("Starting test: change config to domain where there are other storagedrivers but not of ours (should fail)")
+                        cls.LOGGER.info("Starting test: change config to domain where there are other storagedrivers but not of ours (should fail)")
 
                         filtered_domains = list(set(DomainHelper.get_domain_guids()) - set(vpool['storagedriver'].storagerouter.regular_domains))
                         base_config['dtl_target'] = [filtered_domains[0]]
-                        DTLChecks.LOGGER.info("Current vdisk domain location: {0}"
+                        cls.LOGGER.info("Current vdisk domain location: {0}"
                                               .format(DomainHelper.get_domain_by_guid(domain_guid=vpool['storagedriver'].storagerouter.regular_domains[0]).name))
-                        DTLChecks.LOGGER.info("Changing dtl_target to: {0}".format(DomainHelper.get_domain_by_guid(domain_guid=base_config['dtl_target'][0]).name))
+                        cls.LOGGER.info("Changing dtl_target to: {0}".format(DomainHelper.get_domain_by_guid(domain_guid=base_config['dtl_target'][0]).name))
                         try:
-                            VDiskSetup.set_config_params(vdisk_name=vdisk_name + '.raw', vpool_name=vpool['vpool'].name, config=base_config, api=api)
+                            VDiskSetup.set_config_params(vdisk_name=vdisk_name + '.raw', vpool_name=vpool['vpool'].name, config=base_config)
                             error_msg = "Changing config to a same domain with only 1 storagedriver should have failed with vdisk: {0}!".format(vdisk_name)
-                            DTLChecks.LOGGER.error(error_msg)
+                            cls.LOGGER.error(error_msg)
                             raise Exception(error_msg)
                         except TimeOutError:
-                            DTLChecks.LOGGER.error("Changing config to a domain with non existing storagedrivers has timed out.")
+                            cls.LOGGER.error("Changing config to a domain with non existing storagedrivers has timed out.")
                             raise
                         except RuntimeError:
-                            DTLChecks.LOGGER.info("Changing config to a same domain with only 1 storagedriver has failed as expected!")
+                            cls.LOGGER.info("Changing config to a same domain with only 1 storagedriver has failed as expected!")
                     elif a_s >= 2:
                         #######################################################################
                         # change config to domain with active storagedrivers (should succeed) #
                         #######################################################################
-                        DTLChecks.LOGGER.info("Starting test: change config to domain with active storagedrivers (should succeed)")
+                        cls.LOGGER.info("Starting test: change config to domain with active storagedrivers (should succeed)")
 
                         # change current target domain to other target domain
                         current_vdisk_domains = StoragedriverHelper.get_storagedriver_by_id(storagedriver_id=vdisk.storagedriver_id).storagerouter.regular_domains
-                        DTLChecks.LOGGER.info("Currently the vdisk is living in: {0}".format(current_vdisk_domains))
+                        cls.LOGGER.info("Currently the vdisk is living in: {0}".format(current_vdisk_domains))
                         vpool_domains = VPoolHelper.get_domains_by_vpool(vpool_name=vdisk.vpool.name)
-                        DTLChecks.LOGGER.info("Currently the vpool {0} is available in: {1}".format(vdisk.vpool.name, vpool_domains))
+                        cls.LOGGER.info("Currently the vpool {0} is available in: {1}".format(vdisk.vpool.name, vpool_domains))
                         future_domains = list(set(vpool_domains) - set(current_vdisk_domains))
-                        DTLChecks.LOGGER.info("DTL will be moved to other domain: {0}".format(future_domains))
+                        cls.LOGGER.info("DTL will be moved to other domain: {0}".format(future_domains))
                         base_config['dtl_target'] = future_domains
 
                         # change settings
                         try:
-                            VDiskSetup.set_config_params(vdisk_name=vdisk_name + '.raw', vpool_name=vpool['vpool'].name, config=base_config, api=api)
+                            VDiskSetup.set_config_params(vdisk_name=vdisk_name + '.raw', vpool_name=vpool['vpool'].name, config=base_config)
                         except TimeOutError:
-                            DTLChecks.LOGGER.error("Changing config to a same domain with only 1 storagedriver has timed out.")
+                            cls.LOGGER.error("Changing config to a same domain with only 1 storagedriver has timed out.")
                             raise
                         except RuntimeError:
-                            DTLChecks.LOGGER.error("Changing config to a same domain with only 1 storagedriver was unsuccesful!")
+                            cls.LOGGER.error("Changing config to a same domain with only 1 storagedriver was unsuccesful!")
                             raise
-                        DTLChecks.LOGGER.info("Changing config to a same domain with only 1 storagedriver was successful!")
+                        cls.LOGGER.info("Changing config to a same domain with only 1 storagedriver was successful!")
 
-                    DTLChecks.LOGGER.info("Removing vDisk {0}".format(vdisk.name))
-                    VDiskRemover.remove_vdisk(vdisk_guid=vdisk.guid, api=api)
-                    DTLChecks.LOGGER.info("Finished removing vDisk {0}".format(vdisk.name))
+                    cls.LOGGER.info("Removing vDisk {0}".format(vdisk.name))
+                    VDiskRemover.remove_vdisk(vdisk_guid=vdisk.guid)
+                    cls.LOGGER.info("Finished removing vDisk {0}".format(vdisk.name))
 
             end = time.time()
 
             # display run time
-            DTLChecks.LOGGER.info("Run testing the DTL took {0} seconds".format(int(end - start)))
+            cls.LOGGER.info("Run testing the DTL took {0} seconds".format(int(end - start)))
 
-        DTLChecks.LOGGER.info("Finished to validate the basic DTL")
+        cls.LOGGER.info("Finished to validate the basic DTL")
 
 
 def run(blocked=False):
@@ -258,6 +256,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return DTLChecks().main(blocked)
+
 
 if __name__ == "__main__":
     run()

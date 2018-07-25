@@ -13,10 +13,7 @@
 #
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
-import json
 import time
-from ci.main import CONFIG_LOC
-from ci.api_lib.helpers.api import OVSClient
 from ci.api_lib.helpers.statistics import StatisticsHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
@@ -29,7 +26,7 @@ from ovs.log.log_handler import LogHandler
 
 class VDiskTemplateChecks(CIConstants):
 
-    CASE_TYPE = 'FUNCTIONAL'
+    CASE_TYPE = 'FUNCTIONALITY'
     TEST_NAME = "ci_scenario_vdisk_template_memleak"
     LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
     PREFIX = "integration-tests-templ-memleak-"
@@ -60,8 +57,8 @@ class VDiskTemplateChecks(CIConstants):
         _ = blocked
         return VDiskTemplateChecks.validate_vdisk_clone()
 
-    @staticmethod
-    def validate_vdisk_clone(amount_vdisks=AMOUNT_VDISKS, amount_to_write=AMOUNT_TO_WRITE):
+    @classmethod
+    def validate_vdisk_clone(cls, amount_vdisks=AMOUNT_VDISKS, amount_to_write=AMOUNT_TO_WRITE):
         """
         Validate if vdisk deployment works via various ways
         INFO: 1 vPool should be available on 2 storagerouters
@@ -69,16 +66,7 @@ class VDiskTemplateChecks(CIConstants):
         :return:
         """
 
-        VDiskTemplateChecks.LOGGER.info("Starting to regress template memleak vdisks")
-
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-            config = json.load(JSON_CONFIG)
-
-        api = OVSClient(
-            config['ci']['grid_ip'],
-            config['ci']['user']['api']['username'],
-            config['ci']['user']['api']['password']
-        )
+        cls.LOGGER.info("Starting to regress template memleak vdisks")
 
         vpools = VPoolHelper.get_vpools()
         assert len(vpools) >= 1, "Not enough vPools to test"
@@ -95,7 +83,7 @@ class VDiskTemplateChecks(CIConstants):
         # create required vdisk for test
         vdisk_name = VDiskTemplateChecks.PREFIX + '1'
         assert VDiskSetup.create_vdisk(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
-                                       size=VDiskTemplateChecks.VDISK_SIZE, api=api,
+                                       size=VDiskTemplateChecks.VDISK_SIZE,
                                        storagerouter_ip=storagedriver_source.storagerouter.ip) is not None
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_AFTER_CREATE)
 
@@ -103,7 +91,7 @@ class VDiskTemplateChecks(CIConstants):
         # template vdisk #
         ##################
 
-        VDiskSetup.set_vdisk_as_template(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name, api=api)
+        VDiskSetup.set_vdisk_as_template(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name)
         time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_AFTER_CREATE)
 
         ######################
@@ -111,11 +99,11 @@ class VDiskTemplateChecks(CIConstants):
         ######################
 
         memory_usage_beginning = StatisticsHelper.get_current_memory_usage(storagedriver_source.storage_ip)
-        VDiskTemplateChecks.LOGGER.info("Starting memory usage monitor: {0}/{1}"
+        cls.LOGGER.info("Starting memory usage monitor: {0}/{1}"
                                         .format(memory_usage_beginning[0], memory_usage_beginning[1]))
         pid = int(client.run("pgrep -a volumedriver | grep {0} | cut -d ' ' -f 1".format(vpool.name),
                              allow_insecure=True))
-        VDiskTemplateChecks.LOGGER.info(
+        cls.LOGGER.info(
             "Starting extended memory monitor on pid {0}: \n{1}"
             .format(pid, StatisticsHelper.get_current_memory_usage_of_process(storagedriver_source.storage_ip, pid)))
 
@@ -128,37 +116,37 @@ class VDiskTemplateChecks(CIConstants):
             clone_vdisk_name = vdisk_name + '-template-' + str(vdisk)
             VDiskSetup.create_from_template(vdisk_name=vdisk_name + '.raw', vpool_name=vpool.name,
                                             new_vdisk_name=clone_vdisk_name + '.raw',
-                                            storagerouter_ip=storagedriver_source.storagerouter.ip, api=api)
+                                            storagerouter_ip=storagedriver_source.storagerouter.ip)
             # perform fio test
             client.run(["fio", "--name=test", "--filename=/mnt/{0}/{1}.raw".format(vpool.name, clone_vdisk_name),
                         "--ioengine=libaio", "--iodepth=4", "--rw=write", "--bs=4k", "--direct=1",
                         "--size={0}M".format(amount_to_write), "--output-format=json",
                         "--output={0}.json".format(vdisk_name)])
             # delete vdisk
-            time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_BEFORE_DELETE)
-            VDiskRemover.remove_vdisk_by_name(vdisk_name=clone_vdisk_name, vpool_name=vpool.name, api=api)
+            time.sleep(cls.TEMPLATE_SLEEP_BEFORE_DELETE)
+            VDiskRemover.remove_vdisk_by_name(vdisk_name=clone_vdisk_name, vpool_name=vpool.name)
 
         ###################
         # remove template #
         ###################
 
-        time.sleep(VDiskTemplateChecks.TEMPLATE_SLEEP_BEFORE_DELETE)
-        VDiskRemover.remove_vtemplate_by_name(vdisk_name=vdisk_name, vpool_name=vpool.name, api=api)
+        time.sleep(cls.TEMPLATE_SLEEP_BEFORE_DELETE)
+        VDiskRemover.remove_vtemplate_by_name(vdisk_name=vdisk_name, vpool_name=vpool.name)
 
         ######################
         # log current memory #
         ######################
 
         memory_usage_ending = StatisticsHelper.get_current_memory_usage(storagedriver_source.storage_ip)
-        VDiskTemplateChecks.LOGGER.info("Finished memory usage monitor: {0}/{1}"
+        cls.LOGGER.info("Finished memory usage monitor: {0}/{1}"
                                         .format(memory_usage_ending[0], memory_usage_ending[1]))
         pid = int(client.run("pgrep -a volumedriver | grep {0} | cut -d ' ' -f 1".format(vpool.name),
                              allow_insecure=True))
-        VDiskTemplateChecks.LOGGER.info(
+        cls.LOGGER.info(
             "Finished extended memory monitor on pid {0}: \n{1}"
             .format(pid, StatisticsHelper.get_current_memory_usage_of_process(storagedriver_source.storage_ip, pid)))
 
-        VDiskTemplateChecks.LOGGER.info("Finished to regress template memleak vdisks")
+        cls.LOGGER.info("Finished to regress template memleak vdisks")
 
 
 def run(blocked=False):
@@ -170,6 +158,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return VDiskTemplateChecks().main(blocked)
+
 
 if __name__ == "__main__":
     run()

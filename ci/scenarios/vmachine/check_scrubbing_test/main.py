@@ -36,7 +36,7 @@ class ScrubbingChecks(CIConstants):
     SIZE_VDISK = 50 * 1024 ** 2
     PREFIX = "integration-tests-scrubbing"
     MAX_SCRUBBING_CHECKS = 20
-    SCRUBBING_TIMEOUT = 45
+    SCRUBBING_TIMEOUT = 90
     REQUIRED_PACKAGES = ['fio']
     TYPE_TEST_RUN = ['originals', 'clones']
 
@@ -77,20 +77,19 @@ class ScrubbingChecks(CIConstants):
     @classmethod
     def start_test(cls):
         storagedriver, fio_bin_loc, is_ee = cls.setup()
-        api = cls.get_api_instance()
         for test_run_type in cls.TYPE_TEST_RUN:
             cloned = test_run_type == 'clones'
-            created_vdisks = cls.create_vdisks(storagedriver, api, cloned=cloned)
+            created_vdisks = cls.create_vdisks(storagedriver, cloned=cloned)
             try:
                 if cloned is True:
                     vdisks = created_vdisks['clones']
                 else:
                     vdisks = created_vdisks['parents']
-                stored_map = cls._prepare_for_scrubbing(vdisks, storagedriver, fio_bin_loc, is_ee, api)
+                stored_map = cls._prepare_for_scrubbing(vdisks, storagedriver, fio_bin_loc, is_ee)
                 cls._validate_scrubbing(stored_map)
             finally:
                 for vdisk_type, vdisk_list in created_vdisks.iteritems():
-                    VDiskRemover.remove_vdisks_with_structure(vdisk_list, api)
+                    VDiskRemover.remove_vdisks_with_structure(vdisk_list)
 
     @staticmethod
     def _validate_scrubbing(vdisk_stored_mapper, amount_checks=MAX_SCRUBBING_CHECKS, timeout=SCRUBBING_TIMEOUT):
@@ -131,11 +130,11 @@ class ScrubbingChecks(CIConstants):
                 raise RuntimeError(error_msg)
 
     @classmethod
-    def _prepare_for_scrubbing(cls, vdisks, storagedriver, fio_bin_location, is_ee, api):
+    def _prepare_for_scrubbing(cls, vdisks, storagedriver, fio_bin_location, is_ee):
         """
         Writes data to the vdisks
         :param vdisks: list of vdisks
-        :return: 
+        :return:
         """
         client = SSHClient(storagedriver.storagerouter, username='root')
         edge_configuration = {'fio_bin_location': fio_bin_location, 'hostname': storagedriver.storage_ip,
@@ -155,7 +154,7 @@ class ScrubbingChecks(CIConstants):
         for vdisk in vdisks:  # Snapshot to give the volumedriver a point of reference to scrub towards
             VDiskSetup.create_snapshot(snapshot_name='{}_snapshot01'.format(vdisk.name),
                                        vdisk_name=vdisk.name,
-                                       vpool_name=vdisk.vpool.name, api=api, consistent=False, sticky=False)
+                                       vpool_name=vdisk.vpool.name, consistent=False, sticky=False)
         stored_map = {}
         for vdisk in vdisks:
             stored_map[vdisk.guid] = vdisk.statistics['stored']
@@ -163,16 +162,16 @@ class ScrubbingChecks(CIConstants):
         return stored_map
 
     @classmethod
-    def create_vdisks(cls, storagedriver, api, amount_vdisks=AMOUNT_VDISKS_TO_SCRUB, size=SIZE_VDISK, cloned=False):
+    def create_vdisks(cls, storagedriver, amount_vdisks=AMOUNT_VDISKS_TO_SCRUB, size=SIZE_VDISK, cloned=False):
         vpool = storagedriver.vpool
-        ScrubbingChecks.LOGGER.info("Start deploying vdisks for scrubbing with clone status: {0}".format(cloned))
+        cls.LOGGER.info("Start deploying vdisks for scrubbing with clone status: {0}".format(cloned))
         vdisks = {'parents': [],  # Non cloned
                   'clones': []}  # Cloned
         if cloned is True:
             parent_vdisk_name = '{0}_clone_parent_{1}'.format(cls.PREFIX, str(0).zfill(3))
             parent_vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=parent_vdisk_name,
                                                         vpool_name=vpool.name,
-                                                        size=size, api=api,
+                                                        size=size,
                                                         storagerouter_ip=storagedriver.storagerouter.ip)
             parent_vdisk = VDiskHelper.get_vdisk_by_guid(parent_vdisk_guid)
             vdisks['parents'].append(parent_vdisk)
@@ -181,15 +180,14 @@ class ScrubbingChecks(CIConstants):
                 cloned_vdisk = VDiskHelper.get_vdisk_by_guid(
                     VDiskSetup.create_clone(vdisk_name=parent_vdisk_name, vpool_name=vpool.name,
                                             new_vdisk_name=clone_vdisk_name,
-                                            storagerouter_ip=storagedriver.storagerouter.ip,
-                                            api=api)['vdisk_guid'])
+                                            storagerouter_ip=storagedriver.storagerouter.ip)['vdisk_guid'])
                 vdisks['clones'].append(cloned_vdisk)
         else:
             for vdisk_nr in xrange(amount_vdisks):
                 vdisk_name = '{0}_{1}'.format(cls.PREFIX, str(vdisk_nr).zfill(3))
                 vdisk_guid = VDiskSetup.create_vdisk(vdisk_name=vdisk_name,
                                                      vpool_name=vpool.name,
-                                                     size=size, api=api,
+                                                     size=size,
                                                      storagerouter_ip=storagedriver.storagerouter.ip)
                 vdisk = VDiskHelper.get_vdisk_by_guid(vdisk_guid)
                 vdisks['parents'].append(vdisk)
@@ -205,6 +203,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return ScrubbingChecks().main(blocked)
+
 
 if __name__ == "__main__":
     run()
