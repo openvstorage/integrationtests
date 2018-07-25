@@ -102,8 +102,8 @@ class BasicIscsi(CIConstants):
         vpool = source_storagedriver.vpool
         amount_of_targets = 3
         iscsi_node = random.choice(cluster_info['iscsi_nodes'])
-        tests = [cls.test_expose_unexpose_remove, cls.test_expose_remove, cls.test_expose_twice, cls.test_data_acceptance,
-                 cls.test_exposed_move, cls.test_expose_two_nodes, cls.test_expose_ha, cls.test_expose_concurrently]
+        tests = [cls.test_data_acceptance
+                 ]
         run_errors = []
         for _function in tests:
             vdisk_info = cls.deployment(amount_of_targets, vpool, source_storagedriver.storage_ip)
@@ -292,7 +292,7 @@ class BasicIscsi(CIConstants):
         """
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+            iqns += cls._fetch_iqns(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
         cls._validate_iscsi(iscsi_node)
         cls._write_data_to_target(iqns)
 
@@ -306,7 +306,7 @@ class BasicIscsi(CIConstants):
         """
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+            iqns += cls._fetch_iqns(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             ISCSIHelper.restart_targets_for_vdisk(vdisk_object.guid)
 
@@ -328,7 +328,7 @@ class BasicIscsi(CIConstants):
         try:  # Isolate own creation
             for vdisk_name, vdisk_object in vdisk_info.iteritems():
                 cls.LOGGER.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-                iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+                iqns += cls._fetch_iqns(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
             cls._validate_iscsi(iscsi_node)
             time.sleep(cls.ISCSI_SYNC_TIME)  # Small sync
             cls._write_data_to_target(iqns, a_vdisk.size / 10)
@@ -359,8 +359,8 @@ class BasicIscsi(CIConstants):
         a_vdisk_storagerouter = StoragerouterHelper.get_storagerouter_by_guid(a_vdisk.storagerouter_guid)
         client = SSHClient(a_vdisk_storagerouter, username='root')
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
-            cls.cls.LOGGER.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+            cls.LOGGER.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
+            iqns += cls._fetch_iqns(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
         # Login to targets
         cls._validate_iscsi(iscsi_node)
         try:
@@ -389,7 +389,7 @@ class BasicIscsi(CIConstants):
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             cls.LOGGER.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
-            iqns.append(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
+            iqns += cls._fetch_iqns(ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter'))
         cls._validate_iscsi(iscsi_node)
         cls._write_data_to_target(iqns, screen=True)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
@@ -418,7 +418,7 @@ class BasicIscsi(CIConstants):
             screen_names = []
             try:
                 fio_config = {'io_size': size, 'configuration': (50, 50), 'bs': '4k'}
-                screen_names, output_files = DataWriter.write_data_fio(local_client, fio_config, file_locations=associated_disks, screen=screen)
+                screen_names, output_files = DataWriter.write_data_fio(client=local_client, fio_configuration=fio_config, file_locations=associated_disks, screen=screen, nbd_device=True)
             finally:
                 for screen_name in screen_names:
                     local_client.run(['screen', '-S', screen_name, '-X', 'quit'])
@@ -555,6 +555,26 @@ class BasicIscsi(CIConstants):
         cmd = ['iscsiadm', '-m', 'node', '--logout', '-T', target_iqn]
         local_client = SSHClient(System.get_my_storagerouter(), 'root')
         local_client.run(cmd)
+
+    @classmethod
+    def _fetch_iqns(cls, d):
+        """
+        Assumes all iqns in dict are valid iqns
+        :param d:
+        :type d: dict
+        :return:
+        """
+        iqns = []
+        for key, value in d.iteritems():
+            # can be string for primary node, list for secondary nodes
+            if isinstance(value, unicode):
+                iqns.append(str(value))
+            elif isinstance(value, list):
+                for iqn in value:
+                    iqns.append(iqn)
+            else:
+                raise RuntimeError('No suitable type found for iqn fetching')
+        return iqns
 
 
 def run(blocked=False):
