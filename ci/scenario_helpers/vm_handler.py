@@ -15,21 +15,25 @@
 # but WITHOUT ANY WARRANTY of any kind.
 import uuid
 import time
+import json
 import Queue
-import socket
 import subprocess
 from ci.api_lib.helpers.api import TimeOutError
 from ci.api_lib.helpers.exceptions import VDiskNotFoundError
-from ci.api_lib.helpers.thread import ThreadHelper
+from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorCredentials, HypervisorFactory
 from ci.api_lib.helpers.vdisk import VDiskHelper
+from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ovs.extensions.generic.logger import Logger
 from ovs_extensions.generic.remote import remote
+from ci.scenario_helpers.ci_constants import CIConstants
+from ci.scenario_helpers.threaded_server import ThreadedServer
 from ovs.extensions.generic.sshclient import SSHClient
+from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from ovs.lib.helpers.toolbox import Toolbox
 
 
-class VMHandler(object):
+class VMHandler(CIConstants):
     """
     Class that can create virtual machines
     """
@@ -45,28 +49,47 @@ class VMHandler(object):
     VM_VRAM = 1024  # In MB
     VM_OS_TYPE = 'ubuntu16.04'
 
-    @classmethod
-    def prepare_vm_disks(cls, source_storagedriver, cloud_image_path, cloud_init_loc, api, port, vm_amount, hypervisor_ip,
+    LISTEN_TIMEOUT = 60 * 60
+    SOCKET_BINDING_TIMEOUT = 5 * 60
+
+    def __init__(self, hypervisor_ip, amount_of_vms=1):
+        self.hypervisor_ip = hypervisor_ip
+        self.amount_of_vms = amount_of_vms
+        self.hv_credentials = HypervisorCredentials(ip=self.hypervisor_ip,
+                                                    user=self.HYPERVISOR_INFO['user'],
+                                                    password=self.HYPERVISOR_INFO['password'],
+                                                    type=self.HYPERVISOR_INFO['type'])
+        self.hypervisor_client = HypervisorFactory.get(self.hv_credentials)
+
+        self.vm_info = None
+        self.connection_messages = None
+        self.volume_amount = None
+
+        self.result_queue = Queue.Queue()
+        self.threaded_server = ThreadedServer('', 0, remote_ip=self.hypervisor_ip)
+        self.threaded_server.listen_threaded()  # Start our listening to reserve our port
+        self.listening_port = self.threaded_server.get_listening_port()
+        self.LOGGER.info('VMHandler now listening to port {0}:{1}'.format(self.hypervisor_ip, self.listening_port))
+
+    def prepare_vm_disks(self, source_storagedriver, cloud_image_path, cloud_init_loc,
                          vm_name, data_disk_size, edge_user_info=None, logger=LOGGER):
         """
         Will create all necessary vdisks to create the bulk of vms
         :param source_storagedriver: storagedriver to create the disks on
         :param cloud_image_path: path to the cloud image
         :param cloud_init_loc: path to the cloud init script
-        :param api: ovsclient instance
-        :param vm_amount: amount of vms to test with
         :param vm_name: name prefix for the vms
         :param data_disk_size: size of the data disk
-        :param hypervisor_ip: ip of the hypervisor
-        :param port: port to listen on
         :param edge_user_info: user information for the edge. Optional
         :param logger: logging instance
-        :return: 
+        :return:
         """
+        logger.info('Starting with preparing vm disk(s)')
+        vm_amount = self.amount_of_vms
         if isinstance(edge_user_info, dict):
             required_edge_params = {'username': (str, None, False),
                                     'password': (str, None, False)}
-            Toolbox.verify_required_params(required_edge_params, edge_user_info)
+            ExtensionsToolbox.verify_required_params(required_edge_params, edge_user_info)
         if edge_user_info is None:
             edge_user_info = {}
 
@@ -99,7 +122,7 @@ class VMHandler(object):
             if vm_number == 0:
                 try:
                     # Create VDISKs
-                    cls.convert_image(client, cloud_image_path, boot_vdisk_name, edge_configuration)
+                    self.convert_image(client, cloud_image_path, boot_vdisk_name, edge_configuration)
                 except RuntimeError as ex:
                     logger.error('Could not covert the image. Got {0}'.format(str(ex)))
                     raise
@@ -107,7 +130,7 @@ class VMHandler(object):
                 original_boot_disk_name = boot_vdisk_name
                 logger.info('Boot VDisk successfully created.')
                 try:
-                    data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, data_disk_size, source_storagedriver.storage_ip, api))
+                    data_vdisk = VDiskHelper.get_vdisk_by_guid(VDiskSetup.create_vdisk(data_vdisk_name, vpool.name, data_disk_size, source_storagedriver.storage_ip))
                     logger.info('VDisk data_vdisk successfully created!')
                 except TimeOutError:
                     logger.error('The creation of the data vdisk has timed out.')
@@ -121,21 +144,19 @@ class VMHandler(object):
                 boot_vdisk_info = VDiskSetup.create_clone(vdisk_name=original_boot_disk_name,
                                                           vpool_name=vpool.name,
                                                           new_vdisk_name=boot_vdisk_name,
-                                                          storagerouter_ip=source_storagedriver.storage_ip,
-                                                          api=api)
+                                                          storagerouter_ip=source_storagedriver.storage_ip)
                 boot_vdisk = VDiskHelper.get_vdisk_by_guid(boot_vdisk_info['vdisk_guid'])
                 data_vdisk_info = VDiskSetup.create_clone(vdisk_name=original_data_disk_name,
                                                           vpool_name=vpool.name,
                                                           new_vdisk_name=data_vdisk_name,
-                                                          storagerouter_ip=source_storagedriver.storage_ip,
-                                                          api=api)
+                                                          storagerouter_ip=source_storagedriver.storage_ip)
                 data_vdisk = VDiskHelper.get_vdisk_by_guid(data_vdisk_info['vdisk_guid'])
             #######################
             # GENERATE CLOUD INIT #
             #######################
-            iso_loc = cls._generate_cloud_init(client=client, convert_script_loc=cloud_init_loc,
-                                               port=port, hypervisor_ip=hypervisor_ip, create_msg=create_msg)
-            cls.convert_image(client, iso_loc, cd_vdisk_name, edge_configuration)
+            iso_loc = self._generate_cloud_init(client=client, convert_script_loc=cloud_init_loc,
+                                                create_msg=create_msg)
+            self.convert_image(client, iso_loc, cd_vdisk_name, edge_configuration)
             cd_creation_time = time.time()
             cd_vdisk = None
             while cd_vdisk is None:
@@ -151,7 +172,6 @@ class VMHandler(object):
             data_snapshot_guid = VDiskSetup.create_snapshot('{0}_data'.format(vm_name),
                                                             data_vdisk.devicename,
                                                             vpool.name,
-                                                            api,
                                                             consistent=False)
             vm_info[vm_name] = {'data_snapshot_guid': data_snapshot_guid,
                                 'vdisks': [boot_vdisk, data_vdisk, cd_vdisk],
@@ -165,48 +185,38 @@ class VMHandler(object):
             volume_amount += len(vm_info[vm_name]['vdisks'])
             logger.info('Prepped everything for VM {0}.'.format(vm_name))
 
-        return vm_info, connection_messages, volume_amount
+        self.vm_info = vm_info
+        self.connection_messages = connection_messages
+        self.volume_amount = volume_amount
 
-    @classmethod
-    def create_vms(cls, ip, port, connection_messages, vm_info, edge_configuration, hypervisor_client, timeout):
+    def create_vms(self, edge_configuration, timeout, logger=LOGGER):
         """
         Create multiple VMs and wait for their creation to be completed
-        :param ip: ip to listen on
-        :param port: port to listen on
-        :param connection_messages: connection messages to lookout for
-        :param vm_info: information about the vms
         :param edge_configuration: details of the edge
-        :param hypervisor_client: hypervisor instance
-        :param timeout: timeout listening
-        :return: 
+        :param timeout: timeout how long the function can wait for vm creation
+        :param logger: logging instance
+        :return:
         """
-        listening_queue = Queue.Queue()
-        # offload to a thread
-        listening_thread, listening_stop_object = ThreadHelper.start_thread_with_event(
-            cls._listen_to_address, 'vm_listener',
-            args=(ip, port, listening_queue, connection_messages, timeout))
-        try:
-            for vm_name, vm_data in vm_info.iteritems():
-                cls.create_vm(vm_name=vm_name,
-                              hypervisor_client=hypervisor_client,
-                              disks=vm_data['disks'],
-                              networks=vm_data['networks'],
-                              edge_configuration=edge_configuration,
-                              cd_path=vm_data['cd_path'])
-            listening_thread.join()  # Wait for all to finish
-            vm_ip_info = listening_queue.get()
-            for vm_name, vm_data in vm_info.iteritems():
-                vm_data.update(vm_ip_info[vm_name])
-            assert len(vm_ip_info.keys()) == len(vm_info.keys()), 'Not all VMs started.'
-        except:
-            if listening_thread.isAlive():
-                listening_stop_object.set()
-            listening_thread.join(timeout=60)
-            raise
-        return vm_info
+        logger.info('Creating vms')
+        for vm_name, vm_data in self.vm_info.iteritems():
+            logger.info('Initializing creation of vm {0}'.format(vm_name))
+            self.create_vm(vm_name=vm_name,
+                           hypervisor_client=self.hypervisor_client,
+                           disks=vm_data['disks'],
+                           networks=vm_data['networks'],
+                           edge_configuration=edge_configuration,
+                           cd_path=vm_data['cd_path'])
+        logger.info('Joining threads to wait for all VMs to be created')
+        # Connection messages are filled by the prepare_vm_disks method
+        vm_ip_info = self.threaded_server.wait_for_messages(messages=self.connection_messages, timeout=timeout)
+        logger.info('Retrieving VM info, to verify correct creation of VMs ')
+        for vm_name, vm_data in self.vm_info.iteritems():
+            vm_data.update(vm_ip_info[vm_name])
+        assert len(vm_ip_info.keys()) == len(self.vm_info.keys()), 'Not all VMs started.'
+        logger.info('Finished creation of vms')
+        return self.vm_info
 
-    @staticmethod
-    def _generate_cloud_init(client, convert_script_loc, port, hypervisor_ip, create_msg, path=CLOUD_INIT_DATA['user-data_loc'],
+    def _generate_cloud_init(self, client, convert_script_loc, create_msg, path=CLOUD_INIT_DATA['user-data_loc'],
                              config_destination=CLOUD_INIT_DATA['config_dest'], username='test', password='test', root_password='rooter', logger=LOGGER):
         """
         Generates a cloud init file with some userdata in (for a virtual machine)
@@ -249,7 +259,7 @@ class VMHandler(object):
             'sudo mkfs.ext4 /dev/vdb1',
             'sudo mkdir /mnt/data',
             'sudo mount /dev/vdb1 /mnt/data',
-            'echo -n {0} | netcat -w 0 {1} {2}'.format(create_msg, hypervisor_ip, port)
+            'echo -n {0} | netcat -w 0 {1} {2}'.format(create_msg, self.hypervisor_ip, self.listening_port)
 
         ]
         with open(path, 'w') as user_data_file:
@@ -260,58 +270,12 @@ class VMHandler(object):
         convert_cmd = [convert_script_loc, '--user-data', path, config_destination]
         try:
             client.run(convert_cmd)
+            self.LOGGER.info('cloud data creation finished, sending message to {0}:{0}'.format(self.hypervisor_ip, self.listening_port))
             return config_destination
         except subprocess.CalledProcessError as ex:
             logger.error(
                 'Could not generate the cloud init file on {0}. Got {1} during iso conversion.'.format(client.ip, str(ex.output)))
             raise
-
-    @staticmethod
-    def _listen_to_address(listening_host, listening_port, queue, connection_messages, timeout, stop_event, logger=LOGGER):
-        """
-        Listen for VMs that are ready
-        :param listening_host: host to listen on
-        :type listening_host: str
-        :param listening_port: port to listen on
-        :type listening_port: int
-        :param queue: queue object to report the answer to
-        :type queue: Queue.Queue
-        :param connection_messages: messages to listen to
-        :type connection_messages: list[str]
-        :param timeout: timeout in seconds
-        :type timeout: int
-        :param stop_event: stop event to abort this thread
-        :type stop_event: Threading.Event
-        :return: 
-        """
-        vm_ips_info = {}
-        with remote(listening_host, [socket]) as rem:
-            listening_socket = rem.socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                # Bind to first available port
-                listening_socket.bind((listening_host, listening_port))
-                listening_socket.listen(5)
-                logger.info(
-                    'Socket now listening on {0}:{1}, waiting to accept data.'.format(listening_host, listening_port))
-                start_time = time.time()
-                while len(connection_messages) > 0 and not stop_event.is_set():
-                    if time.time() - start_time > timeout:
-                        raise RuntimeError('Listening timed out after {0}s'.format(timeout))
-                    conn, addr = listening_socket.accept()
-                    logger.debug('Connected with {0}:{1}'.format(addr[0], addr[1]))
-                    data = conn.recv(1024)
-                    logger.debug('Connector said {0}'.format(data))
-                    if data in connection_messages:
-                        connection_messages.remove(data)
-                        vm_name = data.rsplit('_', 1)[-1]
-                        logger.debug('Recognized sender as {0}'.format(vm_name))
-                        vm_ips_info[vm_name] = {'ip': addr[0]}
-            except Exception as ex:
-                logger.error('Error while listening for VM messages.. Got {0}'.format(str(ex)))
-                raise
-            finally:
-                listening_socket.close()
-        queue.put(vm_ips_info)
 
     @staticmethod
     def create_vm(hypervisor_client, disks, networks, edge_configuration, cd_path, vm_name, vcpus=VM_VCPUS, ram=VM_VRAM,
@@ -403,27 +367,60 @@ class VMHandler(object):
                 pass
 
     @staticmethod
-    def create_blktap_device(client, diskname, edge_info, logger=LOGGER):
+    def create_nbd_device(client, diskname, edge_info, logger=LOGGER):
         """
-        Creates a blk tap device from a vdisk
-        :return: blktap device location
+        Creates a nbd device from a vdisk
+        :param client: Client to the storagerouter
+        :type client: SSHClient
+        :param diskname: Name of the vdisk
+        :type diskname: str
+        :param edge_info: edge information
+        :type edge_info: dict
+        :return: None
         """
-        required_edge_params = {'port': (int, {'min': 1, 'max': 65535}),
-                                'protocol': (str, ['tcp', 'udp', 'rdma']),
-                                'ip': (str, Toolbox.regex_ip),
-                                'username': (str, None, False),
-                                'password': (str, None, False)}
-        Toolbox.verify_required_params(required_edge_params, edge_info)
-        if edge_info.get('username') and edge_info.get('password'):
-            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'], edge_info['ip'],
-                                                                                                  edge_info['port'], diskname,
-                                                                                                  edge_info['username'], edge_info['password'])
+        nbd_devices = VMHandler.get_running_nbd_devices(client)
+        if not nbd_devices:
+            nbd_device_numbers = [0]
         else:
-            ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}".format(edge_info['protocol'], edge_info['ip'], edge_info['port'], diskname)
+            nbd_device_numbers = [int(config['path'].split('nbd')[1]) for nbd_d, config in nbd_devices.iteritems()]
 
-        cmd = ["tap-ctl", "create", "-a", ovs_edge_connection]
-        logger.debug('Creating blktap device: {}'.format(' '.join(cmd)))
-        return client.run(cmd)
+        nbd_device = "/dev/nbd{0}".format(max(nbd_device_numbers) + 1)
+        nbd_config_file = "/tmp/{0}".format(diskname)
+        lines = [
+            'volume_uri: tcp://{0}:{1}@{2}:{3}/{4}'.format(edge_info['username'], edge_info['password'], edge_info['ip'], edge_info['port'], diskname),
+            'nbd_path: {0}'.format(nbd_device),
+            ''
+        ]
+        with open(nbd_config_file, 'w') as user_data_file:
+            user_data_file.write('\n'.join(lines))
+        client.file_upload(nbd_config_file, nbd_config_file)
+        cmd = ["volumedriver_nbd", "attach", "file://{0}".format(nbd_config_file)]
+        client.run(cmd)
+        return nbd_device
+
+    @staticmethod
+    def get_running_nbd_devices(client):
+        """
+        Returns current nbd_devices on the client
+        :param client: Client to the storagerouter
+        :type client: SSHClient
+        :return: list
+        """
+        return json.loads(client.run(['volumedriver_nbd', 'list', '-o', 'json']))
+
+    @staticmethod
+    def detach_nbd_device(client, nbd_device, logger=LOGGER):
+        """
+        Detach the nbd device on the client
+        :param client: Client to the storagerouter
+        :param nbd_device: path of the ndb device (/dev/ndbX)
+        :return: None
+        """
+        nbd_devices = VMHandler.get_running_nbd_devices(client)
+        for nbd_d, config in nbd_devices.iteritems():
+            if nbd_device == config['path']:
+                client.run(['volumedriver_nbd', 'detach', nbd_device])
+        logger.error('Nbd device `{0}` not found on storagerouter `{1}`'.format(nbd_device, client.ip))
 
     @staticmethod
     def create_image(client, diskname, disk_size, edge_info, logger=LOGGER):
@@ -436,7 +433,7 @@ class VMHandler(object):
                                 'ip': (str, Toolbox.regex_ip),
                                 'username': (str, None, False),
                                 'password': (str, None, False)}
-        Toolbox.verify_required_params(required_edge_params, edge_info)
+        ExtensionsToolbox.verify_required_params(required_edge_params, edge_info)
         if edge_info.get('username') and edge_info.get('password'):
             ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'], edge_info['ip'],
                                                                                                   edge_info['port'], diskname,
@@ -459,7 +456,7 @@ class VMHandler(object):
                                 'ip': (str, Toolbox.regex_ip),
                                 'username': (str, None, False),
                                 'password': (str, None, False)}
-        Toolbox.verify_required_params(required_edge_params, edge_info)
+        ExtensionsToolbox.verify_required_params(required_edge_params, edge_info)
         if edge_info.get('username') and edge_info.get('password'):
             ovs_edge_connection = "openvstorage+{0}:{1}:{2}/{3}:username={4}:password={5}".format(edge_info['protocol'],
                                                                                                   edge_info['ip'],
@@ -473,3 +470,9 @@ class VMHandler(object):
         cmd = ["qemu-img", "convert", image_location, ovs_edge_connection]
         logger.debug('Converting an image with qemu using: {}'.format(' '.join(cmd)))
         client.run(cmd)
+
+    def destroy_vms(self, vm_info):
+        for vm_name, vm_object in vm_info.iteritems():
+            self.hypervisor_client.sdk.destroy(vm_name)
+            VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'])
+            self.hypervisor_client.sdk.undefine(vm_name)

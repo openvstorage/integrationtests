@@ -14,21 +14,19 @@
 # Open vStorage is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY of any kind.
 import time
-from ci.api_lib.helpers.domain import DomainHelper
 from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorFactory
-from ci.api_lib.helpers.network import NetworkHelper
 from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.thread import ThreadHelper
-from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.autotests import gather_results
-from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.data_writing import DataWriter
 from ci.scenario_helpers.fwk_handler import FwkHandler
+from ci.scenario_helpers.setup import SetupHelper
 from ci.scenario_helpers.threading_handlers import ThreadingHandler
 from ci.scenario_helpers.vm_handler import VMHandler
 from ovs.extensions.generic.logger import Logger
 from ovs_extensions.generic.remote import remote
+from ci.scenario_helpers.ci_constants import CIConstants
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.extensions.services.servicefactory import ServiceFactory
 
@@ -43,7 +41,7 @@ class AdvancedDTLTester(CIConstants):
     For this test the regular domain can only be 1 choice
     """
 
-    CASE_TYPE = 'FUNCTIONAL'
+    CASE_TYPE = 'FUNCTIONALITY'
     TEST_NAME = 'ci_scenario_advanced_dtl_test'
     LOGGER = Logger('scenario-{0}'.format(TEST_NAME))
     IO_TIME = 60
@@ -73,11 +71,15 @@ class AdvancedDTLTester(CIConstants):
         return AdvancedDTLTester.start_test()
 
     @classmethod
-    def start_test(cls, vm_amount=1, hypervisor_info=CIConstants.HYPERVISOR_INFO):
-        api = cls.get_api_instance()
+    def start_test(cls, vm_amount=1):
+        """
+        Run the entire test advanced_dtl_vdisk_test
+        :param vm_amount: number of vms to use in the test
+        :type vm_amount: int
+        :return:
+        """
         cluster_info, cloud_image_path, cloud_init_loc, is_ee = cls.setup()
         compute_ip = cluster_info['storagerouters']['compute'].ip
-        listening_port = NetworkHelper.get_free_port(compute_ip)
 
         source_storagedriver = cluster_info['storagedrivers']['source']
         protocol = source_storagedriver.cluster_node_config['network_server_uri'].split(':')[0]
@@ -87,87 +89,39 @@ class AdvancedDTLTester(CIConstants):
         if is_ee is True:
             edge_user_info = cls.get_shell_user()
             edge_details.update(edge_user_info)
-        computenode_hypervisor = HypervisorFactory.get(compute_ip,
-                                                       hypervisor_info['user'],
-                                                       hypervisor_info['password'],
-                                                       hypervisor_info['type'])
 
-        vm_info, connection_messages, volume_amount = VMHandler.prepare_vm_disks(
-            source_storagedriver=source_storagedriver,
-            cloud_image_path=cloud_image_path,
-            cloud_init_loc=cloud_init_loc,
-            api=api,
-            vm_amount=vm_amount,
-            port=listening_port,
-            hypervisor_ip=compute_ip,
-            vm_name=cls.VM_NAME,
-            data_disk_size=cls.AMOUNT_TO_WRITE * 2,
-            edge_user_info=edge_user_info)
-        vm_info = VMHandler.create_vms(ip=compute_ip,
-                                       port=listening_port,
-                                       connection_messages=connection_messages,
-                                       vm_info=vm_info,
-                                       edge_configuration=edge_details,
-                                       hypervisor_client=computenode_hypervisor,
-                                       timeout=cls.VM_WAIT_TIME)
+        vm_handler = VMHandler(hypervisor_ip=compute_ip, amount_of_vms=vm_amount)
+
+        vm_handler.prepare_vm_disks(source_storagedriver=source_storagedriver,
+                                    cloud_image_path=cloud_image_path,
+                                    cloud_init_loc=cloud_init_loc,
+                                    vm_name=cls.VM_NAME,
+                                    data_disk_size=cls.AMOUNT_TO_WRITE * 2,
+                                    edge_user_info=edge_user_info)
+        vm_info = vm_handler.create_vms(edge_configuration=edge_details,
+                                        timeout=cls.VM_CREATION_TIMEOUT)
         try:
             cls.run_test(vm_info=vm_info, cluster_info=cluster_info)
         finally:
-            for vm_name, vm_object in vm_info.iteritems():
-                computenode_hypervisor.sdk.destroy(vm_name)
-                VDiskRemover.remove_vdisks_with_structure(vm_object['vdisks'], api)
-                computenode_hypervisor.sdk.undefine(vm_name)
+            vm_handler.destroy_vms(vm_info=vm_info)
 
     @classmethod
     def setup(cls, logger=LOGGER):
-        #################
-        # PREREQUISITES #
-        #################
         """
-        Setup the advanced dtl test
+        Set up the environment needed for the test
+        :param logger: LOGGER instance
+        :type logger: ovs.log.log_handler.LogHandler
+        :return:
         """
-        #################
-        # PREREQUISITES #
-        #################
-        destination_str, source_str, compute_str = cls.get_storagerouters_by_role()
-        destination_storagedriver = None
-        source_storagedriver = None
-        if len(source_str.regular_domains) == 0:
-            storagedrivers = StoragedriverHelper.get_storagedrivers()
-        else:
-            storagedrivers = DomainHelper.get_storagedrivers_in_same_domain(domain_guid=source_str.regular_domains[0])
-        for storagedriver in storagedrivers:
-            if len(storagedriver.vpool.storagedrivers) < 2:
-                continue
-            if storagedriver.guid in destination_str.storagedrivers_guids:
-                if destination_storagedriver is None and (source_storagedriver is None or source_storagedriver.vpool_guid == storagedriver.vpool_guid):
-                    destination_storagedriver = storagedriver
-                    logger.info('Chosen destination storagedriver is: {0}'.format(destination_storagedriver.storage_ip))
-            elif storagedriver.guid in source_str.storagedrivers_guids:
-                # Select if the source driver isn't select and destination is also unknown or the storagedriver has matches with the same vpool
-                if source_storagedriver is None and (destination_storagedriver is None or destination_storagedriver.vpool_guid == storagedriver.vpool_guid):
-                    source_storagedriver = storagedriver
-                    logger.info('Chosen source storagedriver is: {0}'.format(source_storagedriver.storage_ip))
-        assert source_storagedriver is not None and destination_storagedriver is not None, 'We require at least two storagedrivers within the same domain.'
-        to_be_downed_client = SSHClient(source_str, username='root')  # Build ssh clients
-        # Check if enough images available
-        images = cls.get_images()
-        assert len(images) >= 1, 'We require an cloud init bootable image file.'
-        image_path = images[0]
-        assert to_be_downed_client.file_exists(image_path), 'Image `{0}` does not exists on `{1}`!'.format(images[0], to_be_downed_client.ip)
+        logger.info('Setting up environment for testing')
+        cluster_info = SetupHelper.setup_env(domain_based=True)
+
+        to_be_downed_client = SSHClient(cluster_info['storagerouters']['source'], username='root')  # Build ssh clients
 
         # Get the cloud init file
-        cloud_init_loc = cls.CLOUD_INIT_DATA.get('script_dest')
-        to_be_downed_client.run(['wget', cls.CLOUD_INIT_DATA.get('script_loc'), '-O', cloud_init_loc])
-        to_be_downed_client.file_chmod(cloud_init_loc, 755)
-        assert to_be_downed_client.file_exists(cloud_init_loc), 'Could not fetch the cloud init script'
-        cluster_info = {'storagerouters': {'destination': destination_str,
-                                           'source': source_str,
-                                           'compute': compute_str},
-                        'storagedrivers': {'destination': destination_storagedriver,
-                                           'source': source_storagedriver}}
-
-        is_ee = SystemHelper.get_ovs_version(source_str) == 'ee'
+        cloud_init_loc, is_ee = SetupHelper.setup_cloud_info(to_be_downed_client, cluster_info['storagedrivers']['source'])
+        image_path = SetupHelper.check_images(to_be_downed_client)
+        logger.info('Finished setting up environment')
         return cluster_info, image_path, cloud_init_loc, is_ee
 
     @classmethod
@@ -189,8 +143,8 @@ class AdvancedDTLTester(CIConstants):
         compute_client = SSHClient(compute_str)
 
         # setup hypervisor details
-        parent_hypervisor = cls.get_parent_hypervisor_instance()
-        vm_to_stop = cls.PARENT_HYPERVISOR_INFO['vms'][source_std.storage_ip]['name']
+        parent_hypervisor = HypervisorFactory().get()
+        vm_to_stop = cls.HYPERVISOR_INFO['vms'][source_std.storage_ip]['name']
 
         vdisk_info = {}
         disk_amount = 0
@@ -229,12 +183,12 @@ class AdvancedDTLTester(CIConstants):
 
                 logger.info('Starting to WRITE file while proxy is offline. All data should be stored in the DTL!')
                 for vm_name, vm_data in vm_info.iteritems():
-                    vm_data['client'].run('dd if=/dev/urandom of={0} bs=1M count=2'.format(AdvancedDTLTester.VM_FILENAME).split())
-                    original_md5sum = ' '.join(vm_data['client'].run(['md5sum', AdvancedDTLTester.VM_FILENAME]).split())
+                    vm_data['client'].run('dd if=/dev/urandom of={0} bs=1M count=2'.format(cls.VM_FILENAME).split())
+                    original_md5sum = ' '.join(vm_data['client'].run(['md5sum', cls.VM_FILENAME]).split())
                     vm_data['original_md5sum'] = original_md5sum
                     logger.info('Original MD5SUM for VM {0}: {1}.'.format(vm_name, original_md5sum))
                 logger.info('Finished to WRITE file while proxy is offline!')
-                logger.info("Starting fio to generate IO for failing over.".format(AdvancedDTLTester.IO_TIME))
+                logger.info("Starting fio to generate IO for failing over.".format(cls.IO_TIME))
                 io_thread_pairs, monitoring_data, io_r_semaphore = ThreadingHandler.start_io_polling_threads(volume_bundle=vdisk_info)
                 threads['evented']['io']['pairs'] = io_thread_pairs
                 threads['evented']['io']['r_semaphore'] = io_r_semaphore
@@ -267,13 +221,12 @@ class AdvancedDTLTester(CIConstants):
                                          client=compute_client,
                                          disk_amount=disk_amount)
                 logger.info('Starting to validate move...')
-                AdvancedDTLTester._validate_move(values_to_check)
-                logger.info('Finished to validate move!')
-
+                cls._validate_move(values_to_check)
+                logger.info('Finished validating move!')
                 logger.info('Validate if DTL is working correctly!')
                 unmatching_checksum_vms = []
                 for vm_name, vm_data in vm_info.iteritems():
-                    current_md5sum = ' '.join(vm_data['client'].run(['md5sum', AdvancedDTLTester.VM_FILENAME]).split())
+                    current_md5sum = ' '.join(vm_data['client'].run(['md5sum', cls.VM_FILENAME]).split())
                     if vm_data['original_md5sum'] != current_md5sum:
                         unmatching_checksum_vms.append(vm_name)
                 assert len(unmatching_checksum_vms) == 0, 'Not all data was read from the DTL. Checksums do not line up for {}'.format(', '.join(unmatching_checksum_vms))
@@ -328,6 +281,7 @@ def run(blocked=False):
     :rtype: dict
     """
     return AdvancedDTLTester().main(blocked)
+
 
 if __name__ == '__main__':
     run()

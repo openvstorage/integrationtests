@@ -18,15 +18,32 @@
 OVS automatic test lib
 """
 import os
-import re
+import imp
 import json
 import math
+import inspect
+import traceback
 import importlib
 import subprocess
 from datetime import datetime
-from ci.api_lib.helpers.exceptions import SectionNotFoundError
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
-from ci.api_lib.helpers.testrailapi import TestrailApi, TestrailCaseType, TestrailResult
+from ci.api_lib.testrail.client import APIClient
+from ci.api_lib.testrail.containers.case import Case
+from ci.api_lib.testrail.containers.milestone import Milestone
+from ci.api_lib.testrail.containers.project import Project
+from ci.api_lib.testrail.containers.result import Result
+from ci.api_lib.testrail.containers.run import Run
+from ci.api_lib.testrail.containers.section import Section
+from ci.api_lib.testrail.containers.suite import Suite
+from ci.api_lib.testrail.lists.caselist import CaseList
+from ci.api_lib.testrail.lists.casetypelist import CaseTypeList
+from ci.api_lib.testrail.lists.milestonelist import MilestoneList
+from ci.api_lib.testrail.lists.projectlist import ProjectList
+from ci.api_lib.testrail.lists.runlist import RunList
+from ci.api_lib.testrail.lists.sectionlist import SectionList
+from ci.api_lib.testrail.lists.statuslist import StatusList
+from ci.api_lib.testrail.lists.suitelist import SuiteList
+from ci.api_lib.testrail.lists.testlist import TestList
 from ci.main import CONFIG_LOC
 from ovs.extensions.generic.logger import Logger
 
@@ -39,6 +56,9 @@ class AutoTests(object):
     EXCLUDE_FLAG = "-exclude"
     with open(CONFIG_LOC, 'r') as config_file:
         CONFIG = json.load(config_file)
+
+    with open(TESTTRAIL_LOC, "r") as JSON_CONFIG:
+        TESTRAIL_CONFIG = json.load(JSON_CONFIG)
 
     @staticmethod
     def run(scenarios=None, send_to_testrail=False, fail_on_failed_scenario=False, only_add_given_results=True, exclude_scenarios=None):
@@ -58,37 +78,246 @@ class AutoTests(object):
         :rtype: tuple
         """
         logger = AutoTests.logger
+        error_messages = []
         if scenarios is None:
             scenarios = ['ALL']
         if exclude_scenarios is None:
             exclude_scenarios = AutoTests.CONFIG.get('exclude_scenarios', [])
+
+        if send_to_testrail:
+            testrail_client = AutoTests.get_testrail_client()
+            logger.info("Creating Testrail")
+            run_id = AutoTests.build_testrail()
+            logger.info("Get Testrail tests")
+            testrail_tests = AutoTests.get_tests(run_id)
         logger.info("Collecting tests.")  # Grab the tests to execute
-        tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
-        # print tests to be executed
-        logger.info("Executing the following tests: {0}".format(tests))
+        local_tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest not in exclude_scenarios]  # Filter out tests with EXCLUDE_FLAG
+        local_exclude_tests = [autotest for autotest in AutoTests.list_tests(scenarios[:]) if autotest in exclude_scenarios]
+        if send_to_testrail:
+            tests = AutoTests.link_testrail_tests(local_tests, testrail_tests)
+        else:
+            tests = {}
+            for test in local_tests:
+                tests[test] = ''
+        if len(exclude_scenarios) != 0 and send_to_testrail:
+            logger.info("Excluding the following tests: {0}".format(local_exclude_tests))
+            exclude_tests = AutoTests.link_testrail_tests(local_exclude_tests, testrail_tests)
+            for test, testrail_test in exclude_tests.iteritems():
+                logger.info("Marking test {0} as skipped.".format(test))
+                result = Result(test_id=testrail_test.id, status_id=StatusList(testrail_client).get_status_by_name('skipped').id, client=testrail_client)
+                result.save()
+
+        logger.info("Executing the following tests: {0}".format(tests.keys()))
         # execute the tests
         logger.info("Starting tests.")
         results = {}
         blocked = False
-        for test in tests:
-            mod = importlib.import_module('{0}.main'.format(test))
+        for test, testrail_test in tests.iteritems():
+            logger.info('\n{:=^100}\n'.format(test))
+            if send_to_testrail:
+                result = Result(test_id=testrail_test.id, status_id=StatusList(testrail_client).get_status_by_name('ongoing').id,
+                                client=testrail_client)
+                result.save()
+            try:
+                mod = importlib.import_module('{0}.main'.format(test))
+            except Exception:
+                message = 'Unable to import test {0}'.format(test)
+                logger.exception(message)
+                error_messages.append('{0}: \n {1}'.format(message, traceback.format_exc()))
+                if send_to_testrail:
+                    result = Result(test_id=testrail_test.id,
+                                    status_id=StatusList(testrail_client).get_status_by_name('failed').id,
+                                    comment=str(error_messages), client=testrail_client)
+                    result.save()
+                continue
             module_result = mod.run(blocked)
-            if hasattr(TestrailResult, module_result['status']):  # check if a test has failed, if it has failed check if we should block all other tests
-                if getattr(TestrailResult, module_result['status']) == TestrailResult.FAILED and fail_on_failed_scenario:
+            if 'status' in module_result:  # check if a test has failed, if it has failed check if we should block all other tests
+                if module_result['status'] == 'failed' and fail_on_failed_scenario:
                     if 'blocking' not in module_result:
                         blocked = True  # if a test reports failed but blocked is not present = by default blocked == True
                     elif module_result['blocking'] is not False:
                         blocked = True  # if a test reports failed but blocked != False
             else:
-                raise AttributeError("Attribute `{0}` does not exists as status in TestrailResult".format(module_result['status']))
+                error_messages.append('Test {0} returned attribute `{1}` which does not exists as status in TestrailResult'.format(test, module_result['status']))
+
             # add test to results & also remove possible EXCLUDE_FLAGS on test name
+            if send_to_testrail:
+                result = Result(test_id=testrail_test.id, status_id=StatusList(testrail_client).get_status_by_name(module_result['status'].lower()).id,
+                                comment=str(module_result['errors']), client=testrail_client)
+                result.save()
             results[test.replace(AutoTests.EXCLUDE_FLAG, '')] = module_result
         logger.info("Finished tests.")
-        if send_to_testrail:
-            logger.info("Start pushing tests to testrail.")
-            plan_url = AutoTests.push_to_testrail(results, only_add_given_cases=only_add_given_results)
-            return results, plan_url
+        if len(error_messages) > 0:
+            raise RuntimeError('Unhandled errors occurred during the Autotests: \n - {0}'.format('\n - '.join(error_messages)))
         return results, None
+
+    @staticmethod
+    def link_testrail_tests(tests, testrail_tests):
+        """
+        Link local tests to Testrail tests
+        :param tests: List of local tests
+        :type tests: list(str)
+        :param testrail_tests: List of Testrail tests objects
+        :type testrail_tests: list(test)
+        :return: dict
+        """
+        linked_tests = {}
+        for test in tests:
+            matching_test = [t for t in testrail_tests if t.title == test.split('.')[-1]]
+            if len(matching_test) == 1:
+                linked_tests[test] = matching_test[0]
+            elif len(matching_test) >= 1:
+                raise Exception('Only one test can be matched for {0}.'.format(test))
+            else:
+                raise Exception('No tests found for {0}.'.format(test))
+
+        return linked_tests
+
+    @staticmethod
+    def get_tests(run_id):
+        """
+        Get tests from a specific run
+        :param run_id: ID of the test run
+        :return: list(Test)
+        """
+        tests = []
+        for test in TestList(run_id, AutoTests.get_testrail_client()).load():
+            tests.append(test)
+        return tests
+
+    @classmethod
+    def build_testrail(cls):
+        """
+        Build Testrail Project, Milestone, Test runs,...
+        :return: current run id
+        """
+        logger = cls.logger
+        client = cls.get_testrail_client()
+        project_name = cls.TESTRAIL_CONFIG['project']
+        milestone_name = cls._get_ovs_dist_version().strip()
+        milestone_description = cls._get_milestone_description()
+        suite_name = milestone_name
+        run_name = "{0}-{1}".format(cls._get_environment_name(), datetime.now().strftime('%Y-%m-%d'))
+        run_description = cls._get_environment_description()
+
+        # Check if project exists if not create one
+        try:
+            project = ProjectList(client).get_project_by_name(project_name)
+        except LookupError:
+            logger.info('Creating project `{0}`'.format(project_name))
+            project = Project(name=project_name, suite_mode=3, client=client)
+            project.save()
+
+        try:
+            milestone = MilestoneList(project.id, client).get_milestone_by_name(milestone_name)
+            milestone.description = milestone_description
+            milestone.save()
+        except LookupError:
+            logger.info('Creating milestone `{0}`'.format(milestone_name))
+            milestone = Milestone(name=milestone_name, description=str(milestone_description), project_id=project.id, client=client)
+            milestone.save()
+
+        try:
+            suite = SuiteList(project.id, client).get_suite_by_name(suite_name)
+        except LookupError:
+            logger.info('Creating suite `{0}`'.format(suite_name))
+            suite = Suite(name=suite_name, project_id=project.id, client=client)
+            suite.save()
+
+        sections_info = cls.get_sections()
+        sections = []
+
+        for section_name, section_path in sections_info:
+            try:
+                section = SectionList(project.id, suite.id, client).get_section_by_name(section_name)
+            except LookupError:
+                logger.info('Creating section `{0}`'.format(section_name))
+                section = Section(name=section_name, project_id=project.id, suite_id=suite.id, client=client)
+                section.save()
+            cases_info = AutoTests.get_cases(section_path)
+
+            for case_name, case_path, case_type_id in cases_info:
+                try:
+                    CaseList(project.id, suite.id, section.id, client).get_case_by_name(case_name)
+                except LookupError:
+                    logger.info('Creating case `{0}`'.format(case_name))
+                    case = Case(title=case_name, project_id=project.id, suite_id=suite.id, section_id=section.id, type_id=case_type_id, milestone_id=milestone.id, client=client)
+                    case.save()
+            sections.append(section)
+
+        try:
+            run = RunList(project.id, client).get_run_by_name(run_name)
+        except LookupError:
+            run = Run(name=run_name, project_id=project.id, description=run_description, suite_id=suite.id, milestone_id=milestone.id, client=client)
+            run.save()
+
+        return run.id
+
+    @classmethod
+    def get_sections(cls):
+        # type: () -> list[tuple(str, str)]
+        """
+        Retrieve all sections within the integration tests
+        :return: List of section names
+        :rtype: list[tuple(str, str)]
+        """
+        base_path = cls.TEST_SCENARIO_LOC
+        sections = []
+        for filename in os.listdir(base_path):
+            full_path = os.path.join(base_path, filename)
+            if os.path.isdir(full_path):
+                sections.append((filename, full_path))
+        return sections
+
+    @classmethod
+    def get_cases(cls, path):
+        # type: (str) -> list[tuple(str, str, int)]
+        """
+        Retrieve all case information
+        :param path: Section path on fileststem to list cases for
+        :return: List of case info
+        :rtype: list[tuple(str, str, str)]
+        """
+        def get_case_type(dir_path):
+            for filename in os.listdir(dir_path):
+                full_path = os.path.join('/', dir_path, filename)
+                if os.path.isfile(full_path) and filename == 'main.py':  # All tests are defined by main.py
+                    full_path_stripped = full_path.replace('.py', '')
+                    mod = imp.load_source(full_path_stripped, full_path)
+                    for member_name, member_value in inspect.getmembers(mod, predicate=inspect.isclass):
+                        if member_value.__module__ == full_path_stripped:  # Check if the module of the class is the same as the current file we are looking at
+                            if hasattr(member_value, 'CASE_TYPE'):
+                                case_type = member_value.CASE_TYPE
+                            else:
+                                case_type = 'MANUAL'  # Default to functional
+                            try:
+                                case_type_id = CaseTypeList(cls.get_testrail_client()).get_casetype_by_name(case_type).id
+                            except LookupError:
+                                case_type_id = 12
+                            return case_type_id
+        cases = []
+        for case_name in os.listdir(path):
+            case_path = os.path.join('/', path, case_name)
+            if not case_path.endswith('exclude') and os.path.isdir(case_path):
+                cases.append((case_name, case_path, get_case_type(case_path)))
+        return cases
+
+    @staticmethod
+    def get_testrail_client():
+        """
+        Get testrail client via the default configuration
+        :return: APIClient
+        """
+        if not AutoTests.TESTRAIL_CONFIG['key']:
+            # no key provided so we will continue with username & password
+            if not AutoTests.TESTRAIL_CONFIG['username'] and AutoTests.TESTRAIL_CONFIG['password']:
+                raise RuntimeError("Invalid username or password specified for testrail")
+            else:
+                return APIClient(base_url=AutoTests.TESTRAIL_CONFIG['url'],
+                                 username=AutoTests.TESTRAIL_CONFIG['username'],
+                                 password=AutoTests.TESTRAIL_CONFIG['password'])
+        else:
+            return APIClient(AutoTests.TESTRAIL_CONFIG['url'], key=AutoTests.TESTRAIL_CONFIG['key'])
 
     @staticmethod
     def list_tests(cases=None, exclude=None, start_dir=TEST_SCENARIO_LOC, categories=None, subcategories=None, depth=1):
@@ -142,112 +371,33 @@ class AutoTests(object):
         return scenarios
 
     @staticmethod
-    def push_to_testrail(results, config_path=TESTTRAIL_LOC, skip_on_no_results=True, only_add_given_cases=False):
+    def _get_ovs_dist_version():
         """
-        Push results to testtrail
-        :param config_path: path to testrail config file
-        :type config_path: str
-        :param results: tests and results of test (e.g {'ci.scenarios.arakoon.collapse': {'status': 'FAILED'}, 'ci.scenarios.arakoon.archive': {'status': 'PASSED'}})
-        :type results: dict
-        :param skip_on_no_results: set the untested tests on SKIPPED
-        :type skip_on_no_results: bool
-        :param only_add_given_cases: ONLY ADD the given cases in results
-        :type only_add_given_cases: bool
-        :return: Testrail URL to test plan
-        :rtype: str
+        Retrieve the ovs version
+        :return: str
         """
-        logger = AutoTests.logger
-        logger.info("Pushing tests to testrail ...")
-        with open(config_path, "r") as JSON_CONFIG:
-                testtrail_config = json.load(JSON_CONFIG)
+        command = "cat /etc/apt/sources.list.d/ovsaptrepo.list | awk '{print $(NF-1)}'"
 
-        # fetch test-name based on environment, environment version & datetime
-        test_title = "{0}_{1}_{2}".format(AutoTests._get_test_name(), AutoTests._get_ovs_version(), datetime.now())
+        child_process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
 
-        # create description based on system settings (hardware & linux distro)
-        description = AutoTests._get_description()
+        (output, _error) = child_process.communicate()
+        return output
 
-        # setup testrail api connection
-        if not testtrail_config['url']:
-            raise RuntimeError("Invalid url for testrail")
-
-        if not testtrail_config['key']:
-            # no key provided so we will continue with username & password
-            if not testtrail_config['username'] and testtrail_config['password']:
-                raise RuntimeError("Invalid username or password specified for testrail")
-            else:
-                tapi = TestrailApi(server=testtrail_config['url'], user=testtrail_config['username'], password=testtrail_config['password'])
+    @staticmethod
+    def _get_environment_name():
+        """
+        Retrieve the run name
+        :return: str
+        """
+        if 'environment_name' in AutoTests.TESTRAIL_CONFIG:
+            return AutoTests.TESTRAIL_CONFIG['environment_name']
         else:
-            tapi = TestrailApi(testtrail_config['url'], key=testtrail_config['key'])
-
-        project_id = tapi.get_project_by_name(testtrail_config['project'])['id']
-        suite_id = tapi.get_suite_by_name(project_id, testtrail_config['suite'])['id']
-
-        # check if test_case & test_section exists in test_suite
-        for test_case, test_result in results.iteritems():
-            test_name = test_case.split('.')[3]
-            test_section = test_case.split('.')[2].capitalize()
-            try:
-                tapi.get_case_by_name(project_id, suite_id, test_name)
-            except Exception:
-                # check if section exists
-                try:
-                    section = tapi.get_section_by_name(project_id, suite_id, test_section)
-                except Exception:
-                    raise SectionNotFoundError("Section `{0}` is not available in testrail, please add or correct your mistake.".format(test_section))
-
-                if hasattr(TestrailCaseType, test_result['case_type']):
-                    case_type_id = tapi.get_case_type_by_name(getattr(TestrailCaseType, test_result['case_type']))['id']
-                else:
-                    raise AttributeError("Attribute `{0}` does not exists as case_type "
-                                         "in TestrailCaseType".format(test_result['case_type']))
-                # add case to existing section
-                tapi.add_case(section_id=section['id'], title=test_name, type_id=case_type_id)
-
-        # add plan
-        plan = tapi.add_plan(project_id, test_title, description)
-        # link suite to plan
-
-        if not only_add_given_cases:
-            # add all tests to the test_suite, regardless of execution
-            entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'])
-        else:
-            # collect case_ids of executed tests
-            executed_case_ids = []
-            for test_case in results.iterkeys():
-                section_id = tapi.get_section_by_name(project_id, suite_id, test_case.split('.')[2].capitalize().strip())['id']
-                executed_case_ids.append(tapi.get_case_by_name(project_id=project_id, suite_id=suite_id,
-                                                               name=test_case.split('.')[3], section_id=section_id)['id'])
-            # only add tests to test_suite that have been executed
-            entry = tapi.add_plan_entry(plan['id'], suite_id, testtrail_config['suite'], case_ids=executed_case_ids,
-                                        include_all=False)
-
-        # add results to test cases
-        run_id = entry['runs'][0]['id']
-        for test_case, test_result in results.iteritems():
-            # check if test exists
-            test_name = test_case.split('.')[3]
-            test_id = tapi.get_test_by_name(run_id, test_name)['id']
-
-            if hasattr(TestrailResult, test_result['status']):
-                test_status_id = getattr(TestrailResult, test_result['status'])
-            else:
-                raise AttributeError("Attribute `{0}` does not exists as test_status in TestrailResult"
-                                     .format(test_result['status']))
-            # add results to test cases, if the've got something in the field `errors`
-            if test_result['errors'] is not None:
-                tapi.add_result(test_id, test_status_id, comment=str(test_result['errors']))
-            else:
-                tapi.add_result(test_id, test_status_id)
-
-        # end of adding results to testplan, setting other cases in SKIPPED
-        if skip_on_no_results:
-            for test in tapi.get_tests(run_id):
-                if test['status_id'] == TestrailResult.UNTESTED:
-                    tapi.add_result(test['id'], int(TestrailResult.SKIPPED))
-
-        logger.info("Finished pushing tests to testrail ...")
-        return plan['url']
+            command = 'hostname'
+            child_process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                             stderr=subprocess.PIPE)
+            (output, _error) = child_process.communicate()
+            return output.strip()
 
     @staticmethod
     def _get_package_info():
@@ -267,68 +417,51 @@ class AutoTests(object):
         return output
 
     @staticmethod
-    def _get_test_name():
+    def _get_milestone_description():
         """
-        Retrieve a structured environment test name
-    
-        :returns: a structured environment based test name
-        :rtype: str
+        Retrieve extensive information about the milestone
+        :return: str
         """
-        number_of_nodes = len(StoragerouterHelper.get_storagerouter_ips())
-        split_ip = StoragerouterHelper.get_local_storagerouter().ip.split('.')
-        return str(number_of_nodes) + 'N-' + split_ip[2] + '.' + split_ip[3]
+        description_lines = ["# PACKAGE INFO", "{0}".format(AutoTests._get_package_info())]
+        # package info
+        return '\n'.join(description_lines)
 
     @staticmethod
-    def _get_ovs_version():
+    def _get_environment_description():
         """
-        Retrieve version of ovs installation
-    
-        :returns: openvstorage package version
-        :rtype: str
+        Retrieve extensive information about the environment
+        :return: str
         """
-        packages = AutoTests._get_package_info()
-        main_pkg = [pck for pck in packages.splitlines() if "openvstorage " in pck]
-        if not main_pkg:
-            return ""
-
-        return re.split("\s*", main_pkg[0])[1]
-
-    @staticmethod
-    def _get_description():
-        """
-        Retrieve extensive information about the machine
-    
-        :returns: a extensive description of the local machine
-        :rtype: str
-        """
-        description_lines = []
-        # fetch ip information
-        description_lines.append('# IP INFO')
+        description_lines = ['# IP INFO']
         for ip in StoragerouterHelper.get_storagerouter_ips():
             description_lines.append('* {0}'.format(ip))
         description_lines.append('')  # New line gap
-        # hypervisor information
-        with open(CONFIG_LOC, "r") as JSON_CONFIG:
-                ci_config = json.load(JSON_CONFIG)
+
         description_lines.append('# HYPERVISOR INFO')
-        description_lines.append('{0}'.format(ci_config['ci']['local_hypervisor']['type']))
+        description_lines.append('{0}'.format(AutoTests.CONFIG['ci']['local_hypervisor']['type']))
         description_lines.append('')  # New line gap
         # fetch hardware information
         description_lines.append("# HARDWARE INFO")
         # board information
         description_lines.append("### Base Board Information")
-        description_lines.append("{0}".format(subprocess.check_output("dmidecode -t 2", shell=True).replace("#", "").strip()))
+        description_lines.append(
+            "{0}".format(subprocess.check_output("dmidecode -t 2", shell=True).replace("#", "").strip()))
         description_lines.append('')  # New line gap
         # fetch cpu information
         description_lines.append("### Processor Information")
-        output = subprocess.Popen("grep 'model name'", stdin=subprocess.Popen("cat /proc/cpuinfo", stdout=subprocess.PIPE, shell=True).stdout, stdout=subprocess.PIPE, shell=True)
+        output = subprocess.Popen("grep 'model name'",
+                                  stdin=subprocess.Popen("cat /proc/cpuinfo", stdout=subprocess.PIPE,
+                                                         shell=True).stdout, stdout=subprocess.PIPE, shell=True)
         cpus = subprocess.check_output("cut -d ':' -f 2", stdin=output.stdout, shell=True).strip().split('\n')
         description_lines.append("* Type: {0}".format(cpus[0]))
         description_lines.append("* Amount: {0}".format(len(cpus)))
         description_lines.append('')  # New line gap
         # fetch memory information
         description_lines.append("### Memory Information")
-        output = math.ceil(float(subprocess.check_output("grep MemTotal", stdin=subprocess.Popen("cat /proc/meminfo", stdout=subprocess.PIPE, shell=True).stdout, shell=True).strip().split()[1]) / 1024 / 1024)
+        output = math.ceil(float(subprocess.check_output("grep MemTotal", stdin=subprocess.Popen("cat /proc/meminfo",
+                                                                                                 stdout=subprocess.PIPE,
+                                                                                                 shell=True).stdout,
+                                                         shell=True).strip().split()[1]) / 1024 / 1024)
         description_lines.append("* {0}GiB System Memory".format(int(output)))
         description_lines.append('')  # New line gap
         # fetch disk information
@@ -337,9 +470,6 @@ class AutoTests(object):
         description_lines.append(output.strip())
         description_lines.append('')  # New line gap
         # package info
-        description_lines.append("# PACKAGE INFO")
-        description_lines.append("{0}".format(AutoTests._get_package_info()))
-
         return '\n'.join(description_lines)
 
 
@@ -411,6 +541,29 @@ class LogCollector(object):
         return LogFileTimeParser.execute_search_on_remote(since=since, until=until, search_locations=units)
 
 
+def get_package_version(package_names):
+    """
+    Retrieve the package version
+    :param package_names: list of packages
+    :type package_names: list(str)
+    :return: list(str)
+    """
+    package_versions = []
+
+    packages = [pck.split('\t')[0] for pck in AutoTests._get_package_info().splitlines()]
+
+    if 'framework' in package_names:
+        package_versions.extend([pck for pck in packages if 'openvstorage' in pck])
+    if 'alba' in package_names:
+        package_versions.extend([pck for pck in packages if 'alba' in pck])
+    if 'arakoon' in package_names:
+        package_versions.extend([pck for pck in packages if 'arakoon' in pck])
+    if 'volumedriver' in package_names:
+        package_versions.extend([pck for pck in packages if 'volumedriver' in pck])
+
+    return package_versions
+
+
 def gather_results(case_type, logger, test_name, log_components=None):
     """
     Result gathering to be used as decorator for the autotests
@@ -427,13 +580,13 @@ def gather_results(case_type, logger, test_name, log_components=None):
             return {'status': 'BLOCKED', 'case_type': HATester.CASE_TYPE, 'errors': None}
     from the main method
     Now it becomes
-        @gather_results(CASE_TYPE, logger, TEST_NAME)
+        @gather_results(CASE_TYPE, LOGGER, TEST_NAME)
         def main(blocked):
     :param case_type: case type specified in the main already
     :type case_type: str
-    :param logger: logger instance specified already
+    :param logger: LOGGER instance specified already
     :type logger: ovs.log.log_handler.LogHandler
-    :param test_name: name of the test(most likely name of the logger)
+    :param test_name: name of the test(most likely name of the LOGGER)
     :type test_name: str
     :param log_components: components to fetch logging from when the test would fail
     :type log_components: list
@@ -460,8 +613,15 @@ def gather_results(case_type, logger, test_name, log_components=None):
                 return {'status': 'PASSED', 'case_type': case_type, 'errors': result}
             except Exception as ex:
                 end = datetime.datetime.now()
-                result = [str(ex), '', 'Logs collected between {0} and {1}'.format(start, end), '', LogCollector.get_logs(components=log_components, since=start, until=end)]
-                logger.exception('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
-                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result), 'blocking': False}
+                stack_trace = traceback.format_exc()
+                result_message = ['Exception occurred during {0}'.format(test_name), 'Stack trace:\n{0}\n'.format(stack_trace)]
+                try:
+                    result_message.extend(['Logs collected between {0} and {1}\n'.format(start, end),
+                                           LogCollector.get_logs(components=log_components, since=start, until=end)])
+                except Exception:
+                    result_message.extend(['Logs could not be collected between {0} and {1}\n'.format(start, end),
+                                           'Stack trace:\n {0}'.format(traceback.format_exc())])
+                logger.error('Test {0} has failed with error: {1}.'.format(test_name, str(ex)))
+                return {'status': 'FAILED', 'case_type': case_type, 'errors': '\n'.join(result_message), 'blocking': False}
         return wrapped
     return wrapper

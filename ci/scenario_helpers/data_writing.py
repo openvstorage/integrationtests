@@ -16,7 +16,7 @@
 import math
 import uuid
 from ovs.extensions.generic.logger import Logger
-from ovs.lib.helpers.toolbox import Toolbox
+from ovs_extensions.generic.toolbox import ExtensionsToolbox
 
 
 class DataWriter(object):
@@ -33,7 +33,7 @@ class DataWriter(object):
         """
         Start writing data using fio
         Will output to files within /tmp/
-        :param client: 
+        :param client:
         :param fio_configuration: configuration for fio. Specify iodepth and bs
         :type fio_configuration: dict {'bs': '4k', 'iodepth': 32}
         :param edge_configuration: configuration to fio over edge -OPTIONAL eg {'port': 26203, 'hostname': 10.100.10.100, 'protocol': tcp|udp, 'fio_bin_location': /tmp/fio.bin, 'volumename': ['myvdisk00']}
@@ -47,7 +47,7 @@ class DataWriter(object):
         :param loop_screen: Keep looping the command in the screen. Defaults to True
         :type loop_screen: bool
         :param logger: logging instance
-        :return: 
+        :return:
         """
         if edge_configuration is None and file_locations is None:
             raise ValueError('Either edge configuration or file_locations need to be specified')
@@ -56,7 +56,7 @@ class DataWriter(object):
                                'output_format': (str, ['normal', 'terse', 'json'], False),  # Output format of fio
                                'io_size': (int, None),  # Nr of bytes to write/read
                                'configuration': (tuple, None)}  # configuration params for fio.First value represents read, second one write percentage eg (10, 90)
-        Toolbox.verify_required_params(required_fio_params, fio_configuration)
+        ExtensionsToolbox.verify_required_params(required_fio_params, fio_configuration)
         if isinstance(edge_configuration, dict):
             required_edge_params = {'volumenames': (list, str),
                                     'port': (int, {'min': 1, 'max': 65535}),
@@ -65,7 +65,7 @@ class DataWriter(object):
                                     'fio_bin_location': (str, None),
                                     'username': (str, None, False),
                                     'password': (str, None, False)}
-            Toolbox.verify_required_params(required_edge_params, edge_configuration)
+            ExtensionsToolbox.verify_required_params(required_edge_params, edge_configuration)
         bs = fio_configuration.get('bs', '4k')
         iodepth = fio_configuration.get('iodepth', 32)
         fio_output_format = fio_configuration.get('output_format', 'json')
@@ -130,7 +130,7 @@ class DataWriter(object):
         :param client: sshclient instance
         :param binary_location: path to the binary file
         :param config_location: path to the config location
-        :param screen: offload command to a screen 
+        :param screen: offload command to a screen
         :param loop_screen: loop the screen command indefinitely
         :param logger: logging instance
         :return: list of screen names (empty if screen is False), list of output files (empty for vdbench)
@@ -161,7 +161,7 @@ class DataWriter(object):
         :param lun_location: what file to use to write/read to
         :param thread_amount: amount of worker threads
         :param write_amount: amount of data to process in bytes
-        :param xfersize: data transfer size 
+        :param xfersize: data transfer size
         :param read_percentage: percentage to read
         :param random_seek_percentage: how often a seek to a random lba will be generated
         :param io_rate: rate of the io

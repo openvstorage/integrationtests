@@ -68,5 +68,6 @@ def run(blocked=False):
     """
     return RoleChecks().main(blocked)
 
+
 if __name__ == "__main__":
     run()

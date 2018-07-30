@@ -92,5 +92,6 @@ def run(blocked=False):
     """
     return SshChecks().main(blocked)
 
+
 if __name__ == "__main__":
     run()
