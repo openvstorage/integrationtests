@@ -21,15 +21,14 @@ from ci.api_lib.helpers.storagedriver import StoragedriverHelper
 from ci.api_lib.helpers.storagerouter import StoragerouterHelper
 from ci.api_lib.helpers.system import SystemHelper
 from ci.api_lib.helpers.vpool import VPoolHelper
-
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 
 
 class SetupHelper(CIConstants):
     """
     Setup helper that aids in building test environments required in vm-dependent integration tests
     """
-    LOGGER = LogHandler.get(source='scenario_helpers', name='setup_helper')
+    LOGGER = Logger('scenario_helpers-setup_helper')
 
     @classmethod
     def setup_cloud_info(cls, client, src_std):

@@ -16,7 +16,7 @@
 from ci.api_lib.remove.backend import BackendRemover
 from ci.api_lib.setup.backend import BackendSetup
 from ci.autotests import gather_results
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 from ci.scenario_helpers.ci_constants import CIConstants
 
 

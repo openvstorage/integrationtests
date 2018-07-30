@@ -24,10 +24,9 @@ from ci.api_lib.helpers.hypervisor.hypervisor import HypervisorCredentials, Hype
 from ci.api_lib.helpers.vdisk import VDiskHelper
 from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
-from ovs.extensions.generic.logger import Logger
-from ovs_extensions.generic.remote import remote
 from ci.scenario_helpers.ci_constants import CIConstants
 from ci.scenario_helpers.threaded_server import ThreadedServer
+from ovs.extensions.generic.logger import Logger
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs_extensions.generic.toolbox import ExtensionsToolbox
 from ovs.lib.helpers.toolbox import Toolbox

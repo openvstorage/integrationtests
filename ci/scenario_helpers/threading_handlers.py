@@ -16,7 +16,6 @@
 import re
 import math
 import time
-import threading
 from datetime import datetime
 from ci.api_lib.helpers.thread import ThreadHelper, Waiter
 from ci.api_lib.setup.vdisk import VDiskSetup

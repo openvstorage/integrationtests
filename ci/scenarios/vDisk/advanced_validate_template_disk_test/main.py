@@ -22,14 +22,14 @@ from ci.api_lib.remove.vdisk import VDiskRemover
 from ci.api_lib.setup.vdisk import VDiskSetup
 from ci.autotests import gather_results
 from ci.scenario_helpers.ci_constants import CIConstants
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 
 
 class VDiskTemplateChecks(CIConstants):
 
     CASE_TYPE = 'FUNCTIONALITY'
     TEST_NAME = "ci_scenario_advanced_vdisk_template"
-    LOGGER = LogHandler.get(source="scenario", name=TEST_NAME)
+    LOGGER = Logger("scenario_{0}".format(TEST_NAME))
     PREFIX = "integration-tests-advanced-template"
     VDISK_SIZE = 10 * 1024 ** 3  # 10GB
     TEMPLATE_CREATE_TIMEOUT = 180

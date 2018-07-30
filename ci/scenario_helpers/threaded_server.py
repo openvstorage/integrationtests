@@ -18,7 +18,7 @@ import time
 import Queue
 import socket
 import threading
-from ovs.log.log_handler import LogHandler
+from ovs.extensions.generic.logger import Logger
 from ovs_extensions.generic.remote import remote
 
 
@@ -26,7 +26,7 @@ class ThreadedServer(object):
     """
     Server class that can listen to a host:port combination for messages, and react correspondingly
     """
-    LOGGER = LogHandler.get(source='scenario_helpers', name='threaded_server')
+    LOGGER = Logger('scenario_helpers-threaded_server')
 
     def __init__(self, host, port, message_queue=None, remote_ip=None):
         self.host = host
