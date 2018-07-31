@@ -28,7 +28,7 @@ class DataWriter(object):
 
     @classmethod
     def write_data_fio(cls, client, fio_configuration, edge_configuration=None, file_locations=None, fio_vdisk_limit=FIO_VDISK_LIMIT,
-                       screen=True, loop_screen=True, logger=LOGGER):
+                       screen=True, loop_screen=True, nbd_device=False, logger=LOGGER):
         """
         Start writing data using fio
         Will output to files within /tmp/
@@ -45,6 +45,8 @@ class DataWriter(object):
         :type screen: bool
         :param loop_screen: Keep looping the command in the screen. Defaults to True
         :type loop_screen: bool
+        :param nbd_device: whether or not the target is an nbd_device
+        :type nbd_device: bool
         :param logger: logging instance
         :return: 
         """
@@ -75,9 +77,11 @@ class DataWriter(object):
         cmds = []
         output_directory = '/tmp/data_write_{0}'.format(uuid.uuid4())
         client.dir_create(output_directory)
-        cmd = ['--iodepth={0}'.format(iodepth), '--rw=randrw', '--bs={0}'.format(bs), '--direct=1',
+        cmd = ['--iodepth={0}'.format(iodepth), '--rw=randrw', '--bs={0}'.format(bs),
                '--rwmixread={0}'.format(configuration[0]), '--rwmixwrite={0}'.format(configuration[1]),
                '--randrepeat=0', '--size={0}'.format(write_size)]  # Base config for both edge fio and file fio
+        if not nbd_device:
+            cmd.append('direct=1')
         if edge_configuration:
             volumes = edge_configuration['volumenames']
             fio_amount = int(math.ceil(float(len(volumes)) / fio_vdisk_limit))  # Amount of fio commands to prep
