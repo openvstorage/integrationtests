@@ -586,7 +586,7 @@ class BasicIscsi(CIConstants):
         iqns = []
         for key, value in d.iteritems():
             # can be string for primary node, list for secondary nodes
-            if isinstance(value, unicode):
+            if isinstance(value, basestring):
                 iqns.append(str(value))
             elif isinstance(value, list):
                 for iqn in value:
