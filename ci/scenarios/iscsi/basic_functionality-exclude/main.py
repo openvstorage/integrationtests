@@ -102,14 +102,15 @@ class BasicIscsi(CIConstants):
         vpool = source_storagedriver.vpool
         amount_of_targets = 3
         iscsi_node = random.choice(cluster_info['iscsi_nodes'])
-        tests = [cls.test_data_acceptance
-                 ]
+        tests = [cls.test_expose_unexpose_remove,  cls.test_expose_remove, cls.test_expose_twice, cls.test_data_acceptance,
+                 cls.test_exposed_move, cls.test_expose_two_nodes, cls.test_expose_ha, cls.test_expose_concurrently]
         run_errors = []
         for _function in tests:
-            vdisk_info = cls.deployment(amount_of_targets, vpool, source_storagedriver.storage_ip)
+            vdisk_basename = cls.TEST_NAME + '_' + _function.__name__
+            vdisk_info = cls.deployment(amount_of_targets, vpool, source_storagedriver.storage_ip, base_name=vdisk_basename)
             cls.LOGGER.info("Environment set up for test: {0}".format(_function.__name__))
             try:
-                _function(vdisk_info, iscsi_node)
+                removed = _function(vdisk_info, iscsi_node)
                 cls.LOGGER.info("Succesfully passed test: {0}".format(_function.__name__))
             except Exception as ex:
                 cls.LOGGER.exception(str(ex))
@@ -117,6 +118,10 @@ class BasicIscsi(CIConstants):
             finally:
                 cleanup_errors = []
                 try:
+                    if removed:  # Some tests already remove the vdisks, resulting in errors cause they cannot be removed
+                        for name in removed:
+                            if name in vdisk_info:
+                                vdisk_info.pop(name)
                     cls.tear_down(vdisk_info)
                 except Exception as ex:
                     cleanup_errors.append(ex)
@@ -165,6 +170,7 @@ class BasicIscsi(CIConstants):
         :param iscsi_node: { ovs.dal.hybrids.iscsinode
         :return:
         """
+        removed = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter')
         cls._validate_iscsi(iscsi_node)
@@ -172,6 +178,8 @@ class BasicIscsi(CIConstants):
             ISCSIHelper.unexpose_vdisk(vdisk_object.guid)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             VDiskRemover.remove_vdisk(vdisk_object.guid)
+            removed.append(vdisk_name)
+        return removed
 
     @classmethod
     def test_expose_remove(cls, vdisk_info, iscsi_node):
@@ -181,11 +189,14 @@ class BasicIscsi(CIConstants):
         :param iscsi_node: { ovs.dal.hybrids.iscsinode
         :return:
         """
+        removed = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             ISCSIHelper.expose_vdisk(iscsi_node.guid, vdisk_object.guid, username='root', password='rooter')
         cls._validate_iscsi(iscsi_node)
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             VDiskRemover.remove_vdisk(vdisk_object.guid)
+            removed.append(vdisk_name)
+        return removed
 
     @classmethod
     def test_expose_concurrently(cls, vdisk_info, iscsi_node):
@@ -205,7 +216,7 @@ class BasicIscsi(CIConstants):
             try:
                 ISCSIHelper.expose_vdisk(iscsi_node_guid=iscsi_node.guid, vdisk_guid=vdisk_guid, username='root', password='rooter')
             except Exception as ex:
-                errorlist.append(ex)
+                errorlist.append(str(ex))
 
         threads = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
@@ -386,6 +397,14 @@ class BasicIscsi(CIConstants):
         :param iscsi_node: { ovs.dal.hybrids.iscsinode
         :return:
         """
+        vdisk_info_copy = {}
+        for vdisk_name, vdisk_object in vdisk_info.iteritems():
+            if len(vdisk_object.vpool.storagedrivers) >= 2:
+                vdisk_info_copy[vdisk_name] = vdisk_object
+
+        if len(vdisk_info_copy.keys()) == 0:
+            raise ValueError('Not enough vDisks with at least 2 storagedrivers to test this scenario')
+
         iqns = []
         for vdisk_name, vdisk_object in vdisk_info.iteritems():
             cls.LOGGER.info('Exposing {0} on {1}.'.format(vdisk_name, iscsi_node.api_ip))
