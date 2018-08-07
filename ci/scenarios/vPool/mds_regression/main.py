@@ -30,6 +30,7 @@ from multiprocessing.pool import ThreadPool
 from ovs.dal.lists.storagerouterlist import StorageRouterList
 from ovs.extensions.generic.configuration import Configuration
 from ovs.extensions.generic.logger import Logger
+from ovs_extensions.generic.remote import remote
 from ovs.extensions.services.servicefactory import ServiceFactory
 from ovs.extensions.generic.sshclient import SSHClient
 from ovs.lib.mdsservice import MDSServiceController
