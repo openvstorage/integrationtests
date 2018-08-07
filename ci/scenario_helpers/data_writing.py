@@ -81,7 +81,7 @@ class DataWriter(object):
                '--rwmixread={0}'.format(configuration[0]), '--rwmixwrite={0}'.format(configuration[1]),
                '--randrepeat=0', '--size={0}'.format(write_size)]  # Base config for both edge fio and file fio
         if not nbd_device:
-            cmd.append('direct=1')
+            cmd.append('--direct=1')
         if edge_configuration:
             volumes = edge_configuration['volumenames']
             fio_amount = int(math.ceil(float(len(volumes)) / fio_vdisk_limit))  # Amount of fio commands to prep
